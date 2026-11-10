@@ -9,12 +9,13 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import ability_traits as AT
 from engine import field
 
 ROOT = Path(__file__).resolve().parent.parent
-P = yaml.safe_load((ROOT / "data" / "rules" / "ability_slots.yaml").read_text(encoding="utf-8"))
+P = yamlio.safe_load((ROOT / "data" / "rules" / "ability_slots.yaml").read_text(encoding="utf-8"))
 COMBAT_EFFECTS = ("damage", "control", "defense", "mobility")
 STRICT_MULTI = ("volley", "barrage", "flurry", "salvo", "hail of", "rain of", "series of", "sequence", "several", "multiple", "twin",
                 "pair of", "dual", "double", "triple", "fusillade", "succession", "missiles", "rapid-fire", "rapid fire",

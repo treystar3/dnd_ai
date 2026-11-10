@@ -48,6 +48,9 @@ def interpret_request(abilities: list[str], enemies: list[str], text: str, usabl
     )
 
 
+# (f571) how the ground's plain words are to be used: said once in each fight system prompt (cached), not in every request
+GROUND_HEAD = "What THE GROUND says each place is like is fact: show it only when it matters, in your own words, never in these words."
+
 NARRATE_SYSTEM = DM_VOICE + """
 You are narrating one exchange of a fight, like a DM describing what the dice just decided.
 
@@ -85,6 +88,7 @@ Rules:
   exactly once, in the same form, [h2], as the last thing in the sentence that tells that blow, just before its full stop: never in
   the middle of a sentence, and never two markers in one sentence. Never explain it and write no numbers yourself.
 - No numbers, no game words (damage, health, round, critical, status, ability, legendary, phase). No lists or markdown.
+- """ + GROUND_HEAD + """
 """ + __import__("engine.voice_rules", fromlist=["exemplar_block"]).exemplar_block("fight") + """
 Respond only with JSON matching the schema, with the prose in "text"."""
 
@@ -131,6 +135,7 @@ player was doing, then reveal what they've run into. Describe only the creatures
 far off they are - far means they are still at a distance, not lunging. Make THE ODDS felt through the scene.
 If the event says "BOSS ENTRANCE" the creature is the climax of a story: let it make an entrance and,
 if it says what the boss says, quote that speech as spoken aloud. Add no new threats or facts.
+""" + GROUND_HEAD + """
 No numbers, no outcome. Respond only with JSON matching the schema, with the prose in "text"."""
 
 THRESHOLD_EVENT = """The player has died again and stands once more at the Threshold. This is death number {deaths}.

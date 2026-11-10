@@ -44,6 +44,8 @@ import config
 from llm import backend, llama, runtime, sampling
 from llm.errors import Cancelled, Failure, NoServer
 from storage import statehash
+sys.path.insert(0, str(ROOT / "tools" / "sim"))
+import fake_runtime
 
 bad: list[str] = []
 
@@ -64,11 +66,7 @@ def req():
 
 
 def dead(pid: int) -> bool:
-    try:
-        st = Path(f"/proc/{pid}/status").read_text()
-    except OSError:
-        return True
-    return "\nState:\tZ" in st or "\nState:\tX" in st
+    return not fake_runtime.alive(pid)                 # (f561) any OS
 
 
 def wait_for(cond, seconds=8.0):
@@ -84,7 +82,7 @@ LAUNCHER = """#!{py}
 import os, sys, time, json
 sys.path.insert(0, {sim!r})
 args = sys.argv[1:]
-with open(os.environ.get("FAKE_ARGV", "/dev/null"), "a") as f:
+with open(os.environ.get("FAKE_ARGV", os.devnull), "a") as f:
     f.write(json.dumps(args) + "\\n")
 if "--list-devices" in args:
     print("Available devices:")
@@ -96,7 +94,7 @@ granted = int(os.environ.get("FAKE_GRANTED", "0") or 0) or ctx
 from fake_llama import FakeLlama
 try:                                              # bound first, answering 503 while it loads, as llama-server does
     fake = FakeLlama(key=key, slot_ctx=granted, port=port, loading=10 ** 9,
-                     script=lambda p, b, n: {{"content": '{{"x": "' + str(os.getpid()) + '"}}'}})
+                     script=lambda p, b, n: {{"content": '{{"x": "' + str(os.getppid() if os.name == "nt" else os.getpid()) + '"}}'}})
 except OSError:
     print("main: couldn't bind HTTP server socket, hostname: 127.0.0.1, port: " + str(port), flush=True)
     sys.exit(1)
@@ -118,8 +116,7 @@ build = rt_dir / "cuda"
 build.mkdir(parents=True)
 models_dir.mkdir()
 exe = build / runtime.exe_name()
-exe.write_text(LAUNCHER.format(py=sys.executable, sim=str(ROOT / "tools" / "sim")))
-exe.chmod(0o755)
+fake_runtime.write_exe(exe, LAUNCHER.format(py=sys.executable, sim=str(ROOT / "tools" / "sim")))
 CFG = runtime.settings()
 for m in CFG["models"].values():
     (models_dir / m["file"]).write_bytes(b"gguf")
@@ -206,7 +203,15 @@ try:
           [a for a in args if "cache" in a or a in ("-ctk", "-ctv")])
     check("the draft model", val("--spec-type") == "draft-mtp" and val("--spec-draft-model") == str(models_dir / CFG["models"]["draft"]["file"])
           and val("--model") == str(models_dir / CFG["models"]["chat"]["file"]))
-    check("its own process group and session", os.getpgid(child.proc.pid) != os.getpgid(0) and os.getsid(child.proc.pid) == child.proc.pid)
+    if os.name == "nt":                                # (f561) Windows: the game's Job Object, which ends it with the game
+        import ctypes
+        k32, inside = ctypes.windll.kernel32, ctypes.c_int(0)
+        k32.OpenProcess.restype = ctypes.c_void_p
+        h = ctypes.c_void_p(k32.OpenProcess(0x1000, False, child.proc.pid))
+        k32.IsProcessInJob(h, ctypes.c_void_p(runtime.spawner()._job.handle), ctypes.byref(inside)); k32.CloseHandle(h)
+        check("in the game's job, which ends it with the game", bool(inside.value))
+    else:
+        check("its own process group and session", os.getpgid(child.proc.pid) != os.getpgid(0) and os.getsid(child.proc.pid) == child.proc.pid)
     check("its output in logs/llama-server.log", "model loaded" in (logs_dir / "llama-server.log").read_text())
     check("the devices are read", any("RTX 3060" in d for d in rt.facts()["devices"]), rt.facts().get("devices"))
     check("the layers on the card are read", rt.facts().get("offloaded") == "49/49", rt.facts().get("offloaded"))
@@ -240,7 +245,7 @@ try:
 
     # ---- a death, a restart, then failed
     first_pid = child.proc.pid
-    os.kill(first_pid, signal.SIGKILL)
+    fake_runtime.kill(first_pid)
     wait_for(lambda: not child.alive())
     got = None
     try:
@@ -259,7 +264,7 @@ try:
     check("a death is one entry in crash.log's own form", len(death) == 1 and _re.match(r"\d{4}-\d\d-\d\dT", death[0].strip()) is not None,
           entries[-2:])
     second_child = rt.chat
-    os.kill(second_child.proc.pid, signal.SIGKILL)
+    fake_runtime.kill(second_child.proc.pid)
     wait_for(lambda: not second_child.alive())
     try:
         m.chat(req())
@@ -385,7 +390,7 @@ try:
     rt.close()
 
     # ---- (f522's review) a program that cannot start, and the game's own start and stop
-    exe.chmod(0o644)
+    fake_runtime.disable(exe)
     rt = new_rt()
     got = None
     try:
@@ -409,7 +414,7 @@ try:
         lock_free.release()
         check("the game's start says the plain line and lets the lock go", started_ok is False and freed and said
               and said[-1].startswith("The game could not start its model"), said)
-        exe.chmod(0o755)
+        fake_runtime.write_exe(exe, LAUNCHER.format(py=sys.executable, sim=str(ROOT / "tools" / "sim")))
         said.clear()
         started_ok = runtime.start_for_game(say=said.append)
         rt = runtime._GAME.get("rt")
@@ -426,7 +431,7 @@ try:
               and backend.facts()["source"] != "llama-server")
         relock.release()
     finally:
-        exe.chmod(0o755)
+        fake_runtime.write_exe(exe, LAUNCHER.format(py=sys.executable, sim=str(ROOT / "tools" / "sim")))
         runtime.stop_for_game()
         for k, v in saved.items():
             setattr(_paths, k, v)
@@ -517,21 +522,26 @@ time.sleep(120)
     line = parent.stdout.readline().strip()
     cpid = int(line) if line.isdigit() else 0
     check("the parent started a child", cpid > 0 and not dead(cpid), line)
-    parent.send_signal(signal.SIGKILL)
+    parent.kill()
     parent.wait(timeout=10)
     check("killing the game kills the child", cpid > 0 and wait_for(lambda: dead(cpid), 8))
 
     # ---- the stale-child cleanup
-    other = subprocess.Popen(["sleep", "60"])
+    other = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
     started.append(other)
-    ours = build / "leftover-python"                    # a program that lives under our runtime folder, as a real llama-server does
-    shutil.copy2(os.path.realpath(sys.executable), ours)
-    leftover = subprocess.Popen([str(ours), str(exe), "--port", "0", "--api-key", "x", "-c", "32768", "-np", "2", "--model", "m"],
+    ours = build / ("leftover.exe" if os.name == "nt" else "leftover-python")   # a program under our runtime folder, as llama-server is
+    if os.name == "nt":                                 # (f561) a copied python.exe cannot find its DLL: a launcher of the same fake
+        fake_runtime.write_exe(ours, LAUNCHER.format(py=sys.executable, sim=str(ROOT / "tools" / "sim")))
+        leftover_argv = [str(ours)]
+    else:
+        shutil.copy2(os.path.realpath(sys.executable), ours)
+        leftover_argv = [str(ours), str(exe)]
+    leftover = subprocess.Popen(leftover_argv + ["--port", "0", "--api-key", "x", "-c", "32768", "-np", "2", "--model", "m"],
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     started.append(leftover)
     time.sleep(0.3)
     run_dir.mkdir(exist_ok=True)
-    (run_dir / "server.pid").write_text(json.dumps([{"pid": other.pid, "exe": shutil.which("sleep")},
+    (run_dir / "server.pid").write_text(json.dumps([{"pid": other.pid, "exe": sys.executable},
                                                     {"pid": leftover.pid, "exe": runtime.exe_of(leftover.pid) or ""}]))
     stopped = runtime.stop_stale(run_dir, rt_dir)
     check("our own leftover is stopped", leftover.pid in stopped and wait_for(lambda: leftover.poll() is not None), stopped)

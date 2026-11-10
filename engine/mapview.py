@@ -9,6 +9,7 @@ import math
 import random
 
 import yaml
+from core import yamlio
 
 from core.paths import BUNDLE
 
@@ -22,7 +23,7 @@ def _map_files() -> tuple[dict, dict]:
     if not _MAP:
         world_dir = BUNDLE / "data" / "world"
         try:
-            _MAP["pos"] = (yaml.safe_load((world_dir / "map.yaml").read_text(encoding="utf-8")) or {}).get("places", {}) or {}
+            _MAP["pos"] = (yamlio.safe_load((world_dir / "map.yaml").read_text(encoding="utf-8")) or {}).get("places", {}) or {}
         except OSError:
             _MAP["pos"] = {}
         try:
@@ -60,6 +61,21 @@ def layout(world) -> dict[str, tuple[float, float]]:
         return c["pos"]
     g = graph(world)
     ids = sorted(g)
+    key = _layout_key(world, g, ids)                           # (f558) a pure function of the map: laid out once a process
+    if key in _LAYOUT_MEMO:
+        _LAYOUT_MEMO[key] = _LAYOUT_MEMO.pop(key)               # (f558) most recently used last, so the cap drops the oldest
+        c["pos"] = dict(_LAYOUT_MEMO[key])                    # each world its own dict (f452): never another world's to change
+        return c["pos"]
+    drawn_now = _map_files()[0]
+    if all(i in drawn_now or None not in (getattr(world.places[i], "x", None), getattr(world.places[i], "y", None)) for i in ids):
+        out = {}                                               # (f558) every place drawn or placed: the spring layout would be thrown away
+        for i in ids:
+            p = world.places[i]
+            own = getattr(p, "x", None), getattr(p, "y", None)
+            out[i] = (own[0], own[1]) if None not in own else (float(drawn_now[i][0]), float(drawn_now[i][1]))
+        _remember(key, out)
+        c["pos"] = out
+        return out
     rng = random.Random(7)
     regions = sorted({world.places[i].region for i in ids})
     pos = {}
@@ -107,7 +123,26 @@ def layout(world) -> dict[str, tuple[float, float]]:
         else:
             out[i] = (round((pos[i][0] - lo_x) / span * SIZE, 1), round((pos[i][1] - lo_y) / span * SIZE, 1))
     c["pos"] = out
+    _remember(key, out)
     return out
+
+
+_LAYOUT_MEMO: dict = {}      # (f558) keyed by what layout() reads, never by a world (f452): two saves on one map share it
+LAYOUT_MEMO_MAX = 8         # (f558) a grown map is a new key: keep the few most recent, not every map a process has seen
+
+
+def _remember(key: tuple, out: dict) -> None:
+    _LAYOUT_MEMO.pop(key, None)
+    _LAYOUT_MEMO[key] = dict(out)
+    while len(_LAYOUT_MEMO) > LAYOUT_MEMO_MAX:
+        _LAYOUT_MEMO.pop(next(iter(_LAYOUT_MEMO)))
+
+
+def _layout_key(world, g: dict, ids: list) -> tuple:
+    """Everything the layout is computed from: the travel graph, each place's region and own x/y, and the drawn map's positions."""
+    drawn = _map_files()[0]
+    return (tuple((i, tuple(sorted(g[i].items())), world.places[i].region, getattr(world.places[i], "x", None),
+                   getattr(world.places[i], "y", None), tuple(drawn.get(i) or ())) for i in ids),)
 
 
 def position(world, pid: str) -> tuple[float, float]:

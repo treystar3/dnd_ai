@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from core import yamlio
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from core.models import Character
@@ -24,7 +25,7 @@ from engine import effects as _fx
 from engine.effects import ActiveEffect
 
 
-RULES = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "combat.yaml").read_text(encoding="utf-8"))
+RULES = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "combat.yaml").read_text(encoding="utf-8"))
 # Who can reach whom lives in engine/battlefield.py since B2: zones, rows, engagement and containment, not range bands.
 LARGE = {"Large", "Huge", "Gargantuan"}
 
@@ -395,6 +396,7 @@ class Combat(BaseModel):
     effects: list[ActiveEffect] = []   # (f499) what the fight remembers between rounds (the quarry, a withering's placer, the last heal), on the row
     shown: list[str] = []          # (f499) what the player has read of this fight (the ground, the light, each foe's look): the next telling is told not to describe them again
     tamed: list[str] = []          # (f499) who was tamed in it, told at its end
+    ground_told: dict = {}         # (f571) each zone as last told to the narrator and who stood there then (battlefield.note_ground_told)
     felled_by: dict[str, str] = {}  # (f412) who struck each fallen fighter down, as the story names them: a night's narration gave a
                                     # pirate's killing blow on a companion to the player's own blade
 

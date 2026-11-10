@@ -5,6 +5,7 @@
   python tools/run_suite.py --only shop,board     tests whose name contains any of these
   python tools/run_suite.py --changed DIR   only the tests that mention a file changed since DIR (a copy of the last release);
                                             a quick check while building - run the whole suite before shipping
+A run without --changed holds saves/.suite_running while it lasts; --busy says whether one does (the stop hook skips then).
 Output goes to <outdir>/<test>.out (default /tmp/meravia_suite); the summary lists failures and the slowest tests."""
 import argparse
 import filecmp
@@ -54,6 +55,7 @@ def affected(tests: list[Path], files: list[Path]) -> list[Path]:
 
 def run_one(test: Path, outdir: Path, timeout: int) -> tuple[str, int, float]:
     env = dict(os.environ, PYTHONPATH=str(ROOT), MERAVIA_NO_SERVER="1")   # (f514) no test reaches a real model by accident
+    env["PYTHONUTF8"] = "1"                                                # (f565) UTF-8 on every OS, not the shell's code page
     for k in [k for k in env if k.startswith("DND_")]:                    # (f533) nor plays with the settings of the shell that ran it
         env.pop(k)                                                         # (a night's DND_THINK_TASKS, its threads, its voice)
     start = time.time()
@@ -72,14 +74,28 @@ def run_one(test: Path, outdir: Path, timeout: int) -> tuple[str, int, float]:
     return test.name, rc, time.time() - start
 
 
+LOCK = ROOT / "saves" / ".suite_running"      # a run that is not the stop hook's says so here; the hook waits its turn by skipping
+LOCK_STALE = 3600                             # seconds: a lock this old was left by a run that was killed
+
+
+def busy() -> bool:
+    try:
+        return time.time() - LOCK.stat().st_mtime < LOCK_STALE
+    except OSError:
+        return False
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
+    ap.add_argument("--busy", action="store_true", help="exit 0 if another run holds the suite (saves/.suite_running), 1 if not")
     ap.add_argument("-j", type=int, default=2, help="tests at a time")
     ap.add_argument("--only", default="", help="comma-separated name fragments")
     ap.add_argument("--changed", default="", metavar="DIR", help="a copy of the last release to compare against")
     ap.add_argument("--outdir", default="/tmp/meravia_suite")
     ap.add_argument("--timeout", type=int, default=900)
     args = ap.parse_args()
+    if args.busy:
+        return 0 if busy() else 1
     tests = sorted(SIM.glob("*_test.py"))
     if args.only:
         keys = [k.strip() for k in args.only.split(",") if k.strip()]
@@ -92,10 +108,17 @@ def main() -> int:
     outdir.mkdir(parents=True, exist_ok=True)
     start = time.time()
     results = []
-    with ThreadPoolExecutor(max_workers=max(1, args.j)) as pool:
-        for name, rc, took in pool.map(lambda t: run_one(t, outdir, args.timeout), tests):
-            results.append((name, rc, took))
-            print(f"{'ok  ' if rc == 0 else 'FAIL'} {name} ({took:.0f}s)", flush=True)
+    if not args.changed:                                 # the hook's quick run (--changed) shares saves/: it skips while this lock stands
+        LOCK.parent.mkdir(exist_ok=True)
+        LOCK.write_text(str(os.getpid()), encoding="utf-8")
+    try:
+        with ThreadPoolExecutor(max_workers=max(1, args.j)) as pool:
+            for name, rc, took in pool.map(lambda t: run_one(t, outdir, args.timeout), tests):
+                results.append((name, rc, took))
+                print(f"{'ok  ' if rc == 0 else 'FAIL'} {name} ({took:.0f}s)", flush=True)
+    finally:
+        if not args.changed:
+            LOCK.unlink(missing_ok=True)
     bad = [n for n, rc, _ in results if rc]
     print(f"\n{len(results) - len(bad)}/{len(results)} passed in {time.time() - start:.0f}s")
     if results:

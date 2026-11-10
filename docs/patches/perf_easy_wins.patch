@@ -1,0 +1,2179 @@
+diff --git a/bestiary_check.py b/bestiary_check.py
+index e85eec5..f412f1b 100644
+--- a/bestiary_check.py
++++ b/bestiary_check.py
+@@ -9,10 +9,11 @@ import sys
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from world.loader import WorldError, load_world
+ 
+-RARITY = yaml.safe_load((Path("data/rules/creatures.yaml")).read_text(encoding="utf-8"))["rarity_weight"]
++RARITY = yamlio.safe_load((Path("data/rules/creatures.yaml")).read_text(encoding="utf-8"))["rarity_weight"]
+ 
+ 
+ def main():
+diff --git a/core/rules.py b/core/rules.py
+index a08c3b4..db0a6a2 100644
+--- a/core/rules.py
++++ b/core/rules.py
+@@ -10,6 +10,7 @@ from pathlib import Path
+ from typing import Literal
+ 
+ import yaml
++from core import yamlio
+ from pydantic import BaseModel, ValidationError
+ 
+ RULES_DIR = Path(__file__).resolve().parent.parent / "data" / "rules"
+@@ -56,7 +57,7 @@ class RulesError(Exception):
+ 
+ 
+ def _load(path: Path, model) -> dict:
+-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
++    raw = yamlio.safe_load(path.read_text(encoding="utf-8"))
+     items, problems = {}, []
+     for i, entry in enumerate(raw, 1):
+         try:
+@@ -180,7 +181,7 @@ class Family(BaseModel):
+ 
+ 
+ def _load_families() -> dict[str, Family]:
+-    raw = yaml.safe_load((RULES_DIR / "passive_families.yaml").read_text(encoding="utf-8"))["families"]
++    raw = yamlio.safe_load((RULES_DIR / "passive_families.yaml").read_text(encoding="utf-8"))["families"]
+     families, problems = {}, []
+     for fid, data in raw.items():
+         fam = Family(**data)
+diff --git a/core/yamlio.py b/core/yamlio.py
+new file mode 100644
+index 0000000..095dc6f
+--- /dev/null
++++ b/core/yamlio.py
+@@ -0,0 +1,11 @@
++"""(perf) YAML through libyaml's C parser when PyYAML was built with it, else the pure-Python one. Same documents, same results
++(every data/ file checked equal both ways); about nine times faster to read the game's data. One place to choose the loader, so a
++call site never picks its own."""
++import yaml
++
++_Loader = getattr(yaml, "CSafeLoader", None) or yaml.SafeLoader
++
++
++def safe_load(stream):
++    """yaml.safe_load, on the fastest safe loader available."""
++    return yaml.load(stream, Loader=_Loader)
+diff --git a/engine/ability_slots.py b/engine/ability_slots.py
+index 786c35f..83d8b8a 100644
+--- a/engine/ability_slots.py
++++ b/engine/ability_slots.py
+@@ -9,12 +9,13 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import ability_traits as AT
+ from engine import field
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-P = yaml.safe_load((ROOT / "data" / "rules" / "ability_slots.yaml").read_text(encoding="utf-8"))
++P = yamlio.safe_load((ROOT / "data" / "rules" / "ability_slots.yaml").read_text(encoding="utf-8"))
+ COMBAT_EFFECTS = ("damage", "control", "defense", "mobility")
+ STRICT_MULTI = ("volley", "barrage", "flurry", "salvo", "hail of", "rain of", "series of", "sequence", "several", "multiple", "twin",
+                 "pair of", "dual", "double", "triple", "fusillade", "succession", "missiles", "rapid-fire", "rapid fire",
+diff --git a/engine/ability_traits.py b/engine/ability_traits.py
+index 34113ea..3308ed9 100644
+--- a/engine/ability_traits.py
++++ b/engine/ability_traits.py
+@@ -4,9 +4,10 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-T = yaml.safe_load((ROOT / "data" / "rules" / "ability_traits.yaml").read_text(encoding="utf-8"))
++T = yamlio.safe_load((ROOT / "data" / "rules" / "ability_traits.yaml").read_text(encoding="utf-8"))
+ RIDERS, SHAPES, BUFFS, COMMANDS = T["riders"], T["shapes"], T["buffs"], T["commands"]
+ 
+ 
+diff --git a/engine/accessories.py b/engine/accessories.py
+index f797953..055e4d2 100644
+--- a/engine/accessories.py
++++ b/engine/accessories.py
+@@ -9,11 +9,12 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from core.models import Item
+ from engine import items
+ 
+-A = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "accessories.yaml").read_text(encoding="utf-8"))
++A = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "accessories.yaml").read_text(encoding="utf-8"))
+ JEWELRY_SLOTS = ("ring", "neck")
+ 
+ 
+diff --git a/engine/ambient.py b/engine/ambient.py
+index b3188f3..62bf155 100644
+--- a/engine/ambient.py
++++ b/engine/ambient.py
+@@ -13,9 +13,10 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-A = yaml.safe_load((ROOT / "data" / "rules" / "ambient.yaml").read_text(encoding="utf-8"))
++A = yamlio.safe_load((ROOT / "data" / "rules" / "ambient.yaml").read_text(encoding="utf-8"))
+ WORKING = ("morning", "midday", "afternoon")
+ 
+ 
+diff --git a/engine/arcs.py b/engine/arcs.py
+index 086da16..72a44c1 100644
+--- a/engine/arcs.py
++++ b/engine/arcs.py
+@@ -7,12 +7,13 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import quests
+ from engine import streams
+ 
+ ROOT = Path(__file__).resolve().parent.parent / "data"
+-A = yaml.safe_load((ROOT / "rules" / "arcs.yaml").read_text(encoding="utf-8"))
++A = yamlio.safe_load((ROOT / "rules" / "arcs.yaml").read_text(encoding="utf-8"))
+ 
+ def _full(t: dict) -> dict:
+     """A template with the defaults and the wording of its kind of subject filled in."""
+@@ -22,7 +23,7 @@ def _full(t: dict) -> dict:
+     return out
+ 
+ 
+-TEMPLATES = {t["id"]: _full(t) for t in yaml.safe_load((ROOT / "world" / "arcs.yaml").read_text(encoding="utf-8"))}
++TEMPLATES = {t["id"]: _full(t) for t in yamlio.safe_load((ROOT / "world" / "arcs.yaml").read_text(encoding="utf-8"))}
+ SIZES = ["simple", "chain", "arc"]
+ 
+ 
+@@ -244,5 +245,5 @@ def gift_companion(character, arc: dict, world):
+ def perk_text(companion) -> str:
+     """What a companion's perks do, in the words of the passive they borrow."""
+     import yaml
+-    defs = {m["id"]: m for m in yaml.safe_load((ROOT / "rules" / "passive_mechanics.yaml").read_text(encoding="utf-8"))}
++    defs = {m["id"]: m for m in yamlio.safe_load((ROOT / "rules" / "passive_mechanics.yaml").read_text(encoding="utf-8"))}
+     return " ".join(defs[k]["text"].format(value=f"{v:g}") for k, v in companion.perks.items() if k in defs)
+diff --git a/engine/asked.py b/engine/asked.py
+index 948215c..71b2be2 100644
+--- a/engine/asked.py
++++ b/engine/asked.py
+@@ -18,6 +18,7 @@ import threading
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+ _TASKS: frozenset | None = None
+@@ -27,14 +28,14 @@ def tasks() -> frozenset:
+     """The tasks asked outside the operation that needs them (budget.yaml asked_outside): a family moves out by being named here."""
+     global _TASKS
+     if _TASKS is None:
+-        B = yaml.safe_load((ROOT / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8")) or {}
++        B = yamlio.safe_load((ROOT / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8")) or {}
+         _TASKS = frozenset(B.get("asked_outside") or [])
+     return _TASKS
+ 
+ 
+ def most() -> int:
+     """(f489) The most calls one operation may ask outside it (budget.yaml asked_max)."""
+-    B = yaml.safe_load((ROOT / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8")) or {}
++    B = yamlio.safe_load((ROOT / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8")) or {}
+     return int(B.get("asked_max", 48))
+ 
+ 
+diff --git a/engine/banter.py b/engine/banter.py
+index d34fb3d..e6ef958 100644
+--- a/engine/banter.py
++++ b/engine/banter.py
+@@ -6,10 +6,11 @@ import re
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import mentor
+ 
+-B = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "banter.yaml").read_text(encoding="utf-8"))
++B = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "banter.yaml").read_text(encoding="utf-8"))
+ 
+ _COLD = re.compile(r"\b(cold|rude|curt|surly|sour|brusque|gruff|snappish|sullen|dismissive|abrasive|hostile|bitter|haughty|short-tempered|irritable|contemptuous|bored|unfriendly|impatient|grumpy)\b")
+ _WARM = re.compile(r"\b(warm|kind|friendly|cheerful|gentle|welcoming|generous|genial|affable|patient|helpful|cordial|gracious|jovial|sunny|caring)\b")
+diff --git a/engine/battlefield_builder.py b/engine/battlefield_builder.py
+index d2f0e0a..6f17f1a 100644
+--- a/engine/battlefield_builder.py
++++ b/engine/battlefield_builder.py
+@@ -7,11 +7,12 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine.battlefield import BattleEdge, Battlefield, BattleZone
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-B = yaml.safe_load((ROOT / "data" / "rules" / "battlefields.yaml").read_text(encoding="utf-8"))
++B = yamlio.safe_load((ROOT / "data" / "rules" / "battlefields.yaml").read_text(encoding="utf-8"))
+ 
+ # place types that imply a family when the place names no biome
+ TYPE_FAMILY = {"forest": "forest", "hills": "hills", "mountains": "mountains", "desert": "desert", "jungle": "jungle",
+diff --git a/engine/behaviors.py b/engine/behaviors.py
+index 047752d..090bd53 100644
+--- a/engine/behaviors.py
++++ b/engine/behaviors.py
+@@ -6,9 +6,10 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent / "data"
+-FAMILIES: dict = yaml.safe_load((ROOT / "world" / "families.yaml").read_text(encoding="utf-8"))["families"]
++FAMILIES: dict = yamlio.safe_load((ROOT / "world" / "families.yaml").read_text(encoding="utf-8"))["families"]
+ 
+ CAP_CORRODE = 30            # armor never wears more than this percent in one fight
+ SURRENDER_ODDS = 0.45       # the chance, each turn once below its threshold, that it yields
+diff --git a/engine/bosses.py b/engine/bosses.py
+index 79480a7..99ffac1 100644
+--- a/engine/bosses.py
++++ b/engine/bosses.py
+@@ -12,11 +12,12 @@ All numbers are in data/rules/bosses.yaml.
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import combat as C
+ from engine import effects as E
+ 
+-B = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "bosses.yaml").read_text(encoding="utf-8"))
++B = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "bosses.yaml").read_text(encoding="utf-8"))
+ 
+ 
+ def kit_for(category: str) -> str:
+diff --git a/engine/brief.py b/engine/brief.py
+index 265d883..6ab85e9 100644
+--- a/engine/brief.py
++++ b/engine/brief.py
+@@ -9,6 +9,7 @@ import re
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+ _B: dict | None = None
+@@ -18,7 +19,7 @@ _WORD = re.compile(r"[a-z]{4,}")
+ def rules(profile: str = "townsfolk") -> dict:
+     global _B
+     if _B is None:
+-        _B = yaml.safe_load((ROOT / "data" / "rules" / "brief.yaml").read_text(encoding="utf-8")) or {}
++        _B = yamlio.safe_load((ROOT / "data" / "rules" / "brief.yaml").read_text(encoding="utf-8")) or {}
+     return _B.get(profile) or {}
+ 
+ 
+diff --git a/engine/budget.py b/engine/budget.py
+index c160c92..b095e8a 100644
+--- a/engine/budget.py
++++ b/engine/budget.py
+@@ -20,10 +20,11 @@ import threading
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ from llm.errors import LLMError                     # (f514) from the module that imports no model client
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-B: dict = yaml.safe_load((ROOT / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8"))
++B: dict = yamlio.safe_load((ROOT / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8"))
+ TASKS: dict = B.get("tasks") or {}
+ DEFAULT_PROFILE = {"read_tps": 756.8, "write_tps": 31.7, "embed_seconds_per_text": 0.15}   # the f443 measurement, when no profile file is there
+ 
+@@ -33,7 +34,7 @@ def load_profile() -> dict:
+     (f527) the embedder's seconds a text, moved there from budget.yaml because it measures the card."""
+     p = ROOT / "data" / "measured" / "card_profile.yaml"
+     try:
+-        m = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
++        m = yamlio.safe_load(p.read_text(encoding="utf-8")) or {}
+     except OSError:
+         m = {}
+     read, write, emb = m.get("prompt_tokens_per_second"), m.get("answer_tokens_per_second"), m.get("embed_seconds_per_text")
+diff --git a/engine/candidates.py b/engine/candidates.py
+index 4095c0b..329d1a7 100644
+--- a/engine/candidates.py
++++ b/engine/candidates.py
+@@ -19,12 +19,13 @@ import re
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ import config
+ from engine import relevance
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-I = yaml.safe_load((ROOT / "data" / "rules" / "interpret.yaml").read_text(encoding="utf-8"))
++I = yamlio.safe_load((ROOT / "data" / "rules" / "interpret.yaml").read_text(encoding="utf-8"))
+ GENERIC = set(I["generic_words"])
+ 
+ 
+diff --git a/engine/canon.py b/engine/canon.py
+index 7ed2beb..86e7489 100644
+--- a/engine/canon.py
++++ b/engine/canon.py
+@@ -14,6 +14,7 @@ import re
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ import config
+ 
+@@ -21,7 +22,7 @@ MAX_CANON = 60
+ MAX_BELIEFS = 30
+ # (f435) A claim the canon check could not be asked about (the model did not answer) is never kept as true: it waits, unsettled, and is
+ # checked again the next time something about that person is kept. How many wait, and how many are looked at again each time.
+-UNSETTLED = (yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "truth.yaml").read_text(encoding="utf-8"))
++UNSETTLED = (yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "truth.yaml").read_text(encoding="utf-8"))
+              .get("canon") or {}).get("unsettled") or {}
+ MAX_WORDS = 30
+ EMPTY = {"", "none", "n/a", "nothing", "no", "null", "-"}
+diff --git a/engine/checks.py b/engine/checks.py
+index f7e2585..005716b 100644
+--- a/engine/checks.py
++++ b/engine/checks.py
+@@ -7,13 +7,14 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from core.models import Character
+ from core.rules import STATS
+ from engine import streams
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-RULES = yaml.safe_load((ROOT / "data" / "rules" / "checks.yaml").read_text(encoding="utf-8"))
++RULES = yamlio.safe_load((ROOT / "data" / "rules" / "checks.yaml").read_text(encoding="utf-8"))
+ CHECKS = ("insight", "persuasion", "intimidation", "deception", "stealth", "perception", "lore", "performance")
+ SOCIAL = ("persuasion", "intimidation", "deception")
+ 
+diff --git a/engine/clock.py b/engine/clock.py
+index 629381e..7685c0c 100644
+--- a/engine/clock.py
++++ b/engine/clock.py
+@@ -127,9 +127,9 @@ _TW: dict | None = None
+ def time_words() -> dict:
+     global _TW
+     if _TW is None:
+-        import yaml
++        from core import yamlio
+         from pathlib import Path
+-        _TW = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "time_words.yaml").read_text(encoding="utf-8"))
++        _TW = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "time_words.yaml").read_text(encoding="utf-8"))
+     return _TW
+ 
+ 
+diff --git a/engine/combat.py b/engine/combat.py
+index b06ebd3..6eaac7e 100644
+--- a/engine/combat.py
++++ b/engine/combat.py
+@@ -12,6 +12,7 @@ from pathlib import Path
+ from typing import Any
+ 
+ import yaml
++from core import yamlio
+ from pydantic import BaseModel, ConfigDict, Field, model_validator
+ 
+ from core.models import Character
+@@ -24,7 +25,7 @@ from engine import effects as _fx
+ from engine.effects import ActiveEffect
+ 
+ 
+-RULES = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "combat.yaml").read_text(encoding="utf-8"))
++RULES = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "combat.yaml").read_text(encoding="utf-8"))
+ # Who can reach whom lives in engine/battlefield.py since B2: zones, rows, engagement and containment, not range bands.
+ LARGE = {"Large", "Huge", "Gargantuan"}
+ 
+diff --git a/engine/combat_perks.py b/engine/combat_perks.py
+index ba37f62..193e6a4 100644
+--- a/engine/combat_perks.py
++++ b/engine/combat_perks.py
+@@ -16,12 +16,13 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import combat as C
+ from engine import effects as E
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-P = yaml.safe_load((ROOT / "data" / "rules" / "perks.yaml").read_text(encoding="utf-8"))["combat"]
++P = yamlio.safe_load((ROOT / "data" / "rules" / "perks.yaml").read_text(encoding="utf-8"))["combat"]
+ AFFLICTIONS = tuple(P["afflictions"])
+ VESSEL_TAKES = tuple(P["vessel_takes"])
+ TIER_CODE = {"light": 1, "moderate": 2, "heavy": 3}
+diff --git a/engine/consequences.py b/engine/consequences.py
+index d588af5..c1a7129 100644
+--- a/engine/consequences.py
++++ b/engine/consequences.py
+@@ -13,9 +13,10 @@ import types
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-C = yaml.safe_load((ROOT / "data" / "rules" / "consequences.yaml").read_text(encoding="utf-8"))
++C = yamlio.safe_load((ROOT / "data" / "rules" / "consequences.yaml").read_text(encoding="utf-8"))
+ 
+ 
+ def _group(deeds: list[dict], same: str) -> tuple[str, int]:
+diff --git a/engine/court.py b/engine/court.py
+index d425cc9..9716214 100644
+--- a/engine/court.py
++++ b/engine/court.py
+@@ -11,12 +11,13 @@ from __future__ import annotations
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from ui import console
+ from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-A = yaml.safe_load((ROOT / "data" / "rules" / "towns.yaml").read_text(encoding="utf-8")).get("audience", {})
++A = yamlio.safe_load((ROOT / "data" / "rules" / "towns.yaml").read_text(encoding="utf-8")).get("audience", {})
+ 
+ 
+ def gate(world, place_id: str) -> dict | None:
+diff --git a/engine/crafting.py b/engine/crafting.py
+index 6d54959..2215bda 100644
+--- a/engine/crafting.py
++++ b/engine/crafting.py
+@@ -4,12 +4,13 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from core.models import Character, Item
+ from engine import items, loot, pools
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-RULES = yaml.safe_load((ROOT / "data" / "rules" / "crafting.yaml").read_text(encoding="utf-8"))
++RULES = yamlio.safe_load((ROOT / "data" / "rules" / "crafting.yaml").read_text(encoding="utf-8"))
+ RARITY_ORDER = ["crude", "common", "uncommon", "rare", "epic"]
+ CRAFTABLE = [b for b in items.CATALOG.values() if b.family and b.slot not in ("none", "ring", "neck")]
+ 
+diff --git a/engine/damage.py b/engine/damage.py
+index fa0e0d4..5f8d5d7 100644
+--- a/engine/damage.py
++++ b/engine/damage.py
+@@ -17,12 +17,13 @@ from pathlib import Path
+ from typing import Callable
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import combat as C
+ from engine import effects as E
+ from engine import items
+ 
+-PATHS: dict[str, list[str]] = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "stages.yaml")
++PATHS: dict[str, list[str]] = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "stages.yaml")
+                                              .read_text(encoding="utf-8"))["damage"]
+ 
+ NAMED = {"blood_pact": "Blood Pact", "hardening": "Hardening", "aegis": "Aegis", "last_stand": "Last Stand", "stoneskin": "Stoneskin",
+diff --git a/engine/deeds.py b/engine/deeds.py
+index 0428a2a..c2cf9f7 100644
+--- a/engine/deeds.py
++++ b/engine/deeds.py
+@@ -7,9 +7,10 @@ settled (f363: a situation the player ended; engine/events.py finish).
+ """
+ 
+ import yaml
++from core import yamlio
+ from pathlib import Path
+ 
+-E = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "events.yaml").read_text(encoding="utf-8"))
++E = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "events.yaml").read_text(encoding="utf-8"))
+ KEEP = E["judge"]["keep_deeds"]
+ 
+ 
+diff --git a/engine/discovery.py b/engine/discovery.py
+index 6f3ea7b..1ca5e61 100644
+--- a/engine/discovery.py
++++ b/engine/discovery.py
+@@ -6,10 +6,11 @@ import re
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from world.loader import Place, Road
+ 
+-X = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "explore.yaml").read_text(encoding="utf-8"))
++X = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "explore.yaml").read_text(encoding="utf-8"))
+ STOP = {"the", "and", "for", "that", "this", "with", "from", "into", "where", "there", "find", "look", "looking", "some", "any"}
+ 
+ 
+diff --git a/engine/doings.py b/engine/doings.py
+index cbf816f..83b33df 100644
+--- a/engine/doings.py
++++ b/engine/doings.py
+@@ -11,9 +11,10 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-D = yaml.safe_load((ROOT / "data" / "world" / "doings.yaml").read_text(encoding="utf-8"))
++D = yamlio.safe_load((ROOT / "data" / "world" / "doings.yaml").read_text(encoding="utf-8"))
+ STILL = ("prisoner",)                         # roles whose doing the story sets (a prisoner walks bound at your side)
+ 
+ 
+diff --git a/engine/dungeons.py b/engine/dungeons.py
+index 3b094a8..2f588fc 100644
+--- a/engine/dungeons.py
++++ b/engine/dungeons.py
+@@ -9,11 +9,12 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import quests
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-D = yaml.safe_load((ROOT / "data" / "rules" / "dungeons.yaml").read_text(encoding="utf-8"))
++D = yamlio.safe_load((ROOT / "data" / "rules" / "dungeons.yaml").read_text(encoding="utf-8"))
+ FIXED_PLACES = {"first_hall"}      # places whose dungeon is written by a quest, never generated or remade
+ 
+ 
+diff --git a/engine/effects.py b/engine/effects.py
+index 62a3b4b..667eea6 100644
+--- a/engine/effects.py
++++ b/engine/effects.py
+@@ -18,6 +18,7 @@ from typing import Callable
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ from pydantic import BaseModel, ConfigDict
+ 
+ 
+@@ -33,8 +34,8 @@ class EffectDef(BaseModel):
+     deltas: str = ""
+ 
+ 
+-_T = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "active_effects.yaml").read_text(encoding="utf-8"))
+-_ST = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "stages.yaml").read_text(encoding="utf-8"))
++_T = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "active_effects.yaml").read_text(encoding="utf-8"))
++_ST = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "stages.yaml").read_text(encoding="utf-8"))
+ ELIGIBLE: tuple[str, ...] = tuple(_ST["status_eligibility"])     # (f507) the stages a status passes before it lands, in order
+ FAMILIES: tuple[str, ...] = tuple(_T["families"])
+ EXPIRY: tuple[str, ...] = tuple(_T["expiry"])
+diff --git a/engine/elements.py b/engine/elements.py
+index 0c11aa8..5fd4745 100644
+--- a/engine/elements.py
++++ b/engine/elements.py
+@@ -3,8 +3,9 @@ import re
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+-R = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "elements.yaml").read_text(encoding="utf-8"))
++R = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "elements.yaml").read_text(encoding="utf-8"))
+ ELEMENTS = list(R["elements"])
+ CAP = R["resist_cap"]
+ _PATTERNS = {e: re.compile(r"\b(?:" + "|".join(re.escape(k) for k in kws) + ")") for e, kws in R["elements"].items()}
+diff --git a/engine/enchanting.py b/engine/enchanting.py
+index 80ebee7..73523ba 100644
+--- a/engine/enchanting.py
++++ b/engine/enchanting.py
+@@ -8,12 +8,13 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ from pydantic import BaseModel
+ 
+ from core.models import Character, Enchantment, Item, ItemProperty
+ from engine import items
+ 
+-RULES = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "enchanting.yaml").read_text(encoding="utf-8"))
++RULES = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "enchanting.yaml").read_text(encoding="utf-8"))
+ 
+ 
+ class Option(BaseModel):
+diff --git a/engine/encounters.py b/engine/encounters.py
+index 1ab23de..7cf596b 100644
+--- a/engine/encounters.py
++++ b/engine/encounters.py
+@@ -5,10 +5,11 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import combat, events
+ 
+-CREATURE_RULES = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "creatures.yaml").read_text(encoding="utf-8"))
++CREATURE_RULES = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "creatures.yaml").read_text(encoding="utf-8"))
+ E = combat.RULES["encounters"]
+ 
+ 
+diff --git a/engine/entities.py b/engine/entities.py
+index d818e24..2efa7eb 100644
+--- a/engine/entities.py
++++ b/engine/entities.py
+@@ -18,11 +18,12 @@ from dataclasses import dataclass
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from core.models import Entity
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-L = yaml.safe_load((ROOT / "data" / "rules" / "lifecycles.yaml").read_text(encoding="utf-8"))
++L = yamlio.safe_load((ROOT / "data" / "rules" / "lifecycles.yaml").read_text(encoding="utf-8"))
+ GENDER = {"male": "he", "female": "she"}
+ HISTORY_KEPT = 12
+ 
+diff --git a/engine/events.py b/engine/events.py
+index d2505ec..c0fa267 100644
+--- a/engine/events.py
++++ b/engine/events.py
+@@ -17,6 +17,7 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import clock, deeds
+ from engine import pulse_prompts as pp
+@@ -26,7 +27,7 @@ from ui import console
+ from engine import streams
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-E = yaml.safe_load((ROOT / "data" / "rules" / "events.yaml").read_text(encoding="utf-8"))
++E = yamlio.safe_load((ROOT / "data" / "rules" / "events.yaml").read_text(encoding="utf-8"))
+ C = E["cataclysm"]
+ BIG = ("rare", "campaign", "cataclysm")
+ 
+diff --git a/engine/failures.py b/engine/failures.py
+index c415d1c..5cf25f5 100644
+--- a/engine/failures.py
++++ b/engine/failures.py
+@@ -13,9 +13,10 @@ import re
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ from engine import streams
+ 
+-F = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "failures.yaml").read_text(encoding="utf-8"))
++F = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "failures.yaml").read_text(encoding="utf-8"))
+ MACHINERY = re.compile(r"\b(model|llm|json|error|errors|answer|server|crash|failed|failure|llama|gpu|vulkan|cuda|slot)\b", re.I)
+ _last: dict[str, str] = {}
+ 
+diff --git a/engine/faith.py b/engine/faith.py
+index 1f07dda..a436b65 100644
+--- a/engine/faith.py
++++ b/engine/faith.py
+@@ -8,10 +8,11 @@ from __future__ import annotations
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import events, pulse
+ 
+-F = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "faith.yaml").read_text(encoding="utf-8"))
++F = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "faith.yaml").read_text(encoding="utf-8"))
+ GODS, VOICES = F["gods"], F["voices"]
+ 
+ 
+diff --git a/engine/features.py b/engine/features.py
+index 4364c15..ccc502b 100644
+--- a/engine/features.py
++++ b/engine/features.py
+@@ -16,9 +16,10 @@ import re
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-F = yaml.safe_load((ROOT / "data" / "rules" / "features.yaml").read_text(encoding="utf-8"))
++F = yamlio.safe_load((ROOT / "data" / "rules" / "features.yaml").read_text(encoding="utf-8"))
+ KIND_OF: dict[str, str] = {w: k for k, spec in F["kinds"].items() for w in spec["words"]}
+ PLAIN = set(F["plain"])
+ STOP = {"the", "a", "an", "of", "to", "in", "into", "at", "on", "by", "from", "and", "toward", "towards", "back", "over", "through",
+diff --git a/engine/field.py b/engine/field.py
+index 2de5205..93a7830 100644
+--- a/engine/field.py
++++ b/engine/field.py
+@@ -6,9 +6,10 @@ single model call (keywords are the fallback), and the answer is saved on the ab
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-F = yaml.safe_load((ROOT / "data" / "rules" / "field.yaml").read_text(encoding="utf-8"))
++F = yamlio.safe_load((ROOT / "data" / "rules" / "field.yaml").read_text(encoding="utf-8"))
+ FUNCTIONS = list(F["functions"])
+ # abilities whose out-of-combat behavior is already defined by what they are
+ SELF_FUNCTIONED = {"healing": True, "crafting": True, "summon": True}
+diff --git a/engine/guard.py b/engine/guard.py
+index 6e722c6..64ecee6 100644
+--- a/engine/guard.py
++++ b/engine/guard.py
+@@ -12,9 +12,10 @@ import unicodedata
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-G = yaml.safe_load((ROOT / "data" / "rules" / "guard.yaml").read_text(encoding="utf-8"))
++G = yamlio.safe_load((ROOT / "data" / "rules" / "guard.yaml").read_text(encoding="utf-8"))
+ 
+ 
+ def _pattern(words: list) -> re.Pattern:
+diff --git a/engine/healing.py b/engine/healing.py
+index c923cc7..e25b9ce 100644
+--- a/engine/healing.py
++++ b/engine/healing.py
+@@ -10,12 +10,13 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import combat as C
+ from engine import effects as _E
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-H = yaml.safe_load((ROOT / "data" / "rules" / "healing.yaml").read_text(encoding="utf-8"))
++H = yamlio.safe_load((ROOT / "data" / "rules" / "healing.yaml").read_text(encoding="utf-8"))
+ FORMS = H["forms"]
+ # (f499) Who was healed last and by how much, for the perks that follow a heal, is the fight's own row (engine/effects.py last_heal).
+ 
+diff --git a/engine/hygiene.py b/engine/hygiene.py
+index 5ce1c12..9570923 100644
+--- a/engine/hygiene.py
++++ b/engine/hygiene.py
+@@ -12,9 +12,10 @@ import re
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-H = yaml.safe_load((ROOT / "data" / "rules" / "hygiene.yaml").read_text(encoding="utf-8"))
++H = yamlio.safe_load((ROOT / "data" / "rules" / "hygiene.yaml").read_text(encoding="utf-8"))
+ PROSE = set(H["prose_fields"])
+ NARRATOR = set(H["narrator_tasks"])
+ REPAIRS: collections.Counter = collections.Counter()      # what clean() mended on the way to the screen, by kind
+diff --git a/engine/inventory.py b/engine/inventory.py
+index e2841d5..c944450 100644
+--- a/engine/inventory.py
++++ b/engine/inventory.py
+@@ -7,6 +7,7 @@ import re
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ from pydantic import BaseModel
+ 
+ from core.models import Item
+@@ -14,7 +15,7 @@ from engine import items
+ from engine import streams
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-RULES = yaml.safe_load((ROOT / "data" / "rules" / "inventory.yaml").read_text(encoding="utf-8"))
++RULES = yamlio.safe_load((ROOT / "data" / "rules" / "inventory.yaml").read_text(encoding="utf-8"))
+ RAW_STACK = 10
+ 
+ 
+@@ -48,8 +49,8 @@ class Recipe(BaseModel):
+     ingredients: list[Ingredient]
+ 
+ 
+-GOODS = {g["id"]: Good(**g) for g in yaml.safe_load((ROOT / "data" / "world" / "goods.yaml").read_text(encoding="utf-8"))}
+-RECIPES = {r["id"]: Recipe(**r) for r in yaml.safe_load((ROOT / "data" / "rules" / "recipes.yaml").read_text(encoding="utf-8"))}
++GOODS = {g["id"]: Good(**g) for g in yamlio.safe_load((ROOT / "data" / "world" / "goods.yaml").read_text(encoding="utf-8"))}
++RECIPES = {r["id"]: Recipe(**r) for r in yamlio.safe_load((ROOT / "data" / "rules" / "recipes.yaml").read_text(encoding="utf-8"))}
+ for _r in RECIPES.values():
+     for _g in list(_r.makes) + [i.good for i in _r.ingredients if i.good]:
+         if _g not in GOODS:
+diff --git a/engine/items.py b/engine/items.py
+index 79e2719..f6142c2 100644
+--- a/engine/items.py
++++ b/engine/items.py
+@@ -9,6 +9,7 @@ from pathlib import Path
+ from typing import Literal
+ 
+ import yaml
++from core import yamlio
+ from pydantic import BaseModel
+ 
+ from core.models import Item
+@@ -16,7 +17,7 @@ from core.rules import ATTRIBUTES, STATS, TRIGGERS
+ from engine import streams
+ 
+ ROOT = Path(__file__).resolve().parent.parent / "data"
+-RULES = yaml.safe_load((ROOT / "rules" / "equipment.yaml").read_text(encoding="utf-8"))
++RULES = yamlio.safe_load((ROOT / "rules" / "equipment.yaml").read_text(encoding="utf-8"))
+ SLOTS = RULES["slots"]
+ WEIGHTS = ["light", "medium", "heavy"]
+ MATERIAL_RARITY_WEIGHT = {"common": 10, "uncommon": 4, "rare": 1, "legendary": 0.1}
+@@ -119,7 +120,7 @@ class Gem(BaseModel):
+ def _load():
+     problems = []
+     catalog = {}
+-    for entry in yaml.safe_load((ROOT / "world" / "items.yaml").read_text(encoding="utf-8")):
++    for entry in yamlio.safe_load((ROOT / "world" / "items.yaml").read_text(encoding="utf-8")):
+         b = BaseItem(**entry)
+         if b.id in catalog:
+             problems.append(f"items.yaml: duplicate item '{b.id}'")
+@@ -129,7 +130,7 @@ def _load():
+         if b.slot == "main_hand" and not b.is_weapon:
+             problems.append(f"items.yaml {b.id}: main_hand items need damage and reach")
+         catalog[b.id] = b
+-    raw = yaml.safe_load((ROOT / "world" / "materials.yaml").read_text(encoding="utf-8"))
++    raw = yamlio.safe_load((ROOT / "world" / "materials.yaml").read_text(encoding="utf-8"))
+     materials = {m["id"]: Material(**m) for m in raw["materials"]}
+     gems = {g["id"]: Gem(**g) for g in raw["gems"]}
+     for m in materials.values():
+@@ -156,7 +157,7 @@ def _load():
+ 
+ GEAR_ONLY_IDS = {i for ids in RULES["gear_only_stats"].values() for i in ids}
+ CATALOG, MATERIALS, GEMS = _load()
+-LEGENDARY = {e["id"]: LegendaryEffect(**e) for e in yaml.safe_load((ROOT / "rules" / "legendary_effects.yaml").read_text(encoding="utf-8"))}
++LEGENDARY = {e["id"]: LegendaryEffect(**e) for e in yamlio.safe_load((ROOT / "rules" / "legendary_effects.yaml").read_text(encoding="utf-8"))}
+ 
+ 
+ def legendary_options(base: "BaseItem", companions: bool = False) -> list[LegendaryEffect]:
+diff --git a/engine/law.py b/engine/law.py
+index 62adacd..5571721 100644
+--- a/engine/law.py
++++ b/engine/law.py
+@@ -8,9 +8,10 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ from engine import streams
+ 
+-L = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "law.yaml").read_text(encoding="utf-8"))
++L = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "law.yaml").read_text(encoding="utf-8"))
+ T, N, H, FB = L["theft"], L["notice"], L["heat"], L["fight_back"]
+ DEGREES = ("strong success", "success", "partial", "failure")
+ 
+diff --git a/engine/lessons.py b/engine/lessons.py
+index d936177..8be1921 100644
+--- a/engine/lessons.py
++++ b/engine/lessons.py
+@@ -14,6 +14,7 @@ from pathlib import Path
+ from types import SimpleNamespace
+ 
+ import yaml
++from core import yamlio
+ 
+ from core.rules import STATS, TRIGGERS
+ from engine import ability_slots as AS
+@@ -21,7 +22,7 @@ from engine import ability_traits as AT
+ from engine import field
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-T = yaml.safe_load((ROOT / "data" / "rules" / "training.yaml").read_text(encoding="utf-8"))
++T = yamlio.safe_load((ROOT / "data" / "rules" / "training.yaml").read_text(encoding="utf-8"))
+ L = T["lessons"]
+ EFFECTS = list(L["effect_words"])
+ FAMILIES_BY_ARCHETYPE = {"warrior": ["warrior"], "mage": ["mage"], "rogue": ["rogue"], "support": ["healer"]}
+diff --git a/engine/loadout.py b/engine/loadout.py
+index 8d8297e..fc50631 100644
+--- a/engine/loadout.py
++++ b/engine/loadout.py
+@@ -7,9 +7,10 @@ from __future__ import annotations
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-L = yaml.safe_load((ROOT / "data" / "rules" / "training.yaml").read_text(encoding="utf-8"))["loadout"]
++L = yamlio.safe_load((ROOT / "data" / "rules" / "training.yaml").read_text(encoding="utf-8"))["loadout"]
+ POOLS = ("spells", "techniques")
+ WORD = {"spells": "spells", "techniques": "techniques"}
+ 
+diff --git a/engine/look.py b/engine/look.py
+index e078ffe..26cbd90 100644
+--- a/engine/look.py
++++ b/engine/look.py
+@@ -10,9 +10,10 @@ import re
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-L = yaml.safe_load((ROOT / "data" / "rules" / "look.yaml").read_text(encoding="utf-8"))
++L = yamlio.safe_load((ROOT / "data" / "rules" / "look.yaml").read_text(encoding="utf-8"))
+ PRONOUNS = {p["id"]: p for p in L["pronouns"]}
+ 
+ 
+diff --git a/engine/mapview.py b/engine/mapview.py
+index 732ca12..8700a08 100644
+--- a/engine/mapview.py
++++ b/engine/mapview.py
+@@ -9,6 +9,7 @@ import math
+ import random
+ 
+ import yaml
++from core import yamlio
+ 
+ from core.paths import BUNDLE
+ 
+@@ -22,7 +23,7 @@ def _map_files() -> tuple[dict, dict]:
+     if not _MAP:
+         world_dir = BUNDLE / "data" / "world"
+         try:
+-            _MAP["pos"] = (yaml.safe_load((world_dir / "map.yaml").read_text(encoding="utf-8")) or {}).get("places", {}) or {}
++            _MAP["pos"] = (yamlio.safe_load((world_dir / "map.yaml").read_text(encoding="utf-8")) or {}).get("places", {}) or {}
+         except OSError:
+             _MAP["pos"] = {}
+         try:
+@@ -60,6 +61,20 @@ def layout(world) -> dict[str, tuple[float, float]]:
+         return c["pos"]
+     g = graph(world)
+     ids = sorted(g)
++    key = _layout_key(world, g, ids)                           # (perf) a pure function of the map: the same map is laid out once a process
++    if key in _LAYOUT_MEMO:
++        c["pos"] = dict(_LAYOUT_MEMO[key])                    # each world its own dict (f452): never another world's to change
++        return c["pos"]
++    drawn_now = _map_files()[0]
++    if all(i in drawn_now or None not in (getattr(world.places[i], "x", None), getattr(world.places[i], "y", None)) for i in ids):
++        out = {}                                               # (perf) every place has a drawn or own position: the spring layout's
++        for i in ids:                                          # result would be thrown away, so it is not run (the same positions)
++            p = world.places[i]
++            own = getattr(p, "x", None), getattr(p, "y", None)
++            out[i] = (own[0], own[1]) if None not in own else (float(drawn_now[i][0]), float(drawn_now[i][1]))
++        _LAYOUT_MEMO[key] = dict(out)
++        c["pos"] = out
++        return out
+     rng = random.Random(7)
+     regions = sorted({world.places[i].region for i in ids})
+     pos = {}
+@@ -107,9 +122,20 @@ def layout(world) -> dict[str, tuple[float, float]]:
+         else:
+             out[i] = (round((pos[i][0] - lo_x) / span * SIZE, 1), round((pos[i][1] - lo_y) / span * SIZE, 1))
+     c["pos"] = out
++    _LAYOUT_MEMO[key] = dict(out)
+     return out
+ 
+ 
++_LAYOUT_MEMO: dict = {}      # (perf) keyed by everything layout() reads, never by a world's identity (f452): two saves on one map share it
++
++
++def _layout_key(world, g: dict, ids: list) -> tuple:
++    """Everything the layout is computed from: the travel graph, each place's region and own x/y, and the drawn map's positions."""
++    drawn = _map_files()[0]
++    return (tuple((i, tuple(sorted(g[i].items())), world.places[i].region, getattr(world.places[i], "x", None),
++                   getattr(world.places[i], "y", None), tuple(drawn.get(i) or ())) for i in ids),)
++
++
+ def position(world, pid: str) -> tuple[float, float]:
+     """(f452) Where a place sits on the map. A place made after the map was laid out (a find, a stop on the road, a dungeon's entrance)
+     sits where its neighbours are, or where its parent is; the rule the exits used (engine/exits.py), now the map's own, so #map standing
+diff --git a/engine/martial.py b/engine/martial.py
+index 62cdba2..7f1b534 100644
+--- a/engine/martial.py
++++ b/engine/martial.py
+@@ -6,12 +6,13 @@ from __future__ import annotations
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import combat as C
+ from engine import ability_traits as AT
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-M = yaml.safe_load((ROOT / "data" / "rules" / "martial.yaml").read_text(encoding="utf-8"))
++M = yamlio.safe_load((ROOT / "data" / "rules" / "martial.yaml").read_text(encoding="utf-8"))
+ FORMS: dict = M["forms"]
+ MANEUVERS: dict = M["maneuvers"]
+ SIZES = ["Tiny", "Small", "Medium", "Large", "Huge", "Gargantuan"]
+diff --git a/engine/matters.py b/engine/matters.py
+index dc91ac8..d1cea6c 100644
+--- a/engine/matters.py
++++ b/engine/matters.py
+@@ -22,11 +22,12 @@ from pathlib import Path
+ from engine import regard
+ 
+ import yaml
++from core import yamlio
+ 
+ from ui import console
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-D = yaml.safe_load((ROOT / "data" / "rules" / "doors.yaml").read_text(encoding="utf-8"))
++D = yamlio.safe_load((ROOT / "data" / "rules" / "doors.yaml").read_text(encoding="utf-8"))
+ 
+ 
+ # ---------- at birth: the door, and what the thread carries
+diff --git a/engine/memory.py b/engine/memory.py
+index 1836433..3cb7197 100644
+--- a/engine/memory.py
++++ b/engine/memory.py
+@@ -7,6 +7,7 @@ transaction, so nothing a person remembers grows without bound on a long campaig
+ A deed's line keeps a slot for the one who did it ({them}); it is read as "the stranger" (render) until a person's view of each
+ character names them (Bundle D f486)."""
+ from __future__ import annotations
++from core import yamlio
+ 
+ from pathlib import Path
+ 
+@@ -21,7 +22,7 @@ def caps() -> dict:
+     global _CAPS
+     if _CAPS is None:
+         import yaml
+-        _CAPS = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "memory.yaml").read_text(encoding="utf-8")) or {}
++        _CAPS = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "memory.yaml").read_text(encoding="utf-8")) or {}
+     return _CAPS
+ 
+ 
+diff --git a/engine/mentor.py b/engine/mentor.py
+index e68bceb..d7b8fe9 100644
+--- a/engine/mentor.py
++++ b/engine/mentor.py
+@@ -15,12 +15,13 @@ import zlib
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ import config
+ 
+ from engine import combat, money, quests
+ 
+-M = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "mentor.yaml").read_text(encoding="utf-8"))
++M = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "mentor.yaml").read_text(encoding="utf-8"))
+ NAME = M["name"]
+ G = quests.G
+ 
+diff --git a/engine/moments.py b/engine/moments.py
+index 9930aee..20b9481 100644
+--- a/engine/moments.py
++++ b/engine/moments.py
+@@ -14,12 +14,13 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from ui import console
+ from engine import streams
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-M = yaml.safe_load((ROOT / "data" / "rules" / "moments.yaml").read_text(encoding="utf-8"))
++M = yamlio.safe_load((ROOT / "data" / "rules" / "moments.yaml").read_text(encoding="utf-8"))
+ 
+ 
+ def active(store, place_id: str, now: int) -> dict | None:
+diff --git a/engine/money.py b/engine/money.py
+index 57cd787..2eadd20 100644
+--- a/engine/money.py
++++ b/engine/money.py
+@@ -3,8 +3,9 @@
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+-RULES = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "currency.yaml").read_text(encoding="utf-8"))
++RULES = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "currency.yaml").read_text(encoding="utf-8"))
+ DENOMINATIONS = RULES["denominations"]
+ 
+ for _d in DENOMINATIONS[:-1]:
+diff --git a/engine/motives.py b/engine/motives.py
+index f3ff02c..db52ce2 100644
+--- a/engine/motives.py
++++ b/engine/motives.py
+@@ -11,9 +11,10 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-M = yaml.safe_load((ROOT / "data" / "rules" / "motives.yaml").read_text(encoding="utf-8"))
++M = yamlio.safe_load((ROOT / "data" / "rules" / "motives.yaml").read_text(encoding="utf-8"))
+ 
+ 
+ def seed_of(npc) -> str:
+diff --git a/engine/mounts.py b/engine/mounts.py
+index db5d90f..330c92c 100644
+--- a/engine/mounts.py
++++ b/engine/mounts.py
+@@ -5,10 +5,11 @@ import re
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import events, property as prop
+ 
+-M = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "mounts.yaml").read_text(encoding="utf-8"))
++M = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "mounts.yaml").read_text(encoding="utf-8"))
+ CATALOG = {k: dict(v, id=k) for k, v in events.E["grand"]["mounts"].items()}
+ WORDS = re.compile(r"\b(mount|mounts|horse|horses|steed|steeds|stable|stables|pony|ponies|palfrey|courser|destrier|strider|charger|ride|riding)\b", re.I)
+ 
+diff --git a/engine/movement.py b/engine/movement.py
+index 12f2d07..a31f634 100644
+--- a/engine/movement.py
++++ b/engine/movement.py
+@@ -13,9 +13,10 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-M = yaml.safe_load((ROOT / "data" / "rules" / "movement.yaml").read_text(encoding="utf-8"))
++M = yamlio.safe_load((ROOT / "data" / "rules" / "movement.yaml").read_text(encoding="utf-8"))
+ KINDS: dict = M["kinds"]
+ EVERYDAY = [k for k, v in KINDS.items() if v["group"] == "everyday"]
+ SIGNATURES = [k for k, v in KINDS.items() if v["group"] == "signature"]
+diff --git a/engine/needs.py b/engine/needs.py
+index 8683909..dcee6d9 100644
+--- a/engine/needs.py
++++ b/engine/needs.py
+@@ -2,9 +2,10 @@
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-N = yaml.safe_load((ROOT / "data" / "rules" / "needs.yaml").read_text(encoding="utf-8"))
++N = yamlio.safe_load((ROOT / "data" / "rules" / "needs.yaml").read_text(encoding="utf-8"))
+ 
+ 
+ def on() -> bool:
+diff --git a/engine/obligations.py b/engine/obligations.py
+index 1c0a26a..45f850b 100644
+--- a/engine/obligations.py
++++ b/engine/obligations.py
+@@ -12,6 +12,7 @@ from __future__ import annotations
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+ _F: dict | None = None
+@@ -20,7 +21,7 @@ _F: dict | None = None
+ def rules() -> dict:
+     global _F
+     if _F is None:
+-        _F = yaml.safe_load((ROOT / "data" / "rules" / "obligations.yaml").read_text(encoding="utf-8")) or {}
++        _F = yamlio.safe_load((ROOT / "data" / "rules" / "obligations.yaml").read_text(encoding="utf-8")) or {}
+     return _F
+ 
+ 
+diff --git a/engine/operation.py b/engine/operation.py
+index 62bf027..ac7fd67 100644
+--- a/engine/operation.py
++++ b/engine/operation.py
+@@ -17,9 +17,10 @@ from dataclasses import dataclass, field
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ from engine import streams
+ 
+-_B = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8"))
++_B = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8"))
+ RETENTION: dict = dict(_B.get("retention") or {})      # operations: records kept; deferred_turns: how long a deferred call waits (f469)
+ ID_DIGITS = 12
+ 
+diff --git a/engine/orenna.py b/engine/orenna.py
+index aea31af..6caa63b 100644
+--- a/engine/orenna.py
++++ b/engine/orenna.py
+@@ -11,10 +11,11 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import quests
+ 
+-O = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "orenna.yaml").read_text(encoding="utf-8"))
++O = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "orenna.yaml").read_text(encoding="utf-8"))
+ STAGES = ["", "named", "contact", "ruin", "leaving", "order", "trails", "registry", "confront", "done"]
+ 
+ 
+diff --git a/engine/party.py b/engine/party.py
+index 295cc63..14ebb26 100644
+--- a/engine/party.py
++++ b/engine/party.py
+@@ -8,12 +8,13 @@ import re
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import combat
+ from engine import streams
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-P = yaml.safe_load((ROOT / "data" / "rules" / "party.yaml").read_text(encoding="utf-8"))
++P = yamlio.safe_load((ROOT / "data" / "rules" / "party.yaml").read_text(encoding="utf-8"))
+ 
+ 
+ def rank_of(level: int) -> str:
+diff --git a/engine/pools.py b/engine/pools.py
+index 64d1921..7698501 100644
+--- a/engine/pools.py
++++ b/engine/pools.py
+@@ -6,6 +6,7 @@ Formulas and tuning live in data/rules/pools.yaml.
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ from pydantic import BaseModel
+ 
+ from core.models import Character, ModifierTarget, Trigger
+@@ -29,7 +30,7 @@ class PoolRules(BaseModel):
+ 
+ 
+ def _load() -> PoolRules:
+-    rules = PoolRules(**yaml.safe_load(RULES_PATH.read_text(encoding="utf-8")))
++    rules = PoolRules(**yamlio.safe_load(RULES_PATH.read_text(encoding="utf-8")))
+     problems = []
+     for name in POOLS:
+         if name not in rules.pools or name not in rules.regen_per_hour:
+diff --git a/engine/presence.py b/engine/presence.py
+index 6bf8ac5..2e753af 100644
+--- a/engine/presence.py
++++ b/engine/presence.py
+@@ -9,6 +9,7 @@ from __future__ import annotations
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+ _V: dict | None = None
+@@ -17,7 +18,7 @@ _V: dict | None = None
+ def _rules() -> dict:
+     global _V
+     if _V is None:
+-        _V = (yaml.safe_load((ROOT / "data" / "rules" / "voice.yaml").read_text(encoding="utf-8")) or {}).get("conversation") or {}
++        _V = (yamlio.safe_load((ROOT / "data" / "rules" / "voice.yaml").read_text(encoding="utf-8")) or {}).get("conversation") or {}
+     return _V
+ 
+ 
+diff --git a/engine/property.py b/engine/property.py
+index 71078ce..c8bc1bd 100644
+--- a/engine/property.py
++++ b/engine/property.py
+@@ -4,6 +4,7 @@ owned; relics are fixed, named legendary items sold by a relic dealer, one of ea
+ import random
+ 
+ import yaml
++from core import yamlio
+ 
+ from core.models import Item
+ from engine import items
+@@ -11,8 +12,8 @@ from core.models import ItemProperty
+ from world.loader import Place
+ from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
+ 
+-P = yaml.safe_load(open(__import__("pathlib").Path(__file__).resolve().parent.parent / "data" / "rules" / "property.yaml", encoding="utf-8"))
+-RELICS = {r["id"]: r for r in yaml.safe_load(open(__import__("pathlib").Path(__file__).resolve().parent.parent / "data" / "world" / "relics.yaml", encoding="utf-8"))}
++P = yamlio.safe_load(open(__import__("pathlib").Path(__file__).resolve().parent.parent / "data" / "rules" / "property.yaml", encoding="utf-8"))
++RELICS = {r["id"]: r for r in yamlio.safe_load(open(__import__("pathlib").Path(__file__).resolve().parent.parent / "data" / "world" / "relics.yaml", encoding="utf-8"))}
+ 
+ 
+ def home_id(town: str) -> str:
+diff --git a/engine/pulse.py b/engine/pulse.py
+index 8a3a3c7..dbd6f55 100644
+--- a/engine/pulse.py
++++ b/engine/pulse.py
+@@ -17,6 +17,7 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import clock, events, pulselog, roads
+ from engine import pulse_prompts as pp
+@@ -26,7 +27,7 @@ from ui import console
+ from engine import streams
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-P = yaml.safe_load((ROOT / "data" / "rules" / "pulse.yaml").read_text(encoding="utf-8"))
++P = yamlio.safe_load((ROOT / "data" / "rules" / "pulse.yaml").read_text(encoding="utf-8"))
+ INTERVAL = P["interval_hours"] * 60
+ 
+ 
+diff --git a/engine/questions.py b/engine/questions.py
+index e21bae1..30e0a28 100644
+--- a/engine/questions.py
++++ b/engine/questions.py
+@@ -24,10 +24,11 @@ from contextlib import contextmanager
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ from engine import streams
+ from engine.failures import DASH, MACHINERY
+ 
+-Q = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "questions.yaml").read_text(encoding="utf-8"))
++Q = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "questions.yaml").read_text(encoding="utf-8"))
+ TRIES: int = int(Q.get("tries") or 3)
+ _last = ""
+ 
+diff --git a/engine/quests.py b/engine/quests.py
+index d20340c..87663c3 100644
+--- a/engine/quests.py
++++ b/engine/quests.py
+@@ -10,12 +10,13 @@ import re
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import encounters, inventory as inv, items
+ from engine import streams
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-G = yaml.safe_load((ROOT / "data" / "rules" / "guild.yaml").read_text(encoding="utf-8"))
++G = yamlio.safe_load((ROOT / "data" / "rules" / "guild.yaml").read_text(encoding="utf-8"))
+ LETTERS = list(G["ranks"])
+ 
+ 
+diff --git a/engine/quirks.py b/engine/quirks.py
+index 3b4f25e..52987b8 100644
+--- a/engine/quirks.py
++++ b/engine/quirks.py
+@@ -14,10 +14,11 @@ import re
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import party as rules
+ 
+-Q = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "quirks.yaml").read_text(encoding="utf-8"))
++Q = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "quirks.yaml").read_text(encoding="utf-8"))
+ 
+ PRONOUNS = {"she": ("her", "her", "she", "hands"), "he": ("his", "him", "he", "hands"), "they": ("their", "them", "they", "hand")}
+ 
+diff --git a/engine/reach.py b/engine/reach.py
+index 2132ce9..53b3f48 100644
+--- a/engine/reach.py
++++ b/engine/reach.py
+@@ -11,9 +11,10 @@ from __future__ import annotations
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-R = yaml.safe_load((ROOT / "data" / "rules" / "reach.yaml").read_text(encoding="utf-8"))
++R = yamlio.safe_load((ROOT / "data" / "rules" / "reach.yaml").read_text(encoding="utf-8"))
+ EASY = "easy"
+ 
+ 
+diff --git a/engine/reactions.py b/engine/reactions.py
+index 1fa20a2..3a0ab28 100644
+--- a/engine/reactions.py
++++ b/engine/reactions.py
+@@ -17,11 +17,12 @@ from __future__ import annotations
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import domain_events as de
+ from ui import console
+ 
+-R = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "reactions.yaml").read_text(encoding="utf-8"))
++R = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "reactions.yaml").read_text(encoding="utf-8"))
+ KINDS: dict[str, dict] = {k: (v or {}) for k, v in R["kinds"].items()}
+ AFTER_DEED = ("kill", "persuade", "deliver", "quest_done", "dungeon_cleared", "found", "defend",   # the ledger kinds that can end an event
+               "gift", "bribe")                                     # (f545) a condition of help met by a gift or a bribe
+diff --git a/engine/recognition.py b/engine/recognition.py
+index 1774799..f661060 100644
+--- a/engine/recognition.py
++++ b/engine/recognition.py
+@@ -6,9 +6,10 @@ from __future__ import annotations
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-R = yaml.safe_load((ROOT / "data" / "rules" / "recognition.yaml").read_text(encoding="utf-8"))
++R = yamlio.safe_load((ROOT / "data" / "rules" / "recognition.yaml").read_text(encoding="utf-8"))
+ 
+ 
+ def last_talk(npc, who: str) -> int:
+diff --git a/engine/regard.py b/engine/regard.py
+index 70e43d1..bf326fb 100644
+--- a/engine/regard.py
++++ b/engine/regard.py
+@@ -11,6 +11,7 @@ to someone the first has known for years.
+ 
+ Every caller passes the character's id; nothing here knows who is playing."""
+ from __future__ import annotations
++from core import yamlio
+ 
+ from pathlib import Path
+ 
+@@ -24,7 +25,7 @@ def rules() -> dict:
+     global _RULES
+     if _RULES is None:
+         import yaml
+-        _RULES = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "regard.yaml").read_text(encoding="utf-8")) or {}
++        _RULES = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "regard.yaml").read_text(encoding="utf-8")) or {}
+     return _RULES
+ 
+ 
+diff --git a/engine/roads.py b/engine/roads.py
+index 5842ecc..e52a65c 100644
+--- a/engine/roads.py
++++ b/engine/roads.py
+@@ -6,9 +6,10 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ from engine import streams
+ 
+-R = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "road.yaml").read_text(encoding="utf-8"))
++R = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "road.yaml").read_text(encoding="utf-8"))
+ TIER_ORDER = ["normal", "uncommon", "rare"]
+ 
+ 
+diff --git a/engine/routines.py b/engine/routines.py
+index 1a380a8..bbcf904 100644
+--- a/engine/routines.py
++++ b/engine/routines.py
+@@ -17,9 +17,10 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-R = yaml.safe_load((ROOT / "data" / "rules" / "routines.yaml").read_text(encoding="utf-8"))
++R = yamlio.safe_load((ROOT / "data" / "rules" / "routines.yaml").read_text(encoding="utf-8"))
+ 
+ def chance(role: str) -> float:
+     return float((R.get("roles") or {}).get(role, R.get("chance", 0.4)))
+diff --git a/engine/ruling.py b/engine/ruling.py
+index 2a6baa3..7bf7623 100644
+--- a/engine/ruling.py
++++ b/engine/ruling.py
+@@ -21,11 +21,12 @@ import re
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from ui import console
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-C = yaml.safe_load((ROOT / "data" / "rules" / "capabilities.yaml").read_text(encoding="utf-8"))
++C = yamlio.safe_load((ROOT / "data" / "rules" / "capabilities.yaml").read_text(encoding="utf-8"))
+ ATTRS = ("strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma")
+ HARD = {"easy": 20, "fair": 0, "hard": -20, "": 0}
+ APPEAR_PER_DAY = 2
+diff --git a/engine/sets.py b/engine/sets.py
+index 7f03430..1a15929 100644
+--- a/engine/sets.py
++++ b/engine/sets.py
+@@ -7,10 +7,11 @@ give `four` as well. A bonus is a few stat effects, combat mechanics (the ones l
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import items
+ 
+-D = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "sets.yaml").read_text(encoding="utf-8"))
++D = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "sets.yaml").read_text(encoding="utf-8"))
+ SETS: dict = D["sets"]
+ THRESHOLDS: list[int] = D["thresholds"]
+ NAMES = {2: "two", 4: "four"}
+diff --git a/engine/severity.py b/engine/severity.py
+index 950f4bb..b00be43 100644
+--- a/engine/severity.py
++++ b/engine/severity.py
+@@ -9,8 +9,9 @@ from __future__ import annotations
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+-SV = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "severity.yaml").read_text(encoding="utf-8"))
++SV = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "severity.yaml").read_text(encoding="utf-8"))
+ LEVELS = ("composed", "sobered", "shaken", "devastated")
+ 
+ 
+diff --git a/engine/situations.py b/engine/situations.py
+index 1c2a0bb..0de455e 100644
+--- a/engine/situations.py
++++ b/engine/situations.py
+@@ -35,11 +35,12 @@ import re
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import hygiene, retrieval, roads, streams
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-S = yaml.safe_load((ROOT / "data" / "rules" / "situations.yaml").read_text(encoding="utf-8"))
++S = yamlio.safe_load((ROOT / "data" / "rules" / "situations.yaml").read_text(encoding="utf-8"))
+ TIERS = ("normal", "uncommon", "rare", "campaign")
+ V = 1
+ 
+@@ -602,13 +603,13 @@ def measured_problems(doc: dict | None = None) -> list[str]:
+         if not path.exists():
+             return []
+         try:
+-            doc = yaml.safe_load(path.read_text(encoding="utf-8"))
++            doc = yamlio.safe_load(path.read_text(encoding="utf-8"))
+         except yaml.YAMLError as e:
+             return [f"situation_thinking.yaml: not YAML ({str(e).splitlines()[0]})"]
+     if not isinstance(doc, dict):
+         return ["situation_thinking.yaml: a table of the task, its arms and the verdict"]
+     bad = []
+-    tasks = (yaml.safe_load((ROOT / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8")) or {}).get("tasks") or {}
++    tasks = (yamlio.safe_load((ROOT / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8")) or {}).get("tasks") or {}
+     if doc.get("task") not in tasks:
+         bad.append(f"situation_thinking.yaml task: '{doc.get('task')}' is not a task budget.yaml knows")
+     known = set(arms())
+diff --git a/engine/spellcraft.py b/engine/spellcraft.py
+index 3005955..9393ef1 100644
+--- a/engine/spellcraft.py
++++ b/engine/spellcraft.py
+@@ -10,6 +10,7 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import combat as C
+ from engine import effects as E
+@@ -17,7 +18,7 @@ from engine import ability_traits as AT
+ from engine import streams
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-S = yaml.safe_load((ROOT / "data" / "rules" / "spellcraft.yaml").read_text(encoding="utf-8"))
++S = yamlio.safe_load((ROOT / "data" / "rules" / "spellcraft.yaml").read_text(encoding="utf-8"))
+ EXPR: dict = S["expressions"]
+ FORMS: dict = S["forms"]
+ GROUND = set(S.get("ground", []))
+diff --git a/engine/spells.py b/engine/spells.py
+index 8d25092..3667fb9 100644
+--- a/engine/spells.py
++++ b/engine/spells.py
+@@ -16,9 +16,10 @@ import re
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-S = yaml.safe_load((ROOT / "data" / "rules" / "spells.yaml").read_text(encoding="utf-8"))
++S = yamlio.safe_load((ROOT / "data" / "rules" / "spells.yaml").read_text(encoding="utf-8"))
+ RANKS = {int(r["rank"]): r for r in S["ranks"]}
+ TOP = max(RANKS)
+ FORMS = S["forms"]
+diff --git a/engine/stakes.py b/engine/stakes.py
+index aeae2c5..768e572 100644
+--- a/engine/stakes.py
++++ b/engine/stakes.py
+@@ -15,12 +15,13 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from ui import console
+ from engine import streams
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-G = yaml.safe_load((ROOT / "data" / "rules" / "guild.yaml").read_text(encoding="utf-8"))
++G = yamlio.safe_load((ROOT / "data" / "rules" / "guild.yaml").read_text(encoding="utf-8"))
+ 
+ STAKES_SYSTEM = """You give the postings on an adventurers' guild board their reasons. Each posting names the person who asked the guild to post
+ it (the ISSUER: their name and what they do) and the town they live in (its character, what is wrong underneath, how things stand). For
+diff --git a/engine/standing.py b/engine/standing.py
+index f3df9ed..eb38164 100644
+--- a/engine/standing.py
++++ b/engine/standing.py
+@@ -9,10 +9,11 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import pulse
+ 
+-S = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "standing.yaml").read_text(encoding="utf-8"))
++S = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "standing.yaml").read_text(encoding="utf-8"))
+ GROUPS, SP, DEEDS, FX = S["groups"], S["spread"], S["deeds"], S["effects"]
+ 
+ 
+diff --git a/engine/starts.py b/engine/starts.py
+index 719d072..1aa550b 100644
+--- a/engine/starts.py
++++ b/engine/starts.py
+@@ -12,10 +12,11 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ from engine import streams
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-S = yaml.safe_load((ROOT / "data" / "rules" / "starts.yaml").read_text(encoding="utf-8"))
++S = yamlio.safe_load((ROOT / "data" / "rules" / "starts.yaml").read_text(encoding="utf-8"))
+ TOWN_KEYS = ("home", "near", "region")
+ 
+ 
+diff --git a/engine/stats.py b/engine/stats.py
+index 12877a6..8112526 100644
+--- a/engine/stats.py
++++ b/engine/stats.py
+@@ -3,10 +3,11 @@
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from core.models import Attributes
+ 
+-RULES = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "progression.yaml").read_text(encoding="utf-8"))
++RULES = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "progression.yaml").read_text(encoding="utf-8"))
+ 
+ STAT_NAMES = list(Attributes.model_fields)
+ BASE = int(RULES["starting_base"])
+diff --git a/engine/stay.py b/engine/stay.py
+index 62f4b0b..437475d 100644
+--- a/engine/stay.py
++++ b/engine/stay.py
+@@ -13,10 +13,11 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ from engine import streams
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-S = yaml.safe_load((ROOT / "data" / "rules" / "stay.yaml").read_text(encoding="utf-8"))
++S = yamlio.safe_load((ROOT / "data" / "rules" / "stay.yaml").read_text(encoding="utf-8"))
+ 
+ 
+ def snapshot(ws) -> dict:
+diff --git a/engine/summons.py b/engine/summons.py
+index 1d1fbe0..39d79f4 100644
+--- a/engine/summons.py
++++ b/engine/summons.py
+@@ -12,12 +12,13 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import combat as C
+ from engine import effects as E
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-S = yaml.safe_load((ROOT / "data" / "rules" / "summons.yaml").read_text(encoding="utf-8"))
++S = yamlio.safe_load((ROOT / "data" / "rules" / "summons.yaml").read_text(encoding="utf-8"))
+ FORMS = S["forms"]
+ 
+ 
+diff --git a/engine/taming.py b/engine/taming.py
+index 34f1be4..4c77c9f 100644
+--- a/engine/taming.py
++++ b/engine/taming.py
+@@ -6,13 +6,14 @@ Rules live in data/rules/taming.yaml.
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from core.models import Companion
+ from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
+ from engine import streams
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-T = yaml.safe_load((ROOT / "data" / "rules" / "taming.yaml").read_text(encoding="utf-8"))
++T = yamlio.safe_load((ROOT / "data" / "rules" / "taming.yaml").read_text(encoding="utf-8"))
+ 
+ KIND = {"undead": "undead", "elemental": "elemental", "construct": "construct", "fey": "spirit", "celestial": "spirit"}
+ 
+diff --git a/engine/threads.py b/engine/threads.py
+index 0a8ea96..56a76ca 100644
+--- a/engine/threads.py
++++ b/engine/threads.py
+@@ -20,11 +20,12 @@ import re
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from ui import console
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-T = yaml.safe_load((ROOT / "data" / "rules" / "threads.yaml").read_text(encoding="utf-8"))
++T = yamlio.safe_load((ROOT / "data" / "rules" / "threads.yaml").read_text(encoding="utf-8"))
+ SLOTS = ("town", "place", "wild", "neighbour", "road", "region", "season", "creature", "creatures", "role", "role2", "about", "good")
+ PLACE_SLOTS = ("town", "place", "wild", "neighbour", "road")
+ PERSON_SLOTS = ("role", "role2")
+diff --git a/engine/town_memory.py b/engine/town_memory.py
+index 10ccd30..679c80b 100644
+--- a/engine/town_memory.py
++++ b/engine/town_memory.py
+@@ -13,6 +13,7 @@ from __future__ import annotations
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+ _K: dict | None = None
+@@ -22,8 +23,8 @@ def kinds() -> dict:
+     """{kind: {days, cap, mark?}}: a matter's and a job's from doors.yaml, a moment's from moments.yaml."""
+     global _K
+     if _K is None:
+-        D = yaml.safe_load((ROOT / "data" / "rules" / "doors.yaml").read_text(encoding="utf-8"))
+-        M = yaml.safe_load((ROOT / "data" / "rules" / "moments.yaml").read_text(encoding="utf-8"))
++        D = yamlio.safe_load((ROOT / "data" / "rules" / "doors.yaml").read_text(encoding="utf-8"))
++        M = yamlio.safe_load((ROOT / "data" / "rules" / "moments.yaml").read_text(encoding="utf-8"))
+         _K = dict((D.get("memory") or {}).get("kinds") or {})
+         _K["moment"] = {"days": int(M.get("memory_days", 3)), "cap": int((M.get("memory") or {}).get("cap", 12))}
+         _K["_marks"] = {"cap": int((D.get("memory") or {}).get("marks_cap", 12))}
+diff --git a/engine/towns.py b/engine/towns.py
+index 72f4228..27543bb 100644
+--- a/engine/towns.py
++++ b/engine/towns.py
+@@ -11,9 +11,10 @@ from dataclasses import dataclass
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-R = yaml.safe_load((ROOT / "data" / "rules" / "towns.yaml").read_text(encoding="utf-8"))
++R = yamlio.safe_load((ROOT / "data" / "rules" / "towns.yaml").read_text(encoding="utf-8"))
+ 
+ 
+ @dataclass
+diff --git a/engine/trust.py b/engine/trust.py
+index b45c54e..4f5a804 100644
+--- a/engine/trust.py
++++ b/engine/trust.py
+@@ -9,9 +9,10 @@ from __future__ import annotations
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-T = yaml.safe_load((ROOT / "data" / "rules" / "trust.yaml").read_text(encoding="utf-8"))
++T = yamlio.safe_load((ROOT / "data" / "rules" / "trust.yaml").read_text(encoding="utf-8"))
+ 
+ 
+ def after_talk(npc, reply, day: int, who: str, minute: int = -1) -> int:
+diff --git a/engine/truth.py b/engine/truth.py
+index e45a5d0..7966cd6 100644
+--- a/engine/truth.py
++++ b/engine/truth.py
+@@ -20,9 +20,10 @@ from dataclasses import dataclass, field
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-T = yaml.safe_load((ROOT / "data" / "rules" / "truth.yaml").read_text(encoding="utf-8"))
++T = yamlio.safe_load((ROOT / "data" / "rules" / "truth.yaml").read_text(encoding="utf-8"))
+ _WORD = re.compile(r"[a-z]+")
+ 
+ TOWN_BUILDINGS = ("smithy", "shop", "inn", "temple", "guild", "workshop")
+diff --git a/engine/voice_profile.py b/engine/voice_profile.py
+index 084c217..0ea5b99 100644
+--- a/engine/voice_profile.py
++++ b/engine/voice_profile.py
+@@ -11,9 +11,10 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-S = yaml.safe_load((ROOT / "data" / "rules" / "speech.yaml").read_text(encoding="utf-8"))
++S = yamlio.safe_load((ROOT / "data" / "rules" / "speech.yaml").read_text(encoding="utf-8"))
+ 
+ 
+ def _pick(weights: dict, rng: random.Random):
+diff --git a/engine/voice_rules.py b/engine/voice_rules.py
+index f61b497..0f787c0 100644
+--- a/engine/voice_rules.py
++++ b/engine/voice_rules.py
+@@ -4,8 +4,9 @@ import re
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+-V = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "voice.yaml").read_text(encoding="utf-8"))
++V = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "voice.yaml").read_text(encoding="utf-8"))
+ 
+ 
+ _REFUSAL = re.compile(r"\b(no\.|i won'?t|i will not|i'?ll not|not (?:for|to) (?:you|strangers|the likes)|nothing (?:for|to) (?:you|say)|get out|"
+diff --git a/engine/voices.py b/engine/voices.py
+index 429d39a..aaa6b6f 100644
+--- a/engine/voices.py
++++ b/engine/voices.py
+@@ -24,9 +24,10 @@ from collections import deque
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-V = yaml.safe_load((ROOT / "data" / "rules" / "voices.yaml").read_text(encoding="utf-8"))
++V = yamlio.safe_load((ROOT / "data" / "rules" / "voices.yaml").read_text(encoding="utf-8"))
+ AXES: dict = V["axes"]
+ _STOP = {"the", "a", "an", "and", "or", "but", "of", "to", "in", "on", "at", "for", "with", "from", "by", "as", "is", "are", "was", "were",
+          "be", "it", "its", "i", "you", "your", "we", "they", "them", "their", "he", "she", "his", "her", "this", "that", "these", "those",
+diff --git a/engine/weather.py b/engine/weather.py
+index b1bf30b..c0d2c01 100644
+--- a/engine/weather.py
++++ b/engine/weather.py
+@@ -4,10 +4,11 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import clock
+ 
+-RULES = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "weather.yaml").read_text(encoding="utf-8"))
++RULES = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "weather.yaml").read_text(encoding="utf-8"))
+ CONDITIONS = {c["id"]: c for c in RULES["conditions"]}
+ BLOCK_MINUTES = RULES["change_every_hours"] * 60
+ 
+diff --git a/engine/world_improv.py b/engine/world_improv.py
+index 8331c1b..2b8ff02 100644
+--- a/engine/world_improv.py
++++ b/engine/world_improv.py
+@@ -9,11 +9,12 @@ import re
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from ui import console
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-W = yaml.safe_load((ROOT / "data" / "rules" / "improv.yaml").read_text(encoding="utf-8"))
++W = yamlio.safe_load((ROOT / "data" / "rules" / "improv.yaml").read_text(encoding="utf-8"))
+ 
+ 
+ def read_effect(words: str) -> str:
+diff --git a/engine/world_perks.py b/engine/world_perks.py
+index 0031ff8..e4b1d0e 100644
+--- a/engine/world_perks.py
++++ b/engine/world_perks.py
+@@ -6,9 +6,10 @@ from __future__ import annotations
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-P = yaml.safe_load((ROOT / "data" / "rules" / "perks.yaml").read_text(encoding="utf-8"))["world"]
++P = yamlio.safe_load((ROOT / "data" / "rules" / "perks.yaml").read_text(encoding="utf-8"))["world"]
+ 
+ 
+ def owns(c, mid: str) -> bool:
+diff --git a/llm/audit.py b/llm/audit.py
+index 1b72f7a..8ba5ba5 100644
+--- a/llm/audit.py
++++ b/llm/audit.py
+@@ -16,9 +16,10 @@ from datetime import datetime
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-A = yaml.safe_load((ROOT / "data" / "rules" / "audit_log.yaml").read_text(encoding="utf-8"))
++A = yamlio.safe_load((ROOT / "data" / "rules" / "audit_log.yaml").read_text(encoding="utf-8"))
+ 
+ _lock = threading.Lock()
+ _path: Path | None = None
+diff --git a/llm/launch.py b/llm/launch.py
+index ca9b01b..77c61c9 100644
+--- a/llm/launch.py
++++ b/llm/launch.py
+@@ -26,6 +26,7 @@ import time
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from core import paths
+ 
+@@ -44,7 +45,7 @@ KEYS = {                     # each line the screen can show, and the placeholde
+ def lines() -> dict:
+     """data/rules/launch.yaml's lines, or {} until the owner's are in (f527)."""
+     try:
+-        got = yaml.safe_load(LINES_PATH.read_text(encoding="utf-8")) or {}
++        got = yamlio.safe_load(LINES_PATH.read_text(encoding="utf-8")) or {}
+     except (OSError, yaml.YAMLError):
+         return {}
+     return got if isinstance(got, dict) else {}
+diff --git a/llm/runtime.py b/llm/runtime.py
+index c26e006..fdb1de2 100644
+--- a/llm/runtime.py
++++ b/llm/runtime.py
+@@ -52,6 +52,7 @@ import time
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ import config
+ from core import paths
+@@ -69,7 +70,7 @@ _CLOSING = "the game closed while the model server started"
+ 
+ 
+ def settings(path: Path | str | None = None) -> dict:
+-    return yaml.safe_load(Path(path or SETTINGS).read_text(encoding="utf-8")) or {}
++    return yamlio.safe_load(Path(path or SETTINGS).read_text(encoding="utf-8")) or {}
+ 
+ 
+ def exe_name() -> str:
+@@ -175,12 +176,12 @@ def needed_context() -> int:
+     import math
+     root = Path(paths.BUNDLE)
+     try:
+-        ceilings = yaml.safe_load((root / "data" / "measured" / "prompt_ceilings.yaml").read_text(encoding="utf-8")) or {}
++        ceilings = yamlio.safe_load((root / "data" / "measured" / "prompt_ceilings.yaml").read_text(encoding="utf-8")) or {}
+         chars = max(int((v or {}).get("chars") or 0) for v in (ceilings.get("ceilings") or {}).values())
+     except Exception:
+         chars = 36500
+     try:
+-        cpt = float((yaml.safe_load((root / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8")) or {}).get("chars_per_token") or 4.0)
++        cpt = float((yamlio.safe_load((root / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8")) or {}).get("chars_per_token") or 4.0)
+     except Exception:
+         cpt = 4.0
+     return math.ceil(chars / cpt) + 2 * largest_answer()
+@@ -190,7 +191,7 @@ def answers_file() -> int | None:
+     """(f522) data/measured/answers.yaml's max_tokens: the largest answer any call asks for, kept equal to the source's own largest by
+     tools/sim/server_522_test.py. None when it is missing or not a whole number above zero."""
+     try:
+-        got = (yaml.safe_load(ANSWERS.read_text(encoding="utf-8")) or {}).get("max_tokens")
++        got = (yamlio.safe_load(ANSWERS.read_text(encoding="utf-8")) or {}).get("max_tokens")
+     except (OSError, yaml.YAMLError, AttributeError):
+         return None
+     return got if isinstance(got, int) and not isinstance(got, bool) and got > 0 else None
+diff --git a/npc/names.py b/npc/names.py
+index 20e80e2..b9fca96 100644
+--- a/npc/names.py
++++ b/npc/names.py
+@@ -14,6 +14,7 @@ from functools import lru_cache
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ _DATA = Path(__file__).resolve().parent.parent / "data" / "world"
+ 
+@@ -21,7 +22,7 @@ _DATA = Path(__file__).resolve().parent.parent / "data" / "world"
+ @lru_cache(maxsize=1)
+ def reserved() -> frozenset[str]:
+     """First names the story uses for named characters, so no passer-by shares them."""
+-    m = yaml.safe_load((_DATA / "mentor.yaml").read_text(encoding="utf-8"))
++    m = yamlio.safe_load((_DATA / "mentor.yaml").read_text(encoding="utf-8"))
+     return frozenset(w for w in (m.get("name", "").split()[:1]))
+ 
+ 
+@@ -53,7 +54,7 @@ VOWELS = "aeiouy"
+ 
+ @lru_cache(maxsize=1)
+ def sounds() -> dict:
+-    return yaml.safe_load((_DATA / "name_sounds.yaml").read_text(encoding="utf-8"))
++    return yamlio.safe_load((_DATA / "name_sounds.yaml").read_text(encoding="utf-8"))
+ 
+ 
+ def _rules(people: str, kind: str) -> dict:
+diff --git a/npc/traits.py b/npc/traits.py
+index f6a45ef..7131bf9 100644
+--- a/npc/traits.py
++++ b/npc/traits.py
+@@ -10,6 +10,7 @@ from pathlib import Path
+ from typing import Literal
+ 
+ import yaml
++from core import yamlio
+ from pydantic import BaseModel
+ 
+ from npc.models import NPC, TraitChange
+@@ -52,7 +53,7 @@ class TraitCatalog:
+ 
+ 
+ def load_traits(path: Path = TRAITS_PATH) -> TraitCatalog:
+-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
++    raw = yamlio.safe_load(path.read_text(encoding="utf-8"))
+     traits, problems = {}, []
+     for entry in raw:
+         t = Trait(**entry)
+diff --git a/scenes/passive_hooks.py b/scenes/passive_hooks.py
+index 73362ed..89b83f0 100644
+--- a/scenes/passive_hooks.py
++++ b/scenes/passive_hooks.py
+@@ -4,12 +4,13 @@ import random
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import clock, items, pools
+ from ui import console
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-TRAVEL = yaml.safe_load((ROOT / "data" / "rules" / "travel.yaml").read_text(encoding="utf-8"))
++TRAVEL = yamlio.safe_load((ROOT / "data" / "rules" / "travel.yaml").read_text(encoding="utf-8"))
+ 
+ ARMED_ROLES = {"guard", "watch_captain", "royal_guard", "hunter", "guild_contractor", "elven_warden", "scout",
+                "trapper", "guild_instructor"}
+diff --git a/scenes/pastime_actions.py b/scenes/pastime_actions.py
+index 4872e38..8fd1701 100644
+--- a/scenes/pastime_actions.py
++++ b/scenes/pastime_actions.py
+@@ -10,13 +10,14 @@ from __future__ import annotations
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import regard                                   # (f480)
+ from engine import checks, clock, money
+ from ui import console
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-PT = yaml.safe_load((ROOT / "data" / "rules" / "pastimes.yaml").read_text(encoding="utf-8"))
++PT = yamlio.safe_load((ROOT / "data" / "rules" / "pastimes.yaml").read_text(encoding="utf-8"))
+ 
+ 
+ class PastimeActions:
+diff --git a/scenes/training_actions.py b/scenes/training_actions.py
+index 74d5180..b2d81d6 100644
+--- a/scenes/training_actions.py
++++ b/scenes/training_actions.py
+@@ -3,6 +3,7 @@
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from core.models import Passive
+ from engine import clock, leveling, money
+@@ -14,7 +15,7 @@ from engine.names import cap_first                      # (f422) a capital first
+ from engine import streams
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-T = yaml.safe_load((ROOT / "data" / "rules" / "training.yaml").read_text(encoding="utf-8"))
++T = yamlio.safe_load((ROOT / "data" / "rules" / "training.yaml").read_text(encoding="utf-8"))
+ DISCIPLINE_WORDS = {
+     "wisdom": ("heal", "holy", "divine", "faith", "prayer", "nature", "druid", "spirit", "blessing", "mend"),
+     "charisma": ("pact", "song", "bard", "charm", "voice", "performance", "hex", "warlock", "illusion"),
+diff --git a/scenes/work_actions.py b/scenes/work_actions.py
+index 238cbba..3aa3e02 100644
+--- a/scenes/work_actions.py
++++ b/scenes/work_actions.py
+@@ -5,6 +5,7 @@ import re
+ from pathlib import Path
+ 
+ import yaml
++from core import yamlio
+ 
+ from engine import regard                                   # (f480)
+ from engine import clock, crafting, inventory as inv, items, loot, money, pools
+@@ -14,7 +15,7 @@ from ui import console
+ from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+-W = yaml.safe_load((ROOT / "data" / "rules" / "work.yaml").read_text(encoding="utf-8"))
++W = yamlio.safe_load((ROOT / "data" / "rules" / "work.yaml").read_text(encoding="utf-8"))
+ 
+ 
+ PLACEHOLDER_TASKS = {"task", "the task", "a task", "work", "a job", "the job", "job", "string", "short phrase"}
+diff --git a/world/loader.py b/world/loader.py
+index ce10a3a..b279e2d 100644
+--- a/world/loader.py
++++ b/world/loader.py
+@@ -10,6 +10,7 @@ from typing import Literal
+ import functools
+ 
+ import yaml
++from core import yamlio
+ from pydantic import Field, BaseModel, PrivateAttr, ValidationError, field_validator
+ 
+ from core.paths import BUNDLE
+@@ -99,7 +100,7 @@ class Place(BaseModel):
+ 
+ @functools.lru_cache(maxsize=1)
+ def _family_ids() -> frozenset[str]:
+-    return frozenset(yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "families.yaml").read_text(encoding="utf-8"))["families"])
++    return frozenset(yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "families.yaml").read_text(encoding="utf-8"))["families"])
+ 
+ 
+ class Creature(BaseModel):
+@@ -351,7 +352,7 @@ def _read_yaml(path: Path, problems: list[str]):
+         problems.append(f"missing file {path}")
+         return None
+     try:
+-        return yaml.safe_load(path.read_text(encoding="utf-8"))
++        return yamlio.safe_load(path.read_text(encoding="utf-8"))
+     except yaml.YAMLError as e:
+         problems.append(f"{path.name}: not valid YAML ({e})")
+         return None

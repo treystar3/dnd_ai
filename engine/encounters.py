@@ -5,10 +5,11 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import combat, events
 
-CREATURE_RULES = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "creatures.yaml").read_text(encoding="utf-8"))
+CREATURE_RULES = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "creatures.yaml").read_text(encoding="utf-8"))
 E = combat.RULES["encounters"]
 
 

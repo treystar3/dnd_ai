@@ -11,10 +11,11 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import quests
 
-O = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "orenna.yaml").read_text(encoding="utf-8"))
+O = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "orenna.yaml").read_text(encoding="utf-8"))
 STAGES = ["", "named", "contact", "ruin", "leaving", "order", "trails", "registry", "confront", "done"]
 
 

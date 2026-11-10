@@ -20,9 +20,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
-T = yaml.safe_load((ROOT / "data" / "rules" / "truth.yaml").read_text(encoding="utf-8"))
+T = yamlio.safe_load((ROOT / "data" / "rules" / "truth.yaml").read_text(encoding="utf-8"))
 _WORD = re.compile(r"[a-z]+")
 
 TOWN_BUILDINGS = ("smithy", "shop", "inn", "temple", "guild", "workshop")

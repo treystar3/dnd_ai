@@ -9,8 +9,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
-SV = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "severity.yaml").read_text(encoding="utf-8"))
+SV = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "severity.yaml").read_text(encoding="utf-8"))
 LEVELS = ("composed", "sobered", "shaken", "devastated")
 
 

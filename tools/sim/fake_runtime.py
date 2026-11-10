@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -27,6 +28,95 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 THE_3060 = "  CUDA0: NVIDIA GeForce RTX 3060 (12287 MiB, 11200 MiB free)"
+
+
+def write_exe(path: Path | str, script: str) -> Path:
+    """(f561) A fake program running `script`: a shebang file on POSIX, pip's script launcher with the script appended on Windows."""
+    import io, platform, zipfile
+    path = Path(path)
+    if os.name != "nt":
+        path.write_text(script, encoding="utf-8", newline="\n")
+        path.chmod(0o755)
+        return path
+    name = "t64-arm.exe" if platform.machine().upper() == "ARM64" else "t64.exe"
+    try:
+        from pip._vendor import distlib
+    except ImportError:
+        try:
+            import distlib
+        except ImportError:
+            raise RuntimeError("the fake llama-server needs pip (or distlib) in this Python on Windows: python -m ensurepip") from None
+    launcher = (Path(distlib.__file__).parent / name).read_bytes()
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("__main__.py", script)
+    path.write_bytes(launcher + f'#!"{sys.executable}"\n'.encode("utf-8") + buf.getvalue())
+    return path
+
+
+def disable(path: Path | str) -> None:
+    """(f561) A fake program that cannot start: not executable on POSIX, not a program on Windows."""
+    path = Path(path)
+    if os.name != "nt":
+        path.chmod(0o644)
+    else:
+        path.write_bytes(b"not a program")
+
+
+def alive(pid: int) -> bool:
+    """(f561) Whether a process is running and not a zombie, on any OS."""
+    if os.name == "nt":
+        import ctypes
+        k = ctypes.windll.kernel32
+        k.OpenProcess.restype = ctypes.c_void_p
+        h = k.OpenProcess(0x1000, False, int(pid))          # PROCESS_QUERY_LIMITED_INFORMATION
+        if not h:
+            return False
+        code = ctypes.c_ulong()
+        k.GetExitCodeProcess(ctypes.c_void_p(h), ctypes.byref(code)); k.CloseHandle(ctypes.c_void_p(h))
+        return code.value == 259                            # STILL_ACTIVE
+    try:
+        st = Path(f"/proc/{pid}/status").read_text()
+        return "State:\tZ" not in st and "State:\tX" not in st
+    except OSError:
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            return False
+
+
+def kill(pid: int) -> None:
+    """(f561) End a process outright, as a crash would (SIGKILL on POSIX, TerminateProcess on Windows)."""
+    import signal
+    try:
+        os.kill(int(pid), getattr(signal, "SIGKILL", signal.SIGTERM))
+    except OSError:
+        pass
+
+
+def _cim(where: str, **env) -> list[int]:
+    q = f"Get-CimInstance Win32_Process | Where-Object {{ {where} }} | ForEach-Object {{ $_.ProcessId }}"
+    r = subprocess.run(["powershell", "-NoProfile", "-Command", q], capture_output=True, text=True, env=dict(os.environ, **env))
+    if r.returncode != 0:                                   # (f561) a probe that cannot look must not read as "none left"
+        raise RuntimeError(f"process probe failed: {r.stderr.strip()[-300:]}")
+    return [int(x) for x in r.stdout.split() if x.strip().isdigit() and int(x) != os.getpid()]
+
+
+def windows_processes(image: Path | str, needle: str = "") -> list[int]:
+    """(f561) Windows: the processes started from `image` whose command line holds `needle`."""
+    return _cim("$_.ExecutablePath -eq $env:FAKE_IMAGE -and $_.CommandLine.Contains($env:FAKE_NEEDLE)", FAKE_IMAGE=str(image), FAKE_NEEDLE=needle)
+
+
+def processes_under(folder: Path | str) -> list[int]:
+    """(f561) The processes whose command line names `folder` (pgrep -f on POSIX)."""
+    if os.name == "nt":
+        return _cim("$_.CommandLine -and $_.CommandLine.Contains($env:FAKE_UNDER)", FAKE_UNDER=str(folder))
+    r = subprocess.run(["pgrep", "-f", "--", str(folder)], capture_output=True, text=True)
+    if r.returncode not in (0, 1):
+        raise RuntimeError(f"pgrep failed: {r.stderr.strip()}")
+    return [int(x) for x in r.stdout.split()]
+
 
 LAUNCHER = """#!{py}
 import os, sys, time, json, threading
@@ -103,9 +193,7 @@ class Layout:
         self.argv_log, self.bodies_log = self.base / "argv.jsonl", self.base / "bodies.jsonl"
         for b in ("cuda", "vulkan", "cpu"):
             (self.rt_dir / b).mkdir(parents=True, exist_ok=True)
-            exe = self.rt_dir / b / runtime.exe_name()
-            exe.write_text(LAUNCHER.format(py=sys.executable, root=str(ROOT), sim=str(SIM)), encoding="utf-8")
-            exe.chmod(0o755)
+            write_exe(self.rt_dir / b / runtime.exe_name(), LAUNCHER.format(py=sys.executable, root=str(ROOT), sim=str(SIM)))
         self.models_dir.mkdir(exist_ok=True)
         for m in (self.cfg.get("models") or {}).values():
             (self.models_dir / m["file"]).write_bytes(b"gguf")
@@ -128,8 +216,9 @@ class Layout:
         self._saved = {k: getattr(paths, k) for k in ("RUN", "RUNTIME", "MODELS", "APP")}
         paths.RUN, paths.RUNTIME, paths.MODELS, paths.APP = self.run_dir, self.rt_dir, self.models_dir, self.app
         self._env_before = dict(os.environ)
+        new = self.env(cuda, vulkan, **extra)            # (f561) built before the clear: Windows sockets need SystemRoot
         os.environ.clear()
-        os.environ.update(self.env(cuda, vulkan, **extra))
+        os.environ.update(new)
 
     def restore(self) -> None:
         from core import paths

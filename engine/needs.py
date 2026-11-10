@@ -2,9 +2,10 @@
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
-N = yaml.safe_load((ROOT / "data" / "rules" / "needs.yaml").read_text(encoding="utf-8"))
+N = yamlio.safe_load((ROOT / "data" / "rules" / "needs.yaml").read_text(encoding="utf-8"))
 
 
 def on() -> bool:

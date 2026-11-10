@@ -6,9 +6,10 @@ single model call (keywords are the fallback), and the answer is saved on the ab
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
-F = yaml.safe_load((ROOT / "data" / "rules" / "field.yaml").read_text(encoding="utf-8"))
+F = yamlio.safe_load((ROOT / "data" / "rules" / "field.yaml").read_text(encoding="utf-8"))
 FUNCTIONS = list(F["functions"])
 # abilities whose out-of-combat behavior is already defined by what they are
 SELF_FUNCTIONED = {"healing": True, "crafting": True, "summon": True}

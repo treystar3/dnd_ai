@@ -24,10 +24,11 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import yaml
+from core import yamlio
 from engine import streams
 from engine.failures import DASH, MACHINERY
 
-Q = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "questions.yaml").read_text(encoding="utf-8"))
+Q = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "questions.yaml").read_text(encoding="utf-8"))
 TRIES: int = int(Q.get("tries") or 3)
 _last = ""
 

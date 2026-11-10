@@ -18,11 +18,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from core.models import Entity
 
 ROOT = Path(__file__).resolve().parent.parent
-L = yaml.safe_load((ROOT / "data" / "rules" / "lifecycles.yaml").read_text(encoding="utf-8"))
+L = yamlio.safe_load((ROOT / "data" / "rules" / "lifecycles.yaml").read_text(encoding="utf-8"))
 GENDER = {"male": "he", "female": "she"}
 HISTORY_KEPT = 12
 

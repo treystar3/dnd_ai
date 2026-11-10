@@ -6,10 +6,11 @@ import re
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from world.loader import Place, Road
 
-X = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "explore.yaml").read_text(encoding="utf-8"))
+X = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "explore.yaml").read_text(encoding="utf-8"))
 STOP = {"the", "and", "for", "that", "this", "with", "from", "into", "where", "there", "find", "look", "looking", "some", "any"}
 
 

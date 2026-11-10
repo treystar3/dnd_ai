@@ -8,6 +8,7 @@ Callers get a validated proposal object or an LLMError, never raw text.
 
 import contextlib
 import json
+import os
 import threading
 import time
 from datetime import datetime, timezone
@@ -366,16 +367,23 @@ def _compact(messages: list[dict]) -> list[dict]:
 
 
 def trim_log(path: Path | None = None) -> None:
-    """Keep the log small: past LOG_MAX_MB, keep only the most recent LOG_KEEP_ENTRIES entries."""
+    """Keep the log small: past LOG_MAX_MB, keep only the most recent LOG_KEEP_ENTRIES entries. (f566) Never raises: a trim the system
+    refuses (another process holding the log, or trimming it too) is left for the next one, the log whole and no temp behind."""
     path = path or Path(config.LOG_PATH)
-    limit = getattr(config, "LOG_MAX_MB", 5) * 1024 * 1024
-    if not path.exists() or path.stat().st_size <= limit:
-        return
-    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    keep = lines[-getattr(config, "LOG_KEEP_ENTRIES", 300):]
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text("\n".join(keep) + "\n", encoding="utf-8")
-    tmp.replace(path)
+    tmp = path.with_name(f"{path.stem}.{os.getpid()}.{threading.get_ident()}.tmp")   # (f566) its own temp, never another trim's
+    try:
+        limit = getattr(config, "LOG_MAX_MB", 5) * 1024 * 1024
+        if not path.is_file() or path.stat().st_size <= limit:
+            return
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        keep = lines[-getattr(config, "LOG_KEEP_ENTRIES", 300):]
+        tmp.write_text("\n".join(keep) + "\n", encoding="utf-8", newline="\n")
+        tmp.replace(path)
+    except OSError:
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 _log_lock = threading.Lock()
@@ -412,7 +420,6 @@ def tagged(**fields):
 def _log(task, attempt, elapsed, messages, raw, error, usage=None, shape=None):
     global _writes
     path = Path(config.LOG_PATH)
-    path.parent.mkdir(parents=True, exist_ok=True)
     from llm import audit
     entry = {
         "time": datetime.now(timezone.utc).isoformat(),
@@ -431,8 +438,12 @@ def _log(task, attempt, elapsed, messages, raw, error, usage=None, shape=None):
         entry.update(shape)                             # (f475) chars, sizes, tail_chars, prompt_version: the prompt's shape, measured
     entry.update(getattr(_tag, "fields", None) or {})
     with _log_lock:
-        with path.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        try:                                            # (f566) a log that cannot be written never fails the call it records
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8", newline="\n") as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        except OSError:
+            return
         _writes += 1
         if _writes % 50 == 1:
             trim_log(path)

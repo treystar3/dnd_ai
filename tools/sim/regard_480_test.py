@@ -124,7 +124,7 @@ ALLOWED = {"npc/models.py", "storage/migrations.py", "storage/campaign.py"}     
 legacy = []
 RENAMED = ("met_player", "knows_player_as", "name_known_to_player")        # the fields whose names changed: a read of one is a bug
 for p in CODE:
-    if str(p) in ALLOWED:
+    if p.as_posix() in ALLOWED:
         continue
     for node in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
         if isinstance(node, ast.Attribute) and node.attr in RENAMED and not (isinstance(node.value, ast.Name) and node.value.id in ("r", "row")):
@@ -138,7 +138,7 @@ found = {}
 for p in CODE:
     k = p.read_text(encoding="utf-8").count("player.character.id")
     if k:
-        found[str(p)] = k
+        found[p.as_posix()] = k
 check("the call sites that take the acting character from the one player are the named ones", found == SITES, found)
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad), file=sys.__stdout__)

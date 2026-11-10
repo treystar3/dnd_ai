@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 
 import yaml
+from core import yamlio
 from pydantic import BaseModel
 
 from core.models import Item
@@ -14,7 +15,7 @@ from engine import items
 from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
-RULES = yaml.safe_load((ROOT / "data" / "rules" / "inventory.yaml").read_text(encoding="utf-8"))
+RULES = yamlio.safe_load((ROOT / "data" / "rules" / "inventory.yaml").read_text(encoding="utf-8"))
 RAW_STACK = 10
 
 
@@ -48,8 +49,8 @@ class Recipe(BaseModel):
     ingredients: list[Ingredient]
 
 
-GOODS = {g["id"]: Good(**g) for g in yaml.safe_load((ROOT / "data" / "world" / "goods.yaml").read_text(encoding="utf-8"))}
-RECIPES = {r["id"]: Recipe(**r) for r in yaml.safe_load((ROOT / "data" / "rules" / "recipes.yaml").read_text(encoding="utf-8"))}
+GOODS = {g["id"]: Good(**g) for g in yamlio.safe_load((ROOT / "data" / "world" / "goods.yaml").read_text(encoding="utf-8"))}
+RECIPES = {r["id"]: Recipe(**r) for r in yamlio.safe_load((ROOT / "data" / "rules" / "recipes.yaml").read_text(encoding="utf-8"))}
 for _r in RECIPES.values():
     for _g in list(_r.makes) + [i.good for i in _r.ingredients if i.good]:
         if _g not in GOODS:

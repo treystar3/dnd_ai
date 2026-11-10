@@ -14,6 +14,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import yaml
+from core import yamlio
 
 from core.rules import STATS, TRIGGERS
 from engine import ability_slots as AS
@@ -21,7 +22,7 @@ from engine import ability_traits as AT
 from engine import field
 
 ROOT = Path(__file__).resolve().parent.parent
-T = yaml.safe_load((ROOT / "data" / "rules" / "training.yaml").read_text(encoding="utf-8"))
+T = yamlio.safe_load((ROOT / "data" / "rules" / "training.yaml").read_text(encoding="utf-8"))
 L = T["lessons"]
 EFFECTS = list(L["effect_words"])
 FAMILIES_BY_ARCHETYPE = {"warrior": ["warrior"], "mage": ["mage"], "rogue": ["rogue"], "support": ["healer"]}

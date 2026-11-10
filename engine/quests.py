@@ -10,12 +10,13 @@ import re
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import encounters, inventory as inv, items
 from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
-G = yaml.safe_load((ROOT / "data" / "rules" / "guild.yaml").read_text(encoding="utf-8"))
+G = yamlio.safe_load((ROOT / "data" / "rules" / "guild.yaml").read_text(encoding="utf-8"))
 LETTERS = list(G["ranks"])
 
 

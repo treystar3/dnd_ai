@@ -217,7 +217,7 @@ def write(m: dict, card: str, model: str, source: str, scaled_from: str = "", fi
         f"{'' if m.get('embed_s') else ' (no embed call in the recording: the price before it, kept)'}\n"
         f"load_seconds: {m['load_s']}\n"
         f"median_turn_seconds: {m['median_turn_s']}\np95_turn_seconds: {m['p95_turn_s']}\nlongest_turn_seconds: {m['longest_turn_s']}\n"
-        f"turns_over_budget: {len(m['over'])}\n", encoding="utf-8")
+        f"turns_over_budget: {len(m['over'])}\n", encoding="utf-8", newline="\n")
 
 
 def main() -> int:

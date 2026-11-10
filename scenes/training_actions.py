@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from core.models import Passive
 from engine import clock, leveling, money
@@ -14,7 +15,7 @@ from engine.names import cap_first                      # (f422) a capital first
 from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
-T = yaml.safe_load((ROOT / "data" / "rules" / "training.yaml").read_text(encoding="utf-8"))
+T = yamlio.safe_load((ROOT / "data" / "rules" / "training.yaml").read_text(encoding="utf-8"))
 DISCIPLINE_WORDS = {
     "wisdom": ("heal", "holy", "divine", "faith", "prayer", "nature", "druid", "spirit", "blessing", "mend"),
     "charisma": ("pact", "song", "bard", "charm", "voice", "performance", "hex", "warlock", "illusion"),

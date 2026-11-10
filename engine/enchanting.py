@@ -8,12 +8,13 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 from pydantic import BaseModel
 
 from core.models import Character, Enchantment, Item, ItemProperty
 from engine import items
 
-RULES = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "enchanting.yaml").read_text(encoding="utf-8"))
+RULES = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "enchanting.yaml").read_text(encoding="utf-8"))
 
 
 class Option(BaseModel):

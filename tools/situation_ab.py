@@ -471,10 +471,10 @@ def write_packs(folder: Path, rows: list[dict], seed: int) -> tuple[int, int]:
     key["packs"] = {}
     for i, its in enumerate(items, 1):
         path = pdir / f"pack_{i}.md"
-        path.write_text(pack_text(its, i, len(items)), encoding="utf-8")
+        path.write_text(pack_text(its, i, len(items)), encoding="utf-8", newline="\n")
         key["packs"][path.name] = _sha(path)
     key["results_sha256"] = _sha(folder / "results.jsonl")
-    (folder / "key.json").write_text(json.dumps(key, indent=2), encoding="utf-8")
+    (folder / "key.json").write_text(json.dumps(key, indent=2), encoding="utf-8", newline="\n")
     return len(items), len(key["pairs"])
 
 
@@ -661,7 +661,7 @@ def write_summary(folder: Path, rows: list[dict], decision: dict | None, meta: d
         out += ["", ("**Verdict: thinking goes into the proposal, as " + decision["verdict"] + ".**") if decision["verdict"] != "off"
                 else "**Verdict: thinking stays off everywhere.**"]
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / "summary.md").write_text("\n".join(out) + "\n", encoding="utf-8")
+    (folder / "summary.md").write_text("\n".join(out) + "\n", encoding="utf-8", newline="\n")
 
 
 def load_rows(folder: Path) -> list[dict]:
@@ -698,7 +698,7 @@ def finish_decision(folder: Path, rows: list[dict], reads_paths, measured: str =
         meta = json.loads((folder / "meta.json").read_text(encoding="utf-8"))
     meta = meta or {"cases": len({r["case"] for r in rows}), "arms": sorted({r["arm"] for r in rows})}
     write_summary(folder, rows, decision, meta)
-    (folder / "decision.json").write_text(json.dumps(decision, indent=2), encoding="utf-8")
+    (folder / "decision.json").write_text(json.dumps(decision, indent=2), encoding="utf-8", newline="\n")
     if measured:
         import yaml
         doc = measured_doc(rows, decision, {**meta, "when": time.strftime("%Y-%m-%d")})
@@ -707,7 +707,7 @@ def finish_decision(folder: Path, rows: list[dict], reads_paths, measured: str =
         if bad:
             raise SystemExit("the measured file would not pass the game's check: " + "; ".join(bad))
         Path(measured).parent.mkdir(parents=True, exist_ok=True)
-        Path(measured).write_text(yaml.safe_dump(doc, sort_keys=False), encoding="utf-8")
+        Path(measured).write_text(yaml.safe_dump(doc, sort_keys=False), encoding="utf-8", newline="\n")
     return decision
 
 
@@ -795,9 +795,9 @@ def main(argv=None) -> int:
                 raise SystemExit(f"the server is not ready: {why}")
             meta.update(check_server(a.server, first, names, a.budget_field, a.model, slot_tokens(), timeout=a.timeout, constraint=a.constraint))
         out.mkdir(parents=True, exist_ok=True)
-        (out / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+        (out / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8", newline="\n")
         started = True
-        with (out / "results.jsonl").open("a" if have else "w", encoding="utf-8") as sink:
+        with (out / "results.jsonl").open("a" if have else "w", encoding="utf-8", newline="\n") as sink:
             run(store, world, chosen, names, server=a.server, stub=a.stub, seed=a.seed, budget_field=a.budget_field, model=a.model,
                 timeout=a.timeout, out=out, sink=sink, done={(r["case"], r["arm"]) for r in have}, rows=rows, give_up=a.give_up, meta=meta,
                 constraint=a.constraint)
@@ -811,7 +811,7 @@ def main(argv=None) -> int:
         else:
             drop_world(session, a.scratch)
     if started:
-        (out / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+        (out / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8", newline="\n")
         rows = load_rows(out)
         packs, pairs = write_packs(out, rows, a.seed)
         write_summary(out, rows, None, meta)

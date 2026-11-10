@@ -4,6 +4,7 @@ owned; relics are fixed, named legendary items sold by a relic dealer, one of ea
 import random
 
 import yaml
+from core import yamlio
 
 from core.models import Item
 from engine import items
@@ -11,8 +12,8 @@ from core.models import ItemProperty
 from world.loader import Place
 from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
-P = yaml.safe_load(open(__import__("pathlib").Path(__file__).resolve().parent.parent / "data" / "rules" / "property.yaml", encoding="utf-8"))
-RELICS = {r["id"]: r for r in yaml.safe_load(open(__import__("pathlib").Path(__file__).resolve().parent.parent / "data" / "world" / "relics.yaml", encoding="utf-8"))}
+P = yamlio.safe_load(open(__import__("pathlib").Path(__file__).resolve().parent.parent / "data" / "rules" / "property.yaml", encoding="utf-8"))
+RELICS = {r["id"]: r for r in yamlio.safe_load(open(__import__("pathlib").Path(__file__).resolve().parent.parent / "data" / "world" / "relics.yaml", encoding="utf-8"))}
 
 
 def home_id(town: str) -> str:

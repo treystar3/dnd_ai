@@ -3,10 +3,11 @@
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from core.models import Attributes
 
-RULES = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "progression.yaml").read_text(encoding="utf-8"))
+RULES = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "progression.yaml").read_text(encoding="utf-8"))
 
 STAT_NAMES = list(Attributes.model_fields)
 BASE = int(RULES["starting_base"])

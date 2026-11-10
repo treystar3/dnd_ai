@@ -6,6 +6,7 @@ Formulas and tuning live in data/rules/pools.yaml.
 from pathlib import Path
 
 import yaml
+from core import yamlio
 from pydantic import BaseModel
 
 from core.models import Character, ModifierTarget, Trigger
@@ -29,7 +30,7 @@ class PoolRules(BaseModel):
 
 
 def _load() -> PoolRules:
-    rules = PoolRules(**yaml.safe_load(RULES_PATH.read_text(encoding="utf-8")))
+    rules = PoolRules(**yamlio.safe_load(RULES_PATH.read_text(encoding="utf-8")))
     problems = []
     for name in POOLS:
         if name not in rules.pools or name not in rules.regen_per_hour:

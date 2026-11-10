@@ -485,7 +485,7 @@ def evals(llama_url: str, tasks, thinks=(False, True), timeout: float = 7200.0, 
                    "seconds": round(time.perf_counter() - t0, 1), "room": room if think else None,
                    "tail": text.strip().splitlines()[-3:]}
             if folder is not None:
-                (folder / f"eval_{name}_{row['think']}.log").write_text(text, encoding="utf-8")
+                (folder / f"eval_{name}_{row['think']}.log").write_text(text, encoding="utf-8", newline="\n")
             out.append(row)
             if done is not None:
                 done(out)
@@ -493,7 +493,7 @@ def evals(llama_url: str, tasks, thinks=(False, True), timeout: float = 7200.0, 
 
 
 def write_summary(folder: Path, rows: list[dict], eval_rows: list[dict], meta: dict) -> None:
-    (folder / "summary.json").write_text(json.dumps({"meta": meta, "calls": rows, "evals": eval_rows}, indent=1), encoding="utf-8")
+    (folder / "summary.json").write_text(json.dumps({"meta": meta, "calls": rows, "evals": eval_rows}, indent=1), encoding="utf-8", newline="\n")
     lines = [f"# Thinking on and off ({meta['made']})", "", f"Recordings: {meta['recordings']}. Tasks: {', '.join(meta['tasks'])}. "
              f"Up to {meta['per_task']} first tries a task; {meta['room']} more tokens to think in. Minimum card from "
              f"data/measured/card_profile.yaml ({meta.get('card') or 'none'}).", "",
@@ -520,7 +520,7 @@ def write_summary(folder: Path, rows: list[dict], eval_rows: list[dict], meta: d
         for e in eval_rows:
             if e["right"] is None:
                 lines.append(f"- {e['eval']} {e['think']}: no score line; it ended with: " + " / ".join(e.get("tail") or []))
-    (folder / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (folder / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
 
 def warnings_of(rows: list[dict]) -> list[str]:
@@ -618,7 +618,7 @@ def main(argv=None) -> int:
         return 2
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "chosen.json").write_text(json.dumps({t: [[r.get("_from"), r.get("i")] for r in rs] for t, rs in chosen.items()}, indent=1),
-                                        encoding="utf-8")
+                                        encoding="utf-8", newline="\n")
     about: dict = {}
     meta["servers_about"] = about
     results, eval_rows = [], []
@@ -631,7 +631,7 @@ def main(argv=None) -> int:
         write_summary(folder, rows, eval_rows, meta)
 
     try:
-        with (folder / "results.jsonl").open("w", encoding="utf-8") as out:
+        with (folder / "results.jsonl").open("w", encoding="utf-8", newline="\n") as out:
             results = measure(chosen, servers, thinks, a.room, a.timeout, a.model, out, ready_wait=a.ready_wait, about=about)
         save()
         if a.evals:

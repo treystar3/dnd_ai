@@ -3,8 +3,9 @@ import re
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
-R = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "elements.yaml").read_text(encoding="utf-8"))
+R = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "elements.yaml").read_text(encoding="utf-8"))
 ELEMENTS = list(R["elements"])
 CAP = R["resist_cap"]
 _PATTERNS = {e: re.compile(r"\b(?:" + "|".join(re.escape(k) for k in kws) + ")") for e, kws in R["elements"].items()}

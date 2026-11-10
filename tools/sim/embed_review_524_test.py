@@ -29,6 +29,8 @@ from pydantic import BaseModel
 
 from llm import backend, embed, runtime, sampling
 from llm.errors import Failure, NotFinal
+sys.path.insert(0, str(ROOT / "tools" / "sim"))
+import fake_runtime
 
 no_server_before = os.environ.pop("MERAVIA_NO_SERVER", None)
 bad: list[str] = []
@@ -109,7 +111,7 @@ def wait_for(cond, seconds=8.0):
 
 
 def kill(proc):
-    os.kill(proc.pid, signal.SIGKILL)
+    fake_runtime.kill(proc.pid)
     wait_for(lambda: proc.poll() is not None)
 
 
@@ -120,8 +122,7 @@ class Env:
         (self.rt_dir / "cuda").mkdir(parents=True)
         self.models.mkdir()
         self.exe = self.rt_dir / "cuda" / runtime.exe_name()
-        self.exe.write_text(LAUNCHER.format(py=sys.executable, sim=str(ROOT / "tools" / "sim"), base=str(self.base)))
-        self.exe.chmod(0o755)
+        fake_runtime.write_exe(self.exe, LAUNCHER.format(py=sys.executable, sim=str(ROOT / "tools" / "sim"), base=str(self.base)))
         self.cfg = runtime.settings()
         for m in self.cfg["models"].values():
             (self.models / m["file"]).write_bytes(b"gguf")
@@ -144,6 +145,8 @@ class Env:
 
     def embedders(self):
         """The pids of this run's live embedder processes."""
+        if os.name == "nt":                            # (f561) the launcher is the program itself on Windows
+            return fake_runtime.windows_processes(self.exe, "--embeddings")
         out = []
         for d in os.listdir("/proc"):
             if not d.isdigit():
@@ -164,10 +167,7 @@ class Env:
             except Exception:
                 pass
         for pid in self.embedders():
-            try:
-                os.kill(pid, signal.SIGKILL)
-            except OSError:
-                pass
+            fake_runtime.kill(pid)
         shutil.rmtree(self.base, ignore_errors=True)
 
 
@@ -186,7 +186,8 @@ def native_exe_of(pid):
     return real_exe_of(pid)
 
 
-runtime.exe_of = native_exe_of
+if os.name != "nt":                                    # (f561) on Windows exe_of already reads the launcher's own path
+    runtime.exe_of = native_exe_of
 
 try:
     # ---- a chat server's restart keeps the live embedder

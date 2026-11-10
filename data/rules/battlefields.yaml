@@ -12,6 +12,28 @@
 #   hazardous  the ground itself can hurt (kept rare)
 # Edge ways (ways between zones): open, doorway, stairs, climb, jump, difficult, blocked.
 
+# (f571) What the narrator is told a zone is like, a phrase per tag (engine/battlefield.py ground_words): facts for its own words.
+tag_words:
+  open:      "open ground: little here that would stop a blow or hide a body; whatever stands is thin or out of reach"
+  concealed: "hard to see into, a place to hide or be surprised from"
+  cover:     "solid things to duck behind, enough to stop a blow or an arrow"
+  elevated:  "high ground, above the rest of the fight"
+  difficult: "hard going underfoot, slow to cross"
+  narrow:    "a squeeze, only a few can come at one person at once"
+  hazardous: "treacherous footing that can wound"
+# (f571) A hazardous zone's own hazard, by its name, said in place of the hazardous phrase.
+hazards:
+  a scree slope: "loose scree that slides underfoot"
+  an icy ledge: "ice underfoot and a fall beside it"
+  a bridge of stone: "a long drop on either side"
+  a ledge over the dark: "a drop into the dark"
+  a heaved ridge of baked crust: "baked crust that breaks underfoot into sharp edges"
+  knee-deep mire: "sucking mire that drags at every step"
+  a slick stair above the water: "wet steps and a fall to the water"
+  a log jam: "logs that shift and roll underfoot"
+  half-frozen bog: "thin ice over cold bog"
+  a steam vent: "scalding steam"
+
 sides: {none: 0.2, one: 0.5, two: 0.3}    # how many side zones a battlefield gets
 side_link: 0.3                            # chance the two side zones also join each other (by a difficult way)
 

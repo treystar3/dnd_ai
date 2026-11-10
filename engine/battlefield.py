@@ -305,23 +305,74 @@ def crowded_out(fight, att, dfn) -> bool:
     return len(on_them) >= cap and att.id not in dfn.engaged_with
 
 
-def narrative_snapshot(fight) -> str:
-    """The field in a few plain lines, one per zone with someone in it, for the narrator and the pane: who stands where, who is tied up
-    with whom. The event list says what happened; this stops anyone being written somewhere they are not."""
+def ground_words(z) -> str:
+    """(f571) A zone as the narrator is told it: its name and what its tags mean in plain words (battlefields.yaml tag_words), a
+    hazardous zone's own hazard where the data names one. No tags reads as open."""
+    from engine.battlefield_builder import B, FURTHER
+    hazards, own = B.get("hazards") or {}, z.name.removesuffix(FURTHER)           # a repeated zone further on keeps its own hazard
+    said = []
+    for t in z.tags or ["open"]:
+        w = (hazards.get(own) if t == "hazardous" else None) or (B.get("tag_words") or {}).get(t, t)
+        said.append(w[len(z.name) + 2:] if w.startswith(z.name + ": ") else w)
+    return f"{z.name} ({'; '.join(said)})"
+
+
+def ground_brief(fight) -> str:
+    """(f571) The whole ground for a fight's opening: every zone as ground_words says it, a single open one included; a wide field as
+    who stands where. '' with no battlefield."""
     bf = fight.battlefield
     if bf is None or not bf.zones:
         return ""
+    if bf.kind:
+        return "a wide field: " + narrative_snapshot(fight).replace("\n", " / ")
+    words = [ground_words(z) for z in bf.zones.values()]
+    return words[0] + (f", with {', '.join(words[1:])} close by" if words[1:] else "")
+
+
+def note_ground_told(fight, opening: bool = False) -> None:
+    """(f571) Once a telling has stood: each zone it was given is kept as told, with who stood there. An opening on ordinary ground is
+    given every zone, and so is the first round of a fight whose opening was never told (a scripted entrance, a failed opening); any
+    other round, or a wide field, the zones with someone in them. A telling that fails notes nothing, so the next one is given the
+    words again. One entry a zone: bounded by the field."""
+    bf = fight.battlefield
+    if bf is None or not bf.zones:
+        return
+    told = dict(getattr(fight, "ground_told", None) or {})
+    whole = (opening or not told) and not bf.kind
+    for zid, z in bf.zones.items():
+        ids = sorted(f.id for f in standing(fight, zid))
+        if ids or whole:
+            told[zid] = [ground_words(z), ids]
+        elif zid in told:
+            told[zid] = [told[zid][0], []]                 # emptied: whoever comes back stands there newly
+    fight.ground_told = told
+
+
+def narrative_snapshot(fight, changed_only: bool = False) -> str:
+    """The field in a few plain lines for the narrator, one per zone with someone in it: who stands there, who is tied up with whom.
+    The event list says what happened; this stops anyone being written somewhere they are not. (f571) With changed_only (a round), a
+    zone says what it is like only when that differs from what was last told (fight.ground_told, note_ground_told) or someone newly
+    stands there; when nothing was ever told (the opening never was), every zone is given, the empty ones too. It writes nothing, so
+    a round asked again asks in the same words."""
+    bf = fight.battlefield
+    if bf is None or not bf.zones:
+        return ""
+    last = (getattr(fight, "ground_told", None) or {}) if changed_only else {}
+    whole = changed_only and not last and not bf.kind
     out = []
     for zid, z in bf.zones.items():
         here = [f for f in standing(fight, zid)]
         if not here:
+            if whole:
+                out.append(f"{ground_words(z)}: no one")
             continue
         bits = []
         for f in here:
             tied = [o.name for o in here if o.id in f.engaged_with]
             bits.append(f.name + (f" (fighting {tied[0]})" if tied else (f" ({f.row})" if f.row != "loose" else "")))   # (f419) not '(on X)'
-        tags = f" [{', '.join(z.tags)}]" if z.tags else ""
-        out.append(f"{z.name}{tags}: " + ", ".join(bits))
+        words, was = ground_words(z), last.get(zid)
+        fresh = not changed_only or was is None or was[0] != words or bool({f.id for f in here} - set(was[1]))
+        out.append(f"{words if fresh else z.name}: " + ", ".join(bits))
     return "\n".join(out)
 
 

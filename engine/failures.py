@@ -13,9 +13,10 @@ import re
 from pathlib import Path
 
 import yaml
+from core import yamlio
 from engine import streams
 
-F = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "failures.yaml").read_text(encoding="utf-8"))
+F = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "failures.yaml").read_text(encoding="utf-8"))
 MACHINERY = re.compile(r"\b(model|llm|json|error|errors|answer|server|crash|failed|failure|llama|gpu|vulkan|cuda|slot)\b", re.I)
 _last: dict[str, str] = {}
 

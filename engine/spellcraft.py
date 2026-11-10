@@ -10,6 +10,7 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import combat as C
 from engine import effects as E
@@ -17,7 +18,7 @@ from engine import ability_traits as AT
 from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
-S = yaml.safe_load((ROOT / "data" / "rules" / "spellcraft.yaml").read_text(encoding="utf-8"))
+S = yamlio.safe_load((ROOT / "data" / "rules" / "spellcraft.yaml").read_text(encoding="utf-8"))
 EXPR: dict = S["expressions"]
 FORMS: dict = S["forms"]
 GROUND = set(S.get("ground", []))

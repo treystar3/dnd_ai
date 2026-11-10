@@ -127,9 +127,9 @@ _TW: dict | None = None
 def time_words() -> dict:
     global _TW
     if _TW is None:
-        import yaml
+        from core import yamlio
         from pathlib import Path
-        _TW = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "time_words.yaml").read_text(encoding="utf-8"))
+        _TW = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "time_words.yaml").read_text(encoding="utf-8"))
     return _TW
 
 

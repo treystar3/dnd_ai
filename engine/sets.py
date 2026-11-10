@@ -7,10 +7,11 @@ give `four` as well. A bonus is a few stat effects, combat mechanics (the ones l
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import items
 
-D = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "sets.yaml").read_text(encoding="utf-8"))
+D = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "sets.yaml").read_text(encoding="utf-8"))
 SETS: dict = D["sets"]
 THRESHOLDS: list[int] = D["thresholds"]
 NAMES = {2: "two", 4: "four"}

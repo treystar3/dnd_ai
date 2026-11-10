@@ -478,7 +478,7 @@ def timer(folder: Path, url: str, key: str = "", embed_url: str | None = None, e
     chat_server = llama.Server(llama._port_of(url, "--time"), key)
     embed_server = llama.Server(llama._port_of(embed_url, "--time-embed"), embed_key) if embed_url else None
     llama.LlamaServer(chat_server, embed_server).load()            # waits for the server(s) to be ready
-    out = (folder / "timed.jsonl").open("w", encoding="utf-8")
+    out = (folder / "timed.jsonl").open("w", encoding="utf-8", newline="\n")
 
     def on_call(row: dict, k: dict, request) -> None:
         from llm import backend

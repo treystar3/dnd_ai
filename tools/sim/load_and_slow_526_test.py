@@ -38,6 +38,8 @@ from pydantic import BaseModel
 from engine import budget
 from llm import backend, launch, llama, runtime, sampling
 from llm.errors import Failure
+sys.path.insert(0, str(ROOT / "tools" / "sim"))
+import fake_runtime
 
 no_server_before = os.environ.pop("MERAVIA_NO_SERVER", None)
 bad: list[str] = []
@@ -144,8 +146,7 @@ rt_dir, models_dir, run_dir, logs_dir = base / "runtime", base / "models", base 
 for b in ("cuda", "vulkan", "cpu"):
     (rt_dir / b).mkdir(parents=True)
     exe = rt_dir / b / runtime.exe_name()
-    exe.write_text(LAUNCHER.format(py=sys.executable, sim=str(ROOT / "tools" / "sim")))
-    exe.chmod(0o755)
+    fake_runtime.write_exe(exe, LAUNCHER.format(py=sys.executable, sim=str(ROOT / "tools" / "sim")))
 models_dir.mkdir()
 for m in CFG["models"].values():
     (models_dir / m["file"]).write_bytes(b"gguf")
@@ -238,9 +239,8 @@ try:
     slow_list = base / "slowlist"
     slow_list.mkdir()
     sl = slow_list / runtime.exe_name()
-    sl.write_text("#!" + sys.executable + "\nimport sys, time\nprint('  CUDA0: NVIDIA GeForce RTX 3060 (12287 MiB, 11200 MiB free)', flush=True)\n"
-                  "time.sleep(30)\n")
-    sl.chmod(0o755)
+    fake_runtime.write_exe(sl, "#!" + sys.executable + "\nimport sys, time\nprint('  CUDA0: NVIDIA GeForce RTX 3060 (12287 MiB, 11200 MiB free)', flush=True)\n"
+                           "time.sleep(30)\n")
     r0 = new_rt()
     r0.list_seconds = 1.0
     check("--list-devices cut late keeps what it printed", any("RTX 3060" in d for d in r0.devices(sl)))
@@ -353,7 +353,7 @@ try:
 
         # Try again failing again, then Quit
         exe_cuda = rt_dir / "cuda" / runtime.exe_name()
-        exe_cuda.chmod(0o644)
+        fake_runtime.disable(exe_cuda)
         said.clear()
         answers[:] = ["1", "3"]
         sc = screen()
@@ -376,7 +376,7 @@ try:
         check("a machine that cannot hold the model is told the memory it needs, and offered no slow play",
               f"The world needs {launch.memory_needed_gib(CFG)} GB to wake." in said and "  2. Play slowly on the processor" not in said,
               said)
-        exe_cuda.chmod(0o755)
+        fake_runtime.write_exe(exe_cuda, LAUNCHER.format(py=sys.executable, sim=str(ROOT / "tools" / "sim")))
 
         # another game open; damaged files
         held = runtime.GameLock(_paths.RUN)

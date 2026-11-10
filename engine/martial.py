@@ -6,12 +6,13 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import combat as C
 from engine import ability_traits as AT
 
 ROOT = Path(__file__).resolve().parent.parent
-M = yaml.safe_load((ROOT / "data" / "rules" / "martial.yaml").read_text(encoding="utf-8"))
+M = yamlio.safe_load((ROOT / "data" / "rules" / "martial.yaml").read_text(encoding="utf-8"))
 FORMS: dict = M["forms"]
 MANEUVERS: dict = M["maneuvers"]
 SIZES = ["Tiny", "Small", "Medium", "Large", "Huge", "Gargantuan"]

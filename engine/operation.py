@@ -17,9 +17,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
+from core import yamlio
 from engine import streams
 
-_B = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8"))
+_B = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8"))
 RETENTION: dict = dict(_B.get("retention") or {})      # operations: records kept; deferred_turns: how long a deferred call waits (f469)
 ID_DIGITS = 12
 

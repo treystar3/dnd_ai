@@ -16,9 +16,10 @@ from datetime import datetime
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
-A = yaml.safe_load((ROOT / "data" / "rules" / "audit_log.yaml").read_text(encoding="utf-8"))
+A = yamlio.safe_load((ROOT / "data" / "rules" / "audit_log.yaml").read_text(encoding="utf-8"))
 
 _lock = threading.Lock()
 _path: Path | None = None
@@ -76,7 +77,16 @@ def _typed_parts(prompt) -> str:
 
 
 def record(task: str, attempt: int, elapsed: float, messages: list[dict], raw: str, error: str | None, typed=None, model: str = "") -> None:
-    """One attempt of one call. messages are the full messages sent (system, user, and on a retry the rejected answer and the complaint)."""
+    """One attempt of one call. messages are the full messages sent (system, user, and on a retry the rejected answer and the complaint).
+    (f566) Never raises: the file that cannot be written (a full disk, a scanner holding it) must never fail the call it records, which
+    the gateway files here right after the answer is accepted, outside the tries' own error handling."""
+    try:
+        _record(task, attempt, elapsed, messages, raw, error, typed, model)
+    except OSError:
+        pass
+
+
+def _record(task: str, attempt: int, elapsed: float, messages: list[dict], raw: str, error: str | None, typed=None, model: str = "") -> None:
     global _count, _turn_written, _full
     if not enabled():
         return

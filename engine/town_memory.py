@@ -13,6 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
 _K: dict | None = None
@@ -22,8 +23,8 @@ def kinds() -> dict:
     """{kind: {days, cap, mark?}}: a matter's and a job's from doors.yaml, a moment's from moments.yaml."""
     global _K
     if _K is None:
-        D = yaml.safe_load((ROOT / "data" / "rules" / "doors.yaml").read_text(encoding="utf-8"))
-        M = yaml.safe_load((ROOT / "data" / "rules" / "moments.yaml").read_text(encoding="utf-8"))
+        D = yamlio.safe_load((ROOT / "data" / "rules" / "doors.yaml").read_text(encoding="utf-8"))
+        M = yamlio.safe_load((ROOT / "data" / "rules" / "moments.yaml").read_text(encoding="utf-8"))
         _K = dict((D.get("memory") or {}).get("kinds") or {})
         _K["moment"] = {"days": int(M.get("memory_days", 3)), "cap": int((M.get("memory") or {}).get("cap", 12))}
         _K["_marks"] = {"cap": int((D.get("memory") or {}).get("marks_cap", 12))}

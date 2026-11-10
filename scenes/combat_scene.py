@@ -173,6 +173,12 @@ class CombatScene:
     def tamed(self, names: list[str]) -> None:
         self.fight.tamed = list(names)
 
+    def note_ground_told(self, opening: bool = False) -> None:
+        """(f571) A telling stood with the ground in it: noted on the fight as it stands now, as note_fight_shown is."""
+        from engine import battlefield as bfm
+        live = self.ws.combat
+        bfm.note_ground_told(live.fight if live is not None and live.fight.serial == self.fight.serial else self.fight, opening=opening)
+
     def note_fight_shown(self, text: str) -> None:
         """(f349) After a passage: the ground and the place are given; the light if it was described; the look of each foe it described;
         the blade once it has gleamed. The next passage is told not to describe them again. (f498) Noted on the fight as it stands now:
@@ -252,15 +258,9 @@ class CombatScene:
                 "even": "a real fight that could go either way",
                 "dangerous": "the player is likely to be badly hurt or worse",
                 "deadly": "the player will very likely die if they stand and fight"}
-        ground_text = ""
-        if fight.battlefield and len(fight.battlefield.zones) > 1:
-            from engine import battlefield as bfm
-            names = [f"{z.name}{' (' + ', '.join(z.tags) + ')' if z.tags else ''}" for z in fight.battlefield.zones.values()]
-            ground_text = f" THE GROUND: {names[0]}, with {', '.join(names[1:])} close by."
-            if fight.battlefield.kind:                       # a big field: say where everyone stands, so the scale is told right
-                ground_text = " THE GROUND (a wide field): " + bfm.narrative_snapshot(fight).replace("\n", "; ") + "."
-        elif fight.battlefield and fight.battlefield.zones[fight.battlefield.start].has("narrow"):
-            ground_text = f" THE GROUND: {fight.battlefield.zones[fight.battlefield.start].name} - narrow, only a few can come at one person at once."
+        from engine import battlefield as bfm
+        brief = bfm.ground_brief(fight)                        # (f571) every fight's ground, a single open zone too, in plain words
+        ground_text = f" THE GROUND: {brief}." if brief else ""
         count = f"{len(enemies)} of them" if len(enemies) > 1 else "one"
         if reserves:
             count += f", and {len(reserves)} more in the camp who will come if the noise carries"
@@ -757,13 +757,14 @@ class CombatScene:
         result = fresh("combat_narrate", cp.NARRATE_SYSTEM,
                        cp.narrate_request(place or self.ws.place.name, when or self.ws.time_label(), text, f.story,
                                           p.weapon_name, you, foes, f.round - 1, self.ws.gear_line(),
-                                          self.ws.recent_narration, ground=bfm.narrative_snapshot(f),
+                                          self.ws.recent_narration, ground=bfm.narrative_snapshot(f, changed_only=True),
                                           shown=self.fight_shown, worn=self.ws.worn_words("prose"),                         # (f349)
                                           looks=self.ability_looks(), allies=self.ally_looks(), gone=gone),                     # (f373, f385, f415)
                        Narration, self.ws.recent_narration, max_tokens=config.PROSE_MAX_TOKENS, worn=self.ws.worn_words("prose"), said=text)
         text_out = place_figures(result.text, f.hits, console.damage_tags, f.story)
         console.narrate(text_out)
         self.ws.remember_narration(TAG.sub("", result.text))
+        self.note_ground_told()                                  # (f571) the telling stood: what it was given of the ground is told
         self.note_fight_shown(result.text)
         if config.COMBAT_NUMBERS and not console.damage_tags:
             console.combat_numbers(f.log)

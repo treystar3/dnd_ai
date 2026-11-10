@@ -59,7 +59,9 @@ try:
         raise RuntimeError("boom")
 except RuntimeError:
     pass
-check("a transaction that fails leaves nothing behind", st.load_player().location == "parth" and CampaignStore.open_or_create("_storage_test").meta.turn == 7)
+again = CampaignStore.open_or_create("_storage_test")
+check("a transaction that fails leaves nothing behind", st.load_player().location == "parth" and again.meta.turn == 7)
+again.close()                                            # (f562) an open database cannot be deleted on Windows
 with st.transaction():
     p.location = "riverhaven"; st.save_player(p)
     with st.transaction():

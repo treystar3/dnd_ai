@@ -4,12 +4,13 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from core.models import Character, Item
 from engine import items, loot, pools
 
 ROOT = Path(__file__).resolve().parent.parent
-RULES = yaml.safe_load((ROOT / "data" / "rules" / "crafting.yaml").read_text(encoding="utf-8"))
+RULES = yamlio.safe_load((ROOT / "data" / "rules" / "crafting.yaml").read_text(encoding="utf-8"))
 RARITY_ORDER = ["crude", "common", "uncommon", "rare", "epic"]
 CRAFTABLE = [b for b in items.CATALOG.values() if b.family and b.slot not in ("none", "ring", "neck")]
 

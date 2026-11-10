@@ -298,20 +298,37 @@ def play(shard: int, only: set[str] | None = None) -> tuple[list[dict], dict]:
         return got
 
     combat.danger = danger
+    from engine import crashlog
+    FAULTS.clear()
+    playing = {"case": "(entering the town)"}
+    real_record = crashlog.record
+
+    def record_fault(exc, where, **context):                        # (f566) a fault the game went on without: a turn's operation rolled
+        FAULTS.append({"case": playing["case"], "where": where, "operation": context.get("operation", ""),   # back, its round not fought
+                       "error": f"{type(exc).__name__}: {exc}"[:200]})
+        return real_record(exc, where, **context)
+
+    crashlog.record = record_fault
+    import os
     import shutil
-    name = f"fight_fixtures_{shard}"
-    shutil.rmtree(ROOT / "saves" / name, ignore_errors=True)
-    game = simlib.campaign(name, cls="warrior", seed=494, location="parth")
-    game.scene.enter("parth")
+    name = f"fight_fixtures_{shard}_{os.getpid()}"                    # (f566) a save of this process's own: two runs of one shard at once
+    shutil.rmtree(ROOT / "saves" / name, ignore_errors=True)          # (the suite runs four tests together; a run by hand beside it) never
+    #                                                                   share a database or delete each other's; the name decides no number
     records = []
+    game = None
     try:
+        game = simlib.campaign(name, cls="warrior", seed=494, location="parth")
+        game.scene.enter("parth")
         for case in cases():
             if shard_of(case) == shard and (only is None or case["id"] in only):
+                playing["case"] = case["id"]
                 records.append(run_case(game, stub, case, cover))
     finally:
         combat.add_status = real_add
         combat.danger = real_danger
-        game.close()
+        crashlog.record = real_record
+        if game is not None:
+            game.close()
         shutil.rmtree(ROOT / "saves" / name, ignore_errors=True)
     return records, {k: sorted(v) for k, v in cover.items() if not k.startswith("_")}
 
@@ -387,6 +404,13 @@ def compare(shard: int, records: list[dict], only: set[str] | None = None) -> li
 
 
 TIMES: list[float] = []     # (f508) danger's wall time per case of the shard last played, in order (--time prints them; no clock in tests)
+FAULTS: list[dict] = []     # (f566) every fault the game recorded (engine/crashlog.py) while the shard last played: case, where, operation,
+#                             error. A rolled-back turn is a round not fought, which reads as moved numbers; a fight played clean has none
+
+
+def fault_lines(limit: int = 5) -> list[str]:
+    """(f566) The faults of the shard last played, one line each, for a failed check or the compare's printout."""
+    return [f"{f['case']}: {f['where']}/{f['operation'] or '-'}: {f['error']}" for f in FAULTS[:limit]]
 
 
 def main() -> int:
@@ -401,10 +425,17 @@ def main() -> int:
             for r, t in zip(records, TIMES):
                 print(f"  danger {t:6.2f}s  {r['id']}")
             print(f"  danger total {sum(TIMES):.1f}s over {len(TIMES)} cases")
-        if record:
+        if record and FAULTS:                                         # (f566) a turn rolled back is a round not fought: never the numbers kept
+            print(f"shard {s}: not recorded, {len(FAULTS)} turn(s) rolled back by a fault (logs/crash.log has the tracebacks)")
+            for l in fault_lines():
+                print("  " + l)
+            moved += 1
+        elif record:
             _write(_path(s), {"header": header(), "cases": _norm(records), "coverage": cover})
             print(f"shard {s}: {len(records)} cases recorded")
         else:
+            for l in fault_lines():
+                print(f"  fault: {l}")
             lines = compare(s, records)
             moved += sum(1 for l in lines if not l.startswith("warning"))
             print(f"shard {s}: {len(records)} cases, " + (f"{sum(1 for l in lines if not l.startswith('warning'))} moved" if lines else "all as recorded"))
@@ -446,5 +477,6 @@ def shard_test(shard: int, check) -> None:
         if l.startswith("warning"):
             print("  " + l, file=sys.__stdout__)
     check(f"shard {shard}: every one of its {len(records)} fights plays to its recorded numbers", not moved, moved[:5])
+    check(f"shard {shard}: no turn of its fights was rolled back by a fault (f566)", not FAULTS, fault_lines())
     check(f"shard {shard}: its cases are the grid's", sorted(r["id"] for r in records)
           == sorted(c["id"] for c in cases() if shard_of(c) == shard))

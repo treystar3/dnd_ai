@@ -13,6 +13,9 @@
 #                 changed: it was kept after the baseline night; (f495) stub_fight's the same way, from its recording as first kept;
 #                 (f496) stub_fight's set again from its re-blessed recording: the rounds told after a stood-down line gained the ALREADY
 #                 SHOWN lines they were owed (input 20, 34.4 -> 34.5 s), a telling corrected, not a prompt grown
+#                 (2026-11-10, tools/latency.py --rekeep 0.2) f571: ground told to the narrator; owner accepts up to 0.2 s per fight
+#                 input. Set again at today's price: stub_short inputs 11, 13, 15, 17, 23, 30, 34; stub_fight inputs 3, 7, 8, 11, 12,
+#                 14, 15, 23, 24, 25
 #   priced_at:    (f527) the speeds every estimate above was priced at, read tps, write tps and the embedder's seconds a text: the gate
 #                 (tools/latency.py gate, over_limit) prices today's goldens at these, whatever card_profile.yaml says now
 night: 'pod night 20261103_0520 at ed8fdf4, partial: four runs of 10 hours planned; the summoner (89 turns) and priest (204) stopped on two game
@@ -232,30 +235,30 @@ estimates:
     8: 8.9
     9: 18.8
     10: 18.1
-    11: 18.0
+    11: 18.1
     12: 12.9
-    13: 12.8
+    13: 12.9
     14: 12.9
-    15: 12.8
+    15: 12.9
     16: 18.1
-    17: 18.0
+    17: 18.1
     18: 12.9
     19: 12.8
     20: 12.9
     21: 3.1
     22: 12.8
-    23: 12.8
+    23: 12.9
     24: 12.9
     25: 12.9
     26: 17.9
     27: 18.7
     28: 19.1
     29: 19.4
-    30: 31.5
+    30: 31.6
     31: 12.9
     32: 13.0
     33: 12.9
-    34: 29.7
+    34: 29.8
     35: 18.8
     36: 69.3
     37: 39.6
@@ -281,18 +284,18 @@ estimates:
     0: 10.5
     1: 18.3
     2: 18.3
-    3: 18.4
+    3: 18.5
     4: 9.3
     5: 13.3
     6: 9.2
-    7: 13.3
-    8: 34.2
+    7: 13.4
+    8: 34.3
     10: 13.4
-    11: 13.4
-    12: 13.3
+    11: 13.5
+    12: 13.4
     13: 13.2
-    14: 13.2
-    15: 13.2
+    14: 13.3
+    15: 13.3
     16: 13.4
     17: 13.2
     18: 13.3
@@ -300,7 +303,7 @@ estimates:
     20: 34.5
     21: 19.1
     22: 18.2
-    23: 18.2
-    24: 12.9
-    25: 17.6
+    23: 18.3
+    24: 13.0
+    25: 17.7
     26: 19.0

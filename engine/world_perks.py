@@ -6,9 +6,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
-P = yaml.safe_load((ROOT / "data" / "rules" / "perks.yaml").read_text(encoding="utf-8"))["world"]
+P = yamlio.safe_load((ROOT / "data" / "rules" / "perks.yaml").read_text(encoding="utf-8"))["world"]
 
 
 def owns(c, mid: str) -> bool:

@@ -17,9 +17,10 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
-R = yaml.safe_load((ROOT / "data" / "rules" / "routines.yaml").read_text(encoding="utf-8"))
+R = yamlio.safe_load((ROOT / "data" / "rules" / "routines.yaml").read_text(encoding="utf-8"))
 
 def chance(role: str) -> float:
     return float((R.get("roles") or {}).get(role, R.get("chance", 0.4)))
