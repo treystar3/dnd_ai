@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
+from core import yamlio
 from pydantic import BaseModel
 
 from npc.models import NPC, TraitChange
@@ -52,7 +53,7 @@ class TraitCatalog:
 
 
 def load_traits(path: Path = TRAITS_PATH) -> TraitCatalog:
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    raw = yamlio.safe_load(path.read_text(encoding="utf-8"))
     traits, problems = {}, []
     for entry in raw:
         t = Trait(**entry)

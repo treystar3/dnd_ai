@@ -13,9 +13,10 @@ import types
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
-C = yaml.safe_load((ROOT / "data" / "rules" / "consequences.yaml").read_text(encoding="utf-8"))
+C = yamlio.safe_load((ROOT / "data" / "rules" / "consequences.yaml").read_text(encoding="utf-8"))
 
 
 def _group(deeds: list[dict], same: str) -> tuple[str, int]:

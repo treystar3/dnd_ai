@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import regard                                   # (f480)
 from engine import clock, crafting, inventory as inv, items, loot, money, pools
@@ -14,7 +15,7 @@ from ui import console
 from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
 ROOT = Path(__file__).resolve().parent.parent
-W = yaml.safe_load((ROOT / "data" / "rules" / "work.yaml").read_text(encoding="utf-8"))
+W = yamlio.safe_load((ROOT / "data" / "rules" / "work.yaml").read_text(encoding="utf-8"))
 
 
 PLACEHOLDER_TASKS = {"task", "the task", "a task", "work", "a job", "the job", "job", "string", "short phrase"}

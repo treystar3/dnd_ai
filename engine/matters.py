@@ -22,11 +22,12 @@ from pathlib import Path
 from engine import regard
 
 import yaml
+from core import yamlio
 
 from ui import console
 
 ROOT = Path(__file__).resolve().parent.parent
-D = yaml.safe_load((ROOT / "data" / "rules" / "doors.yaml").read_text(encoding="utf-8"))
+D = yamlio.safe_load((ROOT / "data" / "rules" / "doors.yaml").read_text(encoding="utf-8"))
 
 
 # ---------- at birth: the door, and what the thread carries

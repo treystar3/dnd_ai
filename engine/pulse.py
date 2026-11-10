@@ -17,6 +17,7 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import clock, events, pulselog, roads
 from engine import pulse_prompts as pp
@@ -26,7 +27,7 @@ from ui import console
 from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
-P = yaml.safe_load((ROOT / "data" / "rules" / "pulse.yaml").read_text(encoding="utf-8"))
+P = yamlio.safe_load((ROOT / "data" / "rules" / "pulse.yaml").read_text(encoding="utf-8"))
 INTERVAL = P["interval_hours"] * 60
 
 

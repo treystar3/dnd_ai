@@ -19,12 +19,13 @@ import re
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 import config
 from engine import relevance
 
 ROOT = Path(__file__).resolve().parent.parent
-I = yaml.safe_load((ROOT / "data" / "rules" / "interpret.yaml").read_text(encoding="utf-8"))
+I = yamlio.safe_load((ROOT / "data" / "rules" / "interpret.yaml").read_text(encoding="utf-8"))
 GENERIC = set(I["generic_words"])
 
 

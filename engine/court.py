@@ -11,12 +11,13 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from ui import console
 from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
 ROOT = Path(__file__).resolve().parent.parent
-A = yaml.safe_load((ROOT / "data" / "rules" / "towns.yaml").read_text(encoding="utf-8")).get("audience", {})
+A = yamlio.safe_load((ROOT / "data" / "rules" / "towns.yaml").read_text(encoding="utf-8")).get("audience", {})
 
 
 def gate(world, place_id: str) -> dict | None:

@@ -9,6 +9,7 @@ import re
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
 _B: dict | None = None
@@ -18,7 +19,7 @@ _WORD = re.compile(r"[a-z]{4,}")
 def rules(profile: str = "townsfolk") -> dict:
     global _B
     if _B is None:
-        _B = yaml.safe_load((ROOT / "data" / "rules" / "brief.yaml").read_text(encoding="utf-8")) or {}
+        _B = yamlio.safe_load((ROOT / "data" / "rules" / "brief.yaml").read_text(encoding="utf-8")) or {}
     return _B.get(profile) or {}
 
 

@@ -9,11 +9,12 @@ import re
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from ui import console
 
 ROOT = Path(__file__).resolve().parent.parent
-W = yaml.safe_load((ROOT / "data" / "rules" / "improv.yaml").read_text(encoding="utf-8"))
+W = yamlio.safe_load((ROOT / "data" / "rules" / "improv.yaml").read_text(encoding="utf-8"))
 
 
 def read_effect(words: str) -> str:

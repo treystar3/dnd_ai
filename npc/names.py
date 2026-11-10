@@ -14,6 +14,7 @@ from functools import lru_cache
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 _DATA = Path(__file__).resolve().parent.parent / "data" / "world"
 
@@ -21,7 +22,7 @@ _DATA = Path(__file__).resolve().parent.parent / "data" / "world"
 @lru_cache(maxsize=1)
 def reserved() -> frozenset[str]:
     """First names the story uses for named characters, so no passer-by shares them."""
-    m = yaml.safe_load((_DATA / "mentor.yaml").read_text(encoding="utf-8"))
+    m = yamlio.safe_load((_DATA / "mentor.yaml").read_text(encoding="utf-8"))
     return frozenset(w for w in (m.get("name", "").split()[:1]))
 
 
@@ -53,7 +54,7 @@ VOWELS = "aeiouy"
 
 @lru_cache(maxsize=1)
 def sounds() -> dict:
-    return yaml.safe_load((_DATA / "name_sounds.yaml").read_text(encoding="utf-8"))
+    return yamlio.safe_load((_DATA / "name_sounds.yaml").read_text(encoding="utf-8"))
 
 
 def _rules(people: str, kind: str) -> dict:

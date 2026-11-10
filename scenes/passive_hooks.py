@@ -4,12 +4,13 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import clock, items, pools
 from ui import console
 
 ROOT = Path(__file__).resolve().parent.parent
-TRAVEL = yaml.safe_load((ROOT / "data" / "rules" / "travel.yaml").read_text(encoding="utf-8"))
+TRAVEL = yamlio.safe_load((ROOT / "data" / "rules" / "travel.yaml").read_text(encoding="utf-8"))
 
 ARMED_ROLES = {"guard", "watch_captain", "royal_guard", "hunter", "guild_contractor", "elven_warden", "scout",
                "trapper", "guild_instructor"}

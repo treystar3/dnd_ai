@@ -9,11 +9,12 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from core.models import Item
 from engine import items
 
-A = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "accessories.yaml").read_text(encoding="utf-8"))
+A = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "accessories.yaml").read_text(encoding="utf-8"))
 JEWELRY_SLOTS = ("ring", "neck")
 
 

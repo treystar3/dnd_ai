@@ -7,11 +7,12 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine.battlefield import BattleEdge, Battlefield, BattleZone
 
 ROOT = Path(__file__).resolve().parent.parent
-B = yaml.safe_load((ROOT / "data" / "rules" / "battlefields.yaml").read_text(encoding="utf-8"))
+B = yamlio.safe_load((ROOT / "data" / "rules" / "battlefields.yaml").read_text(encoding="utf-8"))
 
 # place types that imply a family when the place names no biome
 TYPE_FAMILY = {"forest": "forest", "hills": "hills", "mountains": "mountains", "desert": "desert", "jungle": "jungle",

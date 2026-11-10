@@ -6,9 +6,10 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent / "data"
-FAMILIES: dict = yaml.safe_load((ROOT / "world" / "families.yaml").read_text(encoding="utf-8"))["families"]
+FAMILIES: dict = yamlio.safe_load((ROOT / "world" / "families.yaml").read_text(encoding="utf-8"))["families"]
 
 CAP_CORRODE = 30            # armor never wears more than this percent in one fight
 SURRENDER_ODDS = 0.45       # the chance, each turn once below its threshold, that it yields

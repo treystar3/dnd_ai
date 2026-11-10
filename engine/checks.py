@@ -7,13 +7,14 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from core.models import Character
 from core.rules import STATS
 from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
-RULES = yaml.safe_load((ROOT / "data" / "rules" / "checks.yaml").read_text(encoding="utf-8"))
+RULES = yamlio.safe_load((ROOT / "data" / "rules" / "checks.yaml").read_text(encoding="utf-8"))
 CHECKS = ("insight", "persuasion", "intimidation", "deception", "stealth", "perception", "lore", "performance")
 SOCIAL = ("persuasion", "intimidation", "deception")
 

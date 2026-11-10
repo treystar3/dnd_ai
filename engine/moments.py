@@ -14,12 +14,13 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from ui import console
 from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
-M = yaml.safe_load((ROOT / "data" / "rules" / "moments.yaml").read_text(encoding="utf-8"))
+M = yamlio.safe_load((ROOT / "data" / "rules" / "moments.yaml").read_text(encoding="utf-8"))
 
 
 def active(store, place_id: str, now: int) -> dict | None:

@@ -10,6 +10,7 @@ from typing import Literal
 import functools
 
 import yaml
+from core import yamlio
 from pydantic import Field, BaseModel, PrivateAttr, ValidationError, field_validator
 
 from core.paths import BUNDLE
@@ -99,7 +100,7 @@ class Place(BaseModel):
 
 @functools.lru_cache(maxsize=1)
 def _family_ids() -> frozenset[str]:
-    return frozenset(yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "families.yaml").read_text(encoding="utf-8"))["families"])
+    return frozenset(yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "families.yaml").read_text(encoding="utf-8"))["families"])
 
 
 class Creature(BaseModel):
@@ -351,7 +352,7 @@ def _read_yaml(path: Path, problems: list[str]):
         problems.append(f"missing file {path}")
         return None
     try:
-        return yaml.safe_load(path.read_text(encoding="utf-8"))
+        return yamlio.safe_load(path.read_text(encoding="utf-8"))
     except yaml.YAMLError as e:
         problems.append(f"{path.name}: not valid YAML ({e})")
         return None

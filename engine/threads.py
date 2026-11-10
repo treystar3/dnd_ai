@@ -20,11 +20,12 @@ import re
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from ui import console
 
 ROOT = Path(__file__).resolve().parent.parent
-T = yaml.safe_load((ROOT / "data" / "rules" / "threads.yaml").read_text(encoding="utf-8"))
+T = yamlio.safe_load((ROOT / "data" / "rules" / "threads.yaml").read_text(encoding="utf-8"))
 SLOTS = ("town", "place", "wild", "neighbour", "road", "region", "season", "creature", "creatures", "role", "role2", "about", "good")
 PLACE_SLOTS = ("town", "place", "wild", "neighbour", "road")
 PERSON_SLOTS = ("role", "role2")

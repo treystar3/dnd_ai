@@ -12,11 +12,12 @@ All numbers are in data/rules/bosses.yaml.
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import combat as C
 from engine import effects as E
 
-B = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "bosses.yaml").read_text(encoding="utf-8"))
+B = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "bosses.yaml").read_text(encoding="utf-8"))
 
 
 def kit_for(category: str) -> str:

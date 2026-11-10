@@ -7,9 +7,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
-L = yaml.safe_load((ROOT / "data" / "rules" / "training.yaml").read_text(encoding="utf-8"))["loadout"]
+L = yamlio.safe_load((ROOT / "data" / "rules" / "training.yaml").read_text(encoding="utf-8"))["loadout"]
 POOLS = ("spells", "techniques")
 WORD = {"spells": "spells", "techniques": "techniques"}
 

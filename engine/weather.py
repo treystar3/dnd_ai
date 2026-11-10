@@ -4,10 +4,11 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import clock
 
-RULES = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "weather.yaml").read_text(encoding="utf-8"))
+RULES = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "weather.yaml").read_text(encoding="utf-8"))
 CONDITIONS = {c["id"]: c for c in RULES["conditions"]}
 BLOCK_MINUTES = RULES["change_every_hours"] * 60
 

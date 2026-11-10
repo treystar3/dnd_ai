@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
+from core import yamlio
 from pydantic import BaseModel, ValidationError
 
 RULES_DIR = Path(__file__).resolve().parent.parent / "data" / "rules"
@@ -56,7 +57,7 @@ class RulesError(Exception):
 
 
 def _load(path: Path, model) -> dict:
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    raw = yamlio.safe_load(path.read_text(encoding="utf-8"))
     items, problems = {}, []
     for i, entry in enumerate(raw, 1):
         try:
@@ -180,7 +181,7 @@ class Family(BaseModel):
 
 
 def _load_families() -> dict[str, Family]:
-    raw = yaml.safe_load((RULES_DIR / "passive_families.yaml").read_text(encoding="utf-8"))["families"]
+    raw = yamlio.safe_load((RULES_DIR / "passive_families.yaml").read_text(encoding="utf-8"))["families"]
     families, problems = {}, []
     for fid, data in raw.items():
         fam = Family(**data)

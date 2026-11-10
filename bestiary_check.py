@@ -9,10 +9,11 @@ import sys
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from world.loader import WorldError, load_world
 
-RARITY = yaml.safe_load((Path("data/rules/creatures.yaml")).read_text(encoding="utf-8"))["rarity_weight"]
+RARITY = yamlio.safe_load((Path("data/rules/creatures.yaml")).read_text(encoding="utf-8"))["rarity_weight"]
 
 
 def main():

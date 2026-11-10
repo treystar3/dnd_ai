@@ -6,9 +6,10 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 from engine import streams
 
-R = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "road.yaml").read_text(encoding="utf-8"))
+R = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "road.yaml").read_text(encoding="utf-8"))
 TIER_ORDER = ["normal", "uncommon", "rare"]
 
 

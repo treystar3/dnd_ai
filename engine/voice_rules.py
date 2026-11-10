@@ -4,8 +4,9 @@ import re
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
-V = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "voice.yaml").read_text(encoding="utf-8"))
+V = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "voice.yaml").read_text(encoding="utf-8"))
 
 
 _REFUSAL = re.compile(r"\b(no\.|i won'?t|i will not|i'?ll not|not (?:for|to) (?:you|strangers|the likes)|nothing (?:for|to) (?:you|say)|get out|"

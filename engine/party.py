@@ -8,12 +8,13 @@ import re
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import combat
 from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
-P = yaml.safe_load((ROOT / "data" / "rules" / "party.yaml").read_text(encoding="utf-8"))
+P = yamlio.safe_load((ROOT / "data" / "rules" / "party.yaml").read_text(encoding="utf-8"))
 
 
 def rank_of(level: int) -> str:

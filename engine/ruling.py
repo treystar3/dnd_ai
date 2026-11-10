@@ -21,11 +21,12 @@ import re
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from ui import console
 
 ROOT = Path(__file__).resolve().parent.parent
-C = yaml.safe_load((ROOT / "data" / "rules" / "capabilities.yaml").read_text(encoding="utf-8"))
+C = yamlio.safe_load((ROOT / "data" / "rules" / "capabilities.yaml").read_text(encoding="utf-8"))
 ATTRS = ("strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma")
 HARD = {"easy": 20, "fair": 0, "hard": -20, "": 0}
 APPEAR_PER_DAY = 2

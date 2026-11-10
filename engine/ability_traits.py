@@ -4,9 +4,10 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
-T = yaml.safe_load((ROOT / "data" / "rules" / "ability_traits.yaml").read_text(encoding="utf-8"))
+T = yamlio.safe_load((ROOT / "data" / "rules" / "ability_traits.yaml").read_text(encoding="utf-8"))
 RIDERS, SHAPES, BUFFS, COMMANDS = T["riders"], T["shapes"], T["buffs"], T["commands"]
 
 

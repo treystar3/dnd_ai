@@ -6,9 +6,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
-R = yaml.safe_load((ROOT / "data" / "rules" / "recognition.yaml").read_text(encoding="utf-8"))
+R = yamlio.safe_load((ROOT / "data" / "rules" / "recognition.yaml").read_text(encoding="utf-8"))
 
 
 def last_talk(npc, who: str) -> int:

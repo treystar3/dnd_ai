@@ -14,10 +14,11 @@ import re
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import party as rules
 
-Q = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "quirks.yaml").read_text(encoding="utf-8"))
+Q = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "quirks.yaml").read_text(encoding="utf-8"))
 
 PRONOUNS = {"she": ("her", "her", "she", "hands"), "he": ("his", "him", "he", "hands"), "they": ("their", "them", "they", "hand")}
 

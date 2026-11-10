@@ -11,6 +11,7 @@ to someone the first has known for years.
 
 Every caller passes the character's id; nothing here knows who is playing."""
 from __future__ import annotations
+from core import yamlio
 
 from pathlib import Path
 
@@ -24,7 +25,7 @@ def rules() -> dict:
     global _RULES
     if _RULES is None:
         import yaml
-        _RULES = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "regard.yaml").read_text(encoding="utf-8")) or {}
+        _RULES = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "regard.yaml").read_text(encoding="utf-8")) or {}
     return _RULES
 
 

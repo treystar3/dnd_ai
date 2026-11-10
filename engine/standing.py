@@ -9,10 +9,11 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import pulse
 
-S = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "standing.yaml").read_text(encoding="utf-8"))
+S = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "standing.yaml").read_text(encoding="utf-8"))
 GROUPS, SP, DEEDS, FX = S["groups"], S["spread"], S["deeds"], S["effects"]
 
 

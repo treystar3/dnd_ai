@@ -16,9 +16,10 @@ from datetime import datetime
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
-A = yaml.safe_load((ROOT / "data" / "rules" / "audit_log.yaml").read_text(encoding="utf-8"))
+A = yamlio.safe_load((ROOT / "data" / "rules" / "audit_log.yaml").read_text(encoding="utf-8"))
 
 _lock = threading.Lock()
 _path: Path | None = None

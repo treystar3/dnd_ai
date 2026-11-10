@@ -6,10 +6,11 @@ import re
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import mentor
 
-B = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "banter.yaml").read_text(encoding="utf-8"))
+B = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "banter.yaml").read_text(encoding="utf-8"))
 
 _COLD = re.compile(r"\b(cold|rude|curt|surly|sour|brusque|gruff|snappish|sullen|dismissive|abrasive|hostile|bitter|haughty|short-tempered|irritable|contemptuous|bored|unfriendly|impatient|grumpy)\b")
 _WARM = re.compile(r"\b(warm|kind|friendly|cheerful|gentle|welcoming|generous|genial|affable|patient|helpful|cordial|gracious|jovial|sunny|caring)\b")

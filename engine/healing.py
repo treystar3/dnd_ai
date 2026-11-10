@@ -10,12 +10,13 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import combat as C
 from engine import effects as _E
 
 ROOT = Path(__file__).resolve().parent.parent
-H = yaml.safe_load((ROOT / "data" / "rules" / "healing.yaml").read_text(encoding="utf-8"))
+H = yamlio.safe_load((ROOT / "data" / "rules" / "healing.yaml").read_text(encoding="utf-8"))
 FORMS = H["forms"]
 # (f499) Who was healed last and by how much, for the perks that follow a heal, is the fight's own row (engine/effects.py last_heal).
 

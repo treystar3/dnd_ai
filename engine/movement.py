@@ -13,9 +13,10 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
-M = yaml.safe_load((ROOT / "data" / "rules" / "movement.yaml").read_text(encoding="utf-8"))
+M = yamlio.safe_load((ROOT / "data" / "rules" / "movement.yaml").read_text(encoding="utf-8"))
 KINDS: dict = M["kinds"]
 EVERYDAY = [k for k, v in KINDS.items() if v["group"] == "everyday"]
 SIGNATURES = [k for k, v in KINDS.items() if v["group"] == "signature"]

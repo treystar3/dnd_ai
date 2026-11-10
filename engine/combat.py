@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from core import yamlio
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from core.models import Character
@@ -24,7 +25,7 @@ from engine import effects as _fx
 from engine.effects import ActiveEffect
 
 
-RULES = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "combat.yaml").read_text(encoding="utf-8"))
+RULES = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "combat.yaml").read_text(encoding="utf-8"))
 # Who can reach whom lives in engine/battlefield.py since B2: zones, rows, engagement and containment, not range bands.
 LARGE = {"Large", "Huge", "Gargantuan"}
 

@@ -8,10 +8,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import events, pulse
 
-F = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "faith.yaml").read_text(encoding="utf-8"))
+F = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "faith.yaml").read_text(encoding="utf-8"))
 GODS, VOICES = F["gods"], F["voices"]
 
 
