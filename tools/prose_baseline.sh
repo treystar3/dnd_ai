@@ -22,7 +22,7 @@ mv "$LOG" "$OUT/live_check_calls.jsonl"
 
 echo "== interp_eval --live"
 fresh_log
-python tools/interp_eval.py --live | tee "$OUT/interp_eval.txt"
+python tools/interp_eval.py --live | tee "$OUT/interp_eval.txt" || echo "interp_eval counted wrong readings (it exits non-zero then); the count is kept and the measurement goes on"
 [ -f "$LOG" ] && mv "$LOG" "$OUT/interp_calls.jsonl" || true
 
 for play in "hunter 101" "talker 102"; do
