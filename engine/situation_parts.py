@@ -931,9 +931,12 @@ def ruled(store, th: dict, act: dict, changes: list[dict], world=None) -> tuple[
             if w == "moved" and act.get("item"):
                 from engine import inventory
                 to = act.get("npc") or ""                      # (f547's fourth and fifth reviews) the very good, as much as is
-                need = int(((a.get("request") or {}).get("count")) or 1)          # asked, to the one it is for
-                ok = inventory.is_good(act["item"]) == a.get("good") and bool(to) and int(act.get("count") or 1) >= need \
-                    and to in (a.get("wanted_by"), (a.get("request") or {}).get("to"))
+                req = a.get("request") or {}                   # asked, to the one it is for; (the sixth) a stranded load is moved
+                need = int(req.get("count") or 1)              # only as the load itself, carried as its owner asked
+                good = inventory.GOODS.get(a.get("good", ""))
+                same = (str(act["item"]).strip().lower() == f"a load of {good.name}".lower()) if req.get("kind") == "deliver" and good \
+                    else inventory.is_good(act["item"]) == a.get("good")
+                ok = same and bool(to) and int(act.get("count") or 1) >= need and to in (a.get("wanted_by"), req.get("to"))
                 return "" if ok else why["no_means"]
             return "" if a.get("holder") in heard or here(a.get("holder", "")) else why["not_there"]
         if kind == "tie":
@@ -1022,7 +1025,13 @@ def keep_changes(ws, state: dict, th: dict, act: dict, kept: list[dict]) -> None
             if w in RU["wont"]:                                   # (f547's fifth review) set against them: all they had done till now,
                 a.setdefault("answered_seq", {})[by] = int(act.get("seq") or seq)          # this act with it, is answered;
             elif was in RU["wont"]:                               # moved out of it: what they refused meanwhile is answered, and the act
-                a.setdefault("answered_seq", {})[by] = int(act.get("seq") or seq) - 1      # that moved them counts
+                old = int((a.get("answered_seq") or {}).get(by, -1))                      # that moved them counts; (the sixth review)
+                now_seq = int(act.get("seq") or seq)                                      # so does a mark of their own way made since
+                a.setdefault("answered_seq", {})[by] = now_seq - 1                        # (kept safe, told, trusted): it moved them
+                for p in th.get("paths") or ():
+                    for need in ("protected", "told", "trusted"):
+                        if p.get("target") == a["who"] and p.get(need) == by and int(p.get(f"{need}_seq") or -1) > old:
+                            p[f"{need}_seq"] = now_seq
         elif w in ("flees", "surrenders", "joins"):
             a["now"] = {"flees": "fled", "surrenders": "surrendered", "joins": "joined"}[w]
         elif w == "warns":
@@ -1325,7 +1334,9 @@ def heard(ws, npc, speech: str) -> None:
     moved, theirs = False, False
     for th, p in _open_ways(state, npc.id):
         theirs = True
-        if p.get("need") == "trusted" and not p.get("trusted"):
+        again = lambda need: p.get(need) == ws.acting and not counts_after(p, answered_seq(th, npc.id, ws.acting), f"{need}_seq")
+        if p.get("need") == "trusted" and (not p.get("trusted") or again("trusted")):     # (f547's sixth review) or, answered since,
+
             now = int(regard.of(npc, ws.acting).trust)
             if ws.acting in (p.get("trust_known") or ()):          # known before it began: trust earned then counts
                 ok = now >= int(W["trust"])
@@ -1337,7 +1348,7 @@ def heard(ws, npc, speech: str) -> None:
                 ok = now >= min(100, max(int(W["trust"]), b + int(W["trust_gain"]))) and (now > b or b >= 100)
             if ok:
                 p["trusted"], p["trusted_seq"], moved = ws.acting, deeds.tick(state), True
-        if p.get("need") == "told" and not p.get("told"):
+        if p.get("need") == "told" and (not p.get("told") or again("told")):
             if any(c.get("found") and not c.get("destroyed") and c.get("npc") != npc.id and told_by(speech, c, ws.store, ws.world)
                    for c in th.get("clues") or []):          # (f547's fifth review) a destroyed piece shows nothing
                 p["told"], p["told_seq"], moved = ws.acting, deeds.tick(state), True

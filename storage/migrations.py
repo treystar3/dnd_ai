@@ -261,6 +261,39 @@ def _v15_effect_rows(store) -> None:
         store.leave_notice("fight_let_go")
 
 
+def _v16_world_count(store) -> None:
+    """(f547's fifth and sixth reviews) The world keeps its own count of what happens (engine/deeds.py tick): every deed is numbered,
+    and each person of a situation keeps how far they have answered each character (answered_seq). An older save's deeds are numbered
+    in ledger order; a person's answered point is the last deed before the minute they took the stance they hold, as that save read it
+    then; a way's marks (kept safe, told, trusted) are placed by their minute where they carry one, else as the latest."""
+    import json
+    raw = store._kv_text("world_state")
+    if not raw:
+        return
+    state = json.loads(raw)
+    rows = state.get("deeds") or []
+    n = int(state.get("seq") or 0)
+    for d in rows:
+        if d.get("seq") is None:
+            n += 1
+            d["seq"] = n
+    state["seq"] = max(n, max((int(d.get("seq") or 0) for d in rows), default=0))
+
+    def before(minute: int) -> int:
+        return max((int(d["seq"]) for d in rows if int(d.get("minute") or 0) < minute), default=0)
+    for th in state.get("threads") or []:
+        for a in th.get("parts") or []:
+            if a.get("kind") == "person" and a.get("willing_at") and not a.get("answered_seq"):
+                a["answered_seq"] = {b: before(int(t)) for b, t in a["willing_at"].items()}
+        for p in th.get("paths") or []:
+            if p.get("protected") and p.get("protected_seq") is None:
+                p["protected_seq"] = before(int(p.get("protected_at") or 0) + 1) if p.get("protected_at") is not None else state["seq"]
+            for need in ("told", "trusted"):
+                if p.get(need) and p.get(f"{need}_seq") is None:
+                    p[f"{need}_seq"] = state["seq"]
+    store._put("world_state", json.dumps(state))
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "one SQLite file per campaign, with an index over people", _v1_initial),
     (2, "memories as rows (npc_memory) with a window on the record; the event journal", _v2_memory_rows),
@@ -277,6 +310,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (13, "work offered and requests made kept as offers that end for a reason", _v13_offers),                               # (f481)
     (14, "what a person knows of a matter kept as their own, past the matter's end", _v14_knows),                          # (f483)
     (15, "a fight's statuses, buffs, curses and ground as rows of its record; a fight saved under the old shape is let go", _v15_effect_rows),   # (f507)
+    (16, "the world's own count of what happens: deeds numbered, and how far each person has answered each character", _v16_world_count),   # (f547)
 ]
 
 CURRENT = MIGRATIONS[-1][0]
