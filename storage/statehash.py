@@ -119,7 +119,8 @@ def data_hash(root: Path = ROOT) -> str:
         rel = f.relative_to(root)
         if f.is_file() and "__pycache__" not in f.parts and rel.parts[:2] not in (("data", "replay"), ("data", "measured"), ("data", "runtime")):
             h.update(rel.as_posix().encode("utf-8") + b"\0")
-            h.update(f.read_bytes())
+            b = f.read_bytes()
+            h.update(b if b"\0" in b[:8000] else b.replace(b"\r\n", b"\n"))   # (f560) the game, not the checkout's line endings
     h.update(f"\0{config.MODEL}\0{VERSION}\0{migrations.CURRENT}".encode("utf-8"))
     return h.hexdigest()
 
