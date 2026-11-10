@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python tools/run_suite.py:*)",
+      "Bash(python tools/sim/*)",
+      "Bash(python tools/rerun.py --golden:*)",
+      "Bash(python -m py_compile:*)",
+      "Bash(git status)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git add:*)", "Bash(git commit:*)",
+      "Bash(git worktree:*)"
+    ],
+    "deny": [
+      "Read(./saves/**)", "Read(./logs/**)", "Read(./models/**)", "Read(./runtime/**)",
+      "Edit(./data/measured/**)",
+      "Bash(git push --force:*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "bash .claude/hooks/session_start.sh" } ] }
+    ],
+    "PostToolUse": [
+      { "matcher": "Edit|Write|MultiEdit",
+        "hooks": [ { "type": "command", "command": "python .claude/hooks/after_edit.py" } ] }
+    ],
+    "PreToolUse": [
+      { "matcher": "Bash",
+        "hooks": [ { "type": "command", "command": "python .claude/hooks/before_bash.py" } ] }
+    ],
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "bash .claude/hooks/quick_suite.sh" } ] }
+    ]
+  }
+}
