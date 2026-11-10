@@ -295,6 +295,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.remember_narration(result.text)
             self._wrote_turn = True                                                              # (f351) the narrator wrote this turn
             scene.note_fight_shown(result.text)                                                  # (f349) the opening passage is read
+            scene.note_ground_told(opening=True)                                                         # (f571) and the ground it was given is told
         return tell
 
     def has(self, mechanic: str) -> float | None:
@@ -1332,7 +1333,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         (the serial, "" until its first blow): taken as an operation opens, put back on the resumed scene by give_back. None with no fight."""
         if self.combat is None:
             return None
-        return (list(self.combat.fight.shown), list(self.combat.fight.tamed), self.combat.fight.serial)   # (f499) the fight's own
+        return (list(self.combat.fight.shown), list(self.combat.fight.tamed), self.combat.fight.serial,     # (f499) the fight's own
+                dict(self.combat.fight.ground_told))                                                      # (f571) and the ground it was told
 
     def give_back(self, op, pending0: list, fight0=None) -> None:
         """(f463) What an operation that did not stand gives back: its record, the session's snapshot of what the database never held, the
@@ -1350,6 +1352,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         saved_fight = self.store.load_combat()
         self.combat = CombatScene.resume(self, saved_fight) if saved_fight else None
         if fight0 is not None and self.combat is not None and self.combat.fight.serial == fight0[2]:
+            self.combat.fight.ground_told = dict(fight0[3]) if len(fight0) > 3 else {}             # (f571) the same way
             self.combat.fight.shown, self.combat.fight.tamed = list(fight0[0]), list(fight0[1])     # (f496) the resumed fight remembers what the
             # player has read of it and who was tamed, as the operation found them: shown-memory, not state (Bundle C), kept on the scene
             # and lost with it when the row was resumed, so a round run again for its answer told the ground and the light a second time

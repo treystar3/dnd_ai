@@ -770,6 +770,7 @@ def check() -> list[str]:
     ek = _load("data/rules/combat.yaml").get("effects_keep")
     need(isinstance(ek, int) and not isinstance(ek, bool) and ek > 0, "combat.yaml effects_keep: needs a whole number above 0")
     bad += improv_problems()                                           # (f567) the fight's improvisations, held to the resolver
+    bad += ground_word_problems()                                      # (f571) what the narrator is told of each zone's ground
     bad += tables_problems()                                           # (f504) the fight's tables, both ways
     bad += trigger_problems()                                          # (f507) the triggers held to the code that evaluates them
     bad += allowlist_problems()                                        # (f509) every table the fight reads, held to the code, both ways
@@ -784,6 +785,37 @@ def check() -> list[str]:
     from llm import launch as _launch
     bad += _launch.problems()                                          # (f526) the load screen's lines, once the owner's are in
     return bad
+
+
+def ground_word_problems(G: dict | None = None) -> list[str]:
+    """(f571) battlefields.yaml tag_words and hazards: a phrase for every terrain tag and no other, each hazard a hazardous zone's,
+    no dash in any of them."""
+    from engine.battlefield import TERRAIN_TAGS
+    B = _load("data/rules/battlefields.yaml")
+    G = B if G is None else G
+    W, H = G.get("tag_words") or {}, G.get("hazards") or {}
+    out = [f"battlefields.yaml tag_words: no words for {t}" for t in TERRAIN_TAGS if not isinstance(W.get(t), str) or not W[t].strip()]
+    out += [f"battlefields.yaml tag_words: {t} is not a terrain tag" for t in W if t not in TERRAIN_TAGS]
+    def walk(x):                                         # every zone anywhere in the file, the big fields' fixed layouts too
+        if isinstance(x, dict):
+            if "name" in x and isinstance(x.get("tags", []), list):
+                yield x
+            for v in x.values():
+                yield from walk(v)
+        elif isinstance(x, list):
+            for v in x:
+                yield from walk(v)
+    zones = list(walk({k: v for k, v in B.items() if k not in ("tag_words", "hazards")}))
+    risky = {z.get("name") for z in zones if "hazardous" in (z.get("tags") or [])}
+    out += [f"battlefields.yaml: zone '{z['name']}' has a tag with no words ({t})" for z in zones for t in z.get("tags") or [] if t not in TERRAIN_TAGS]
+    out += [f"battlefields.yaml hazards: '{n}' is no hazardous zone in the data" for n in H if n not in risky]
+    for where, table in (("tag_words", W), ("hazards", H)):
+        for k, v in table.items():
+            if not isinstance(v, str) or not v.strip():
+                out.append(f"battlefields.yaml {where}.{k}: needs words")
+            elif "—" in v or "–" in v or " - " in v:
+                out.append(f"battlefields.yaml {where}.{k}: a dash in words the narrator reads (owner's rule): {v!r}")
+    return out
 
 
 def improv_handled() -> set[str]:

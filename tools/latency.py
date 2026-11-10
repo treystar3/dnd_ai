@@ -6,6 +6,8 @@
     python tools/latency.py --against RUN_DIR...           (f490) a night's speech tasks beside Bundle D's baseline and their ceilings
     python tools/latency.py --gate                         (f490) the goldens priced at expected answers against their pre-D prices;
                                                            (f510) fight inputs too, and every input under budget.yaml limit_seconds
+    python tools/latency.py --rekeep MOST --note TEXT      (f571) the baseline's estimates set to today's price for each input the gate
+                                                           prices dearer, by MOST seconds at most (an owner's accepted cost only)
     python tools/latency.py --fights                       (f510) the goldens' fight measures, to data/measured/bundle_e_fights.yaml
     python tools/latency.py --ceilings [RUN_DIR...]        (f490) each speech task's ceiling, from the night's p95 and the goldens
     python tools/latency.py --estimates RECORDING          (f490) a recording's inputs priced at expected answers, as the baseline keeps them
@@ -442,6 +444,44 @@ def gate(base: dict | None = None, root: Path = GOLDENS) -> dict[str, list[tuple
     return out
 
 
+def rekeep(most: float, note: str, path: Path = BASELINE, root: Path = GOLDENS, today: str = "", limit: float | None = None) -> str:
+    """(f571) tools/latency.py --rekeep MOST --note TEXT: after a re-bless the owner has accepted as dearer, each input the gate prices
+    dearer has its kept estimate set to today's price, in place, and the estimates' header says when, why, the cost accepted and the
+    inputs set (a re-keep is never silent). Refuses, writing nothing, without a note, when any input moved by more than MOST seconds, or
+    when one would cross budget.yaml limit_seconds (a re-keep never turns an input into Bundle D's debt). Returns what moved."""
+    import datetime
+    import textwrap
+    import card_profile
+    if not note.strip():
+        return "refused, nothing written: a re-keep says why (--note TEXT)"
+    limit = card_profile.budget_limit() if limit is None else limit
+    lines = Path(path).read_text(encoding="utf-8").split("\n")
+    got = gate(base=_yaml(path), root=root)
+    over = [(n, i, b, s) for n, rows in got.items() for i, b, s in rows if b is None or s - b > most + 1e-9 or s > limit]
+    if over:
+        return "refused, nothing written: " + ", ".join(f"{n} input {i} ({b} -> {s} s)" for n, i, b, s in over)
+    told = []
+    start = lines.index("estimates:")
+    for name, rows in got.items():
+        at = lines.index(f"  {name}:", start) if rows else 0
+        for i, before, now in rows:
+            j = next(k for k in range(at + 1, len(lines)) if lines[k].startswith(f"    {i}: ") or not lines[k].startswith("    "))
+            if lines[j] != f"    {i}: {before}":
+                return f"refused, nothing written: {name} input {i} is not kept as {before}"
+            lines[j] = f"    {i}: {now}"
+        if rows:
+            told.append(f"{name}: " + ", ".join(f"input {i} {b} -> {s}" for i, b, s in rows))
+    if told:
+        when = today or datetime.date.today().isoformat()
+        moved = "; ".join(f"{n} inputs {', '.join(str(i) for i, _b, _s in rows)}" for n, rows in got.items() if rows)
+        text = f"({when}, tools/latency.py --rekeep {most:g}) {note}. Set again at today's price: {moved}"
+        k = next(j for j, line in enumerate(lines) if line.startswith("#   priced_at:"))
+        lines[k:k] = textwrap.wrap(text, width=136, initial_indent="#                 ", subsequent_indent="#                 ")
+    if told:
+        Path(path).write_text("\n".join(lines), encoding="utf-8", newline="\n")
+    return "\n".join(told) or "nothing dearer: nothing written"
+
+
 def golden_sizes(root: Path = GOLDENS) -> dict[str, tuple[int, str]]:
     """(f490) Per speech task, the largest prompt any golden recording sends, and the golden it is in."""
     import card_profile
@@ -790,6 +830,10 @@ def main() -> None:
             print(f"{name}: " + ("every input under the limit, apart from those the baseline priced over it" if not rows else
                                  "over the limit: " + ", ".join(f"input {i} ({s} s)" for i, s in rows)))
         sys.exit(1 if any(got.values()) or any(over.values()) else 0)
+    if args[0] == "--rekeep":                                       # (f571) --rekeep MOST : the dearer inputs' estimates set to today's price
+        k = args.index("--note") + 1 if "--note" in args[2:] else 0
+        print(rekeep(float(args[1]), note=args[k] if 0 < k < len(args) else ""))
+        return
     if args[0] == "--fights":                                       # (f510) the goldens' fight measures, written to data/measured/bundle_e_fights.yaml
         print(write_fights())
         return
