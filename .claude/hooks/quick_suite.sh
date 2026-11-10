@@ -4,7 +4,6 @@
 # Skipped when Claude is already continuing from this hook (stop_hook_active), or when no tracked file changed.
 grep -q '"stop_hook_active" *: *true' <<<"$(cat)" && exit 0
 [ -z "$(git status --porcelain --untracked-files=no -- '*.py' '*.yaml' '*.js')" ] && exit 0
-export PYTHONUTF8=1
 base=/tmp/meravia_base_$(git rev-parse --short HEAD)
 [ -d "$base" ] || git worktree add -f --detach "$base" HEAD >/dev/null 2>&1
 out=$(python tools/run_suite.py -j 4 --changed "$base" --outdir /tmp/meravia_quick 2>&1)

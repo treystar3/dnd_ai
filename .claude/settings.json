@@ -16,18 +16,18 @@
   },
   "hooks": {
     "SessionStart": [
-      { "hooks": [ { "type": "command", "command": "bash .claude/hooks/session_start.sh" } ] }
+      { "hooks": [ { "type": "command", "command": "cd \"$CLAUDE_PROJECT_DIR\" && bash .claude/hooks/session_start.sh" } ] }
     ],
     "PostToolUse": [
       { "matcher": "Edit|Write|MultiEdit",
-        "hooks": [ { "type": "command", "command": "python .claude/hooks/after_edit.py" } ] }
+        "hooks": [ { "type": "command", "command": "cd \"$CLAUDE_PROJECT_DIR\" && python .claude/hooks/after_edit.py" } ] }
     ],
     "PreToolUse": [
       { "matcher": "Bash",
-        "hooks": [ { "type": "command", "command": "python .claude/hooks/before_bash.py" } ] }
+        "hooks": [ { "type": "command", "command": "cd \"$CLAUDE_PROJECT_DIR\" && python .claude/hooks/before_bash.py" } ] }
     ],
     "Stop": [
-      { "hooks": [ { "type": "command", "command": "bash .claude/hooks/quick_suite.sh" } ] }
+      { "hooks": [ { "type": "command", "command": "cd \"$CLAUDE_PROJECT_DIR\" && bash .claude/hooks/quick_suite.sh" } ] }
     ]
   }
 }

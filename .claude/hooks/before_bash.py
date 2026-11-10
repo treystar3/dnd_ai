@@ -7,6 +7,6 @@ if "git push" in cmd:
     mark = ".claude/.suite_passed"
     if not os.path.exists(mark) or open(mark).read().strip() != tree:
         print("Blocked: run the full suite on this commit first (failures in .claude/known_failures.txt are allowed):\n"
-              "  PYTHONUTF8=1 python tools/run_suite.py -j 4 | tee /tmp/suite.txt; python .claude/hooks/known.py --mark < /tmp/suite.txt",
+              "  python tools/run_suite.py -j 4 | tee /tmp/suite.txt; python .claude/hooks/known.py --mark < /tmp/suite.txt",
               file=sys.stderr)
         sys.exit(2)

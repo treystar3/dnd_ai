@@ -43,3 +43,6 @@ desktop.ini
 .DS_Store
 .vscode/
 .idea/
+
+# --- Claude Code: the full-suite pass marker for this machine (.claude/hooks/known.py --mark) ---
+.claude/.suite_passed
