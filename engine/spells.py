@@ -16,9 +16,10 @@ import re
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
-S = yaml.safe_load((ROOT / "data" / "rules" / "spells.yaml").read_text(encoding="utf-8"))
+S = yamlio.safe_load((ROOT / "data" / "rules" / "spells.yaml").read_text(encoding="utf-8"))
 RANKS = {int(r["rank"]): r for r in S["ranks"]}
 TOP = max(RANKS)
 FORMS = S["forms"]

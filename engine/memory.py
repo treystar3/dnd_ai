@@ -7,6 +7,7 @@ transaction, so nothing a person remembers grows without bound on a long campaig
 A deed's line keeps a slot for the one who did it ({them}); it is read as "the stranger" (render) until a person's view of each
 character names them (Bundle D f486)."""
 from __future__ import annotations
+from core import yamlio
 
 from pathlib import Path
 
@@ -21,7 +22,7 @@ def caps() -> dict:
     global _CAPS
     if _CAPS is None:
         import yaml
-        _CAPS = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "memory.yaml").read_text(encoding="utf-8")) or {}
+        _CAPS = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "memory.yaml").read_text(encoding="utf-8")) or {}
     return _CAPS
 
 

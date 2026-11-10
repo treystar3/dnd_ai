@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
+from core import yamlio
 from pydantic import BaseModel
 
 from core.models import Item
@@ -16,7 +17,7 @@ from core.rules import ATTRIBUTES, STATS, TRIGGERS
 from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent / "data"
-RULES = yaml.safe_load((ROOT / "rules" / "equipment.yaml").read_text(encoding="utf-8"))
+RULES = yamlio.safe_load((ROOT / "rules" / "equipment.yaml").read_text(encoding="utf-8"))
 SLOTS = RULES["slots"]
 WEIGHTS = ["light", "medium", "heavy"]
 MATERIAL_RARITY_WEIGHT = {"common": 10, "uncommon": 4, "rare": 1, "legendary": 0.1}
@@ -119,7 +120,7 @@ class Gem(BaseModel):
 def _load():
     problems = []
     catalog = {}
-    for entry in yaml.safe_load((ROOT / "world" / "items.yaml").read_text(encoding="utf-8")):
+    for entry in yamlio.safe_load((ROOT / "world" / "items.yaml").read_text(encoding="utf-8")):
         b = BaseItem(**entry)
         if b.id in catalog:
             problems.append(f"items.yaml: duplicate item '{b.id}'")
@@ -129,7 +130,7 @@ def _load():
         if b.slot == "main_hand" and not b.is_weapon:
             problems.append(f"items.yaml {b.id}: main_hand items need damage and reach")
         catalog[b.id] = b
-    raw = yaml.safe_load((ROOT / "world" / "materials.yaml").read_text(encoding="utf-8"))
+    raw = yamlio.safe_load((ROOT / "world" / "materials.yaml").read_text(encoding="utf-8"))
     materials = {m["id"]: Material(**m) for m in raw["materials"]}
     gems = {g["id"]: Gem(**g) for g in raw["gems"]}
     for m in materials.values():
@@ -156,7 +157,7 @@ def _load():
 
 GEAR_ONLY_IDS = {i for ids in RULES["gear_only_stats"].values() for i in ids}
 CATALOG, MATERIALS, GEMS = _load()
-LEGENDARY = {e["id"]: LegendaryEffect(**e) for e in yaml.safe_load((ROOT / "rules" / "legendary_effects.yaml").read_text(encoding="utf-8"))}
+LEGENDARY = {e["id"]: LegendaryEffect(**e) for e in yamlio.safe_load((ROOT / "rules" / "legendary_effects.yaml").read_text(encoding="utf-8"))}
 
 
 def legendary_options(base: "BaseItem", companions: bool = False) -> list[LegendaryEffect]:

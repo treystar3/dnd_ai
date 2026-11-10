@@ -35,11 +35,12 @@ import re
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import hygiene, retrieval, roads, streams
 
 ROOT = Path(__file__).resolve().parent.parent
-S = yaml.safe_load((ROOT / "data" / "rules" / "situations.yaml").read_text(encoding="utf-8"))
+S = yamlio.safe_load((ROOT / "data" / "rules" / "situations.yaml").read_text(encoding="utf-8"))
 TIERS = ("normal", "uncommon", "rare", "campaign")
 V = 1
 
@@ -602,13 +603,13 @@ def measured_problems(doc: dict | None = None) -> list[str]:
         if not path.exists():
             return []
         try:
-            doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+            doc = yamlio.safe_load(path.read_text(encoding="utf-8"))
         except yaml.YAMLError as e:
             return [f"situation_thinking.yaml: not YAML ({str(e).splitlines()[0]})"]
     if not isinstance(doc, dict):
         return ["situation_thinking.yaml: a table of the task, its arms and the verdict"]
     bad = []
-    tasks = (yaml.safe_load((ROOT / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8")) or {}).get("tasks") or {}
+    tasks = (yamlio.safe_load((ROOT / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8")) or {}).get("tasks") or {}
     if doc.get("task") not in tasks:
         bad.append(f"situation_thinking.yaml task: '{doc.get('task')}' is not a task budget.yaml knows")
     known = set(arms())

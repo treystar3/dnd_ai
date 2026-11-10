@@ -12,12 +12,13 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import combat as C
 from engine import effects as E
 
 ROOT = Path(__file__).resolve().parent.parent
-S = yaml.safe_load((ROOT / "data" / "rules" / "summons.yaml").read_text(encoding="utf-8"))
+S = yamlio.safe_load((ROOT / "data" / "rules" / "summons.yaml").read_text(encoding="utf-8"))
 FORMS = S["forms"]
 
 

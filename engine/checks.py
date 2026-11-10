@@ -7,13 +7,14 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from core.models import Character
 from core.rules import STATS
 from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
-RULES = yaml.safe_load((ROOT / "data" / "rules" / "checks.yaml").read_text(encoding="utf-8"))
+RULES = yamlio.safe_load((ROOT / "data" / "rules" / "checks.yaml").read_text(encoding="utf-8"))
 CHECKS = ("insight", "persuasion", "intimidation", "deception", "stealth", "perception", "lore", "performance")
 SOCIAL = ("persuasion", "intimidation", "deception")
 
@@ -84,6 +85,11 @@ def chance(c: Character, check: str, active_triggers: set[str], npc=None,
                 value += mod
                 why.append(f"{trait} {mod:+d}")
     return max(RULES["min"], min(RULES["max"], value)), why
+
+
+def improv_odds(attr: float, odds: float, base: float, lo: float, hi: float) -> float:
+    """(f568) An improvisation's chance, in a fight or out of one: base + (attr - center) * weight + the effect's odds, in [lo, hi]."""
+    return max(lo, min(hi, base + (attr - RULES["attribute_center"]) * RULES["attribute_weight"] + odds))
 
 
 def roll(odds: float, rng: random.Random | None = None, c: Character | None = None) -> tuple[str, int]:

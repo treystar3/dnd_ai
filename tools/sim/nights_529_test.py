@@ -46,6 +46,7 @@ def check(name, ok, detail=""):
         bad.append(name)
 
 
+import fake_runtime
 from fake_runtime import Layout, THE_3060
 base = Path(tempfile.mkdtemp(prefix="nights529_"))
 lay = Layout(base)
@@ -67,8 +68,8 @@ ports = {a[a.index("--port") + 1] for a in chat_launches}
 check("three servers on three ports, one a run (and an embedder each)", len(chat_launches) == 3 and len(ports) == 3
       and len([a for a in lay.argv() if "--embeddings" in a]) == 3, (len(chat_launches), ports))
 check("each run's server log sits with its logs, and each server loaded", all((p / "llama-server.log").exists() and "model loaded" in (p / "llama-server.log").read_text(encoding="utf-8", errors="replace") for p in runs), [p.name for p in runs])
-left = subprocess.run(["pgrep", "-f", "--", str(lay.rt_dir)], capture_output=True, text=True)
-check("no child is left after the night: each run closed its own", left.returncode == 1 and not left.stdout.strip(), left.stdout)
+left = fake_runtime.processes_under(lay.rt_dir)       # (f561) pgrep on POSIX, the command lines on Windows
+check("no child is left after the night: each run closed its own", not left, left)
 check("--record reaches the first run alone; the measuring runs play unrecorded", len(runs) == 3 and (runs[0] / "recording").is_dir()
       and not (runs[1] / "recording").exists() and not (runs[2] / "recording").exists(), [sorted(x.name for x in p.iterdir()) for p in runs])
 srv = [i.get("server") or {} for i in infos]

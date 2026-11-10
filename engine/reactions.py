@@ -17,11 +17,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import domain_events as de
 from ui import console
 
-R = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "reactions.yaml").read_text(encoding="utf-8"))
+R = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "reactions.yaml").read_text(encoding="utf-8"))
 KINDS: dict[str, dict] = {k: (v or {}) for k, v in R["kinds"].items()}
 AFTER_DEED = ("kill", "persuade", "deliver", "quest_done", "dungeon_cleared", "found", "defend",   # the ledger kinds that can end an event
               "gift", "bribe")                                     # (f545) a condition of help met by a gift or a bribe

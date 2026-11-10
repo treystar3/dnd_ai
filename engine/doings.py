@@ -11,9 +11,10 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
-D = yaml.safe_load((ROOT / "data" / "world" / "doings.yaml").read_text(encoding="utf-8"))
+D = yamlio.safe_load((ROOT / "data" / "world" / "doings.yaml").read_text(encoding="utf-8"))
 STILL = ("prisoner",)                         # roles whose doing the story sets (a prisoner walks bound at your side)
 
 

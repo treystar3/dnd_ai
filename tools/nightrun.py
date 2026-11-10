@@ -80,9 +80,9 @@ class Run:
         self.out, self.hours, self.max_turns, self.live = out, hours, turns, live
         self.started = time.time()
         self.rows: list[dict] = []
-        self.turn_file = (out / "turns.jsonl").open("a", encoding="utf-8")
-        self.transcript = (out / "transcript.md").open("a", encoding="utf-8")
-        self.errors = (out / "errors.log").open("a", encoding="utf-8")
+        self.turn_file = (out / "turns.jsonl").open("a", encoding="utf-8", newline="\n")
+        self.transcript = (out / "transcript.md").open("a", encoding="utf-8", newline="\n")
+        self.errors = (out / "errors.log").open("a", encoding="utf-8", newline="\n")
         self.current: dict | None = None             # the turn being played
         self.t_line = 0.0
         self.first_word: float | None = None
@@ -325,7 +325,7 @@ class Run:
         from engine import hygiene
         info = {"ended": datetime.now().isoformat(timespec="seconds"), "turns": len(self.rows), "reason": self.reason,
                 "hours": round((time.time() - self.started) / 3600, 2), "cast": self.cast, "hygiene": dict(hygiene.REPAIRS), **extra}
-        (self.out / "run.json").write_text(json.dumps(info, indent=1), encoding="utf-8")
+        (self.out / "run.json").write_text(json.dumps(info, indent=1), encoding="utf-8", newline="\n")
 
 
 def ended_by_player(path: Path) -> int:
@@ -502,7 +502,7 @@ def batch(args) -> None:
         lines.append(f"| {r['run']} | {r['class']} | {r['seed']} | {r['start']} | {r['persona']} | {r['turns']} | {r['hours']} | {r['level']} | {r['deaths']} | "
                      f"{r['distinct']} | {r['done']} | {r['ended']} | {r['reason']} | {r['exit']} |")
     text = "\n".join(lines) + "\n"
-    (base / f"batch_{stamp}.md").write_text(text, encoding="utf-8")
+    (base / f"batch_{stamp}.md").write_text(text, encoding="utf-8", newline="\n")
     print("\n" + text)
     print(f"Logs: {base.resolve()}  (every folder above is a run; tools/lora_dataset.py --runs-dir {base} reads them all)")
 
@@ -697,7 +697,7 @@ def main() -> None:
         import world_report                                     # (f355) the world's side of the run, appended to summary.md
         world = world_report.summarise(out / "pulse.jsonl")
         if world:
-            (out / "summary.md").write_text(summary + "\n" + world, encoding="utf-8")
+            (out / "summary.md").write_text(summary + "\n" + world, encoding="utf-8", newline="\n")
             summary += "\n" + world
     except Exception as e:                                      # the summary is a convenience; a missing world log never fails the run
         print(f"world report skipped: {e}")

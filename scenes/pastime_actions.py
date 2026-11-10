@@ -10,13 +10,14 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import regard                                   # (f480)
 from engine import checks, clock, money
 from ui import console
 
 ROOT = Path(__file__).resolve().parent.parent
-PT = yaml.safe_load((ROOT / "data" / "rules" / "pastimes.yaml").read_text(encoding="utf-8"))
+PT = yamlio.safe_load((ROOT / "data" / "rules" / "pastimes.yaml").read_text(encoding="utf-8"))
 
 
 class PastimeActions:

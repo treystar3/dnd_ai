@@ -12,9 +12,10 @@ import unicodedata
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
-G = yaml.safe_load((ROOT / "data" / "rules" / "guard.yaml").read_text(encoding="utf-8"))
+G = yamlio.safe_load((ROOT / "data" / "rules" / "guard.yaml").read_text(encoding="utf-8"))
 
 
 def _pattern(words: list) -> re.Pattern:

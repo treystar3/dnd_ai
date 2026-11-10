@@ -5,10 +5,11 @@ import re
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import events, property as prop
 
-M = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "mounts.yaml").read_text(encoding="utf-8"))
+M = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "mounts.yaml").read_text(encoding="utf-8"))
 CATALOG = {k: dict(v, id=k) for k, v in events.E["grand"]["mounts"].items()}
 WORDS = re.compile(r"\b(mount|mounts|horse|horses|steed|steeds|stable|stables|pony|ponies|palfrey|courser|destrier|strider|charger|ride|riding)\b", re.I)
 

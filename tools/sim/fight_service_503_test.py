@@ -70,10 +70,11 @@ def through_scene(name, hp=None, rounds=12):
 
 
 def bare(row):
-    """A row with the scene's memory of the telling (shown) left out, and the serial (the ids stream's draw at the fight's place in the
+    """A row with the scene's memory of the telling (shown, ground_told) left out, and the serial (the ids stream's draw at the fight's place in the
     input; the scene's input draws ids before it, the service alone does not) written as S, in the blows' ids too."""
     f = json.loads(json.dumps(row["fight"]))
     f.pop("shown", None)
+    f.pop("ground_told", None)                       # (f571) the scene's memory of what ground it told, the same kind
     serial = f.get("serial", "")
     f["serial"] = "S"
     for h in f.get("hits", []):

@@ -20,10 +20,11 @@ import threading
 from pathlib import Path
 
 import yaml
+from core import yamlio
 from llm.errors import LLMError                     # (f514) from the module that imports no model client
 
 ROOT = Path(__file__).resolve().parent.parent
-B: dict = yaml.safe_load((ROOT / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8"))
+B: dict = yamlio.safe_load((ROOT / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8"))
 TASKS: dict = B.get("tasks") or {}
 DEFAULT_PROFILE = {"read_tps": 756.8, "write_tps": 31.7, "embed_seconds_per_text": 0.15}   # the f443 measurement, when no profile file is there
 
@@ -33,7 +34,7 @@ def load_profile() -> dict:
     (f527) the embedder's seconds a text, moved there from budget.yaml because it measures the card."""
     p = ROOT / "data" / "measured" / "card_profile.yaml"
     try:
-        m = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+        m = yamlio.safe_load(p.read_text(encoding="utf-8")) or {}
     except OSError:
         m = {}
     read, write, emb = m.get("prompt_tokens_per_second"), m.get("answer_tokens_per_second"), m.get("embed_seconds_per_text")

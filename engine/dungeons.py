@@ -9,11 +9,12 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import quests
 
 ROOT = Path(__file__).resolve().parent.parent
-D = yaml.safe_load((ROOT / "data" / "rules" / "dungeons.yaml").read_text(encoding="utf-8"))
+D = yamlio.safe_load((ROOT / "data" / "rules" / "dungeons.yaml").read_text(encoding="utf-8"))
 FIXED_PLACES = {"first_hall"}      # places whose dungeon is written by a quest, never generated or remade
 
 

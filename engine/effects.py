@@ -18,6 +18,7 @@ from typing import Callable
 from pathlib import Path
 
 import yaml
+from core import yamlio
 from pydantic import BaseModel, ConfigDict
 
 
@@ -33,8 +34,8 @@ class EffectDef(BaseModel):
     deltas: str = ""
 
 
-_T = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "active_effects.yaml").read_text(encoding="utf-8"))
-_ST = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "stages.yaml").read_text(encoding="utf-8"))
+_T = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "active_effects.yaml").read_text(encoding="utf-8"))
+_ST = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "stages.yaml").read_text(encoding="utf-8"))
 ELIGIBLE: tuple[str, ...] = tuple(_ST["status_eligibility"])     # (f507) the stages a status passes before it lands, in order
 FAMILIES: tuple[str, ...] = tuple(_T["families"])
 EXPIRY: tuple[str, ...] = tuple(_T["expiry"])

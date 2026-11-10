@@ -104,10 +104,10 @@ for d in ("engine", "scenes", "npc", "services"):
     for p in Path(d).rglob("*.py"):
         src = p.read_text(encoding="utf-8")
         for node in ast.walk(ast.parse(src)):
-            if isinstance(node, ast.Assign) and any(isinstance(x, ast.Attribute) and x.attr == "memory" for x in node.targets) and str(p) != "engine/town_memory.py":
+            if isinstance(node, ast.Assign) and any(isinstance(x, ast.Attribute) and x.attr == "memory" for x in node.targets) and p.as_posix() != "engine/town_memory.py":
                 loose.append(f"{p}:{node.lineno}")
             if isinstance(node, ast.Call) and getattr(node.func, "attr", "") == "append" and isinstance(node.func.value, ast.Subscript) \
-                    and getattr(node.func.value.slice, "value", None) == "history" and str(p) != "engine/pulse.py":
+                    and getattr(node.func.value.slice, "value", None) == "history" and p.as_posix() != "engine/pulse.py":
                 loose.append(f"{p}:{node.lineno} history")
 check("the town's memory and the world's history each have one writer", loose == [], loose)
 check("the moments seen are capped in data", "seen_keep" in moments.M and "seen_keep" in Path("engine/moments.py").read_text())

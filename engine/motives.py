@@ -11,9 +11,10 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
-M = yaml.safe_load((ROOT / "data" / "rules" / "motives.yaml").read_text(encoding="utf-8"))
+M = yamlio.safe_load((ROOT / "data" / "rules" / "motives.yaml").read_text(encoding="utf-8"))
 
 
 def seed_of(npc) -> str:

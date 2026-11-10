@@ -3,8 +3,9 @@
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
-RULES = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "currency.yaml").read_text(encoding="utf-8"))
+RULES = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "currency.yaml").read_text(encoding="utf-8"))
 DENOMINATIONS = RULES["denominations"]
 
 for _d in DENOMINATIONS[:-1]:

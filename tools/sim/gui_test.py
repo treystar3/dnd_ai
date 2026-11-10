@@ -224,11 +224,11 @@ undo_source()
 
 # ---- nothing in the game may print or read the terminal by itself, or the GUI would miss it ----
 ALLOWED = {"ui/console.py", "ui/gui/__init__.py"}      # the GUI launcher writes only to stderr, before any window exists
-SKIP_DIRS = {"tools", "__pycache__", "saves", "logs", "dist", "build"}
+SKIP_DIRS = {"tools", "__pycache__", "saves", "logs", "dist", "build", "docs"}
 offenders = []
 for p in ROOT.rglob("*.py"):
     rel = p.relative_to(ROOT).as_posix()
-    if rel.split("/")[0] in SKIP_DIRS or "/" not in rel and rel != "main.py":
+    if rel.split("/")[0] in SKIP_DIRS or rel.startswith(".") or "/" not in rel and rel != "main.py":   # (f564) .venv, .claude
         continue                      # top-level helper scripts (simbot, smoke tests) are not the game
     if rel in ALLOWED:
         continue

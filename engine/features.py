@@ -16,9 +16,10 @@ import re
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
-F = yaml.safe_load((ROOT / "data" / "rules" / "features.yaml").read_text(encoding="utf-8"))
+F = yamlio.safe_load((ROOT / "data" / "rules" / "features.yaml").read_text(encoding="utf-8"))
 KIND_OF: dict[str, str] = {w: k for k, spec in F["kinds"].items() for w in spec["words"]}
 PLAIN = set(F["plain"])
 STOP = {"the", "a", "an", "of", "to", "in", "into", "at", "on", "by", "from", "and", "toward", "towards", "back", "over", "through",

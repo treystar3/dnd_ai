@@ -125,10 +125,10 @@ class Recorder:
             self.meta["slow"] = True
         if getattr(config, "THINK_TASKS", None):            # (f533) the tasks that thought, and their room: a replay asks as they did
             self.meta.update(think_tasks=sorted(config.THINK_TASKS), think_room=config.THINK_ROOM)
-        (self.dir / "meta.json").write_text(json.dumps(self.meta, indent=1), encoding="utf-8")
-        self.inputs = (self.dir / "inputs.jsonl").open("w", encoding="utf-8")
-        self.calls = gzip.open(self.dir / "calls.jsonl.gz", "wt", encoding="utf-8")
-        self.turns = (self.dir / "turns.jsonl").open("w", encoding="utf-8")
+        (self.dir / "meta.json").write_text(json.dumps(self.meta, indent=1), encoding="utf-8", newline="\n")
+        self.inputs = (self.dir / "inputs.jsonl").open("w", encoding="utf-8", newline="\n")
+        self.calls = gzip.open(self.dir / "calls.jsonl.gz", "wt", encoding="utf-8", newline="\n")
+        self.turns = (self.dir / "turns.jsonl").open("w", encoding="utf-8", newline="\n")
         self.n_input, self.n_call, self.shown, self.open_input, self.inside = 0, 0, [], False, False
         self.asking = None
         self.undo = []                       # the console's bindings this recorder replaced, put back at close
@@ -294,7 +294,7 @@ class Recorder:
             for f in (self.inputs, self.calls, self.turns):
                 f.close()
         self.meta["overlapped"] = self.overlapped        # (R5) written at close, 0 when no recorded call overlapped another
-        (self.dir / "meta.json").write_text(json.dumps(self.meta, indent=1), encoding="utf-8")
+        (self.dir / "meta.json").write_text(json.dumps(self.meta, indent=1), encoding="utf-8", newline="\n")
         from engine import streams
         streams.STRICT = False
         return self.dir

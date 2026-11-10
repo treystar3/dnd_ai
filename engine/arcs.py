@@ -7,12 +7,13 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import quests
 from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent / "data"
-A = yaml.safe_load((ROOT / "rules" / "arcs.yaml").read_text(encoding="utf-8"))
+A = yamlio.safe_load((ROOT / "rules" / "arcs.yaml").read_text(encoding="utf-8"))
 
 def _full(t: dict) -> dict:
     """A template with the defaults and the wording of its kind of subject filled in."""
@@ -22,7 +23,7 @@ def _full(t: dict) -> dict:
     return out
 
 
-TEMPLATES = {t["id"]: _full(t) for t in yaml.safe_load((ROOT / "world" / "arcs.yaml").read_text(encoding="utf-8"))}
+TEMPLATES = {t["id"]: _full(t) for t in yamlio.safe_load((ROOT / "world" / "arcs.yaml").read_text(encoding="utf-8"))}
 SIZES = ["simple", "chain", "arc"]
 
 
@@ -244,5 +245,5 @@ def gift_companion(character, arc: dict, world):
 def perk_text(companion) -> str:
     """What a companion's perks do, in the words of the passive they borrow."""
     import yaml
-    defs = {m["id"]: m for m in yaml.safe_load((ROOT / "rules" / "passive_mechanics.yaml").read_text(encoding="utf-8"))}
+    defs = {m["id"]: m for m in yamlio.safe_load((ROOT / "rules" / "passive_mechanics.yaml").read_text(encoding="utf-8"))}
     return " ".join(defs[k]["text"].format(value=f"{v:g}") for k, v in companion.perks.items() if k in defs)

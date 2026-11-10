@@ -12,9 +12,10 @@ import re
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
-H = yaml.safe_load((ROOT / "data" / "rules" / "hygiene.yaml").read_text(encoding="utf-8"))
+H = yamlio.safe_load((ROOT / "data" / "rules" / "hygiene.yaml").read_text(encoding="utf-8"))
 PROSE = set(H["prose_fields"])
 NARRATOR = set(H["narrator_tasks"])
 REPAIRS: collections.Counter = collections.Counter()      # what clean() mended on the way to the screen, by kind

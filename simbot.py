@@ -168,7 +168,7 @@ class Bot:
             if os.environ.get("SIM_START_AT"):
                 start = os.environ["SIM_START_AT"]
         STUB.bot = self
-        self.log_f = open(OUT / f"{CLS}.jsonl", "w")
+        self.log_f = open(OUT / f"{CLS}.jsonl", "w", encoding="utf-8")
         self.steps = 0
         self.fights = []
         self.deaths = []
@@ -1851,7 +1851,7 @@ class Bot:
             summary["survey"] = self.survey()
         except Exception as e:
             summary["survey_error"] = repr(e)
-        (OUT / f"{CLS}_summary.json").write_text(json.dumps(summary, default=str, indent=1))
+        (OUT / f"{CLS}_summary.json").write_text(json.dumps(summary, default=str, indent=1), encoding="utf-8")
         self.log_f.close()
 
 

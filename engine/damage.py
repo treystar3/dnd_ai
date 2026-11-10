@@ -17,12 +17,13 @@ from pathlib import Path
 from typing import Callable
 
 import yaml
+from core import yamlio
 
 from engine import combat as C
 from engine import effects as E
 from engine import items
 
-PATHS: dict[str, list[str]] = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "stages.yaml")
+PATHS: dict[str, list[str]] = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "stages.yaml")
                                              .read_text(encoding="utf-8"))["damage"]
 
 NAMED = {"blood_pact": "Blood Pact", "hardening": "Hardening", "aegis": "Aegis", "last_stand": "Last Stand", "stoneskin": "Stoneskin",

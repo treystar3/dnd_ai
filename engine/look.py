@@ -10,9 +10,10 @@ import re
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
-L = yaml.safe_load((ROOT / "data" / "rules" / "look.yaml").read_text(encoding="utf-8"))
+L = yamlio.safe_load((ROOT / "data" / "rules" / "look.yaml").read_text(encoding="utf-8"))
 PRONOUNS = {p["id"]: p for p in L["pronouns"]}
 
 

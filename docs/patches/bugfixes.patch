@@ -1,0 +1,26 @@
+diff -ru a/engine/combat_improv.py b/engine/combat_improv.py
+--- a/engine/combat_improv.py	2026-11-09 02:24:13.128516810 +0000
++++ b/engine/combat_improv.py	2026-11-09 02:24:13.143554677 +0000
+@@ -58,7 +58,7 @@
+     something made true either way."""
+     from engine import checks
+     effect = effect or effect_by_words(words)
+-    degree, rolled = checks.roll(odds_for(p, effect))
++    degree, rolled = checks.roll(odds_for(p, effect), rng)
+     good = degree in ("success", "strong success")
+     partial = degree == "partial"
+     fight.log.append(f"{p.name} improvises ({effect.replace('_', ' ')}): {degree}")
+diff -ru a/engine/ruling.py b/engine/ruling.py
+--- a/engine/ruling.py	2026-11-09 02:24:13.128440764 +0000
++++ b/engine/ruling.py	2026-11-09 02:24:13.143269448 +0000
+@@ -249,8 +249,8 @@
+     """The whole loop for an improvised act: rule, check, make room, set the stakes, resolve; or say no."""
+     from engine import world_improv
+     r = ask(ws, words, text)
+-    if r is None:
+-        world_improv.resolve(ws, words, text)
++    if r is None:                                       # no ruling: never rolled through unruled (an impossible act would be granted);
++        ws.ask_back("ruling_failed", text, "the ruling on it could not be made", meaning=words)   # asked again, and logged
+         return
+     v = verdict(ws, r)
+     if not v["ok"]:

@@ -14,6 +14,7 @@ import re
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 import config
 
@@ -21,7 +22,7 @@ MAX_CANON = 60
 MAX_BELIEFS = 30
 # (f435) A claim the canon check could not be asked about (the model did not answer) is never kept as true: it waits, unsettled, and is
 # checked again the next time something about that person is kept. How many wait, and how many are looked at again each time.
-UNSETTLED = (yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "truth.yaml").read_text(encoding="utf-8"))
+UNSETTLED = (yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "truth.yaml").read_text(encoding="utf-8"))
              .get("canon") or {}).get("unsettled") or {}
 MAX_WORDS = 30
 EMPTY = {"", "none", "n/a", "nothing", "no", "null", "-"}

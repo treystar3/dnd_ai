@@ -15,12 +15,13 @@ import zlib
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 import config
 
 from engine import combat, money, quests
 
-M = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "mentor.yaml").read_text(encoding="utf-8"))
+M = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "mentor.yaml").read_text(encoding="utf-8"))
 NAME = M["name"]
 G = quests.G
 

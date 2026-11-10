@@ -33,6 +33,8 @@ from pydantic import BaseModel
 import config
 from llm import backend, embed, runtime, sampling
 from llm.errors import Cancelled, Failure
+sys.path.insert(0, str(ROOT / "tools" / "sim"))
+import fake_runtime
 
 bad: list[str] = []
 
@@ -60,7 +62,7 @@ LAUNCHER = """#!{py}
 import os, sys, time, json
 sys.path.insert(0, {sim!r})
 args = sys.argv[1:]
-with open(os.environ.get("FAKE_ARGV", "/dev/null"), "a") as f:
+with open(os.environ.get("FAKE_ARGV", os.devnull), "a") as f:
     f.write(json.dumps(args) + "\\n")
 if "--list-devices" in args:
     print("Available devices:"); print("  CUDA0: NVIDIA GeForce RTX 3060 (12287 MiB, 11200 MiB free)"); sys.exit(0)
@@ -75,12 +77,12 @@ if not embedding:
     print("load_tensors: offloaded " + os.environ.get("FAKE_OFFLOAD", "49/49") + " layers to GPU", flush=True)
 from fake_llama import FakeLlama
 limit = int(os.environ.get("FAKE_EMBED_LIMIT", "0") or 0)
-log = os.environ.get("FAKE_REQ_LOG", "/dev/null")
+log = os.environ.get("FAKE_REQ_LOG", os.devnull)
 
 
 def script(path, body, n):
     with open(log, "a") as f:
-        f.write(json.dumps({{"path": path, "pid": os.getpid(), "lens": [len(t) for t in body.get("input") or []]}}) + "\\n")
+        f.write(json.dumps({{"path": path, "pid": os.getppid() if os.name == "nt" else os.getpid(), "lens": [len(t) for t in body.get("input") or []]}}) + "\\n")
     if path == "/v1/embeddings":
         texts = body.get("input") or []
         if limit and any(len(t) > limit for t in texts):
@@ -102,8 +104,7 @@ rt_dir, models_dir, run_dir, logs_dir = base / "runtime", base / "models", base 
 (rt_dir / "cuda").mkdir(parents=True)
 models_dir.mkdir()
 exe = rt_dir / "cuda" / runtime.exe_name()
-exe.write_text(LAUNCHER.format(py=sys.executable, sim=str(ROOT / "tools" / "sim")))
-exe.chmod(0o755)
+fake_runtime.write_exe(exe, LAUNCHER.format(py=sys.executable, sim=str(ROOT / "tools" / "sim")))
 CFG = runtime.settings()
 for m in CFG["models"].values():
     (models_dir / m["file"]).write_bytes(b"gguf")
@@ -187,13 +188,13 @@ try:
         check("another embedder's vectors are not kept", len(asked) == 1, asked)
         # a death, a restart; then off
         first = rt.embed.proc.pid
-        os.kill(first, signal.SIGKILL)
+        fake_runtime.kill(first)
         wait_for(lambda: not rt.embed.alive())
         v = embed.vectors(["after the first death"])
         check("an embedder that dies is started again once and the call answered", v is not None and rt.embed.proc.pid != first
               and rt.embed_restarts_left == 0 and not embed.failed(), (v, rt.embed_restarts_left))
         second = rt.embed
-        os.kill(second.proc.pid, signal.SIGKILL)
+        fake_runtime.kill(second.proc.pid)
         wait_for(lambda: not second.alive())
         v = embed.vectors(["after the second death"])
         crash = (logs_dir / "crash.log").read_text()

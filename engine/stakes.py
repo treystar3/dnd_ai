@@ -15,12 +15,13 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from ui import console
 from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
-G = yaml.safe_load((ROOT / "data" / "rules" / "guild.yaml").read_text(encoding="utf-8"))
+G = yamlio.safe_load((ROOT / "data" / "rules" / "guild.yaml").read_text(encoding="utf-8"))
 
 STAKES_SYSTEM = """You give the postings on an adventurers' guild board their reasons. Each posting names the person who asked the guild to post
 it (the ISSUER: their name and what they do) and the town they live in (its character, what is wrong underneath, how things stand). For

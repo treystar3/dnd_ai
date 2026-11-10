@@ -75,7 +75,60 @@ control:
 # Morale (engine/behaviors.py): a fight has a second way to end. When the pack's leader falls, or half of them are down, the rest may
 # break and run (or yield, for those who can). The mindless and the sworn never rout; set-piece bosses and the fearless never rout.
 # Improvised actions (engine/combat_improv.py): an ability is a promise, an improvisation is a gamble.
-improv: {base_odds: 55, damage_mult: 0.8}
+# effects (f567): what an improvisation can be FOR. about is matched by meaning (the scene's read_effect); words name it when that
+# reading is not to hand, the first effect whose word is in the line winning, in this order; odds shift the chance. Every effect here
+# is one the resolver handles, and every one it handles is here (engine/data_check.py improv_problems).
+# The odds (f568) are checks.yaml's shared formula: base_odds + (attribute - 15) * 1.5 + the effect's odds, in [min, max], on the
+# better of dexterity and intelligence. base_odds 60 is provisional for the balance pass: it keeps an attribute of 15 at its old 60%.
+improv:
+  base_odds: 60
+  min: 10
+  max: 90
+  damage_mult: 0.8
+  scant_odds: -20         # (f570) poor ground for the act (needs below): odds shift, provisional for the balance pass
+  effects:
+    read_opening:     {about: "watching it, studying how it moves, waiting for an opening, reading its guard, biding your time", odds: 10,
+                       words: [watch, opening, study, wait for, bide, its guard, a gap]}
+    break_engagement: {about: "getting away, slipping free, putting something between you and them, escaping their reach", odds: 0,
+                       words: [away, escape, between, back off, slip]}
+    gain_position:    {about: "climbing, high ground, a vantage point, getting on top of something", odds: 0,
+                       words: [climb, high, "up ", vantage, leap onto, on top]}
+    create_cover:     {about: "cover, a shield of furniture or terrain, ducking behind something, blocking their line", odds: 5,
+                       words: [cover, behind, barricade, shield], needs: [cover, concealed, difficult, narrow], needs_in: self}
+    distract:         {about: "distracting, feinting, throwing sand or a cloak, drawing its eyes away, a trick", odds: 5,
+                       words: [distract, sand, feint, throw my, trick, eyes]}
+    force_move:       {about: "pushing, tripping, knocking them into or off something, driving them back", odds: -5,
+                       words: [push, shove, trip, knock, drive]}
+    disable:          {about: "tangling, pinning, blinding, jamming, fouling their weapon or legs", odds: -10,
+                       words: [tangle, pin, blind, net, jam, foul]}
+    damage:           {about: "hurting them with the surroundings: a dropped beam, a kicked brazier, a rockslide", odds: -5,
+                       words: [drop, kick, topple, collapse, brazier, rocks], needs: [hazardous, elevated, cover, difficult], needs_in: target}
+  # (f570) needs: zone tags (engine/battlefield.py TERRAIN_TAGS) that make the ground good for the act, in the improviser's zone
+  # (needs_in self) or the foe's (target). Without one it is still tried, at scant_odds, and a scant line says so: near when a zone
+  # next to it has one ({near}), none otherwise. {Here}/{here}/{near} are zones, said definitely (combat_improv.definite), {target} the foe. No battlefield: no shift.
+  scant:
+    create_cover:
+      none:
+        - "{Here} is poor ground for cover; whatever comes to hand will have to do."
+        - "Whatever {here} offers to hide behind is thin."
+        - "{Here} affords poor cover."
+        - "Cover comes hard here, and what there is will not hold for long."
+      near:
+        - "{Here} is poor ground for cover; {near} would have served better."
+        - "Whatever {here} offers to hide behind is thin, next to what {near} has."
+        - "{Here} affords poor cover; {near} has better."
+        - "Cover comes hard here; {near} has better."
+    damage:
+      none:
+        - "{Here} is poor ground for bringing anything down on {target}."
+        - "Whatever {here} offers to topple onto {target} is slight."
+        - "What comes to hand against {target} is light stuff."
+        - "There is little weight to be had above {target}, and it will have to do."
+      near:
+        - "{Here} is poor ground for bringing anything down on {target}; {near} has more to give."
+        - "Whatever {here} offers to topple onto {target} is slight, beside what {near} holds."
+        - "What comes to hand against {target} is light stuff; {near} has heavier."
+        - "There is little weight to be had above {target}; {near} has more."
 
 morale:
   leader_odds: 0.5        # chance each survivor breaks when the strongest of them is slain

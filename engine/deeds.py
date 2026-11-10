@@ -7,9 +7,10 @@ settled (f363: a situation the player ended; engine/events.py finish).
 """
 
 import yaml
+from core import yamlio
 from pathlib import Path
 
-E = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "events.yaml").read_text(encoding="utf-8"))
+E = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "events.yaml").read_text(encoding="utf-8"))
 KEEP = E["judge"]["keep_deeds"]
 
 

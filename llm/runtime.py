@@ -52,6 +52,7 @@ import time
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 import config
 from core import paths
@@ -69,7 +70,7 @@ _CLOSING = "the game closed while the model server started"
 
 
 def settings(path: Path | str | None = None) -> dict:
-    return yaml.safe_load(Path(path or SETTINGS).read_text(encoding="utf-8")) or {}
+    return yamlio.safe_load(Path(path or SETTINGS).read_text(encoding="utf-8")) or {}
 
 
 def exe_name() -> str:
@@ -175,12 +176,12 @@ def needed_context() -> int:
     import math
     root = Path(paths.BUNDLE)
     try:
-        ceilings = yaml.safe_load((root / "data" / "measured" / "prompt_ceilings.yaml").read_text(encoding="utf-8")) or {}
+        ceilings = yamlio.safe_load((root / "data" / "measured" / "prompt_ceilings.yaml").read_text(encoding="utf-8")) or {}
         chars = max(int((v or {}).get("chars") or 0) for v in (ceilings.get("ceilings") or {}).values())
     except Exception:
         chars = 36500
     try:
-        cpt = float((yaml.safe_load((root / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8")) or {}).get("chars_per_token") or 4.0)
+        cpt = float((yamlio.safe_load((root / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8")) or {}).get("chars_per_token") or 4.0)
     except Exception:
         cpt = 4.0
     return math.ceil(chars / cpt) + 2 * largest_answer()
@@ -190,7 +191,7 @@ def answers_file() -> int | None:
     """(f522) data/measured/answers.yaml's max_tokens: the largest answer any call asks for, kept equal to the source's own largest by
     tools/sim/server_522_test.py. None when it is missing or not a whole number above zero."""
     try:
-        got = (yaml.safe_load(ANSWERS.read_text(encoding="utf-8")) or {}).get("max_tokens")
+        got = (yamlio.safe_load(ANSWERS.read_text(encoding="utf-8")) or {}).get("max_tokens")
     except (OSError, yaml.YAMLError, AttributeError):
         return None
     return got if isinstance(got, int) and not isinstance(got, bool) and got > 0 else None

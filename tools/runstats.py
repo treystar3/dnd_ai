@@ -22,8 +22,8 @@ def band_of(lv):
 
 
 def load(d, cls):
-    rows = [json.loads(l) for l in open(Path(d) / f"{cls}.jsonl")]
-    summ = json.load(open(Path(d) / f"{cls}_summary.json"))
+    rows = [json.loads(l) for l in open(Path(d) / f"{cls}.jsonl", encoding="utf-8")]
+    summ = json.load(open(Path(d) / f"{cls}_summary.json", encoding="utf-8"))
     return rows, summ
 
 

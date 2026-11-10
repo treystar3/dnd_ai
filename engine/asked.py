@@ -18,6 +18,7 @@ import threading
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
 _TASKS: frozenset | None = None
@@ -27,14 +28,14 @@ def tasks() -> frozenset:
     """The tasks asked outside the operation that needs them (budget.yaml asked_outside): a family moves out by being named here."""
     global _TASKS
     if _TASKS is None:
-        B = yaml.safe_load((ROOT / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8")) or {}
+        B = yamlio.safe_load((ROOT / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8")) or {}
         _TASKS = frozenset(B.get("asked_outside") or [])
     return _TASKS
 
 
 def most() -> int:
     """(f489) The most calls one operation may ask outside it (budget.yaml asked_max)."""
-    B = yaml.safe_load((ROOT / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8")) or {}
+    B = yamlio.safe_load((ROOT / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8")) or {}
     return int(B.get("asked_max", 48))
 
 

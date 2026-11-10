@@ -26,6 +26,7 @@ import time
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from core import paths
 
@@ -44,7 +45,7 @@ KEYS = {                     # each line the screen can show, and the placeholde
 def lines() -> dict:
     """data/rules/launch.yaml's lines, or {} until the owner's are in (f527)."""
     try:
-        got = yaml.safe_load(LINES_PATH.read_text(encoding="utf-8")) or {}
+        got = yamlio.safe_load(LINES_PATH.read_text(encoding="utf-8")) or {}
     except (OSError, yaml.YAMLError):
         return {}
     return got if isinstance(got, dict) else {}

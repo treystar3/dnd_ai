@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
 _V: dict | None = None
@@ -17,7 +18,7 @@ _V: dict | None = None
 def _rules() -> dict:
     global _V
     if _V is None:
-        _V = (yaml.safe_load((ROOT / "data" / "rules" / "voice.yaml").read_text(encoding="utf-8")) or {}).get("conversation") or {}
+        _V = (yamlio.safe_load((ROOT / "data" / "rules" / "voice.yaml").read_text(encoding="utf-8")) or {}).get("conversation") or {}
     return _V
 
 

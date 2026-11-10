@@ -24,9 +24,10 @@ from collections import deque
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
-V = yaml.safe_load((ROOT / "data" / "rules" / "voices.yaml").read_text(encoding="utf-8"))
+V = yamlio.safe_load((ROOT / "data" / "rules" / "voices.yaml").read_text(encoding="utf-8"))
 AXES: dict = V["axes"]
 _STOP = {"the", "a", "an", "and", "or", "but", "of", "to", "in", "on", "at", "for", "with", "from", "by", "as", "is", "are", "was", "were",
          "be", "it", "its", "i", "you", "your", "we", "they", "them", "their", "he", "she", "his", "her", "this", "that", "these", "those",

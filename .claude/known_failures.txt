@@ -1,0 +1,3 @@
+# Tests known to fail for reasons outside the code under test, one test file per line (e.g. storage_test.py), # for a comment.
+# The stop hook and the push marker (.claude/hooks/known.py) ignore the tests listed here. Add one only with its cause and the
+# feature that will fix it, and remove it when that lands.

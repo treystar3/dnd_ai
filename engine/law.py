@@ -8,9 +8,10 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 from engine import streams
 
-L = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "law.yaml").read_text(encoding="utf-8"))
+L = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "law.yaml").read_text(encoding="utf-8"))
 T, N, H, FB = L["theft"], L["notice"], L["heat"], L["fight_back"]
 DEGREES = ("strong success", "success", "partial", "failure")
 

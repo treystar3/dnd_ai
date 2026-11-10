@@ -6,13 +6,14 @@ Rules live in data/rules/taming.yaml.
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from core.models import Companion
 from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
-T = yaml.safe_load((ROOT / "data" / "rules" / "taming.yaml").read_text(encoding="utf-8"))
+T = yamlio.safe_load((ROOT / "data" / "rules" / "taming.yaml").read_text(encoding="utf-8"))
 
 KIND = {"undead": "undead", "elemental": "elemental", "construct": "construct", "fey": "spirit", "celestial": "spirit"}
 

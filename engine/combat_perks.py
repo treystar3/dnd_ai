@@ -16,12 +16,13 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine import combat as C
 from engine import effects as E
 
 ROOT = Path(__file__).resolve().parent.parent
-P = yaml.safe_load((ROOT / "data" / "rules" / "perks.yaml").read_text(encoding="utf-8"))["combat"]
+P = yamlio.safe_load((ROOT / "data" / "rules" / "perks.yaml").read_text(encoding="utf-8"))["combat"]
 AFFLICTIONS = tuple(P["afflictions"])
 VESSEL_TAKES = tuple(P["vessel_takes"])
 TIER_CODE = {"light": 1, "moderate": 2, "heavy": 3}

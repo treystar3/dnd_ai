@@ -7,11 +7,12 @@ import random
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 from engine.battlefield import BattleEdge, Battlefield, BattleZone
 
 ROOT = Path(__file__).resolve().parent.parent
-B = yaml.safe_load((ROOT / "data" / "rules" / "battlefields.yaml").read_text(encoding="utf-8"))
+B = yamlio.safe_load((ROOT / "data" / "rules" / "battlefields.yaml").read_text(encoding="utf-8"))
 
 # place types that imply a family when the place names no biome
 TYPE_FAMILY = {"forest": "forest", "hills": "hills", "mountains": "mountains", "desert": "desert", "jungle": "jungle",
@@ -20,7 +21,8 @@ TYPE_FAMILY = {"forest": "forest", "hills": "hills", "mountains": "mountains", "
                "town": "urban", "city": "urban", "village": "urban", "square": "urban", "inn": "urban", "shop": "urban",
                "guild": "urban", "temple": "urban", "smithy": "urban", "workshop": "urban", "yard": "urban", "guardpost": "urban"}
 
-FAMILIES = tuple(k for k in B if k not in ("sides", "side_link", "big"))
+FURTHER = " further on"     # (f571) a repeated zone beyond is this one further on; battlefield.ground_words reads its own name back
+FAMILIES = tuple(k for k in B if k not in ("sides", "side_link", "big", "tag_words", "hazards"))
 
 
 def family_of(place, world=None) -> str:
@@ -82,7 +84,7 @@ def build_big(family: str, kind: str, rng: random.Random) -> Battlefield:
     for b in beyond_pool[:n_beyond]:
         zid = f"z{nxt}"
         nxt += 1
-        name = b["name"] if b["name"] not in {z.name for z in zones.values()} else f"{b['name']} further on"
+        name = b["name"] if b["name"] not in {z.name for z in zones.values()} else b["name"] + FURTHER
         zones[zid] = BattleZone(id=zid, name=name, tags=list(b.get("tags", [])))
         edges.append(BattleEdge(a=rng.choice(side_ids), b=zid, tags=[b.get("way", "open")]))
     field = Battlefield(zones=zones, edges=edges, start="z1", kind="wild")
