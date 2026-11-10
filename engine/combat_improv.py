@@ -17,6 +17,7 @@ from engine import battlefield as bf
 from engine import combat as C
 from engine.combat import RULES, add_status, apply_damage, leave_open, tell, vb, who
 
+REFLEXIVE = {"your": "yourself", "his": "himself", "her": "herself", "their": "themselves", "its": "itself"}   # (f570) by combat.possessive
 CONTEST_ATTRS = ["dexterity", "intelligence"]     # (f569) what an improviser's control is pitted with, the attributes its odds read
 
 # (f567) what an improvisation can be FOR, from combat.yaml improv.effects: its meaning, its odds shift, the words that name it
@@ -34,34 +35,85 @@ def effect_by_words(words: str) -> str:
     return "distract"
 
 
-def odds_for(p, effect: str) -> float:
-    """(f568) The shared formula (engine/checks.py improv_odds) on the better of dexterity and intelligence."""
+def odds_for(p, effect: str, scant: bool = False) -> float:
+    """(f568) The shared formula (engine/checks.py improv_odds) on the better of dexterity and intelligence; (f570) poor ground shifts it."""
     from engine import checks
     I = RULES["improv"]
     edge = max(p.attrs.get("dexterity", 10), p.attrs.get("intelligence", 10))
-    return checks.improv_odds(edge, EFFECTS[effect]["odds"], I["base_odds"], I["min"], I["max"])
+    shift = EFFECTS[effect]["odds"] + (I["scant_odds"] if scant else 0)
+    return checks.improv_odds(edge, shift, I["base_odds"], I["min"], I["max"])
+
+
+PLACE_WORDS = ("among", "between", "beyond", "beside", "behind", "under", "over", "in", "on", "inside", "below", "above")
+
+
+def definite(name: str) -> str:
+    """(f570) A zone's name as a definite, singular phrase, for any line's subject: 'a small clearing' is 'the small clearing', 'among
+    the pillars' 'the ground among the pillars', 'fallen slabs' 'the ground of fallen slabs', 'open ground' 'the open ground'."""
+    first, _, rest = name.partition(" ")
+    if first.lower() in ("a", "an") and rest:
+        return "the " + rest
+    if first.lower() in ("the", "some") and rest:
+        name = rest
+    if first.lower() in PLACE_WORDS:
+        return "the ground " + name
+    last = name.split()[-1].lower()
+    if (last.endswith("s") and not last.endswith("ss")) or " and " in name:
+        return "the ground of " + name
+    return "the " + name
+
+
+def scant_ground(fight, p, target, effect: str) -> str | None:
+    """(f570) The world's line when the ground is poor for this act (no zone tag of its needs where needs_in says), or None when it serves.
+    Picked by the fight's log length, so a retry reads differently and no die is spent."""
+    e = RULES["improv"]["effects"].get(effect) or {}
+    if not e.get("needs") or not fight.battlefield:
+        return None
+    field = fight.battlefield
+    if target is None and e.get("needs_in") == "target":
+        target = fight.enemies()[0] if fight.enemies() else None
+    at = target if e.get("needs_in") == "target" else p
+    if at is None or at.zone_id not in field.zones:
+        return None
+    here = field.zones[at.zone_id]
+    if any(here.has(tag) for tag in e["needs"]):
+        return None
+    near = next((field.zones[z] for z in field.adjacent(here.id) if any(field.zones[z].has(tag) for tag in e["needs"])), None)
+    pool = RULES["improv"]["scant"][effect]["near" if near else "none"]
+    line = pool[(len(fight.log) + len(effect)) % len(pool)]
+    zone = definite(here.name)
+    return line.format(Here=zone[:1].upper() + zone[1:], here=zone, near=definite(near.name) if near else "",
+                       target=who(target) if target is not None else "them")
 
 
 def resolve(fight, p, target, words: str, rng: random.Random, effect: str = "") -> None:
     """The player's whole action: what they are after (`effect`, as the scene read it; by their words when it gives none), rolled, and
-    something made true either way."""
+    something made true either way. What they tried is told first, then (f570) any word on poor ground, then what came of it."""
     from engine import checks
     effect = effect or effect_by_words(words)
-    degree, rolled = checks.roll(odds_for(p, effect), rng)
+    scant = scant_ground(fight, p, target, effect)
+    degree, rolled = checks.roll(odds_for(p, effect, bool(scant)), rng)
     good = degree in ("success", "strong success")
     partial = degree == "partial"
-    fight.log.append(f"{p.name} improvises ({effect.replace('_', ' ')}): {degree}")
+    fight.log.append(f"{p.name} improvises ({effect.replace('_', ' ')}{', poor ground' if scant else ''}): {degree}")
     tried = f"{who(p)} {vb(p, 'try', 'tries')} it ({words.strip() or effect.replace('_', ' ')})"
     if not good and not partial:
         bf.gain(p, "exposed")
-        tell(fight, f"{tried} and it goes wrong - the moment is lost and {who(p)} {vb(p, 'are', 'is')} left exposed")
+        if scant:                                                # (f570) what was tried, the poor ground, then the failure
+            tell(fight, tried[0].upper() + tried[1:])
+            tell(fight, scant)
+            tell(fight, f"it goes wrong - the moment is lost and {who(p)} {vb(p, 'are', 'is')} left exposed")
+        else:
+            tell(fight, f"{tried} and it goes wrong - the moment is lost and {who(p)} {vb(p, 'are', 'is')} left exposed")
         return
     told = len(fight.story)
+    if scant:
+        tell(fight, scant)
     if effect == "read_opening":
         t = target or (fight.enemies()[0] if fight.enemies() else None)
         if t is not None:
             leave_open(fight, t)
-            tell(fight, f"{who(p)} {vb(p, 'see', 'sees')} the gap in {who(t)}'s guard - open to {'your' if p.side == 'player' else 'its'} next blow"
+            tell(fight, f"{who(p)} {vb(p, 'see', 'sees')} the gap in {who(t)}'s guard - open to {C.possessive(p)} next blow"
                  + (", if only for a moment" if partial else ""))
     elif effect == "break_engagement":
         bf.slip_away(fight, p)
@@ -81,7 +133,7 @@ def resolve(fight, p, target, words: str, rng: random.Random, effect: str = "") 
         tell(fight, f"{who(p)} {vb(p, 'scramble', 'scrambles')} up to a better spot" + (", though it costs some footing" if partial else ""))
     elif effect == "create_cover":
         bf.gain(p, "covered")
-        tell(fight, f"{who(p)} {vb(p, 'drag', 'drags')} something between {'yourself' if p.side == 'player' else 'itself'} and them - cover, for now")
+        tell(fight, f"{who(p)} {vb(p, 'drag', 'drags')} something between {REFLEXIVE.get(C.possessive(p), 'themselves')} and them - cover, for now")
     elif effect == "distract":
         t = target or (fight.enemies()[0] if fight.enemies() else None)
         if t is not None:
@@ -95,7 +147,7 @@ def resolve(fight, p, target, words: str, rng: random.Random, effect: str = "") 
         elif t is not None:
             grade = C.contest(p, t, CONTEST_ATTRS, rng)            # (f569) a control meets the target's resolve, worn down by repetition
             if grade == "none":
-                tell(fight, f"{who(t)} {vb(t, 'hold', 'holds')} {'your' if t.side == 'player' else 'its'} ground")
+                tell(fight, f"{who(t)} {vb(t, 'hold', 'holds')} {C.possessive(t)} ground")
             else:
                 bf.slip_away(fight, t)
                 bf.gain(t, "exposed")

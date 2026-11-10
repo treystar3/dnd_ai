@@ -800,11 +800,13 @@ def improv_problems(I: dict | None = None) -> list[str]:
     ones the resolver handles."""
     I = (_load("data/rules/combat.yaml").get("improv") or {}) if I is None else I
     out = []
-    for k in ("base_odds", "min", "max", "damage_mult"):                  # (f568) the shared formula's base and bounds, in a fight
+    for k in ("base_odds", "min", "max", "damage_mult", "scant_odds"):                  # (f568) the shared formula's base and bounds, in a fight
         if not isinstance(I.get(k), (int, float)) or isinstance(I.get(k), bool):
             out.append(f"combat.yaml improv.{k}: needs a number")
     if not out and not 0 <= I["min"] < I["max"] <= 100:
         out.append("combat.yaml improv: min and max need 0 <= min < max <= 100")
+    if not out and I["scant_odds"] > 0:
+        out.append("combat.yaml improv.scant_odds: poor ground cannot help (needs 0 or less)")
     E = I.get("effects")
     if not isinstance(E, dict) or not E:
         return ["combat.yaml improv.effects: needs a table of effects"]
@@ -817,6 +819,32 @@ def improv_problems(I: dict | None = None) -> list[str]:
         w = e.get("words")
         if not isinstance(w, list) or not w or not all(isinstance(x, str) and x.strip() for x in w):
             out.append(f"combat.yaml improv.effects.{k}: words needs a list of the words that name it")
+    import string
+    from engine.battlefield import TERRAIN_TAGS
+    P = I.get("scant") or {}
+    for k, e in E.items():                                             # (f570) the ground an effect wants, and what the world says on poor ground
+        e = e if isinstance(e, dict) else {}
+        if "needs" not in e:
+            continue
+        if not isinstance(e["needs"], list) or not e["needs"] or any(t not in TERRAIN_TAGS for t in e["needs"]):
+            out.append(f"combat.yaml improv.effects.{k}: needs lists zone tags, from {', '.join(TERRAIN_TAGS)} (got {e['needs']})")
+        if e.get("needs_in") not in ("self", "target"):
+            out.append(f"combat.yaml improv.effects.{k}: needs_in is self or target")
+        for case in ("none", "near"):
+            lines = P.get(k).get(case) if isinstance(P.get(k), dict) else None
+            if not isinstance(lines, list) or not lines:
+                out.append(f"combat.yaml improv.scant.{k}.{case}: needs at least one line")
+                continue
+            for line in lines:
+                names = {n for _, n, _, _ in string.Formatter().parse(line) if n is not None}
+                if names - {"Here", "here", "near", "target"}:
+                    out.append(f"combat.yaml improv.scant.{k}.{case}: unknown placeholder {sorted(names - {'Here', 'here', 'near', 'target'})} in {line!r}")
+                if case == "near" and "near" not in names:
+                    out.append(f"combat.yaml improv.scant.{k}.near: a line that does not name {{near}}: {line!r}")
+                if "—" in line or "–" in line or " - " in line:
+                    out.append(f"combat.yaml improv.scant.{k}.{case}: a dash in story text (owner's rule): {line!r}")
+    for k in sorted(set(P) - {k for k, e in E.items() if isinstance(e, dict) and "needs" in e}):
+        out.append(f"combat.yaml improv.scant.{k}: lines for an effect with no needs, never said")
     handled = improv_handled()
     for k in sorted(set(E) - handled):
         out.append(f"combat.yaml improv.effects.{k}: the resolver (engine/combat_improv.py) has no branch for it")
