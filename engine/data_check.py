@@ -769,6 +769,7 @@ def check() -> list[str]:
     # ---- (f499) what a fight keeps of itself between rounds: the cap on its rows
     ek = _load("data/rules/combat.yaml").get("effects_keep")
     need(isinstance(ek, int) and not isinstance(ek, bool) and ek > 0, "combat.yaml effects_keep: needs a whole number above 0")
+    bad += improv_problems()                                           # (f567) the fight's improvisations, held to the resolver
     bad += tables_problems()                                           # (f504) the fight's tables, both ways
     bad += trigger_problems()                                          # (f507) the triggers held to the code that evaluates them
     bad += allowlist_problems()                                        # (f509) every table the fight reads, held to the code, both ways
@@ -783,6 +784,40 @@ def check() -> list[str]:
     from llm import launch as _launch
     bad += _launch.problems()                                          # (f526) the load screen's lines, once the owner's are in
     return bad
+
+
+def improv_handled() -> set[str]:
+    """(f567) The effects engine/combat_improv.py resolve() branches on (`effect == "..."`), read from its source."""
+    import ast
+    src = (ROOT / "engine" / "combat_improv.py").read_text(encoding="utf-8")
+    fn = next(n for n in ast.walk(ast.parse(src)) if isinstance(n, ast.FunctionDef) and n.name == "resolve")
+    return {c.comparators[0].value for c in ast.walk(fn) if isinstance(c, ast.Compare) and isinstance(c.left, ast.Name)
+            and c.left.id == "effect" and isinstance(c.comparators[0], ast.Constant)}
+
+
+def improv_problems(I: dict | None = None) -> list[str]:
+    """(f567) combat.yaml improv: every effect has what it is about, its odds and the words that name it, and the effects are exactly the
+    ones the resolver handles."""
+    I = (_load("data/rules/combat.yaml").get("improv") or {}) if I is None else I
+    out = []
+    E = I.get("effects")
+    if not isinstance(E, dict) or not E:
+        return ["combat.yaml improv.effects: needs a table of effects"]
+    for k, e in E.items():
+        e = e if isinstance(e, dict) else {}
+        if not isinstance(e.get("about"), str) or not e["about"].strip():
+            out.append(f"combat.yaml improv.effects.{k}: needs about, the meaning its reading is matched against")
+        if not isinstance(e.get("odds"), (int, float)) or isinstance(e.get("odds"), bool):
+            out.append(f"combat.yaml improv.effects.{k}: odds needs a number")
+        w = e.get("words")
+        if not isinstance(w, list) or not w or not all(isinstance(x, str) and x.strip() for x in w):
+            out.append(f"combat.yaml improv.effects.{k}: words needs a list of the words that name it")
+    handled = improv_handled()
+    for k in sorted(set(E) - handled):
+        out.append(f"combat.yaml improv.effects.{k}: the resolver (engine/combat_improv.py) has no branch for it")
+    for k in sorted(handled - set(E)):
+        out.append(f"combat.yaml improv.effects: no row for {k}, which the resolver handles")
+    return out
 
 
 def tables_problems(AE: dict | None = None, ST: dict | None = None, CB: dict | None = None) -> list[str]:

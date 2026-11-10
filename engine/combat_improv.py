@@ -16,25 +16,9 @@ import random
 from engine import battlefield as bf
 from engine.combat import RULES, add_status, apply_damage, leave_open, tell, vb, who
 
-# what an improvisation can be FOR, each with the words its meaning is matched against and its odds shift
-EFFECTS = {
-    "read_opening": {"about": "watching it, studying how it moves, waiting for an opening, reading its guard, biding your time", "odds": 10},
-    "break_engagement": {"about": "getting away, slipping free, putting something between you and them, escaping their reach", "odds": 0},
-    "gain_position": {"about": "climbing, high ground, a vantage point, getting on top of something", "odds": 0},
-    "create_cover": {"about": "cover, a shield of furniture or terrain, ducking behind something, blocking their line", "odds": 5},
-    "distract": {"about": "distracting, feinting, throwing sand or a cloak, drawing its eyes away, a trick", "odds": 5},
-    "force_move": {"about": "pushing, tripping, knocking them into or off something, driving them back", "odds": -5},
-    "disable": {"about": "tangling, pinning, blinding, jamming, fouling their weapon or legs", "odds": -10},
-    "damage": {"about": "hurting them with the surroundings: a dropped beam, a kicked brazier, a rockslide", "odds": -5},
-}
-FALLBACK_WORDS = {"read_opening": ("watch", "opening", "study", "wait for", "bide", "its guard", "a gap"),
-                  "break_engagement": ("away", "escape", "between", "back off", "slip"),
-                  "gain_position": ("climb", "high", "up ", "vantage", "leap onto", "on top"),
-                  "create_cover": ("cover", "behind", "barricade", "shield"),
-                  "distract": ("distract", "sand", "feint", "throw my", "trick", "eyes"),
-                  "force_move": ("push", "shove", "trip", "knock", "drive"),
-                  "disable": ("tangle", "pin", "blind", "net", "jam", "foul"),
-                  "damage": ("drop", "kick", "topple", "collapse", "brazier", "rocks")}
+# (f567) what an improvisation can be FOR, from combat.yaml improv.effects: its meaning, its odds shift, the words that name it
+EFFECTS = {k: {"about": v["about"], "odds": v["odds"]} for k, v in RULES["improv"]["effects"].items()}
+FALLBACK_WORDS = {k: tuple(v["words"]) for k, v in RULES["improv"]["effects"].items()}
 
 
 def effect_by_words(words: str) -> str:
