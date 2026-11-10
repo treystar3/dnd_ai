@@ -103,7 +103,7 @@ def means_of(ws) -> set[str]:
 
 
 def ask(ws, words: str, text: str):
-    """The model's ruling, or None when it cannot give one (the act is then resolved as an improvisation, as before)."""
+    """The model's ruling, or None when it cannot give one (the act is then asked back, never rolled unruled: f559)."""
     from engine import checks, features
     from llm.contracts import Ruling
     from llm.gateway import LLMError, generate
@@ -250,8 +250,8 @@ def run(ws, words: str, text: str) -> None:
     """The whole loop for an improvised act: rule, check, make room, set the stakes, resolve; or say no."""
     from engine import world_improv
     r = ask(ws, words, text)
-    if r is None:
-        world_improv.resolve(ws, words, text)
+    if r is None:   # (f559) no ruling: ask again, never roll it unruled (an impossible act would be granted)
+        ws.ask_back("ruling_failed", text, "the ruling on it could not be made", meaning=words)
         return
     v = verdict(ws, r)
     if not v["ok"]:

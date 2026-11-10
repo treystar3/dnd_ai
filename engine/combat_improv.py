@@ -58,7 +58,7 @@ def resolve(fight, p, target, words: str, rng: random.Random, effect: str = "") 
     something made true either way."""
     from engine import checks
     effect = effect or effect_by_words(words)
-    degree, rolled = checks.roll(odds_for(p, effect))
+    degree, rolled = checks.roll(odds_for(p, effect), rng)
     good = degree in ("success", "strong success")
     partial = degree == "partial"
     fight.log.append(f"{p.name} improvises ({effect.replace('_', ' ')}): {degree}")

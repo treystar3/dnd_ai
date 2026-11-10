@@ -9,7 +9,8 @@ and a written fallback was used), clarify_failed (the question was asked, and th
 named more things than the game does at once, and the rest were not done), silent (f385: the turn showed the player nothing at all; the
 actions that ran are kept, so the handler that went quiet can be given its own reason), refused (f416: a step the game said no to, through
 the scene's refuse(), so every refusal the page shows is here), request_refused (f516: the server refused the request before it read
-it, too big for the model's context or invalid, and a written fallback was used: the request's fault, counted apart from an outage). The file is trimmed like the other logs (config.LOG_MAX_MB,
+it, too big for the model's context or invalid, and a written fallback was used: the request's fault, counted apart from an outage),
+ruling_failed (f559: an improvised act's ruling could not be made, so it was asked back instead of rolled unruled). The file is trimmed like the other logs (config.LOG_MAX_MB,
 LOG_KEEP_ENTRIES), so a long campaign never grows it without bound."""
 from __future__ import annotations
 
