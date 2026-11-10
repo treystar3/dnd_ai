@@ -303,7 +303,7 @@ def play(shard: int, only: set[str] | None = None) -> tuple[list[dict], dict]:
     playing = {"case": "(entering the town)"}
     real_record = crashlog.record
 
-    def record_fault(exc, where, **context):                        # (f535) a fault the game went on without: a turn's operation rolled
+    def record_fault(exc, where, **context):                        # (f566) a fault the game went on without: a turn's operation rolled
         FAULTS.append({"case": playing["case"], "where": where, "operation": context.get("operation", ""),   # back, its round not fought
                        "error": f"{type(exc).__name__}: {exc}"[:200]})
         return real_record(exc, where, **context)
@@ -311,7 +311,7 @@ def play(shard: int, only: set[str] | None = None) -> tuple[list[dict], dict]:
     crashlog.record = record_fault
     import os
     import shutil
-    name = f"fight_fixtures_{shard}_{os.getpid()}"                    # (f535) a save of this process's own: two runs of one shard at once
+    name = f"fight_fixtures_{shard}_{os.getpid()}"                    # (f566) a save of this process's own: two runs of one shard at once
     shutil.rmtree(ROOT / "saves" / name, ignore_errors=True)          # (the suite runs four tests together; a run by hand beside it) never
     #                                                                   share a database or delete each other's; the name decides no number
     records = []
@@ -404,12 +404,12 @@ def compare(shard: int, records: list[dict], only: set[str] | None = None) -> li
 
 
 TIMES: list[float] = []     # (f508) danger's wall time per case of the shard last played, in order (--time prints them; no clock in tests)
-FAULTS: list[dict] = []     # (f535) every fault the game recorded (engine/crashlog.py) while the shard last played: case, where, operation,
+FAULTS: list[dict] = []     # (f566) every fault the game recorded (engine/crashlog.py) while the shard last played: case, where, operation,
 #                             error. A rolled-back turn is a round not fought, which reads as moved numbers; a fight played clean has none
 
 
 def fault_lines(limit: int = 5) -> list[str]:
-    """(f535) The faults of the shard last played, one line each, for a failed check or the compare's printout."""
+    """(f566) The faults of the shard last played, one line each, for a failed check or the compare's printout."""
     return [f"{f['case']}: {f['where']}/{f['operation'] or '-'}: {f['error']}" for f in FAULTS[:limit]]
 
 
@@ -425,7 +425,7 @@ def main() -> int:
             for r, t in zip(records, TIMES):
                 print(f"  danger {t:6.2f}s  {r['id']}")
             print(f"  danger total {sum(TIMES):.1f}s over {len(TIMES)} cases")
-        if record and FAULTS:                                         # (f535) a turn rolled back is a round not fought: never the numbers kept
+        if record and FAULTS:                                         # (f566) a turn rolled back is a round not fought: never the numbers kept
             print(f"shard {s}: not recorded, {len(FAULTS)} turn(s) rolled back by a fault (logs/crash.log has the tracebacks)")
             for l in fault_lines():
                 print("  " + l)
@@ -477,6 +477,6 @@ def shard_test(shard: int, check) -> None:
         if l.startswith("warning"):
             print("  " + l, file=sys.__stdout__)
     check(f"shard {shard}: every one of its {len(records)} fights plays to its recorded numbers", not moved, moved[:5])
-    check(f"shard {shard}: no turn of its fights was rolled back by a fault (f535)", not FAULTS, fault_lines())
+    check(f"shard {shard}: no turn of its fights was rolled back by a fault (f566)", not FAULTS, fault_lines())
     check(f"shard {shard}: its cases are the grid's", sorted(r["id"] for r in records)
           == sorted(c["id"] for c in cases() if shard_of(c) == shard))
