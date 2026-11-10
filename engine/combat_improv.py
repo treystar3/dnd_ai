@@ -14,7 +14,10 @@ from __future__ import annotations
 import random
 
 from engine import battlefield as bf
+from engine import combat as C
 from engine.combat import RULES, add_status, apply_damage, leave_open, tell, vb, who
+
+CONTEST_ATTRS = ["dexterity", "intelligence"]     # (f569) what an improviser's control is pitted with, the attributes its odds read
 
 # (f567) what an improvisation can be FOR, from combat.yaml improv.effects: its meaning, its odds shift, the words that name it
 EFFECTS = {k: {"about": v["about"], "odds": v["odds"]} for k, v in RULES["improv"]["effects"].items()}
@@ -90,15 +93,25 @@ def resolve(fight, p, target, words: str, rng: random.Random, effect: str = "") 
         if t is not None and combat_perks.unmovable(fight, t):
             tell(fight, f"{who(t)} {vb(t, 'do', 'does')} not move an inch {combat_perks.tag(t, 'juggernaut')}")
         elif t is not None:
-            bf.slip_away(fight, t)
-            bf.gain(t, "exposed")
-            if not partial:
-                add_status(fight, t, "prone", 1)
-            tell(fight, f"{who(t)} {vb(t, 'are', 'is')} driven stumbling out of position")
+            grade = C.contest(p, t, CONTEST_ATTRS, rng)            # (f569) a control meets the target's resolve, worn down by repetition
+            if grade == "none":
+                tell(fight, f"{who(t)} {vb(t, 'hold', 'holds')} {'your' if t.side == 'player' else 'its'} ground")
+            else:
+                bf.slip_away(fight, t)
+                bf.gain(t, "exposed")
+                if grade == "full" and not partial and add_status(fight, t, "prone", 1, p):
+                    t.counters["controlled"] = t.counters.get("controlled", 0) + 1
+                tell(fight, f"{who(t)} {vb(t, 'are', 'is')} driven stumbling out of position")
     elif effect == "disable":
         t = target
-        if t is not None and add_status(fight, t, "slowed", 1 if partial else 2):
-            tell(fight, f"it catches: {who(t)} {vb(t, 'are', 'is')} fouled and slowed" + (", if only briefly" if partial else ""))
+        grade = C.contest(p, t, CONTEST_ATTRS, rng) if t is not None else "none"      # (f569) as an ability's control
+        if t is not None and grade == "none":
+            tell(fight, f"{who(t)} {vb(t, 'shake', 'shakes')} it off")
+        elif t is not None:
+            brief = partial or grade == "partial"
+            if add_status(fight, t, "slowed", 1 if brief else 2, p):
+                t.counters["controlled"] = t.counters.get("controlled", 0) + 1
+                tell(fight, f"it catches: {who(t)} {vb(t, 'are', 'is')} fouled and slowed" + (", if only briefly" if brief else ""))
     elif effect == "damage":
         t = target or (fight.enemies()[0] if fight.enemies() else None)
         if t is not None:
