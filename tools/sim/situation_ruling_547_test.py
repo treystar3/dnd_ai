@@ -744,6 +744,88 @@ th["parts"][N - 1].setdefault("willing", {})["char_b"] = "hostile"
 th["parts"][N - 1].setdefault("answered_seq", {})["char_b"] = deeds.tick(st)
 check("(the fifth review) ...not once he has turned against them", not events._won_by_someone(st, th, noble.id))
 
+# ---- (the sixth review) a way's marks made again, what moved them kept theirs, older saves, and the load itself
+def stamp(st, th, k, w):                                          # a stance kept through the writer, as a ruling on a deed would keep it
+    situation_parts.keep_changes(ws, st, th, dict(act("persuade", th["parts"][k - 1]["who"], [th["parts"][k - 1]["who"]]),
+                                                  seq=deeds.tick(st)), [ch(1, k, w)])
+
+
+st, th = fresh()
+st["deeds"] = []
+c_ev = th["parts"][EV - 1]["clue"]
+th["clues"][c_ev]["found"] = True
+th["paths"] = [{"kind": "part", "target": carpenter.id, "need": "told", "done": False, "name": "The carpenter told"}]
+stamp(st, th, C, "refusing")
+store.save_world_state(st)
+speech = th["clues"][c_ev]["text"]
+situation_parts.heard(ws, store.load_npc(carpenter.id), speech)
+st = store.load_world_state()
+th = pulse.thread_of(st, "th547")
+told_first = th["paths"][0].get("told_seq")
+stamp(st, th, C, "refusing")                                      # refused again since: the telling is answered
+situation_parts.keep_changes(ws, st, th, dict(act("gift", carpenter.id, [carpenter.id], item="salt", words=False), seq=deeds.tick(st)),
+                             [ch(1, C, "wary", because="goods")])
+store.save_world_state(st)
+check("(the sixth review) a telling answered by a refusal does not meet the way once they are moved",
+      told_first and not situation_parts.need_met(th["paths"][0], st, th, by), th["paths"][0])
+situation_parts.heard(ws, store.load_npc(carpenter.id), speech)
+th = pulse.thread_of(store.load_world_state(), "th547")
+check("(the sixth review) ...told again since, it does", th["paths"][0]["done"] or th["status"] == "resolved", (th["paths"][0], th["status"]))
+
+st, th = fresh()
+st["deeds"] = []
+th["paths"] = [{"kind": "part", "target": carpenter.id, "need": "protected", "done": False, "near": ["trading_square"], "roads": []}]
+stamp(st, th, C, "refusing")
+store.save_world_state(st)
+k3 = deeds.log(store, "kill", ws.minutes, "trading_square", creature="wolf", by=by)
+st = store.load_world_state()
+th = pulse.thread_of(st, "th547")
+situation_parts.killed(ws, st, k3)
+talk = dict(act("persuade", carpenter.id, [carpenter.id]), seq=deeds.tick(st))
+kept, dropped = situation_parts.ruled(store, th, talk, [ch(1, C, "open")])
+situation_parts.keep_changes(ws, st, th, talk, kept)
+check("(the sixth review) the protection that moved one who refused still meets their way",
+      kept and situation_parts.need_met(th["paths"][0], st, th, by), (dropped, th["paths"][0], th["parts"][C - 1].get("answered_seq")))
+
+import json as _json
+from storage import migrations
+st, th = fresh()
+th["made"] = ws.minutes - 300
+st["deeds"] = [{"kind": "persuade", "minute": ws.minutes - 100, "place": "trading_square", "npc": noble.id, "degree": "success", "by": by},
+               {"kind": "persuade", "minute": ws.minutes - 90, "place": "trading_square", "npc": noble.id, "degree": "success", "by": by},
+               {"kind": "gift", "minute": ws.minutes - 50, "place": "trading_square", "npc": noble.id, "item": "salt", "by": by}]
+st.pop("seq", None)
+th["parts"][N - 1]["willing"], th["parts"][N - 1]["willing_at"] = {by: "wary"}, {by: ws.minutes - 50}
+th["paths"] = [{"kind": "persuade", "target": noble.id, "done": False}]
+store._put("world_state", _json.dumps(st))
+migrations._v16_world_count(store)
+st = store.load_world_state()
+th = pulse.thread_of(st, "th547")
+check("(the sixth review) an older save's deeds are numbered, and the stance it held keeps what it answered",
+      [d.get("seq") for d in st["deeds"]] == [1, 2, 3] and st["seq"] == 3 and th["parts"][N - 1]["answered_seq"] == {by: 2}
+      and not events.path_met(th["paths"][0], st, th, None, by), (st["deeds"], th["parts"][N - 1].get("answered_seq")))
+
+st, th = fresh()
+st["deeds"] = [{"kind": "persuade", "minute": ws.minutes, "place": "trading_square", "npc": noble.id, "degree": "success"}]
+d_p = {"kind": "persuade", "minute": ws.minutes, "place": "trading_square", "npc": noble.id, "degree": "success", "by": by,
+       "seq": deeds.tick(st)}
+st["deeds"].append(d_p)
+th["made"] = ws.minutes - 10
+th["parts"][N - 1]["willing"], th["parts"][N - 1]["answered_seq"] = {by: "hostile"}, {by: deeds.tick(st)}
+check("(the sixth review) a deed naming no one does not win over for the town a side set against the one who did win him",
+      not events._won_by_someone(st, th, noble.id))
+
+st, th = fresh()
+th["parts"].append({"kind": "resource", "good": "salt", "holder": guard.id, "state": "stranded",
+                    "request": {"npc": guard.id, "kind": "deliver", "good": "salt", "to": carpenter.id}})
+RES3 = len(th["parts"])
+kept, dropped = situation_parts.ruled(store, th, act("deliver", carpenter.id, [carpenter.id], item="salt", words=False),
+                                      [ch(1, RES3, "moved", because="goods")], world=world)
+check("(the sixth review) one sack of salt is not the stranded load", not kept and why(dropped) == [R["no_means"]], dropped)
+kept, dropped = situation_parts.ruled(store, th, act("deliver", carpenter.id, [carpenter.id], item="a load of salt", words=False),
+                                      [ch(1, RES3, "moved", because="goods")], world=world)
+check("(the sixth review) ...the load itself, carried to them, is", [c["n"] for c in kept] == [1], dropped)
+
 # ---- (the second review) the found writer and what the act shows
 st, th = fresh()
 th["clues"].append({"text": "The noble paid the forger.", "holder": "", "npc": noble.id, "found": False, "certainty": "sure", "true": True})

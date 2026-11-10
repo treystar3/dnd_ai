@@ -169,7 +169,7 @@ check("v13 to v14: a clue held in an open matter is its holder's row, held, date
       == [("thread:o1:0", "held", "The ford was moved.", clock.day(1440 * 3))], r1)
 check("...one already said is told; none for a clue nobody holds, a holder gone from the save, or a matter over", [(r["about"], r["state"]) for r in r2]
       == [("thread:o1:1", "told:player")] and st._db.execute("SELECT COUNT(*) FROM npc_memory WHERE kind = 'knows'").fetchone()[0] == 2
-      and st.version == migrations.CURRENT == 15)                       # (f507) v15 lets a saved fight go; a save without one is untouched by it
+      and st.version == migrations.CURRENT >= 16)                       # (f507) v15 lets a saved fight go; a save without one is untouched by it
 st.close()
 shutil.rmtree(root, ignore_errors=True)
 

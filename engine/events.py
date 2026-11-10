@@ -429,7 +429,9 @@ def _against(th: dict, npc_id: str, by: str) -> int:
 def _won_by_someone(state: dict, th: dict, npc_id: str) -> bool:
     """(f547's fifth review) A treaty's side won over by some character: by that character's own words, since that side last set itself
     against them, and not set against them now."""
-    bys = {d.get("by", "") for d in deeds.since(state, th["made"], ["persuade"]) if d.get("npc") == npc_id}
+    mine = [d for d in deeds.since(state, th["made"], ["persuade"]) if d.get("npc") == npc_id]
+    bys = {d["by"] for d in mine if d.get("by")} or ({""} if mine else set())   # (f547's sixth review) a deed with no one named counts
+                                                                                    # within each character's own count, never as its own
     return any(not _set_against(th, {"kind": "treaty", "target": npc_id}, b) and _won_over(state, th["made"], npc_id, b, _against(th, npc_id, b))
                for b in sorted(bys))
 
