@@ -1,0 +1,281 @@
+{
+ "ended": "2026-11-11T05:28:05",
+ "turns": 60,
+ "reason": "turn limit (60)",
+ "hours": 0.12,
+ "cast": {
+  "Hedna Page": {
+   "kind": "hire",
+   "pronoun": "she",
+   "people": "human",
+   "first_turn": 2,
+   "last_turn": 61
+  },
+  "Gwild Coleford": {
+   "kind": "hire",
+   "pronoun": "she",
+   "people": "human",
+   "first_turn": 2,
+   "last_turn": 61
+  },
+  "Gharta Kulgarth": {
+   "kind": "hire",
+   "pronoun": "she",
+   "people": "orc",
+   "first_turn": 2,
+   "last_turn": 61
+  },
+  "Athadowin Lane": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 3
+  },
+  "Bram Burwright": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 3
+  },
+  "Nild Cade": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "human",
+   "first_turn": 3
+  },
+  "Kipson Hobakin": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "halfling",
+   "first_turn": 3
+  },
+  "Brell Penfield": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "human",
+   "first_turn": 9
+  },
+  "Sibta Millridge": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "human",
+   "first_turn": 9
+  },
+  "Robfred Lingmore": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 50
+  }
+ },
+ "hygiene": {
+  "wrap": 8,
+  "stage": 3,
+  "dash": 3111
+ },
+ "character": "Ironbound Vanguard",
+ "class": "Ironbound Vanguard",
+ "level": 13,
+ "deaths": 0,
+ "seed": 103,
+ "party": [
+  {
+   "name": "Hedna Page",
+   "role": "archer",
+   "level": 6,
+   "people": "human"
+  },
+  {
+   "name": "Gwild Coleford",
+   "role": "rogue",
+   "level": 7,
+   "people": "human"
+  },
+  {
+   "name": "Gharta Kulgarth",
+   "role": "fighter",
+   "level": 7,
+   "people": "orc"
+  }
+ ],
+ "start": "green",
+ "start_days": 0,
+ "past": [],
+ "met_at_start": 0,
+ "persona": "hunter",
+ "bot": {
+  "persona": "hunter",
+  "lines": {
+   "model": 42,
+   "template": 18
+  },
+  "refers": 10,
+  "refers_talk": 2,
+  "talk_lines": 2,
+  "with_passage": 60,
+  "contracts_taken": 1,
+  "contracts_done": 0,
+  "doors_seen": 0,
+  "doors_followed": 0,
+  "goals_done": {
+   "go": 2,
+   "contract": 3
+  },
+  "goals_dropped": {},
+  "deaths": 0,
+  "deaths_above_band": 0,
+  "waits": 7,
+  "fights": 17,
+  "clarified": 0,
+  "model_failed": 0,
+  "model_seconds": 28.0684852397535,
+  "blocked": 0,
+  "places": 6,
+  "continuity": {
+   "revisits": 0,
+   "promises": 1,
+   "plants": 0,
+   "corrections": 0,
+   "accepted": 0,
+   "abandoned": 0,
+   "issuer_visits": 0
+  },
+  "continuity_log": {
+   "revisits": [],
+   "promises": [
+    {
+     "turn": 7,
+     "minute": 515,
+     "npc": "bram_burwright",
+     "name": "the ink-stained scribe",
+     "text": "I'll come back this way before long, I promise."
+    }
+   ],
+   "plants": [],
+   "corrections": [],
+   "accepted": [],
+   "abandoned": [],
+   "issuer_visits": []
+  }
+ },
+ "distinct": 0.933,
+ "ended_by_player": 0,
+ "save": "prose_hunter_103",
+ "restarts": 0,
+ "stub": false,
+ "model": "gemma4-12b-bb722270",
+ "sampling": {
+  "temp_add": 0.15,
+  "repeat_add": 0.1,
+  "think_tasks": [],
+  "think_room": 8192,
+  "base": {
+   "top_k": 64,
+   "top_p": 0.95,
+   "min_p": 0.0,
+   "typical_p": 1.0,
+   "repeat_penalty": 1.0,
+   "repeat_last_n": 64,
+   "presence_penalty": 0.0,
+   "frequency_penalty": 0.0,
+   "dry_multiplier": 0.0,
+   "xtc_probability": 0.0
+  },
+  "table": {
+   "hire_chat": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 64,
+    "repeat_penalty": 1.12,
+    "repeat_last_n": 192
+   },
+   "mentor_chat": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 64,
+    "repeat_penalty": 1.12,
+    "repeat_last_n": 192
+   },
+   "exchange": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 64,
+    "repeat_penalty": 1.12,
+    "repeat_last_n": 192
+   },
+   "npc_conversation": {
+    "repeat_penalty": 1.12,
+    "repeat_last_n": 192
+   },
+   "narrate": {
+    "repeat_penalty": 1.15,
+    "repeat_last_n": 256
+   },
+   "dialogue_frame": {
+    "repeat_penalty": 1.15,
+    "repeat_last_n": 256
+   },
+   "combat_narrate": {
+    "repeat_penalty": 1.15,
+    "repeat_last_n": 256
+   },
+   "combat_opening": {
+    "repeat_penalty": 1.15,
+    "repeat_last_n": 256
+   },
+   "moment": {
+    "repeat_penalty": 1.15,
+    "repeat_last_n": 256
+   },
+   "player_line": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 64,
+    "repeat_penalty": 1.12,
+    "repeat_last_n": 192
+   },
+   "mentor_speech": {
+    "temperature": 0.85,
+    "top_p": 0.95,
+    "top_k": 64
+   },
+   "pair_dynamic": {
+    "temperature": 0.5,
+    "top_p": 0.9
+   },
+   "persona_details": {
+    "temperature": 0.8,
+    "top_p": 0.95,
+    "top_k": 64
+   },
+   "stranger_read": {
+    "temperature": 0.1
+   },
+   "live_judge": {
+    "temperature": 0.1
+   },
+   "canon_check": {
+    "temperature": 0.1
+   }
+  }
+ },
+ "server": {
+  "source": "llama-server",
+  "kind": "runtime",
+  "build": "cuda",
+  "device": "NVIDIA GeForce RTX 5090",
+  "class": "minimum",
+  "class_why": "",
+  "offloaded": "49/49",
+  "slot_ctx": 16384,
+  "slots": 2,
+  "embedder": true,
+  "embed_device": "card",
+  "embed_failure": "",
+  "model": "gemma4-12b-bb722270",
+  "model_sha": "bb722270d54346adc198f213851dbe0207e87c3ecf2a0aff4d92262726215391",
+  "llama_cpp": "b11963",
+  "threads": 15,
+  "warnings": []
+ }
+}
