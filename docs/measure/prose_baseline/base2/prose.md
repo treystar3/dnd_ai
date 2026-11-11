@@ -20,6 +20,20 @@
 - **hire_chat**: repeated phrases: for some steady pay that, looking for some steady pay; openings: i am from, he was just; worn: steady, folk
 - **mentor_chat**: repeated phrases: about three quarters of the, three quarters of the time; openings: it's mostly about, i've seen enough, i'm at rank; worn: none
 
+## Over draws of a fixed size (mean [10th, 90th])
+
+| task | drawn | repeated phrases /1k | repeated sentences /1k | shared openings | worn uses /1k |
+|---|---|---|---|---|---|
+| narrate | 40 passages of 47 | 1.51 [1.11, 2.01] | 0.00 [0.00, 0.00] | 12% [8%, 15%] | 12.25 [10.54, 13.60] |
+| combat_opening | 20 fights (short: 12) | 11.42 [11.42, 11.42] | 0.57 [0.57, 0.57] | 33% [33%, 33%] | 5.71 [5.71, 5.71] |
+| combat_narrate | 20 fights (short: 12) | 19.81 [19.81, 19.81] | 0.27 [0.27, 0.27] | 50% [50%, 50%] | 3.48 [3.48, 3.48] |
+| combat_aftermath | 20 fights (short: 12) | 24.08 [24.08, 24.08] | 0.00 [0.00, 0.00] | 24% [24%, 24%] | 16.85 [16.85, 16.85] |
+| exchange | 60 passages of 74 | 7.88 [4.34, 10.47] | 0.81 [0.38, 1.15] | 32% [27%, 37%] | 8.80 [6.65, 10.24] |
+| dialogue_frame | 90 passages of 105 | 13.01 [11.69, 14.37] | 0.00 [0.00, 0.00] | 29% [26%, 32%] | 25.29 [23.92, 26.62] |
+| npc_conversation | 30 passages of 39 | 0.00 [0.00, 0.00] | 0.00 [0.00, 0.00] | 11% [7%, 17%] | 1.29 [0.00, 4.02] |
+| hire_chat | 60 passages of 80 | 1.21 [0.00, 1.96] | 0.00 [0.00, 0.00] | 5% [3%, 8%] | 7.59 [4.80, 11.11] |
+| mentor_chat | 20 passages (short: 15) | 3.88 [3.88, 3.88] | 1.94 [1.94, 1.94] | 47% [47%, 47%] | 0.00 [0.00, 0.00] |
+
 ## Sample passages
 ### narrate
 > The ground here turns dark where moisture has collected in shallow depressions between ruts. Clumps of heavy earth stick to the surface, flecked with bits of crushed stalk and grey silt.

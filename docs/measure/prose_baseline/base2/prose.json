@@ -1,8 +1,8 @@
 {
  "logs": [
-  "out/prose/base2/live_check_calls.jsonl",
-  "out/prose/base2/play_hunter/llm_calls.jsonl",
-  "out/prose/base2/play_talker/llm_calls.jsonl"
+  "base2/live_check_calls.jsonl.gz",
+  "base2/play_hunter/llm_calls.jsonl.gz",
+  "base2/play_talker/llm_calls.jsonl.gz"
  ],
  "tasks": {
   "narrate": {
@@ -279,6 +279,242 @@
     "i'm at rank"
    ],
    "top_worn": []
+  }
+ },
+ "steady": {
+  "narrate": {
+   "size": 40,
+   "unit": "passages",
+   "short": false,
+   "drawn_from": 47,
+   "phrases_per_k": {
+    "mean": 1.512,
+    "low": 1.106,
+    "high": 2.009
+   },
+   "sentences_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "openings_share": {
+    "mean": 0.119,
+    "low": 0.075,
+    "high": 0.15
+   },
+   "worn_per_k": {
+    "mean": 12.246,
+    "low": 10.545,
+    "high": 13.601
+   }
+  },
+  "combat_opening": {
+   "size": 20,
+   "unit": "fights",
+   "short": true,
+   "drawn_from": 12,
+   "phrases_per_k": {
+    "mean": 11.422,
+    "low": 11.422,
+    "high": 11.422
+   },
+   "sentences_per_k": {
+    "mean": 0.571,
+    "low": 0.571,
+    "high": 0.571
+   },
+   "openings_share": {
+    "mean": 0.333,
+    "low": 0.333,
+    "high": 0.333
+   },
+   "worn_per_k": {
+    "mean": 5.711,
+    "low": 5.711,
+    "high": 5.711
+   }
+  },
+  "combat_narrate": {
+   "size": 20,
+   "unit": "fights",
+   "short": true,
+   "drawn_from": 12,
+   "phrases_per_k": {
+    "mean": 19.813,
+    "low": 19.813,
+    "high": 19.813
+   },
+   "sentences_per_k": {
+    "mean": 0.268,
+    "low": 0.268,
+    "high": 0.268
+   },
+   "openings_share": {
+    "mean": 0.5,
+    "low": 0.5,
+    "high": 0.5
+   },
+   "worn_per_k": {
+    "mean": 3.481,
+    "low": 3.481,
+    "high": 3.481
+   }
+  },
+  "combat_aftermath": {
+   "size": 20,
+   "unit": "fights",
+   "short": true,
+   "drawn_from": 12,
+   "phrases_per_k": {
+    "mean": 24.077,
+    "low": 24.077,
+    "high": 24.077
+   },
+   "sentences_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "openings_share": {
+    "mean": 0.235,
+    "low": 0.235,
+    "high": 0.235
+   },
+   "worn_per_k": {
+    "mean": 16.854,
+    "low": 16.854,
+    "high": 16.854
+   }
+  },
+  "exchange": {
+   "size": 60,
+   "unit": "passages",
+   "short": false,
+   "drawn_from": 74,
+   "phrases_per_k": {
+    "mean": 7.884,
+    "low": 4.344,
+    "high": 10.469
+   },
+   "sentences_per_k": {
+    "mean": 0.805,
+    "low": 0.379,
+    "high": 1.147
+   },
+   "openings_share": {
+    "mean": 0.317,
+    "low": 0.267,
+    "high": 0.367
+   },
+   "worn_per_k": {
+    "mean": 8.797,
+    "low": 6.646,
+    "high": 10.245
+   }
+  },
+  "dialogue_frame": {
+   "size": 90,
+   "unit": "passages",
+   "short": false,
+   "drawn_from": 105,
+   "phrases_per_k": {
+    "mean": 13.013,
+    "low": 11.685,
+    "high": 14.371
+   },
+   "sentences_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "openings_share": {
+    "mean": 0.288,
+    "low": 0.256,
+    "high": 0.322
+   },
+   "worn_per_k": {
+    "mean": 25.293,
+    "low": 23.922,
+    "high": 26.618
+   }
+  },
+  "npc_conversation": {
+   "size": 30,
+   "unit": "passages",
+   "short": false,
+   "drawn_from": 39,
+   "phrases_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "sentences_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "openings_share": {
+    "mean": 0.106,
+    "low": 0.067,
+    "high": 0.167
+   },
+   "worn_per_k": {
+    "mean": 1.29,
+    "low": 0.0,
+    "high": 4.016
+   }
+  },
+  "hire_chat": {
+   "size": 60,
+   "unit": "passages",
+   "short": false,
+   "drawn_from": 80,
+   "phrases_per_k": {
+    "mean": 1.211,
+    "low": 0.0,
+    "high": 1.963
+   },
+   "sentences_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "openings_share": {
+    "mean": 0.053,
+    "low": 0.033,
+    "high": 0.083
+   },
+   "worn_per_k": {
+    "mean": 7.593,
+    "low": 4.803,
+    "high": 11.111
+   }
+  },
+  "mentor_chat": {
+   "size": 20,
+   "unit": "passages",
+   "short": true,
+   "drawn_from": 15,
+   "phrases_per_k": {
+    "mean": 3.883,
+    "low": 3.883,
+    "high": 3.883
+   },
+   "sentences_per_k": {
+    "mean": 1.942,
+    "low": 1.942,
+    "high": 1.942
+   },
+   "openings_share": {
+    "mean": 0.467,
+    "low": 0.467,
+    "high": 0.467
+   },
+   "worn_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   }
   }
  }
 }

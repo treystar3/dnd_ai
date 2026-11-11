@@ -3,7 +3,7 @@ repeats itself. Used to hold a prose change against a baseline (docs/design/09, 
 
     python tools/prose_measure.py LOG [LOG...]                       the table, and sample passages
     python tools/prose_measure.py LOG... --json out.json             the numbers, kept to compare against
-    python tools/prose_measure.py LOG... --against base.json         the table beside a kept baseline, with the change
+    python tools/prose_measure.py LOG... --against b1.json b2.json   the table beside kept baselines: the change, and a verdict a task
     python tools/prose_measure.py LOG... --samples 4 --seed 1        how many sample passages a task (0: none), picked by a seed
 
 Per task (narrate, combat_narrate, combat_opening, combat_aftermath, exchange, dialogue_frame, npc_conversation, hire_chat, and any other
@@ -15,7 +15,11 @@ whose answer carries prose), over the answers the game accepted (a row with no e
     worn words         words of the kind that wear (engine/worn.py: the seed words and the suffixed ones) found in 4 or more passages, the
                        count of such words, their uses per 1,000 words, and the most used
     stock phrases      scenes/voice.py STALE's phrases, per 1,000 words
-Lower is better for every measure. No model is needed: it reads what was written."""
+Lower is better for every measure. No model is needed: it reads what was written.
+
+(f577) Each task is also measured over draws of a fixed size (SIZE; fights drawn whole, split at each opening), so runs of any length
+compare: the mean and the 10th to 90th draw. A verdict (better, holds, worse) needs two or more kept baselines drawn the same way; a task
+with SIZE or fewer is measured whole, marked short, and gets none."""
 from __future__ import annotations
 
 import argparse
@@ -37,6 +41,11 @@ MEASURES = [("passages", "passages", "d"), ("words", "words", "d"), ("phrases_pe
             ("sentences_per_k", "repeated sentences /1k", ".2f"), ("openings_share", "shared openings", ".0%"),
             ("worn_count", "worn words", "d"), ("worn_per_k", "worn uses /1k", ".2f"), ("stock_per_k", "stock phrases /1k", ".2f")]
 _WORDS = re.compile(r"[a-z']+")
+FIGHT = ("combat_opening", "combat_narrate", "combat_aftermath")
+SIZE = {"narrate": 40, "exchange": 60, "dialogue_frame": 90, "npc_conversation": 30, "hire_chat": 60, "mentor_chat": 20, "fights": 20}
+DRAWS = 200
+STEADY = [("phrases_per_k", "repeated phrases /1k", ".2f"), ("sentences_per_k", "repeated sentences /1k", ".2f"),
+          ("openings_share", "shared openings", ".0%"), ("worn_per_k", "worn uses /1k", ".2f")]
 
 
 def prose_of(task: str, answer) -> str:
@@ -54,26 +63,46 @@ def prose_of(task: str, answer) -> str:
     return " ".join(str(answer.get(k, "")) for k in keys).strip()
 
 
+def _passages(path: str):
+    """One log's accepted passages, as (task, prose), in the order written."""
+    if str(path).endswith(".gz"):                                # a kept log, compressed
+        import gzip
+        text = gzip.open(path, "rt", encoding="utf-8", errors="replace").read()
+    else:
+        text = Path(path).read_text(encoding="utf-8", errors="replace")
+    for line in text.splitlines():
+        try:
+            r = json.loads(line)
+        except ValueError:
+            continue
+        if r.get("error") or not r.get("task"):
+            continue
+        prose = prose_of(r["task"], r.get("raw", r.get("answer")))
+        if prose:
+            yield r["task"], prose
+
+
 def load(paths: list[str]) -> dict[str, list[str]]:
     """Every accepted passage, by task, in the order written."""
     out: dict[str, list[str]] = defaultdict(list)
     for p in paths:
-        if str(p).endswith(".gz"):                               # a kept log, compressed
-            import gzip
-            text = gzip.open(p, "rt", encoding="utf-8", errors="replace").read()
-        else:
-            text = Path(p).read_text(encoding="utf-8", errors="replace")
-        for line in text.splitlines():
-            try:
-                r = json.loads(line)
-            except ValueError:
-                continue
-            if r.get("error") or not r.get("task"):
-                continue
-            text = prose_of(r["task"], r.get("raw", r.get("answer")))
-            if text:
-                out[r["task"]].append(text)
+        for task, prose in _passages(p):
+            out[task].append(prose)
     return dict(out)
+
+
+def load_fights(paths: list[str]) -> list[dict[str, list[str]]]:
+    """(f577) Each fight's prose by task, split at each opening, log by log; what comes before a log's first opening is no fight's."""
+    out: list[dict[str, list[str]]] = []
+    for p in paths:
+        cur = None
+        for task, prose in _passages(p):
+            if task == "combat_opening":
+                cur = {t: [] for t in FIGHT}
+                out.append(cur)
+            if cur is not None and task in FIGHT:
+                cur[task].append(prose)
+    return out
 
 
 def _shingles(text: str, n: int = 5) -> set[str]:
@@ -127,6 +156,58 @@ def measure_all(by_task: dict[str, list[str]]) -> dict[str, dict]:
     return {t: measure(by_task[t]) for t in tasks}
 
 
+def steady(by_task: dict[str, list[str]], fights: list[dict[str, list[str]]], sizes: dict | None = None, draws: int = DRAWS,
+           seed: int = 1) -> dict[str, dict]:
+    """(f577) Each task over draws of a fixed size (fights whole for the fight tasks): per measure the mean and the 10th to 90th band."""
+    sizes = {**SIZE, **(sizes or {})}
+    out = {}
+    for task in [t for t in ORDER if t in by_task] + sorted(t for t in by_task if t not in ORDER):
+        if task in FIGHT and fights:
+            units, size, unit = [f[task] for f in fights], sizes["fights"], "fights"
+        else:
+            units, size, unit = [[p] for p in by_task[task]], sizes.get(task, 40), "passages"
+        rng = random.Random(f"{seed}:{task}")
+        picks = [units] if len(units) <= size else [rng.sample(units, size) for _ in range(draws)]
+        got = [measure([p for u in pick for p in u]) for pick in picks]
+        row = {"size": size, "unit": unit, "short": len(units) <= size, "drawn_from": len(units)}
+        for key, _label, _f in STEADY:
+            v = sorted(g[key] for g in got)
+            row[key] = {"mean": round(sum(v) / len(v), 3), "low": v[int(0.1 * (len(v) - 1))], "high": v[int(0.9 * (len(v) - 1))]}
+        out[task] = row
+    return out
+
+
+def verdict(m: dict, bases: list[dict], key: str) -> str:
+    """(f577) Better only below every baseline's band, worse above every one; anywhere the baselines span, it holds."""
+    same = all(not x.get("short") and x.get("size") == m.get("size") and x.get("unit") == m.get("unit") for x in [m, *bases])
+    have = [b[key] for b in bases if key in b]
+    if key not in m or not have or not same:                    # (f577) a short or differently drawn side is the size effect again
+        return "-"
+    if m[key]["mean"] < min(b["low"] for b in have):
+        return "better"
+    if m[key]["mean"] > max(b["high"] for b in have):
+        return "worse"
+    return "holds"
+
+
+def steady_table(result: dict[str, dict], bases: list[dict[str, dict]] | None = None) -> list[str]:
+    head = ["task", "drawn"] + [label for _, label, _ in STEADY]
+    lines = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
+    for task, m in result.items():
+        drawn = f"{m['size']} {m['unit']}" + (f" (short: {m['drawn_from']})" if m["short"] else f" of {m['drawn_from']}")
+        cells = [task, drawn]
+        have = [x[task] for x in bases or [] if task in x]
+        have = have if len(have) >= 2 else []                     # (f577) one run's band is no measure of two runs' difference
+        for key, _label, f in STEADY:
+            b = m[key]
+            cell = f"{_fmt(b['mean'], f)} [{_fmt(b['low'], f)}, {_fmt(b['high'], f)}]"
+            if have:
+                cell += f" {verdict(m, have, key)}"
+            cells.append(cell)
+        lines.append("| " + " | ".join(cells) + " |")
+    return lines
+
+
 def _fmt(v, f: str) -> str:
     return format(v, f) if v is not None else "-"
 
@@ -170,7 +251,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("logs", nargs="+")
     ap.add_argument("--json", default="")
-    ap.add_argument("--against", default="")
+    ap.add_argument("--against", nargs="*", default=[])
     ap.add_argument("--samples", type=int, default=3)
     ap.add_argument("--seed", type=int, default=1)
     a = ap.parse_args(argv)
@@ -179,12 +260,16 @@ def main(argv: list[str] | None = None) -> int:
         print("no prose in these logs")
         return 1
     result = measure_all(by_task)
-    base = json.loads(Path(a.against).read_text(encoding="utf-8"))["tasks"] if a.against else None
+    kept = [json.loads(Path(x).read_text(encoding="utf-8")) for x in a.against]
+    base = kept[0]["tasks"] if kept else None
+    held = steady(by_task, load_fights(a.logs), seed=a.seed)
     print("\n".join(table(result, base) + [""] + details(result)))
+    print("\n## Over draws of a fixed size (mean [10th, 90th])" + (" against " + ", ".join(a.against) if kept else "") + "\n")
+    print("\n".join(steady_table(held, [k["steady"] for k in kept if "steady" in k] or None)))
     if a.samples:
         print("\n## Sample passages" + "\n".join(samples(by_task, a.samples, a.seed)))
     if a.json:
-        Path(a.json).write_text(json.dumps({"logs": a.logs, "tasks": result}, indent=1), encoding="utf-8", newline="\n")
+        Path(a.json).write_text(json.dumps({"logs": a.logs, "tasks": result, "steady": held}, indent=1), encoding="utf-8", newline="\n")
     return 0
 
 

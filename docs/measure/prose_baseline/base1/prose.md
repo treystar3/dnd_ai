@@ -20,6 +20,20 @@
 - **hire_chat**: repeated phrases: do not know if i, he is good man for, i do not know if, you're about as useful as; openings: i do not, you're about as, it's fine just, he is good, she did her; worn: steady
 - **mentor_chat**: repeated phrases: about three out of four, because they didn't know which, in the capital he keeps, land a blow about three, you'll land a blow about; openings: i'm an a, worried no i've, i've got my, it's mostly down; worn: none
 
+## Over draws of a fixed size (mean [10th, 90th])
+
+| task | drawn | repeated phrases /1k | repeated sentences /1k | shared openings | worn uses /1k |
+|---|---|---|---|---|---|
+| narrate | 40 passages of 53 | 1.38 [0.78, 1.94] | 0.00 [0.00, 0.00] | 3% [0%, 5%] | 13.09 [11.38, 14.75] |
+| combat_opening | 20 fights (short: 8) | 0.96 [0.96, 0.96] | 0.00 [0.00, 0.00] | 0% [0%, 0%] | 13.51 [13.51, 13.51] |
+| combat_narrate | 20 fights (short: 8) | 5.56 [5.56, 5.56] | 0.00 [0.00, 0.00] | 19% [19%, 19%] | 5.13 [5.13, 5.13] |
+| combat_aftermath | 20 fights (short: 8) | 15.64 [15.64, 15.64] | 0.00 [0.00, 0.00] | 0% [0%, 0%] | 16.32 [16.32, 16.32] |
+| exchange | 60 passages of 68 | 10.12 [8.47, 11.56] | 2.83 [2.28, 3.38] | 42% [38%, 47%] | 5.29 [3.49, 6.84] |
+| dialogue_frame | 90 passages of 105 | 14.46 [12.53, 16.16] | 0.17 [0.00, 0.23] | 20% [17%, 23%] | 22.21 [20.93, 23.48] |
+| npc_conversation | 30 passages of 50 | 0.00 [0.00, 0.00] | 0.37 [0.00, 1.06] | 5% [0%, 13%] | 0.00 [0.00, 0.00] |
+| hire_chat | 60 passages of 69 | 2.60 [1.62, 3.38] | 0.00 [0.00, 0.00] | 14% [12%, 18%] | 5.85 [4.93, 6.61] |
+| mentor_chat | 20 passages (short: 15) | 9.90 [9.90, 9.90] | 1.98 [1.98, 1.98] | 53% [53%, 53%] | 0.00 [0.00, 0.00] |
+
 ## Sample passages
 ### narrate
 > Nedbert brushes past you, fingers grazing the doorframe of the old granary for luck as he enters. The building stands solid against the evening sky, a familiar landmark where stone meets weathered timber. Inside, the scent of dry hay still lingers despite years since it served as a storehouse.
