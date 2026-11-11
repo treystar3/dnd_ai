@@ -875,7 +875,7 @@ class CompanionReply(BaseModel):
                 raise ValueError(why)
         from engine import worn as _worn
         lean = _worn.leaned_on(self.speech, list(ctx.get("worn") or [])) if len(self.speech.split()) >= 12 else []
-        if len(lean) >= 2:                                               # (f582) checked, as a townsperson's is, never shown beforehand
+        if len(lean) >= 2:                                               # (f582) checked as well as shown, as a townsperson's is
             raise ValueError(f"'{lean[0]}' and '{lean[1]}' are words everyone here has worn out lately; find other words")
         why = answers_first(self.speech, ctx.get("answer_to"))
         if why:
@@ -2248,7 +2248,7 @@ class NPCReplyManyBase(BaseModel):
                 raise ValueError(f"the name '{n}' is not in what {a.to} said: a name is learned only from the one who gave it")
         from engine import worn as _worn
         lean = _worn.leaned_on(self.speech, list(ctx.get("worn") or [])) if len(self.speech.split()) >= 12 else []
-        if len(lean) >= 2:                                               # (f582) checked, as one reply's is, never shown beforehand
+        if len(lean) >= 2:                                               # (f582) checked as well as shown, as one reply's is
             raise ValueError(f"'{lean[0]}' and '{lean[1]}' are words everyone here has worn out lately; find other words")
         return self
 

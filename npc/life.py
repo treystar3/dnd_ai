@@ -330,7 +330,7 @@ def _offered(store, npc, who: str) -> dict | None:
     return offer_open(store, npc, who)
 
 
-def _request(npc, store, world, catalog, convo, player_text, extra, truth_text, stance, rng, wares, who, pronoun, promised=False, exemplars=""):
+def _request(npc, store, world, catalog, convo, player_text, extra, truth_text, stance, rng, worn, wares, who, pronoun, promised=False, exemplars=""):
     """(f487) A townsperson's request for one reply, whichever contract it goes under: the lore for the line, how they talk, what they
     sell, the request itself; promised (f493): what was said may promise them something, so the reply asks what. Returns (prompt,
     facts, recent)."""
@@ -359,7 +359,7 @@ def _request(npc, store, world, catalog, convo, player_text, extra, truth_text, 
                if world.roles[npc.role].commissions else []),
             extra, land.land_lines(world, npc.location) if brief.asked("land", player_text, npc.role) else [], truth_text=truth_text,   # (f486) when asked
             stance=stance, voice_fact=voice_fact, voice_lines=voice_lines, material=material,
-            unsaid=banter.unsaid_rule(list(npc.said), player_text), now=store.meta.minutes, who=who,
+            unsaid=banter.unsaid_rule(list(npc.said), player_text), worn=list(worn), now=store.meta.minutes, who=who,
             work=_offered(store, npc, who), pronoun=pronoun, promised=promised, exemplars=exemplars,
         )
     return prompt, facts, recent
@@ -393,7 +393,7 @@ def converse(
     sell at what the game will charge (scenes/inventory_actions.py wares_said); without it, the list's own prices."""
     from engine import brief
     promised = brief.promised(player_text)                  # (f493) the promise field only when the line may make one
-    prompt, facts, recent = _request(npc, store, world, catalog, convo, player_text, extra, truth_text, stance, rng, wares, who, pronoun,
+    prompt, facts, recent = _request(npc, store, world, catalog, convo, player_text, extra, truth_text, stance, rng, worn, wares, who, pronoun,
                                      promised, exemplars)
     from engine import voices
     from llm.contracts import NPCReplyPromised
@@ -496,7 +496,7 @@ def converse_many(npc: NPC, store: CampaignStore, world: World, catalog: TraitCa
              + "; ".join(f"{cid}: {label}, {prompts.trust_words(regard.of(npc, cid).trust)}"
                          + (f", speak of them as {(pronouns or {}).get(cid)}" if (pronouns or {}).get(cid) else "") for cid, label, _ in speakers))
     promised = brief.promised(*words.values())               # (f493) the blocks' promise field only when a line may make one
-    prompt, facts, recent = _request(npc, store, world, catalog, convo, said, list(extra) + [block], truth_text, stance, rng, wares,
+    prompt, facts, recent = _request(npc, store, world, catalog, convo, said, list(extra) + [block], truth_text, stance, rng, worn, wares,
                                      ids[0], (pronouns or {}).get(ids[0], ""), promised, exemplars)
     from engine import voices
     from llm import contracts

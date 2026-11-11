@@ -14,7 +14,8 @@ great DM does: present tense, second person, vivid and specific.
   Show that it registered.
 - Keep it fresh. Never open the way RECENT NARRATION opened, and never reuse its images, phrases or sentence shapes.
   Weather, air and smells are seasoning, not a refrain: mention them only when they change or matter.
-- One exact detail beats three generic ones: say what only this place and this moment have.
+- One sharp, concrete detail beats three generic ones. Avoid stock phrases like "the air hangs heavy", "the scent of
+  damp earth", "a sense of", "you can't help but", "little do you know".
 - Group what happens in parallel ("the rest of them close in around you") instead of walking through each person.
 - Let the sentences move with the moment: a short one lands a blow, a turn or a silence; a longer one carries movement. Plain
   words, exact nouns, verbs that act: "the hammer rang", not "his hammer ringing out in a steady cadence". One adjective is

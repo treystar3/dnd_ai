@@ -46,8 +46,27 @@ thinking off; "infrastructure enhancements instead of more rules to give the nar
   rulings.
 - A/B with the prose analysis (reused phrases, repeated sentences, shared openings) and a blind reading. It's a sampling change, so it's
   inside the data hash: re-bless after.
+- **Agreed design (the owner, 2026-11-11).** Four arms, on the six tasks above only, each against the span of new1 and new2:
+  - DRY: `dry_multiplier` 0.8, `dry_base` 1.75, `dry_allowed_length` 2, `dry_penalty_last_n` 512 (about 512, so names repeated from
+    the prompt are not penalised);
+  - XTC: `xtc_probability` 0.5, `xtc_threshold` 0.1;
+  - both together;
+  - `min_p` 0.05.
+  The game sends only `dry_multiplier` and `xtc_probability` today: the other DRY settings and `xtc_threshold` are wired first
+  (llm/llama.py SAMPLER_KEYS and RANGES, data/rules/sampling.yaml base). Measured beside the prose measures and the rewrite rate:
+  name errors (the identity checks, the misspelt-speaker fixer, the cast-name checks) and first-try acceptance, per task. Mirostat,
+  dynamic temperature and top_n_sigma are not tried. `t_max_predict_ms` is never a writing limit; at most it is set to the existing
+  hang guard.
 
-**A2. Take the stock-phrase lists out of the prompts and keep them only in the checker** (`stale_phrases`, `worn`). The prompt states the
+**A5 (after A3). Lean against worn words at the sampler** (`logit_bias`), the owner's addition of 2026-11-11 after A2 did not hold.
+The words recent writing has leaned on (engine/worn.py) are made a little less likely for the call, never shown: token ids from the
+server's own tokenizer, a gentle bias of −1 to −2, and never on a token that is part of a name or a fact in the current prompt.
+Measured like the rest.
+
+**A2. Take the stock-phrase lists out of the prompts and keep them only in the checker** *(Measured 2026-11-11, f582: did not hold.
+The writing leaned on the worn words and stock phrases more and nearly three times as many narrations were sent back, so diagnosis 3
+above does not hold for this model and these lists; the lists were shown again in f584, the checks A2 added kept. A with-and-without test, not a verdict for good: measured again
+without the lists after A1 or A5, and taken out again if that setup does better. See docs/measure/prose_a2.)* (`stale_phrases`, `worn`). The prompt states the
 aim in positive terms ("say what is new; one exact detail") and the checker catches the slips.
 
 **A3. Draw exemplars from a pool.**

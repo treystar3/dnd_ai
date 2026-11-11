@@ -647,7 +647,7 @@ class PartyActions:
                               wp.dialogue_request(self.time_label(), self.place, others, name, looks, doing, self.temper_text(m), False,
                                                   reply_to or "(listening)", speech, gesture, False, self.recent_narration,
                                                   self.frame_for(m, P["frame"]["fight" if in_fight else "talk"]), reach=within, moment=reach.moment(fight=in_fight),
-                                                  why=why, already=self.shown_lines(), who_is=entities.who_is_who(self),
+                                                  why=why, already=self.shown_lines(), worn=self.worn_words("prose"), who_is=entities.who_is_who(self),
                                                   exemplars=self.exemplars("fight" if in_fight else "narration")),
                               DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS,
                               context={"speaker": [name], "others": self.other_names(name)}, worn=self.worn_words("prose"))
@@ -704,7 +704,7 @@ class PartyActions:
                    "others": self.fellow_names(m), "said": text,                                                   # (f385)
                    "gesture_state": quirks.gesture_state(m, self.gesturers(m)), "answer_to": answer_to, "known": view.scene.known_words(),
                    "given_also": view.town_lines,                                          # (f488) the town's list, for the checks, given or not
-                   "worn": self.worn_words("speech")}                                      # (f582) the words worn in speech: checked, not shown
+                   "worn": self.worn_words("speech")}                                      # (f582) the words worn in speech, for the check as well
             try:
                 r = generate("hire_chat", ppr.TALK_SYSTEM,
                              ppr.talk_prompt(how, core, self.hire_relation(m), now, rules.pick_memories(m, text, day=self.minutes // 1440), list(recent), called, text,
@@ -713,7 +713,7 @@ class PartyActions:
                                              leaned=quirks.leaned_on(m), subtext=self.hire_subtext(m, text), offers=self.material_for(m),
                                              again=convo.again_fact(before) if before else "",
                                              again_how=convo.again_rule(quirks.repeat_manner(m)) if before else "", fix=fix, truth_text=view.text(),
-                                             others=self.fellow_names(m), recalled=recalled,
+                                             worn=self.worn_words("speech"), others=self.fellow_names(m), recalled=recalled,
                                              open_=self.hire_open(m, held), pronoun=brief.pronoun(self, self.acting),
                                              exemplars=self.exemplars("speech", "small_talk")),
                              CompanionReply, temperature=0.8, max_tokens=config.PROSE_MAX_TOKENS, retries=1, validation_context=ctx,

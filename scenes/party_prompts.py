@@ -42,7 +42,7 @@ Respond only with JSON matching the schema: {"speech": "...", "gesture": "", "re
 
 def talk_prompt(how: str, core: str, relation: str, now: list[str], memories: list[str], recent: list, player: str, text: str, unsaid: str = "",
                 notes: str = "", props: str = "", leaned: str = "", subtext: str = "", offers: list[str] | None = None, again: str = "",
-                again_how: str = "", fix: str = "", truth_text: str = "", others: list[str] = (), recalled: str = "",
+                again_how: str = "", fix: str = "", truth_text: str = "", worn: list[str] = (), others: list[str] = (), recalled: str = "",
                 open_: list[str] = (), pronoun: str = "", exemplars: str = ""):
     """A hire's request, built from typed parts (engine/prompt.py) so the gateway knows instruction from fact. (f488) In the brief's order:
     first what holds through a talk (who they are, what presses on them, the moment as they know it from the truth layer, the one who hired
@@ -78,6 +78,8 @@ def talk_prompt(how: str, core: str, relation: str, now: list[str], memories: li
     if offers:
         from engine import quirks
         p.material(quirks.material_block(offers), "WORDS YOU MAY USE THIS TIME, AS THEY ARE (only if they fit)")
+    if worn:
+        p.instruction(", ".join(worn), "WORDS EVERYONE HAS WORN OUT LATELY (find other words)")       # (f349)
     p.instruction(exemplars)                                     # (f583) drawn for this call, near the end: the system stays cached
     p.fact(text, f"{player.upper()} SAYS TO YOU")
     return p

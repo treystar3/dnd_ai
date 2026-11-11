@@ -1,12 +1,13 @@
-"""(f582) What to avoid is checked, not shown (docs/design/09 A2). The narrator's voice no longer names the stock phrases it once told the
-model to avoid, and no prompt hands over the words recent writing has worn out: a list of what to avoid puts it in front of the model.
-The aim is said instead (one exact detail), and the checkers catch the slips: a draft with a stock phrase or two worn words is written
-again once (scenes/voice.py fresh), a townsperson's or a hire's reply that leans on two worn words is sent back (llm/contracts.py), each
-naming only what that draft used.
-Run: python tools/sim/stock_out_582_test.py"""
+"""(f584) What to avoid is shown and checked. A2 (f582) took the stock-phrase list out of the narrator's voice and the worn words out of
+every prompt, leaving only the checkers; measured on the live model it did not hold (docs/measure/prose_a2: the writing leaned on the
+worn words and stock phrases more, and nearly three times as many narrations were sent back). So the lists are shown again, as before
+f582, and the two checks A2 added are kept: a hire's reply and a townsperson's answer to several characters are held to the worn words
+too, as one townsperson's reply was. Each check names only what that draft used.
+Run: python tools/sim/lists_back_584_test.py"""
 import ast
 import inspect
 import sys
+import types
 from pathlib import Path
 sys.path.insert(0, ".")
 import simlib
@@ -21,37 +22,31 @@ def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x)
     if not ok: bad.append(n)
 
-# ---- the voice says the aim, and names no stock phrase
+# ---- the lists are shown again
 low = voice.DM_VOICE.lower()
-check("the narrator's voice names none of the stock phrases the checker catches", not [s for s in voice.STALE if s in low],
-      [s for s in voice.STALE if s in low])
-check("...and says the aim instead: one exact detail", "one exact detail" in low and "stock phrase" not in low, voice.DM_VOICE[:900])
-check("the checker still holds every phrase the voice once listed", all(s in voice.STALE for s in
+check("the narrator's voice lists the stock phrases again", all(s in low for s in
+      ("the air hangs heavy", "the scent of", "damp earth", "a sense of", "can't help but", "little do you know")), voice.DM_VOICE[:900])
+check("...each of them one the checker catches", all(s in voice.STALE for s in
       ("the air hangs heavy", "scent of damp earth", "a sense of", "can't help but", "little do you know")))
-
-# ---- no prompt hands over a list of what to avoid
-SYSTEMS = {"narrator": wp.NARRATOR_SYSTEM, "dialogue frame": wp.DIALOGUE_SYSTEM, "exchange frame": wp.EXCHANGE_SYSTEM,
-           "fight": cp.NARRATE_SYSTEM, "fight opening": cp.START_SYSTEM, "fight aftermath": cp.AFTERMATH_SYSTEM, "hire": ppr.TALK_SYSTEM,
-           "townsperson": npp.CONVERSATION_SYSTEM}
-for name, text in SYSTEMS.items():
-    check(f"the {name}'s system prompt names no stock phrase and no worn words", not [s for s in voice.STALE if s in text.lower()]
-          and "WORN OUT" not in text.upper(), [s for s in voice.STALE if s in text.lower()])
+WORN = ["steadfast", "weariness"]
+place = types.SimpleNamespace(name="P", type="town", visible=[])
+shown = {"narration request": wp.narration_request("t", place, [], "x", worn=WORN),
+         "frame request": wp.dialogue_request("t", place, [], "w", "l", "d", "m", True, "p", "s", "", False, [], worn=WORN),
+         "fight request": cp.narrate_request("P", "t", "swing", ["x [h1]"], "sword", "fine", ["a wolf"], 2, worn=WORN),
+         "hire's prompt": ppr.talk_prompt("how", "core", "rel", [], [], [], "P", "Hello.", worn=WORN).render()}
+for name, text in shown.items():
+    check(f"the {name} shows the worn words again", "WORN OUT" in text and all(w in text for w in WORN), text[-300:])
+check("the narrator and the frames are told what the list is", "WORDS YOU HAVE WORN OUT lists" in wp.NARRATOR_SYSTEM
+      and "WORDS YOU HAVE WORN OUT, when given" in wp.DIALOGUE_SYSTEM and "WORDS YOU HAVE WORN OUT are words" in cp.NARRATE_SYSTEM)
 import npc.life as life
-BUILDERS = {"narration request": wp.narration_request, "frame request": wp.dialogue_request, "fight request": cp.narrate_request,
-            "hire's prompt": ppr.talk_prompt, "townsperson's prompt": npp.conversation_prompt, "townsperson's request": npp.conversation_request,
-            "townsperson's request, whichever contract": life._request}
-for name, fn in BUILDERS.items():
-    check(f"the {name} takes no worn words to show", "worn" not in inspect.signature(fn).parameters, list(inspect.signature(fn).parameters))
-
-found = []
-for d in ("scenes", "npc", "engine", "llm", "services"):
-    for path in sorted(Path(d).rglob("*.py")):
-        if path.as_posix() in ("scenes/voice.py", "llm/contracts.py"):      # the checkers: they name what a draft used, after it was written
-            continue
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-            if isinstance(node, ast.Constant) and isinstance(node.value, str) and "WORN OUT" in node.value.upper():
-                found.append(f"{path.as_posix()}:{node.lineno}")
-check("no text outside the checkers tells the model what it has worn out", not found, found)
+for name, fn in {"townsperson's prompt": npp.conversation_prompt, "townsperson's request": npp.conversation_request,
+                 "townsperson's request, whichever contract": life._request}.items():
+    check(f"the {name} takes the worn words to show", "worn" in inspect.signature(fn).parameters)
+check("the townsperson's prompt shows them", "WORDS PEOPLE HERE HAVE WORN OUT" in inspect.getsource(npp.conversation_prompt))
+src_calls = Path("scenes/world.py").read_text(encoding="utf-8") + Path("scenes/combat_scene.py").read_text(encoding="utf-8")     + Path("scenes/party_actions.py").read_text(encoding="utf-8")
+check("the call sites hand them over again (narration, frames, the fight, the hire)",
+      src_calls.count('worn=self.worn_words("prose"),') >= 5 and 'shown=self.fight_shown, worn=self.ws.worn_words("prose")' in src_calls
+      and 'worn=self.worn_words("speech"), others=self.fellow_names(m)' in src_calls)
 
 # ---- the checkers still catch the slips
 calls = []

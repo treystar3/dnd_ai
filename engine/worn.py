@@ -2,8 +2,9 @@
 
 Why: a fixed ban list ages (the model finds the next "steady") and a quota ("fewer than N") is not writing. Instead the engine keeps the
 last few dozen passages and counts, per passage, the words of the kind that wear out - manner words and the suffixed adjectives, adverbs
-and abstractions ("unreadable", "steadily", "weariness") - and holds every draft to the handful it has used most (f582: checked after
-writing, never shown before it). Nouns of the scene (the smith, the gate) are never on the list: they are facts, not habits. Two watches run, one for prose and one
+and abstractions ("unreadable", "steadily", "weariness") - and hands the narrator the handful it has used most, as WORDS YOU HAVE WORN
+OUT, and holds every draft to them (f584: shown and checked, as measured). Nouns of the scene (the smith, the gate) are never on the
+list: they are facts, not habits. Two watches run, one for prose and one
 for what people say, because "folk" wears out in mouths and "expression" wears out in frames.
 
 The rules live in data/rules/voice.yaml under `worn`: the seed words, the suffixes, how many passages are kept, how many passages a word
