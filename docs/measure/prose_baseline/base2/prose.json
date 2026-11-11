@@ -309,7 +309,7 @@
    }
   },
   "combat_opening": {
-   "size": 20,
+   "size": 12,
    "unit": "fights",
    "short": true,
    "drawn_from": 12,
@@ -335,7 +335,7 @@
    }
   },
   "combat_narrate": {
-   "size": 20,
+   "size": 12,
    "unit": "fights",
    "short": true,
    "drawn_from": 12,
@@ -361,7 +361,7 @@
    }
   },
   "combat_aftermath": {
-   "size": 20,
+   "size": 12,
    "unit": "fights",
    "short": true,
    "drawn_from": 12,

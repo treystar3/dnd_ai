@@ -48,7 +48,7 @@ it. For the fight tasks that band is wide; longer plays, or a measure taken over
 ## Steadying the measure (f577)
 
 `tools/prose_measure.py` now also measures each task over 200 draws of a fixed size (40 narrations, 60 exchanges, 90 frames, 30
-townsfolk replies, 60 hire replies, 20 fights drawn whole) and gives the mean with a band (the 10th to 90th draw). `prose.md` and
+townsfolk replies, 60 hire replies, 12 fights drawn whole; 20 until the new baselines below) and gives the mean with a band (the 10th to 90th draw). `prose.md` and
 `prose.json` in both folders were re-measured from the kept logs; the numbers above are unchanged.
 
 What it shows on these two runs:
@@ -65,3 +65,38 @@ What it shows on these two runs:
    new script (five plays of about 8 minutes each, so a measurement takes about 25 minutes longer on a 5090), and check that their
    fight bands overlap. If they still do not, fights need more plays again, or the fight measures are
    reported but not used to keep or drop a change.
+
+## The baselines to measure against: new1 and new2 (f577's shape)
+
+Two more measurements of the same game (prose/section-a at e643799, no prose change), back to back on a rented RTX 5090 on
+2026-11-11, with the new script: `live_check --runs 3`, `interp_eval --live`, and five 60-turn plays with a hired party of 3 (four
+hunters, seeds 101, 103, 105, 107, and the talker, seed 102). Each folder keeps what base1 and base2 keep. **These are the two a prose
+change is judged against** (`--against new1/prose.json new2/prose.json`); base1 and base2 are of the old shape and stay as the record.
+
+Over draws of a fixed size, new1 / new2 (mean [10th, 90th draw]), repeated phrases per 1,000 words and shared openings:
+
+| Task | Drawn | Repeated phrases /1k | Shared openings |
+|---|---|---|---|
+| narrate | 40 of 157 / 192 | 1.91 [0.96, 2.90] / 1.80 [0.81, 2.92] | 4% / 3% |
+| combat_opening | 12 fights of 18 / 15 | 4.99 [2.3, 7.6] / 7.02 [3.7, 11.1] | 0% / 0% |
+| combat_narrate | 12 fights of 18 / 15 | 10.11 [8.4, 11.8] / 5.08 [4.3, 6.0] | 53% / 29% |
+| combat_aftermath | 12 fights of 18 / 15 | 17.66 [15.4, 19.9] / 22.11 [18.4, 25.0] | 17% / 31% |
+| exchange | 60 of 104 / 91 | 3.75 [1.93, 5.77] / 8.98 [5.50, 11.59] | 26% / 23% |
+| dialogue_frame | 90 of 157 / 144 | 9.91 [7.86, 11.55] / 10.47 [8.51, 12.31] | 21% / 16% |
+| npc_conversation | 30 of 80 / 84 | 0.56 [0.00, 2.78] / 0.00 | 7% / 2% |
+| hire_chat | 60 of 124 / 117 | 2.76 [0.00, 6.56] / 2.10 [0.00, 6.05] | 13% / 11% |
+
+Other measures: `interp_eval --live` 163 then 165 of 170 (base1 and base2: 164, 162). The live check's judge, over about 100 lines
+each: vivid 20 / 19, flat or generic 83 / 83, stock phrases 12 / 7.
+
+What these say:
+1. **Narration, frames, townsfolk and hires are steady.** The two runs agree within their bands; a change that lands below both is
+   a real gain.
+2. **Exchanges are usable but wide** (3.75 against 8.98, the bands just touching): the span a change must clear is large.
+3. **Fight openings and aftermath are usable at 12 fights** (their bands overlap). Fewer fights came than planned: four hunter plays
+   gave 18 and 15 fights (per play 3 to 8, and one play none), not the 20 or more expected, so the fight draw is 12.
+4. **Fight rounds are not steady.** 10.1 against 5.1, bands apart, at any draw size from 8 to 12. Only a change that lands below
+   both (under about 4.3 repeated phrases per 1,000 words) or above both can be read from them; a smaller effect cannot. They are
+   reported for every change, and kept or dropped on only when they move that far.
+5. A change is now judged task by task against the span of new1 and new2; the tool gives no verdict on a task with fewer than its
+   draw size, or against a single baseline.

@@ -1,0 +1,421 @@
+{
+ "ended": "2026-11-11T03:40:53",
+ "turns": 60,
+ "reason": "turn limit (60)",
+ "hours": 0.13,
+ "cast": {
+  "Frib Sprocketcrank": {
+   "kind": "hire",
+   "pronoun": "he",
+   "people": "gnome",
+   "first_turn": 2,
+   "last_turn": 60
+  },
+  "Calsa Hoyle": {
+   "kind": "hire",
+   "pronoun": "she",
+   "people": "half_elf",
+   "first_turn": 2,
+   "last_turn": 60
+  },
+  "Dynn Brookby": {
+   "kind": "hire",
+   "pronoun": "she",
+   "people": "human",
+   "first_turn": 2,
+   "last_turn": 60
+  },
+  "Hess Wren": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "human",
+   "first_turn": 3
+  },
+  "Tan Wickcombe": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 3
+  },
+  "Elven Aldton": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "half_elf",
+   "first_turn": 3
+  },
+  "Isbeth Blake": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "human",
+   "first_turn": 3
+  },
+  "Rynn Oakhope": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "human",
+   "first_turn": 4
+  },
+  "Everwin Salcombe": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 4
+  },
+  "Orrek Strarim": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "dwarf",
+   "first_turn": 4
+  },
+  "Agette Langdale": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "human",
+   "first_turn": 4
+  },
+  "Sigunn Gundderulf": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "dwarf",
+   "first_turn": 21
+  },
+  "Norm Salcroft": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 21
+  },
+  "Nock Burgate": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 21
+  },
+  "Avoith Marthorpe": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "human",
+   "first_turn": 21
+  },
+  "Gunarun Gundderk": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "dwarf",
+   "first_turn": 24
+  },
+  "Drald Alderby": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 24
+  },
+  "Brane Hazelbury": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "human",
+   "first_turn": 24
+  },
+  "Augley Webb": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 24
+  },
+  "Walgar Marfield": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 24
+  },
+  "Aldgar Wren": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 24
+  },
+  "Dorwyn Throrn": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "dwarf",
+   "first_turn": 24
+  },
+  "Brolm Bromster": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 24
+  },
+  "Kade Ashford": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 24
+  },
+  "Tith Bromley": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "human",
+   "first_turn": 27
+  },
+  "Dorran Heywick": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 27
+  },
+  "Godowin Thornley": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 42
+  },
+  "Siblyn Burshaw": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "human",
+   "first_turn": 42
+  }
+ },
+ "hygiene": {
+  "stage": 2,
+  "wrap": 15,
+  "dash": 857
+ },
+ "character": "Ironbound Vanguard",
+ "class": "Ironbound Vanguard",
+ "level": 13,
+ "deaths": 0,
+ "seed": 105,
+ "party": [
+  {
+   "name": "Frib Sprocketcrank",
+   "role": "mage",
+   "level": 6,
+   "people": "gnome"
+  },
+  {
+   "name": "Calsa Hoyle",
+   "role": "fighter",
+   "level": 10,
+   "people": "half_elf"
+  },
+  {
+   "name": "Dynn Brookby",
+   "role": "archer",
+   "level": 7,
+   "people": "human"
+  }
+ ],
+ "start": "green",
+ "start_days": 0,
+ "past": [],
+ "met_at_start": 0,
+ "persona": "hunter",
+ "bot": {
+  "persona": "hunter",
+  "lines": {
+   "model": 50,
+   "template": 10
+  },
+  "refers": 17,
+  "refers_talk": 5,
+  "talk_lines": 8,
+  "with_passage": 60,
+  "contracts_taken": 2,
+  "contracts_done": 1,
+  "doors_seen": 1,
+  "doors_followed": 1,
+  "goals_done": {
+   "go": 2,
+   "contract": 1,
+   "report": 1,
+   "revisit": 2
+  },
+  "goals_dropped": {
+   "find": 1,
+   "follow": 1
+  },
+  "deaths": 0,
+  "deaths_above_band": 0,
+  "waits": 0,
+  "fights": 4,
+  "clarified": 3,
+  "model_failed": 2,
+  "model_seconds": 43.02885060280096,
+  "blocked": 0,
+  "places": 6,
+  "continuity": {
+   "revisits": 0,
+   "promises": 1,
+   "plants": 1,
+   "corrections": 1,
+   "accepted": 0,
+   "abandoned": 0,
+   "issuer_visits": 1
+  },
+  "continuity_log": {
+   "revisits": [],
+   "promises": [
+    {
+     "turn": 56,
+     "minute": 3219,
+     "npc": "hess_wren",
+     "name": "the sharp-eyed tracker",
+     "text": "If you need a hand with anything, I'll be back to help. You have my word."
+    }
+   ],
+   "plants": [
+    {
+     "turn": 25,
+     "minute": 1672,
+     "npc": "isbeth_blake",
+     "name": "the sun-browned reaper",
+     "token": "Joris Fellaby",
+     "kind": "name",
+     "corrected": 59
+    }
+   ],
+   "corrections": [
+    {
+     "turn": 59,
+     "minute": 3233,
+     "npc": "isbeth_blake",
+     "token": "Joris Fellaby",
+     "gap": 1559
+    }
+   ],
+   "accepted": [],
+   "abandoned": [],
+   "issuer_visits": [
+    {
+     "turn": 24,
+     "minute": 1670,
+     "npc": "isbeth_blake",
+     "quest_title": "Hunt 2 lizardfolks in the Willowmead wetlands",
+     "outcome": "done",
+     "gap": 0
+    }
+   ]
+  }
+ },
+ "distinct": 0.983,
+ "ended_by_player": 0,
+ "save": "prose_hunter_105",
+ "restarts": 0,
+ "stub": false,
+ "model": "gemma4-12b-bb722270",
+ "sampling": {
+  "temp_add": 0.15,
+  "repeat_add": 0.1,
+  "think_tasks": [],
+  "think_room": 8192,
+  "base": {
+   "top_k": 64,
+   "top_p": 0.95,
+   "min_p": 0.0,
+   "typical_p": 1.0,
+   "repeat_penalty": 1.0,
+   "repeat_last_n": 64,
+   "presence_penalty": 0.0,
+   "frequency_penalty": 0.0,
+   "dry_multiplier": 0.0,
+   "xtc_probability": 0.0
+  },
+  "table": {
+   "hire_chat": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 64,
+    "repeat_penalty": 1.12,
+    "repeat_last_n": 192
+   },
+   "mentor_chat": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 64,
+    "repeat_penalty": 1.12,
+    "repeat_last_n": 192
+   },
+   "exchange": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 64,
+    "repeat_penalty": 1.12,
+    "repeat_last_n": 192
+   },
+   "npc_conversation": {
+    "repeat_penalty": 1.12,
+    "repeat_last_n": 192
+   },
+   "narrate": {
+    "repeat_penalty": 1.15,
+    "repeat_last_n": 256
+   },
+   "dialogue_frame": {
+    "repeat_penalty": 1.15,
+    "repeat_last_n": 256
+   },
+   "combat_narrate": {
+    "repeat_penalty": 1.15,
+    "repeat_last_n": 256
+   },
+   "combat_opening": {
+    "repeat_penalty": 1.15,
+    "repeat_last_n": 256
+   },
+   "moment": {
+    "repeat_penalty": 1.15,
+    "repeat_last_n": 256
+   },
+   "player_line": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 64,
+    "repeat_penalty": 1.12,
+    "repeat_last_n": 192
+   },
+   "mentor_speech": {
+    "temperature": 0.85,
+    "top_p": 0.95,
+    "top_k": 64
+   },
+   "pair_dynamic": {
+    "temperature": 0.5,
+    "top_p": 0.9
+   },
+   "persona_details": {
+    "temperature": 0.8,
+    "top_p": 0.95,
+    "top_k": 64
+   },
+   "stranger_read": {
+    "temperature": 0.1
+   },
+   "live_judge": {
+    "temperature": 0.1
+   },
+   "canon_check": {
+    "temperature": 0.1
+   }
+  }
+ },
+ "server": {
+  "source": "llama-server",
+  "kind": "runtime",
+  "build": "cuda",
+  "device": "NVIDIA GeForce RTX 5090",
+  "class": "minimum",
+  "class_why": "",
+  "offloaded": "49/49",
+  "slot_ctx": 16384,
+  "slots": 2,
+  "embedder": true,
+  "embed_device": "card",
+  "embed_failure": "",
+  "model": "gemma4-12b-bb722270",
+  "model_sha": "bb722270d54346adc198f213851dbe0207e87c3ecf2a0aff4d92262726215391",
+  "llama_cpp": "b11963",
+  "threads": 13,
+  "warnings": []
+ }
+}

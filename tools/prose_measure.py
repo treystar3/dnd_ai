@@ -42,7 +42,7 @@ MEASURES = [("passages", "passages", "d"), ("words", "words", "d"), ("phrases_pe
             ("worn_count", "worn words", "d"), ("worn_per_k", "worn uses /1k", ".2f"), ("stock_per_k", "stock phrases /1k", ".2f")]
 _WORDS = re.compile(r"[a-z']+")
 FIGHT = ("combat_opening", "combat_narrate", "combat_aftermath")
-SIZE = {"narrate": 40, "exchange": 60, "dialogue_frame": 90, "npc_conversation": 30, "hire_chat": 60, "mentor_chat": 20, "fights": 20}
+SIZE = {"narrate": 40, "exchange": 60, "dialogue_frame": 90, "npc_conversation": 30, "hire_chat": 60, "mentor_chat": 20, "fights": 12}
 DRAWS = 200
 STEADY = [("phrases_per_k", "repeated phrases /1k", ".2f"), ("sentences_per_k", "repeated sentences /1k", ".2f"),
           ("openings_share", "shared openings", ".0%"), ("worn_per_k", "worn uses /1k", ".2f")]

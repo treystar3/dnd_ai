@@ -1,0 +1,560 @@
+{
+ "logs": [
+  "new1/live_check_calls.jsonl.gz",
+  "new1/play_hunter_101/llm_calls.jsonl.gz",
+  "new1/play_hunter_103/llm_calls.jsonl.gz",
+  "new1/play_hunter_105/llm_calls.jsonl.gz",
+  "new1/play_hunter_107/llm_calls.jsonl.gz",
+  "new1/play_talker_102/llm_calls.jsonl.gz"
+ ],
+ "tasks": {
+  "narrate": {
+   "passages": 157,
+   "words": 21005,
+   "phrases_per_k": 5.665,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.159,
+   "worn_count": 31,
+   "worn_per_k": 18.71,
+   "stock_per_k": 0.143,
+   "top_phrases": [
+    "at the edge of the",
+    "the center of the room",
+    "he does not look up",
+    "interior smells of dry grain",
+    "near the clerk s desk",
+    "of dry grain dust and",
+    "smells of dry grain dust",
+    "you lean back against the"
+   ],
+   "top_sentences": [],
+   "top_openings": [
+    "rain slicks the",
+    "the overcast sky",
+    "the heavy timber",
+    "you draw a",
+    "your fingers press"
+   ],
+   "top_worn": [
+    "heavy",
+    "sharp",
+    "steady",
+    "rhythmic",
+    "slow",
+    "small",
+    "quiet",
+    "dull"
+   ]
+  },
+  "combat_opening": {
+   "passages": 18,
+   "words": 2433,
+   "phrases_per_k": 7.398,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.0,
+   "worn_count": 7,
+   "worn_per_k": 15.619,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "just beyond the reach of",
+    "a low hiss vibrates through",
+    "a warning meant to hold",
+    "any sound reaches your ears",
+    "as you sift through the",
+    "before any sound reaches your",
+    "from the shadow of a",
+    "in the center of a"
+   ],
+   "top_sentences": [],
+   "top_openings": [],
+   "top_worn": [
+    "heavy",
+    "dull",
+    "massive",
+    "rhythmic",
+    "sharp",
+    "slight",
+    "tight"
+   ]
+  },
+  "combat_narrate": {
+   "passages": 33,
+   "words": 5070,
+   "phrases_per_k": 14.004,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.667,
+   "worn_count": 7,
+   "worn_per_k": 6.706,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "longsword in a wide arc",
+    "and swing the bronze longsword",
+    "bronze longsword in a wide",
+    "enough power to buckle its",
+    "into the creature s chest",
+    "swing the bronze longsword in",
+    "the bronze longsword in a",
+    "with enough power to buckle"
+   ],
+   "top_sentences": [],
+   "top_openings": [
+    "you pivot your",
+    "you lunge forward",
+    "you step forward",
+    "the bronze blade",
+    "you plant your"
+   ],
+   "top_worn": [
+    "heavy",
+    "instantly",
+    "invisible",
+    "massive",
+    "motionless",
+    "sharp",
+    "tight"
+   ]
+  },
+  "combat_aftermath": {
+   "passages": 31,
+   "words": 4628,
+   "phrases_per_k": 22.688,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.194,
+   "worn_count": 17,
+   "worn_per_k": 26.361,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "stands a few paces back",
+    "a few paces back his",
+    "alwick stands a few paces",
+    "alwick lowers his staff the",
+    "gran stands a few paces",
+    "alwick leans his staff against",
+    "chest rising and falling in",
+    "drip of water from the"
+   ],
+   "top_sentences": [],
+   "top_openings": [
+    "alwick leans his",
+    "you stand over",
+    "calsa pulls a"
+   ],
+   "top_worn": [
+    "heavy",
+    "steady",
+    "sharp",
+    "massive",
+    "rhythmic",
+    "dull",
+    "motionless",
+    "small"
+   ]
+  },
+  "exchange": {
+   "passages": 104,
+   "words": 4307,
+   "phrases_per_k": 5.34,
+   "sentences_per_k": 0.929,
+   "openings_share": 0.288,
+   "worn_count": 6,
+   "worn_per_k": 9.984,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "it is just a scratch",
+    "is just a scratch like",
+    "i need see wound now",
+    "just a scratch like a",
+    "makes me think of my",
+    "a scratch like a briar",
+    "a set of horseshoes sitting",
+    "heavy wooden staves in frost"
+   ],
+   "top_sentences": [
+    "i need see wound now",
+    "it is just a scratch"
+   ],
+   "top_openings": [
+    "good afternoon maren",
+    "it is just",
+    "the guild house",
+    "it's just a",
+    "good way to"
+   ],
+   "top_worn": [
+    "heavy",
+    "steady",
+    "trouble",
+    "probably",
+    "quick",
+    "regardless"
+   ]
+  },
+  "dialogue_frame": {
+   "passages": 157,
+   "words": 8289,
+   "phrases_per_k": 15.08,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.299,
+   "worn_count": 14,
+   "worn_per_k": 22.077,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "the strap of his pack",
+    "adjusts the strap of his",
+    "crossing his arms over his",
+    "his arms over his chest",
+    "smooth wood of his staff",
+    "the smooth wood of his",
+    "adjust the strap of his",
+    "adjusting the strap of his"
+   ],
+   "top_sentences": [],
+   "top_openings": [
+    "bram leans his",
+    "you lean against",
+    "bram shifts his",
+    "frib shifts his",
+    "the scarred veteran"
+   ],
+   "top_worn": [
+    "slight",
+    "heavy",
+    "rough",
+    "gaze",
+    "flat",
+    "small",
+    "steady",
+    "sharp"
+   ]
+  },
+  "npc_conversation": {
+   "passages": 80,
+   "words": 1827,
+   "phrases_per_k": 1.642,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.163,
+   "worn_count": 2,
+   "worn_per_k": 6.568,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "but if you're looking to",
+    "from the hills near the",
+    "the hills near the greywood"
+   ],
+   "top_sentences": [],
+   "top_openings": [
+    "i do not",
+    "you looking for",
+    "the building itself",
+    "you take contract",
+    "safe travels then"
+   ],
+   "top_worn": [
+    "folks",
+    "trouble"
+   ]
+  },
+  "hire_chat": {
+   "passages": 124,
+   "words": 2059,
+   "phrases_per_k": 6.314,
+   "sentences_per_k": 0.971,
+   "openings_share": 0.234,
+   "worn_count": 2,
+   "worn_per_k": 4.371,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "he is man who keeps",
+    "he knows how to read",
+    "how to read a trail",
+    "i'm ready as i'll ever",
+    "is man who keeps many",
+    "just don't expect me to",
+    "keeps many things inside he",
+    "knows how to read a"
+   ],
+   "top_sentences": [
+    "he is man who keeps many things inside",
+    "i'm ready as i'll ever be"
+   ],
+   "top_openings": [
+    "i am ready",
+    "it's fine just",
+    "that's rough bandits",
+    "next time you",
+    "i do not"
+   ],
+   "top_worn": [
+    "steady",
+    "heavy"
+   ]
+  },
+  "mentor_chat": {
+   "passages": 15,
+   "words": 445,
+   "phrases_per_k": 20.225,
+   "sentences_per_k": 6.742,
+   "openings_share": 0.667,
+   "worn_count": 0,
+   "worn_per_k": 0.0,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "about who has the better",
+    "because they didn't know which",
+    "didn't know which way was",
+    "i've seen enough rookies get",
+    "if you're even with someone",
+    "it's mostly about who has",
+    "mostly about who has the",
+    "they didn't know which way"
+   ],
+   "top_sentences": [
+    "i'm an a rank",
+    "worried is a strong word"
+   ],
+   "top_openings": [
+    "i've seen enough",
+    "i'm an a",
+    "worried is a",
+    "it's mostly about"
+   ],
+   "top_worn": []
+  }
+ },
+ "steady": {
+  "narrate": {
+   "size": 40,
+   "unit": "passages",
+   "short": false,
+   "drawn_from": 157,
+   "phrases_per_k": {
+    "mean": 1.914,
+    "low": 0.96,
+    "high": 2.895
+   },
+   "sentences_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "openings_share": {
+    "mean": 0.042,
+    "low": 0.0,
+    "high": 0.1
+   },
+   "worn_per_k": {
+    "mean": 12.475,
+    "low": 9.986,
+    "high": 14.639
+   }
+  },
+  "combat_opening": {
+   "size": 12,
+   "unit": "fights",
+   "short": false,
+   "drawn_from": 18,
+   "phrases_per_k": {
+    "mean": 4.989,
+    "low": 2.328,
+    "high": 7.619
+   },
+   "sentences_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "openings_share": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "worn_per_k": {
+    "mean": 8.717,
+    "low": 5.65,
+    "high": 11.392
+   }
+  },
+  "combat_narrate": {
+   "size": 12,
+   "unit": "fights",
+   "short": false,
+   "drawn_from": 18,
+   "phrases_per_k": {
+    "mean": 10.114,
+    "low": 8.366,
+    "high": 11.849
+   },
+   "sentences_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "openings_share": {
+    "mean": 0.528,
+    "low": 0.409,
+    "high": 0.636
+   },
+   "worn_per_k": {
+    "mean": 3.815,
+    "low": 2.49,
+    "high": 5.484
+   }
+  },
+  "combat_aftermath": {
+   "size": 12,
+   "unit": "fights",
+   "short": false,
+   "drawn_from": 18,
+   "phrases_per_k": {
+    "mean": 17.655,
+    "low": 15.444,
+    "high": 19.917
+   },
+   "sentences_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "openings_share": {
+    "mean": 0.17,
+    "low": 0.091,
+    "high": 0.286
+   },
+   "worn_per_k": {
+    "mean": 20.327,
+    "low": 17.544,
+    "high": 22.465
+   }
+  },
+  "exchange": {
+   "size": 60,
+   "unit": "passages",
+   "short": false,
+   "drawn_from": 104,
+   "phrases_per_k": {
+    "mean": 3.754,
+    "low": 1.934,
+    "high": 5.771
+   },
+   "sentences_per_k": {
+    "mean": 0.635,
+    "low": 0.0,
+    "high": 1.235
+   },
+   "openings_share": {
+    "mean": 0.255,
+    "low": 0.2,
+    "high": 0.317
+   },
+   "worn_per_k": {
+    "mean": 6.982,
+    "low": 4.435,
+    "high": 9.83
+   }
+  },
+  "dialogue_frame": {
+   "size": 90,
+   "unit": "passages",
+   "short": false,
+   "drawn_from": 157,
+   "phrases_per_k": {
+    "mean": 9.912,
+    "low": 7.862,
+    "high": 11.552
+   },
+   "sentences_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "openings_share": {
+    "mean": 0.207,
+    "low": 0.156,
+    "high": 0.256
+   },
+   "worn_per_k": {
+    "mean": 20.098,
+    "low": 17.999,
+    "high": 22.026
+   }
+  },
+  "npc_conversation": {
+   "size": 30,
+   "unit": "passages",
+   "short": false,
+   "drawn_from": 80,
+   "phrases_per_k": {
+    "mean": 0.56,
+    "low": 0.0,
+    "high": 2.782
+   },
+   "sentences_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "openings_share": {
+    "mean": 0.067,
+    "low": 0.0,
+    "high": 0.133
+   },
+   "worn_per_k": {
+    "mean": 2.101,
+    "low": 0.0,
+    "high": 6.711
+   }
+  },
+  "hire_chat": {
+   "size": 60,
+   "unit": "passages",
+   "short": false,
+   "drawn_from": 124,
+   "phrases_per_k": {
+    "mean": 2.756,
+    "low": 0.0,
+    "high": 6.557
+   },
+   "sentences_per_k": {
+    "mean": 0.382,
+    "low": 0.0,
+    "high": 1.057
+   },
+   "openings_share": {
+    "mean": 0.134,
+    "low": 0.067,
+    "high": 0.2
+   },
+   "worn_per_k": {
+    "mean": 0.982,
+    "low": 0.0,
+    "high": 4.145
+   }
+  },
+  "mentor_chat": {
+   "size": 20,
+   "unit": "passages",
+   "short": true,
+   "drawn_from": 15,
+   "phrases_per_k": {
+    "mean": 20.225,
+    "low": 20.225,
+    "high": 20.225
+   },
+   "sentences_per_k": {
+    "mean": 6.742,
+    "low": 6.742,
+    "high": 6.742
+   },
+   "openings_share": {
+    "mean": 0.667,
+    "low": 0.667,
+    "high": 0.667
+   },
+   "worn_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   }
+  }
+ }
+}

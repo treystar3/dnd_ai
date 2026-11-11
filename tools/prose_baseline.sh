@@ -4,7 +4,7 @@
 # 1. tools/live_check.py --runs 3              townsfolk conversation, judged (its report: OUT/live_check_report.md)
 # 2. tools/interp_eval.py --live               how the game reads typed lines (a shorter prompt must not cost it: OUT/interp_eval.txt)
 # 3. scripted plays (tools/nightrun.py), each with a hired party of 3, so narration, fights, the party's exchanges and frames are
-#    written: four hunters (fights, seeds 101, 103, 105, 107: enough fights to draw 20 of them, f577) and a talker (talk, seed 102),
+#    written: four hunters (fights, seeds 101, 103, 105, 107: about 15 to 18 fights, drawn 12 at a time, f577) and a talker (talk, seed 102),
 #    60 turns each
 # 4. tools/prose_measure.py over every call log: OUT/prose.md (the table and sample passages) and OUT/prose.json (to compare against)
 # Every call is kept: DND_LOG_MAX_MB lifts the call log's trim for the run.
