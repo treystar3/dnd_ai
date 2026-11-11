@@ -114,7 +114,6 @@ Rules:
   answer what they look at, describing at most four people individually and summing up the rest as a group.
 - The player's companions are with them and are not scenery: say nothing of them unless the GAME EVENT says what one of them does,
   and then show only that. Never their posture, their mood or where they stand as a way of filling a passage.
-- WORDS YOU HAVE WORN OUT lists words your recent passages leaned on: find other words, or leave the thing unsaid.
 - Respect the TIME and its weather: light, sky, temperature and activity should fit them. In the dark, describe what can still be seen and heard.
   If PEOPLE HERE is "no one", the place is empty of people.
 - You may add small sensory touches (sounds, smells, light, air), but never add people, creatures, items of value,
@@ -154,11 +153,11 @@ HABITS_HEAD = ("WHAT THE COMPANIONS DO NOW (a habit of each, and true: fold each
 def narration_request(time_label: str, place, people: list[tuple[str, str, str]], event: str, player_text: str = "",
                       recent: list[str] = (), gear: str = "", marks: list[str] = (), ground: list[str] = (),
                       happenings: list[str] = (), streets: list[str] = (), town: str = "",
-                      news: list[str] = (), already: list[str] = (), companions: list[str] = (), worn: list[str] = (),
+                      news: list[str] = (), already: list[str] = (), companions: list[str] = (),
                       unlooked: int = 0, who: list[str] = (), fallen: list[str] = (), parts: list[str] = (), told: list[str] = (),
                       habits: list[str] = ()) -> str:
     """already (f347): what the player has read about this place this visit (scenes/world.py shown_lines), so the narrator says what is new.
-    companions (f349): the hires the event has act, the only ones the narrator hears of; worn: words recent passages leaned on. (f375) No
+    companions (f349): the hires the event has act, the only ones the narrator hears of. (f375) No
     length is given: the narrator writes what the moment holds. unlooked (f380): on walking in, PEOPLE HERE is only who the eye falls on
     first (scenes/world.py first_seen); this many more are here, met when the player looks. (f416) What the game did comes just before
     the event, and the player's words after it, marked as only what they typed: a night's passages acted out the words, refused part and
@@ -181,7 +180,7 @@ def narration_request(time_label: str, place, people: list[tuple[str, str, str]]
         + (f"{_fallen_head()}: {'; '.join(fallen)}\n" if fallen else "")
         + (("THE PARTS OF THIS PLACE (real: the player can go to each; name no other part of it):\n" + "\n".join(f"  - {x}" for x in parts) + "\n")
            if parts else "")
-        + (f"WORDS YOU HAVE WORN OUT (leaned on in recent passages; find other words): {', '.join(worn)}\n" if worn else "") + "\n"
+        + "\n"
         + (f"LASTING MARKS ON THIS PLACE (still there; mention them when they'd be noticed): {'; '.join(marks)}\n"
            if marks else "")
         + (f"LYING ON THE GROUND HERE: {', '.join(ground)}\n" if ground else "")
@@ -211,7 +210,6 @@ Keep it fresh:
 - THE FRAME SHOWS, when given, says what the frame is about. Either part may be empty.
 - Never repeat anything under ALREADY SHOWN THIS VISIT or RECENT NARRATION. Say what is new.
 - A manner shows in what the hands and the body do. Never name an expression, and never call a face unreadable, a mask, or weary.
-- WORDS YOU HAVE WORN OUT, when given, are words your recent frames leaned on: find other words, or leave the thing unsaid.
 
 Rules:
 - Describe only what the SCENE contains. Small sensory touches are fine, but never add people, items, events or
@@ -263,9 +261,9 @@ def dialogue_request(time_label: str, place, others: list[str], who: str, looks:
                      manner: str, first: bool, player_did: str, speech: str, gesture: str, leaving: bool,
                      recent: list[str], frame: str = "",
                      reach: list[str] | None = None, moment: str = "easy", why: list[str] | None = None, already: list[str] | None = None,
-                     worn: list[str] | None = None, who_is: list[str] = ()) -> str:
+                     who_is: list[str] = ()) -> str:
     """why (f347): the engine's reasons this line gets a frame at all; already: what the player has read about this place this visit;
-    worn (f349): words recent passages leaned on. frame (f375): what the frame shows (a companion's, Maren's), never how long it is."""
+    frame (f375): what the frame shows (a companion's, Maren's), never how long it is."""
     visible = "; ".join(place.visible)
     return (
         f"SCENE\nTIME AND WEATHER: {time_label}\nPLACE: {place.name} - {visible}\n"
@@ -273,7 +271,7 @@ def dialogue_request(time_label: str, place, others: list[str], who: str, looks:
         + (f"THE FRAME SHOWS: {frame}\n" if frame else "") + f"THE MOMENT: {moment}\n"
         + (f"WHY THIS LINE GETS A FRAME: {'; '.join(why)}\n" if why else "")
         + (("ALREADY SHOWN THIS VISIT (do not describe these again): " + "; ".join(already) + "\n") if already else "")
-        + (("WORDS YOU HAVE WORN OUT (leaned on in recent passages; find other words): " + ", ".join(worn) + "\n") if worn else "") + "\n"
+        + "\n"
         f"THE CHARACTER\nHOW THE PLAYER KNOWS THEM: {who}\nLOOKS: {looks}\nWAS DOING: {doing}\n"
         f"MANNER (it shows in what the hands and the body do; never name an expression, never a face unreadable or a mask): {manner}\n"
         f"WITHIN REACH: {'; '.join(reach or []) or 'nothing in particular'}\n"

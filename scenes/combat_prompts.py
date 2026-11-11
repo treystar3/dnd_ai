@@ -64,8 +64,7 @@ Rules:
 - Several foes doing the same thing (closing in, swinging) can be told together. Lead with what matters most:
   a kill, a wound that changes the fight, a near miss on the player.
 - ALREADY SHOWN IN THIS FIGHT lists what the player has read in this fight: the ground, the light, the look of a foe, the gleam of a
-  blade. Do not describe them again; the fight has moved on, and so do you. WORDS YOU HAVE WORN OUT are words recent passages leaned
-  on: find other words.
+  blade. Do not describe them again; the fight has moved on, and so do you.
 - Describe only the armor and gear given under THE PLAYER. If they wear no armor, blows land on cloth and skin.
 - How hard a blow lands and how hurt someone is come from the EVENTS: honor "barely a scratch" versus
   "a devastating blow", "barely touched" versus "barely standing".
@@ -95,8 +94,8 @@ Respond only with JSON matching the schema, with the prose in "text"."""
 
 def narrate_request(place: str, time_label: str, player_words: str, events: list[str], weapon: str,
                     you: str, foes: list[str], round_number: int, gear: str = "", recent: list[str] = (), ground: str = "",
-                    shown: list[str] = (), worn: list[str] = (), looks: list[str] = (), allies: list[str] = (), gone: list[str] = ()) -> str:
-    """shown: what the player has read in this fight already (scenes/combat_scene.py fight_shown); worn: words recent passages leaned on.
+                    shown: list[str] = (), looks: list[str] = (), allies: list[str] = (), gone: list[str] = ()) -> str:
+    """shown: what the player has read in this fight already (scenes/combat_scene.py fight_shown).
     (f375) No length is given. (f385) allies: everyone on the player's side, with she, he or it and what they fight with. (f415) gone: foes
     alive but out of the fight (yielded or fled); each ally's line ends with how hurt they are now."""
     return (
@@ -104,7 +103,6 @@ def narrate_request(place: str, time_label: str, player_words: str, events: list
         f"THE PLAYER: {gear}\n"
         + (f"THE GROUND NOW (who stands where; never move anyone elsewhere):\n{ground}\n" if ground else "")
         + (("ALREADY SHOWN IN THIS FIGHT (do not describe these again):\n" + "\n".join(f"  - {s}" for s in shown) + "\n") if shown else "")
-        + (f"WORDS YOU HAVE WORN OUT (find other words): {', '.join(worn)}\n" if worn else "")
         + "RECENT NARRATION:\n" + ("\n".join(f"  - {r}" for r in list(recent)[-3:]) or "  (none)") + "\n"
         f"MOMENT: {'the opening clash' if round_number <= 1 else f'the fight goes on (exchange {round_number})'}\n"
         f"THE PLAYER IS: {you}\nFOES NOW: {'; '.join(foes) or 'none left standing'}\n"

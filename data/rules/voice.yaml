@@ -18,8 +18,8 @@ frame_when:
   back: "they know the player and have not seen them for a while: show them knowing who it is"      # (f382)
 
 # (f349) The worn-word watch (engine/worn.py): the last `keep` passages are kept; a seed word or a suffixed manner word that appears in at
-# least `least` of them is worn, and the `top` most worn are handed to the narrator, the frames, the fight and everyone who speaks as
-# WORDS YOU HAVE WORN OUT. Found, never banned: the list is whatever the writing has actually leaned on lately.
+# least `least` of them is worn, and the `top` most worn are what every draft and reply is checked against (f582: never shown to the
+# model beforehand). Found, never banned: the list is whatever the writing has actually leaned on lately.
 worn:
   keep: 30
   least: 4

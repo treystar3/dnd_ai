@@ -134,10 +134,10 @@ def conversation_request(npc, place, trait_lines: list[str], facts, convo: list[
                          time_label: str = "", wares: list[str] = (), extra: list[str] = (),
                          land: list[str] = (), buildings: list[str] = (), truth_text: str = "",
                          stance: str = "", voice_fact: str = "", voice_lines: list[str] = (), material: list[str] = (), unsaid: str = "",
-                         worn: list[str] = (), now: int | None = None, *, who: str, work: dict | None = None, pronoun: str = "") -> str:
+                         now: int | None = None, *, who: str, work: dict | None = None, pronoun: str = "") -> str:
     """The request as one string (the typed form, conversation_prompt, is what the game sends)."""
     return conversation_prompt(npc, place, trait_lines, facts, convo, player_text, nearby, here_with, people_known, time_label, wares, extra,
-                               land, buildings, truth_text, stance, voice_fact, voice_lines, material, unsaid, worn, now=now, who=who,
+                               land, buildings, truth_text, stance, voice_fact, voice_lines, material, unsaid, now=now, who=who,
                                work=work, pronoun=pronoun).render()
 
 
@@ -151,7 +151,7 @@ def conversation_prompt(npc, place, trait_lines: list[str], facts, convo: list[t
                         time_label: str = "", wares: list[str] = (), extra: list[str] = (),
                         land: list[str] = (), buildings: list[str] = (), truth_text: str = "",
                         stance: str = "", voice_fact: str = "", voice_lines: list[str] = (), material: list[str] = (), unsaid: str = "",
-                        worn: list[str] = (), now: int | None = None, *, who: str, work: dict | None = None, pronoun: str = "",
+                        now: int | None = None, *, who: str, work: dict | None = None, pronoun: str = "",
                         promised: bool = False):
     """(f347) The request in typed parts (engine/prompt.py), so the gateway can tell an instruction from a fact and send back a reply that
     lifts the instructions' wording. stance: how they are for this conversation (engine/voice_rules.roll_stance); voice_fact and
@@ -175,8 +175,6 @@ def conversation_prompt(npc, place, trait_lines: list[str], facts, convo: list[t
         p.history("\n".join(f"- {s}" for s in samples), "HOW YOU SOUND (things you have said: the way you talk, to keep; never say these again)")
     p.fact(_knowledge(npc, facts, convo, wares, extra, now, who, work, pronoun))
     p.history(unsaid)
-    if worn:
-        p.instruction(", ".join(worn), "WORDS PEOPLE HERE HAVE WORN OUT (said again and again lately; find other words)")
     so_far = "\n".join(f"  {who_}: {what}" for who_, what in convo[-10:]) or "  (this is the start of the conversation)"
     p.history(so_far, "THIS CONVERSATION SO FAR")
     p.fact(f'THEY SAY: "{player_text}"')                     # (f375) no length: they say what they would say

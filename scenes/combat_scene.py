@@ -757,7 +757,7 @@ class CombatScene:
                        cp.narrate_request(place or self.ws.place.name, when or self.ws.time_label(), text, f.story,
                                           p.weapon_name, you, foes, f.round - 1, self.ws.gear_line(),
                                           self.ws.recent_narration, ground=bfm.narrative_snapshot(f, changed_only=True),
-                                          shown=self.fight_shown, worn=self.ws.worn_words("prose"),                         # (f349)
+                                          shown=self.fight_shown,
                                           looks=self.ability_looks(), allies=self.ally_looks(), gone=gone),                     # (f373, f385, f415)
                        Narration, self.ws.recent_narration, max_tokens=config.PROSE_MAX_TOKENS, worn=self.ws.worn_words("prose"), said=text)
         text_out = place_figures(result.text, f.hits, console.damage_tags, f.story)

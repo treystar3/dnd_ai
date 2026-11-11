@@ -318,7 +318,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             w["prose"].add(text)
 
     def worn_words(self, kind: str = "prose") -> list[str]:
-        """The words to hand over as WORDS YOU HAVE WORN OUT, less the nouns of this scene (names, labels, the place)."""
+        """The words recent writing has leaned on, for the checkers (f582: never shown), less the nouns of this scene (names, labels, the place)."""
         w = self.__dict__.get("_worn")
         if not w:
             return []
@@ -2770,7 +2770,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                        news=here.lines("news")[:3],                                 # (f331) the narrator hears what the town is talking about
                                        already=self.shown_lines(),                                  # (f347) ...and what the player has read here already
                                        companions=self.companions_in(event),                        # (f349) ...and of a companion only when the event has them act
-                                       worn=self.worn_words("prose"),                               # (f349) ...and which words it has worn out lately
                                        unlooked=unlooked,
                                        who=entities.who_is_who(self),                               # (f392) who is who, never guessed at
                                        fallen=here.lines("fallen"),                                 # ...and who fell, never seen alive again
@@ -3605,7 +3604,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                     manner, first, player_did, reply.speech, self.unnamed(reply.gesture, npc),
                                     getattr(reply, "intent", "") == "leave", self.recent_narration,
                                     reach=within, moment=moment,
-                                    why=reasons, already=self.shown_lines(), worn=self.worn_words("prose"),
+                                    why=reasons, already=self.shown_lines(),
                                     who_is=entities.who_is_who(self, also=[npc.id])),                 # (f392)
                 DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS,
                 context={"speaker": [npc.name, known_as, speaker], "others": self.other_names(npc), "speech": reply.speech}, worn=self.worn_words("prose"),

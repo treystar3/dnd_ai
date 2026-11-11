@@ -93,8 +93,8 @@ check("the player's own map keeps its figures", clock.describe_duration(70) == "
 check("the fight narrator has no length, no sentence count, one blow a sentence and its own exemplars",
       "Three to six" not in cp.NARRATE_SYSTEM and "LENGTH" not in cp.NARRATE_SYSTEM and "HOW A FIGHT SOUNDS HERE" in cp.NARRATE_SYSTEM
       and "last thing in the sentence" in cp.NARRATE_SYSTEM and "up to eight sentences" not in cp.NARRATE_SYSTEM and "One sentence tells one blow" in cp.NARRATE_SYSTEM)
-req = cp.narrate_request("P", "t", "swing", ["x [h1]"], "sword", "fine", ["a wolf, unhurt"], 2, shown=["the look of the wolf"], worn=["steady"])
-check("its request carries what the fight has shown and the worn words, and no length", "LENGTH" not in req and "ALREADY SHOWN IN THIS FIGHT" in req and "the look of the wolf" in req and "WORN OUT (find other words): steady" in req)
+req = cp.narrate_request("P", "t", "swing", ["x [h1]"], "sword", "fine", ["a wolf, unhurt"], 2, shown=["the look of the wolf"])
+check("its request carries what the fight has shown, and no length; (f582) never the worn words", "LENGTH" not in req and "ALREADY SHOWN IN THIS FIGHT" in req and "the look of the wolf" in req and "WORN OUT" not in req)
 check("a fight has its exemplars, and no room in the rules (f375)", "narration" not in voice_rules.V and len(voice_rules.V["exemplars"]["fight"]) >= 3)
 check("an element on the blade is told to the narrator once a fight", combat.Combat(fighters=[]).burn_told is False and "combat.burn_told = True" in open("engine/combat.py").read())
 
@@ -137,8 +137,8 @@ ws.player.party_mode = "with"
 check("the narrator hears of a companion only when the event has them act", ws.companions_in("Berric takes the first watch without being asked.") == ["Berric Stone"] and ws.companions_in("The player waits an hour.") == [])
 check("a hire is not among the narrator's people, and still in the scene for the interpreter",
       not any(v[0] == "Berric Stone" for v in ws.people_view()) and any(p.kind == "hire" and p.name == "Berric Stone" for p in truth._present_people(ws)))
-req = wp.narration_request("t", types.SimpleNamespace(name="P", type="town", visible=[]), [], "x", companions=["Berric Stone"], worn=["steady"])
-check("the narrator's request names a companion the event has act, and the worn words", "WITH THE PLAYER" in req and "Berric Stone" in req and "WORN OUT" in req and "steady" in req)
+req = wp.narration_request("t", types.SimpleNamespace(name="P", type="town", visible=[]), [], "x", companions=["Berric Stone"])
+check("the narrator's request names a companion the event has act; (f582) never the worn words", "WITH THE PLAYER" in req and "Berric Stone" in req and "WORN OUT" not in req)
 check("the narrator is told companions are not scenery, and that manner is what the body does", "not scenery" in wp.NARRATOR_SYSTEM and "never name an expression" in wp.NARRATOR_SYSTEM
       and "never name an expression" in wp.DIALOGUE_SYSTEM.lower() and "never name an expression" in wp.dialogue_request("t", types.SimpleNamespace(name="P", visible=[]), [], "w", "l", "d", "m", True, "p", "s", "", False, []))
 check("the frame is told a pause is shown once a visit", "shown once for a person in a visit" in wp.DIALOGUE_SYSTEM)
