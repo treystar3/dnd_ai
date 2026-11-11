@@ -564,6 +564,8 @@ def install(stub: Stub) -> Held:
     import config
     config.AUDIT_LOG = False         # a stubbed run is not a session anyone audits; keep logs/audit/ for real play
     config.REFUSALS_LOG = False
+    from storage import worldrow
+    worldrow.WATCH_STALE = True      # (f589) the suite notes a world state saved over a newer one (storage/worldrow.py)
     from ui import console as _c
     _c.ledger = lambda m: _c.note(m)     # (f325) under the stub, a ledger line is a note: the tests that watch notes see it
     from npc import life

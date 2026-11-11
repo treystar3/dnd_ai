@@ -19,7 +19,7 @@ from pathlib import Path
 import yaml
 from core import yamlio
 
-from engine import clock, events, pulselog, roads
+from engine import clock, events, pulselog, roads, worldstate
 from engine import pulse_prompts as pp
 from llm.contracts import MotiveStep, ThreadProposal
 from llm.gateway import LLMError, generate
@@ -40,9 +40,9 @@ def empty_state(now: int) -> dict:
 
 def active_effects(state: dict, now: int, kind: str, place: str, good: str = "") -> list[dict]:
     """The effects of this kind live at this place. (f545) A price rise on one good (its `good`) counts only when that good is asked
-    about: a scarce salt is no dearer bread."""
-    return [e for e in state.get("effects", []) if e["kind"] == kind and e["place"] == place and e["until"] > now
-            and (not e.get("good") or e["good"] == good)]
+    about: a scarce salt is no dearer bread. (f589) One definition, the seam's (storage/worldrow.py)."""
+    from storage.worldrow import effects_matching
+    return effects_matching(state, now, kind, place, good)
 
 
 def known(world, place_id) -> bool:
@@ -83,27 +83,23 @@ def town_of(world, place_id: str) -> str:
 def price_factor(store, world, place_id: str, now: int, good: str = "") -> float:
     """How dear the town's market is now; (f545) for `good`, with what is laid on that good alone."""
     town = town_of(world, place_id)
-    state = store.load_world_state()
-    return 1 + sum(e["value"] for e in active_effects(state, now, "prices", town, good)) / 100
+    return 1 + sum(e["value"] for e in worldstate.effects_at(store, "prices", town, now, good)) / 100
 
 
 def danger_factor(store, place_id: str, now: int) -> float:
-    state = store.load_world_state()
-    return max(0.0, 1 + sum(e["value"] for e in active_effects(state, now, "danger", place_id)) / 100)
+    return max(0.0, 1 + sum(e["value"] for e in worldstate.effects_at(store, "danger", place_id, now)) / 100)
 
 
 def closed_reason(store, place_id: str, now: int) -> str:
     """Why the way through a place is shut to the player now, or ''. (f386) Never a barring the player made themselves: they barred it
     against others, and can unbar it (a night's run was shut out of the guild house for twenty turns by its own leaning on a wall)."""
-    state = store.load_world_state()
-    hits = [e for e in active_effects(state, now, "closed", place_id) if e.get("cause") != "improvised"]
+    hits = [e for e in worldstate.effects_at(store, "closed", place_id, now) if e.get("cause") != "improvised"]
     return hits[0]["text"] if hits else ""
 
 
 def closed_until(store, place_id: str, now: int) -> int:
     """(f390) The minute the way through this place opens again (the last closure on it to lift), or 0 when it is open."""
-    state = store.load_world_state()
-    return max((e["until"] for e in active_effects(state, now, "closed", place_id) if e.get("cause") != "improvised"), default=0)
+    return max((e["until"] for e in worldstate.effects_at(store, "closed", place_id, now) if e.get("cause") != "improvised"), default=0)
 
 
 def way_out(world, here: str) -> set[str]:

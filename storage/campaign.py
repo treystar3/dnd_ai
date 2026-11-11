@@ -249,6 +249,8 @@ class CampaignStore:
         self._exempt = 0               # (f462) writes the fence lets through (mark_shown)
         self._writes = 0               # (f470) rows written since the store opened: an operation compares before and after
         self._later: list = []         # (f470) people a read filled in outside any operation, saved by the next (save_npc_later)
+        from storage.worldrow import RowWorld
+        self._world = RowWorld(self)   # (f589) the world's state behind one seam (engine/worldstate.py reads through it)
 
     # ---------- opening ----------
 
@@ -402,10 +404,10 @@ class CampaignStore:
             return [Entity.model_validate_json(r[0]) for r in self._db.execute(sql, args)]
 
     def load_world_state(self) -> dict:
-        return self._kv("world_state") or {}
+        return self._world.load()
 
     def save_world_state(self, state: dict) -> None:
-        self._put("world_state", json.dumps(state))
+        self._world.save(state)
 
     def load_dungeons(self) -> list[dict]:
         return self._kv("dungeons") or []

@@ -47,7 +47,8 @@ def log(store, kind: str, minute: int, place: str = "", **data) -> dict:
 
 
 def since(state: dict, minute: int, kinds: tuple[str, ...] | list[str] | None = None) -> list[dict]:
-    return [d for d in state.get("deeds", []) if d["minute"] >= minute and (not kinds or d["kind"] in kinds)]
+    from storage.worldrow import deeds_matching          # (f589) one definition, the seam's
+    return deeds_matching(state, minute, kinds)
 
 
 def describe(d: dict) -> str:

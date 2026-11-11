@@ -576,7 +576,8 @@ def check() -> list[str]:
     from engine import motives as _mo                                                        # (f360) known people's steps, by the trait their goal came from
     bad += _mo.problems(set(((_pulse_rules.get("drift") or {}).get("motives") or {}).get("seeds") or {}))
     from engine import consequences as _cq                                                   # (f359) the town answers the stranger's deeds
-    bad += _cq.problems(_th.T["templates"], ("kill", "offense", "quest_done", "persuade", "deliver", "dungeon_cleared", "found", "defend", "settled"))
+    bad += _cq.problems(_th.T["templates"], ("kill", "offense", "quest_done", "persuade", "deliver", "dungeon_cleared", "found", "defend", "settled",
+                                            "gift", "bribe"))                    # (f589) every kind the ledger keeps
     from engine import starts as _starts                                                      # (f367) starting points for the night run
     bad += _starts.problems(set(_load("data/rules/standing.yaml")["groups"]), set(_pulse_rules["tiers"]), set(_load("data/rules/guild.yaml")["ranks"]))
     from engine import guard as _guard                                                        # (f364) the content guard's categories
@@ -779,11 +780,27 @@ def check() -> list[str]:
     bad += sampling_problems()                                         # (f527) data/rules/sampling.yaml's shape
     bad += _llama.sampler_problems()                                   # (f521) every sampler key one llama-server reads, in its range
     bad += model_problems()                                            # (f527) the model ids name the server's files
+    bad += world_caps_problems()                                       # (f589) what the world's state keeps of each list
     bad += grammar_problems()                                          # (f527) every contract has its grammar
     from llm import runtime as _runtime
     bad += _runtime.runtime_problems()                                 # (f522) the server's settings hold what the game sends
     from llm import launch as _launch
     bad += _launch.problems()                                          # (f526) the load screen's lines, once the owner's are in
+    return bad
+
+
+def world_caps_problems(E: dict | None = None, P: dict | None = None) -> list[str]:
+    """(f589) The caps on the world's lists: every store has one (GOALS.md "How it is built"), and a cap of 0, below it or not a whole
+    number would empty a list or grow it without bound."""
+    E = _load("data/rules/events.yaml") if E is None else E
+    P = _load("data/rules/pulse.yaml") if P is None else P
+    bad = []
+    for where, v in (("events.yaml judge.keep_deeds", (E.get("judge") or {}).get("keep_deeds")),
+                     ("pulse.yaml history_keep", P.get("history_keep")),
+                     ("pulse.yaml news.keep", (P.get("news") or {}).get("keep")),
+                     ("pulse.yaml news.keep_days", (P.get("news") or {}).get("keep_days"))):
+        if not (isinstance(v, int) and not isinstance(v, bool) and v > 0):
+            bad.append(f"{where}: needs a whole number above 0 (got {v!r})")
     return bad
 
 
