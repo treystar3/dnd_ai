@@ -81,14 +81,13 @@ check("...so the night never counts a survived narration failure as a hesitation
 check("the profile lives under data/measured and data/rules has none", pathlib.Path("data/measured/card_profile.yaml").exists() and not pathlib.Path("data/rules/card_profile.yaml").exists())
 import card_profile
 before = statehash.data_hash()
-prof = pathlib.Path("data/measured/card_profile.yaml")
-kept = prof.read_bytes()                                 # (f565) restored byte for byte, line endings and all
+prof = pathlib.Path("data/measured/card_profile_459_test.yaml")   # (f586) its own file: the shared profile is read by tests running beside it
 try:
     card_profile.write({"calls": 1, "turns": 1, "read_tps": 1.0, "write_tps": 1.0, "load_s": 0.0, "median_turn_s": 1.0, "p95_turn_s": 1.0, "longest_turn_s": 1.0, "over": []},
-                       "RTX 3060 12GB", "gemma4:12b", "a test")
-    check("rewriting the measurement moves no data hash", statehash.data_hash() == before and prof.read_bytes() != kept)
+                       "RTX 3060 12GB", "gemma4:12b", "a test", path=prof)
+    check("writing a measurement under data/measured moves no data hash", statehash.data_hash() == before and prof.exists())
 finally:
-    prof.write_bytes(kept)
+    prof.unlink(missing_ok=True)
 check("card_profile judges 'over budget' against the limit read from budget.yaml", card_profile.BUDGET == 60.0 and card_profile.budget_limit() == B["limit_seconds"])
 golden = json.loads(pathlib.Path("data/replay/sessions/stub_short/meta.json").read_text(encoding="utf-8"))
 check("the golden was made on this data: its hash is the tree's", golden["data"] == statehash.data_hash(), (golden["data"][:12], statehash.data_hash()[:12]))
