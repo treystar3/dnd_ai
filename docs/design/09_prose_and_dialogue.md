@@ -57,6 +57,11 @@ thinking off; "infrastructure enhancements instead of more rules to give the nar
   name errors (the identity checks, the misspelt-speaker fixer, the cast-name checks) and first-try acceptance, per task. Mirostat,
   dynamic temperature and top_n_sigma are not tried. `t_max_predict_ms` is never a writing limit; at most it is set to the existing
   hang guard.
+- *Measured 2026-11-11 (f587, f588): no arm kept, the default unchanged.* DRY alone moved nothing and the judge liked it least;
+  min_p 0.05 had the fewest refusals but frames and exchanges repeated more; XTC moved the repetition, and "both" was better on four
+  measures and worse on none, but one narration in five was sent back at its first try (one in ten without an arm), nearly all for
+  junk (another alphabet, a broken character), with 19% more model time a call. The next arm the numbers point to is "both" with
+  min_p's floor under it. A3, the control, held on most measures, with combat narration's worn uses up. See docs/measure/prose_a1.
 
 **A5 (after A3). Lean against worn words at the sampler** (`logit_bias`), the owner's addition of 2026-11-11 after A2 did not hold.
 The words recent writing has leaned on (engine/worn.py) are made a little less likely for the call, never shown: token ids from the

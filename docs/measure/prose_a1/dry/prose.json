@@ -1,0 +1,835 @@
+{
+ "logs": [
+  "out/prose/a1_dry/live_check_calls.jsonl",
+  "out/prose/a1_dry/play_hunter_101/llm_calls.jsonl",
+  "out/prose/a1_dry/play_hunter_103/llm_calls.jsonl",
+  "out/prose/a1_dry/play_hunter_105/llm_calls.jsonl",
+  "out/prose/a1_dry/play_hunter_107/llm_calls.jsonl",
+  "out/prose/a1_dry/play_talker_102/llm_calls.jsonl"
+ ],
+ "tasks": {
+  "narrate": {
+   "passages": 174,
+   "words": 22564,
+   "phrases_per_k": 6.825,
+   "sentences_per_k": 0.044,
+   "openings_share": 0.149,
+   "worn_count": 31,
+   "worn_per_k": 18.259,
+   "stock_per_k": 0.089,
+   "top_phrases": [
+    "the center of the room",
+    "in the center of the",
+    "near the center of the",
+    "the tilted plough sits low",
+    "a few feet away the",
+    "at the center of the",
+    "catches what little light remains",
+    "dance in the shafts of"
+   ],
+   "top_sentences": [
+    "her scarred cheek tightens as she works"
+   ],
+   "top_openings": [
+    "the tilted plough",
+    "the trading square",
+    "the old granary",
+    "the guild house",
+    "the mud around"
+   ],
+   "top_worn": [
+    "heavy",
+    "steady",
+    "small",
+    "slight",
+    "sharp",
+    "rhythmic",
+    "slow",
+    "quiet"
+   ]
+  },
+  "combat_opening": {
+   "passages": 18,
+   "words": 2507,
+   "phrases_per_k": 5.584,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.111,
+   "worn_count": 4,
+   "worn_per_k": 11.568,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "shapes detach themselves from the",
+    "a low hiss vibrates through",
+    "a sharp snap echoes from",
+    "as they prepare to close",
+    "from the shadows of the",
+    "fur matted and greyed by",
+    "low hiss vibrates through the",
+    "matted and greyed by forest"
+   ],
+   "top_sentences": [],
+   "top_openings": [
+    "you crouch low"
+   ],
+   "top_worn": [
+    "heavy",
+    "sharp",
+    "massive",
+    "rhythmic"
+   ]
+  },
+  "combat_narrate": {
+   "passages": 38,
+   "words": 5392,
+   "phrases_per_k": 12.426,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.5,
+   "worn_count": 12,
+   "worn_per_k": 15.208,
+   "stock_per_k": 0.185,
+   "top_phrases": [
+    "longsword in a wide arc",
+    "your longsword in a wide",
+    "a bolt of force streaks",
+    "alwick thrusts his staff forward",
+    "every ounce of momentum into",
+    "frib thrusts his staff forward",
+    "in a wide arc that",
+    "a crackle of raw energy"
+   ],
+   "top_sentences": [],
+   "top_openings": [
+    "you swing your",
+    "you pivot on",
+    "you step into",
+    "you pivot as",
+    "you heave your"
+   ],
+   "top_worn": [
+    "heavy",
+    "instantly",
+    "entirely",
+    "massive",
+    "bare",
+    "simultaneously",
+    "chitinous",
+    "harmlessly"
+   ]
+  },
+  "combat_aftermath": {
+   "passages": 24,
+   "words": 3607,
+   "phrases_per_k": 23.011,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.167,
+   "worn_count": 9,
+   "worn_per_k": 18.852,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "chest rising and falling in",
+    "a few paces back his",
+    "his chest rising and falling",
+    "alwick gran and nedbert stand",
+    "stands a few paces back",
+    "a hot needle of sensation",
+    "and nedbert stand in a",
+    "broken only by the distant"
+   ],
+   "top_sentences": [],
+   "top_openings": [
+    "the lesser drake",
+    "the centipede lies"
+   ],
+   "top_worn": [
+    "steady",
+    "heavy",
+    "dull",
+    "sharp",
+    "small",
+    "rhythmic",
+    "faint",
+    "massive"
+   ]
+  },
+  "exchange": {
+   "passages": 95,
+   "words": 4158,
+   "phrases_per_k": 6.975,
+   "sentences_per_k": 1.684,
+   "openings_share": 0.316,
+   "worn_count": 6,
+   "worn_per_k": 9.861,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "it is just a scratch",
+    "i must see wound now",
+    "is just a scratch like",
+    "afternoon maren still at it",
+    "do they have any prior",
+    "do what you have to",
+    "forward greenhorn should watch footing",
+    "good afternoon maren afternoon odo"
+   ],
+   "top_sentences": [
+    "it is just a scratch",
+    "i must see wound now",
+    "greenhorn should watch footing on path ahead"
+   ],
+   "top_openings": [
+    "it is just",
+    "good afternoon maren",
+    "these houses look",
+    "this place has",
+    "tamsin she is"
+   ],
+   "top_worn": [
+    "heavy",
+    "properly",
+    "regardless",
+    "steady",
+    "folks",
+    "trouble"
+   ]
+  },
+  "dialogue_frame": {
+   "passages": 147,
+   "words": 7442,
+   "phrases_per_k": 14.781,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.306,
+   "worn_count": 14,
+   "worn_per_k": 25.396,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "bram lets out a short",
+    "lets out a short huff",
+    "shifts his grip on his",
+    "crossing his arms over his",
+    "his arms over his chest",
+    "his grip on his staff",
+    "leaning one shoulder against the",
+    "one shoulder against the timber"
+   ],
+   "top_sentences": [],
+   "top_openings": [
+    "bram shifts his",
+    "you stand beside",
+    "you lean against",
+    "you stand near",
+    "a cart rattles"
+   ],
+   "top_worn": [
+    "slight",
+    "heavy",
+    "gaze",
+    "small",
+    "slow",
+    "sharp",
+    "steady",
+    "flat"
+   ]
+  },
+  "npc_conversation": {
+   "passages": 64,
+   "words": 1589,
+   "phrases_per_k": 0.0,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.031,
+   "worn_count": 5,
+   "worn_per_k": 13.845,
+   "stock_per_k": 0.0,
+   "top_phrases": [],
+   "top_sentences": [],
+   "top_openings": [
+    "safe travels then"
+   ],
+   "top_worn": [
+    "exactly",
+    "usually",
+    "folk",
+    "lately",
+    "trouble"
+   ]
+  },
+  "hire_chat": {
+   "passages": 106,
+   "words": 1735,
+   "phrases_per_k": 5.764,
+   "sentences_per_k": 0.576,
+   "openings_share": 0.16,
+   "worn_count": 0,
+   "worn_per_k": 0.0,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "did kept me upright enough",
+    "doesn't waste any breath on",
+    "he knows how to keep",
+    "i come from far north",
+    "i see no trail he",
+    "kept me upright enough to",
+    "knows how to keep someone",
+    "see no trail he left"
+   ],
+   "top_sentences": [
+    "i come from far north"
+   ],
+   "top_openings": [
+    "you look like",
+    "i do not",
+    "i come from",
+    "she did kept",
+    "i haven't met"
+   ],
+   "top_worn": []
+  },
+  "mentor_chat": {
+   "passages": 15,
+   "words": 478,
+   "phrases_per_k": 6.276,
+   "sentences_per_k": 2.092,
+   "openings_share": 0.4,
+   "worn_count": 0,
+   "worn_per_k": 0.0,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "a waste of good steel",
+    "of good steel if i",
+    "waste of good steel if"
+   ],
+   "top_sentences": [
+    "i've got a brother"
+   ],
+   "top_openings": [
+    "i've seen enough",
+    "i'm an a",
+    "i've got a"
+   ],
+   "top_worn": []
+  }
+ },
+ "steady": {
+  "narrate": {
+   "size": 40,
+   "unit": "passages",
+   "short": false,
+   "drawn_from": 174,
+   "phrases_per_k": {
+    "mean": 2.195,
+    "low": 1.213,
+    "high": 3.243
+   },
+   "sentences_per_k": {
+    "mean": 0.011,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "openings_share": {
+    "mean": 0.072,
+    "low": 0.0,
+    "high": 0.15
+   },
+   "worn_per_k": {
+    "mean": 12.131,
+    "low": 9.806,
+    "high": 14.431
+   }
+  },
+  "combat_opening": {
+   "size": 12,
+   "unit": "fights",
+   "short": false,
+   "drawn_from": 18,
+   "phrases_per_k": {
+    "mean": 3.904,
+    "low": 1.261,
+    "high": 6.583
+   },
+   "sentences_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "openings_share": {
+    "mean": 0.074,
+    "low": 0.0,
+    "high": 0.167
+   },
+   "worn_per_k": {
+    "mean": 9.558,
+    "low": 7.063,
+    "high": 12.167
+   }
+  },
+  "combat_narrate": {
+   "size": 12,
+   "unit": "fights",
+   "short": false,
+   "drawn_from": 18,
+   "phrases_per_k": {
+    "mean": 9.356,
+    "low": 6.609,
+    "high": 11.804
+   },
+   "sentences_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "openings_share": {
+    "mean": 0.424,
+    "low": 0.312,
+    "high": 0.522
+   },
+   "worn_per_k": {
+    "mean": 11.726,
+    "low": 9.299,
+    "high": 14.222
+   }
+  },
+  "combat_aftermath": {
+   "size": 12,
+   "unit": "fights",
+   "short": false,
+   "drawn_from": 18,
+   "phrases_per_k": {
+    "mean": 19.354,
+    "low": 14.954,
+    "high": 23.602
+   },
+   "sentences_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "openings_share": {
+    "mean": 0.17,
+    "low": 0.111,
+    "high": 0.267
+   },
+   "worn_per_k": {
+    "mean": 16.039,
+    "low": 13.75,
+    "high": 18.096
+   }
+  },
+  "exchange": {
+   "size": 60,
+   "unit": "passages",
+   "short": false,
+   "drawn_from": 95,
+   "phrases_per_k": {
+    "mean": 4.46,
+    "low": 2.294,
+    "high": 6.934
+   },
+   "sentences_per_k": {
+    "mean": 1.274,
+    "low": 0.382,
+    "high": 1.986
+   },
+   "openings_share": {
+    "mean": 0.285,
+    "low": 0.233,
+    "high": 0.35
+   },
+   "worn_per_k": {
+    "mean": 7.268,
+    "low": 3.973,
+    "high": 9.993
+   }
+  },
+  "dialogue_frame": {
+   "size": 90,
+   "unit": "passages",
+   "short": false,
+   "drawn_from": 147,
+   "phrases_per_k": {
+    "mean": 9.859,
+    "low": 7.766,
+    "high": 12.176
+   },
+   "sentences_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "openings_share": {
+    "mean": 0.251,
+    "low": 0.2,
+    "high": 0.3
+   },
+   "worn_per_k": {
+    "mean": 23.57,
+    "low": 21.659,
+    "high": 25.44
+   }
+  },
+  "npc_conversation": {
+   "size": 30,
+   "unit": "passages",
+   "short": false,
+   "drawn_from": 64,
+   "phrases_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "sentences_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "openings_share": {
+    "mean": 0.014,
+    "low": 0.0,
+    "high": 0.067
+   },
+   "worn_per_k": {
+    "mean": 1.996,
+    "low": 0.0,
+    "high": 5.997
+   }
+  },
+  "hire_chat": {
+   "size": 60,
+   "unit": "passages",
+   "short": false,
+   "drawn_from": 106,
+   "phrases_per_k": {
+    "mean": 3.051,
+    "low": 0.0,
+    "high": 6.042
+   },
+   "sentences_per_k": {
+    "mean": 0.301,
+    "low": 0.0,
+    "high": 1.066
+   },
+   "openings_share": {
+    "mean": 0.099,
+    "low": 0.033,
+    "high": 0.15
+   },
+   "worn_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   }
+  },
+  "mentor_chat": {
+   "size": 20,
+   "unit": "passages",
+   "short": true,
+   "drawn_from": 15,
+   "phrases_per_k": {
+    "mean": 6.276,
+    "low": 6.276,
+    "high": 6.276
+   },
+   "sentences_per_k": {
+    "mean": 2.092,
+    "low": 2.092,
+    "high": 2.092
+   },
+   "openings_share": {
+    "mean": 0.4,
+    "low": 0.4,
+    "high": 0.4
+   },
+   "worn_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   }
+  }
+ },
+ "acceptance": {
+  "npc_profile": {
+   "calls": 20,
+   "first_try": 20,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 1.0
+  },
+  "exchange": {
+   "calls": 95,
+   "first_try": 83,
+   "rewrites": 0,
+   "name_errors": {
+    "no one and nowhere": 3
+   },
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 0.874
+  },
+  "dialogue_frame": {
+   "calls": 148,
+   "first_try": 129,
+   "rewrites": 6,
+   "name_errors": {
+    "frame on the wrong one": 1
+   },
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 0.872
+  },
+  "persona_details": {
+   "calls": 18,
+   "first_try": 17,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 0.944
+  },
+  "canon_extract": {
+   "calls": 61,
+   "first_try": 61,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 1.0
+  },
+  "pair_dynamic": {
+   "calls": 3,
+   "first_try": 3,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": false,
+   "first_try_share": 1.0
+  },
+  "hire_chat": {
+   "calls": 106,
+   "first_try": 95,
+   "rewrites": 0,
+   "name_errors": {
+    "no one and nowhere": 2
+   },
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 0.896
+  },
+  "overheard": {
+   "calls": 49,
+   "first_try": 49,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 1.0
+  },
+  "interpret_action": {
+   "calls": 288,
+   "first_try": 286,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 0.993
+  },
+  "audit_meaning": {
+   "calls": 97,
+   "first_try": 97,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 1.0
+  },
+  "audit_compare": {
+   "calls": 97,
+   "first_try": 97,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 1.0
+  },
+  "narrate": {
+   "calls": 176,
+   "first_try": 158,
+   "rewrites": 22,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 0.898
+  },
+  "mentor_chat": {
+   "calls": 15,
+   "first_try": 15,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": false,
+   "first_try_share": 1.0
+  },
+  "mentor_voice": {
+   "calls": 3,
+   "first_try": 3,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": false,
+   "first_try_share": 1.0
+  },
+  "live_judge": {
+   "calls": 101,
+   "first_try": 101,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": false,
+   "first_try_share": 1.0
+  },
+  "generate_passive_mechanics": {
+   "calls": 5,
+   "first_try": 5,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 1.0
+  },
+  "player_line": {
+   "calls": 262,
+   "first_try": 216,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 0.824
+  },
+  "populate_place": {
+   "calls": 26,
+   "first_try": 26,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 1.0
+  },
+  "npc_conversation": {
+   "calls": 64,
+   "first_try": 57,
+   "rewrites": 0,
+   "name_errors": {
+    "no one and nowhere": 1
+   },
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 0.891
+  },
+  "ruling": {
+   "calls": 6,
+   "first_try": 6,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 1.0
+  },
+  "road_event": {
+   "calls": 5,
+   "first_try": 5,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 1.0
+  },
+  "combat_opening": {
+   "calls": 18,
+   "first_try": 16,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 0.889
+  },
+  "combat_interpret": {
+   "calls": 31,
+   "first_try": 31,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 1.0
+  },
+  "combat_narrate": {
+   "calls": 40,
+   "first_try": 35,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 1,
+   "mends_counted": true,
+   "first_try_share": 0.875
+  },
+  "combat_aftermath": {
+   "calls": 24,
+   "first_try": 24,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 1.0
+  },
+  "moment": {
+   "calls": 5,
+   "first_try": 5,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 1.0
+  },
+  "board_stakes": {
+   "calls": 4,
+   "first_try": 4,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 1.0
+  },
+  "party_intent": {
+   "calls": 1,
+   "first_try": 1,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 1.0
+  },
+  "thread_telling": {
+   "calls": 4,
+   "first_try": 4,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 1.0
+  },
+  "work_offer_read": {
+   "calls": 1,
+   "first_try": 1,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 1.0
+  },
+  "clarify": {
+   "calls": 4,
+   "first_try": 3,
+   "rewrites": 0,
+   "name_errors": {},
+   "mended": 0,
+   "mends_counted": true,
+   "first_try_share": 0.75
+  }
+ }
+}

@@ -1,0 +1,431 @@
+{
+ "ended": "2026-11-11T11:33:47",
+ "turns": 60,
+ "reason": "turn limit (60)",
+ "hours": 0.11,
+ "cast": {
+  "Frib Sprocketcrank": {
+   "kind": "hire",
+   "pronoun": "he",
+   "people": "gnome",
+   "first_turn": 2,
+   "last_turn": 61
+  },
+  "Calsa Hoyle": {
+   "kind": "hire",
+   "pronoun": "she",
+   "people": "half_elf",
+   "first_turn": 2,
+   "last_turn": 61
+  },
+  "Dynn Brookby": {
+   "kind": "hire",
+   "pronoun": "she",
+   "people": "human",
+   "first_turn": 2,
+   "last_turn": 61
+  },
+  "Hess Wren": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "human",
+   "first_turn": 3
+  },
+  "Tan Wickcombe": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 3
+  },
+  "Elven Aldton": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "half_elf",
+   "first_turn": 3
+  },
+  "Isbeth Blake": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "human",
+   "first_turn": 3
+  },
+  "Rynn Oakhope": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "human",
+   "first_turn": 4
+  },
+  "Everwin Salcombe": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 4
+  },
+  "Orrek Strarim": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "dwarf",
+   "first_turn": 4
+  },
+  "Agette Langdale": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "human",
+   "first_turn": 4
+  },
+  "Sigunn Gundderulf": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "dwarf",
+   "first_turn": 14
+  },
+  "Norm Salcroft": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 14
+  },
+  "Nock Burgate": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 14
+  },
+  "Avoith Marthorpe": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "human",
+   "first_turn": 14
+  },
+  "Tith Bromley": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "human",
+   "first_turn": 22
+  },
+  "Dorran Heywick": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 22
+  },
+  "Gunarun Gundderk": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "dwarf",
+   "first_turn": 25
+  },
+  "Drald Alderby": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 25
+  },
+  "Brane Hazelbury": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "human",
+   "first_turn": 25
+  },
+  "Augley Webb": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 25
+  },
+  "Walgar Marfield": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 25
+  },
+  "Aldgar Wren": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 25
+  },
+  "Dorwyn Throrn": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "dwarf",
+   "first_turn": 25
+  },
+  "Brolm Bromster": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 25
+  },
+  "Kade Ashford": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 25
+  },
+  "Vishild Grald": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "dwarf",
+   "first_turn": 58
+  },
+  "Orunok Rumbruk": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "dwarf",
+   "first_turn": 58
+  },
+  "Brilde Fairwood": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "human",
+   "first_turn": 58
+  },
+  "Aurelitta Bromhope": {
+   "kind": "townsfolk",
+   "pronoun": "she",
+   "people": "human",
+   "first_turn": 58
+  },
+  "Ranrin Thorpe": {
+   "kind": "townsfolk",
+   "pronoun": "he",
+   "people": "human",
+   "first_turn": 61
+  }
+ },
+ "hygiene": {
+  "wrap": 21,
+  "dash": 2311,
+  "stage": 1,
+  "id": 1
+ },
+ "name_repairs": {
+  "combat_narrate": 1
+ },
+ "sampling_arm": "both",
+ "character": "Ironbound Vanguard",
+ "class": "Ironbound Vanguard",
+ "level": 13,
+ "deaths": 0,
+ "seed": 105,
+ "party": [
+  {
+   "name": "Frib Sprocketcrank",
+   "role": "mage",
+   "level": 6,
+   "people": "gnome"
+  },
+  {
+   "name": "Calsa Hoyle",
+   "role": "fighter",
+   "level": 10,
+   "people": "half_elf"
+  },
+  {
+   "name": "Dynn Brookby",
+   "role": "archer",
+   "level": 7,
+   "people": "human"
+  }
+ ],
+ "start": "green",
+ "start_days": 0,
+ "past": [],
+ "met_at_start": 0,
+ "persona": "hunter",
+ "bot": {
+  "persona": "hunter",
+  "lines": {
+   "model": 48,
+   "template": 12
+  },
+  "refers": 18,
+  "refers_talk": 3,
+  "talk_lines": 6,
+  "with_passage": 60,
+  "contracts_taken": 1,
+  "contracts_done": 1,
+  "doors_seen": 2,
+  "doors_followed": 1,
+  "goals_done": {
+   "go": 2,
+   "contract": 2,
+   "report": 2,
+   "revisit": 1,
+   "hunt": 2
+  },
+  "goals_dropped": {
+   "find": 1,
+   "follow": 1
+  },
+  "deaths": 0,
+  "deaths_above_band": 0,
+  "waits": 0,
+  "fights": 9,
+  "clarified": 1,
+  "model_failed": 1,
+  "model_seconds": 22.37183252372779,
+  "blocked": 0,
+  "places": 10,
+  "continuity": {
+   "revisits": 0,
+   "promises": 1,
+   "plants": 0,
+   "corrections": 0,
+   "accepted": 0,
+   "abandoned": 0,
+   "issuer_visits": 1
+  },
+  "continuity_log": {
+   "revisits": [],
+   "promises": [
+    {
+     "turn": 21,
+     "minute": 1681,
+     "npc": "rynn_oakhope",
+     "name": "the polished magistrate",
+     "text": "Keep my place by the fire. I'll be back, I swear it."
+    }
+   ],
+   "plants": [],
+   "corrections": [],
+   "accepted": [],
+   "abandoned": [],
+   "issuer_visits": [
+    {
+     "turn": 25,
+     "minute": 1700,
+     "npc": "isbeth_blake",
+     "quest_title": "Hunt 2 lizardfolks in the Willowmead wetlands",
+     "outcome": "done",
+     "gap": 0
+    }
+   ]
+  }
+ },
+ "distinct": 0.983,
+ "ended_by_player": 1,
+ "save": "prose_hunter_105",
+ "restarts": 0,
+ "stub": false,
+ "model": "gemma4-12b-bb722270",
+ "sampling": {
+  "temp_add": 0.15,
+  "repeat_add": 0.1,
+  "think_tasks": [],
+  "think_room": 8192,
+  "base": {
+   "top_k": 64,
+   "top_p": 0.95,
+   "min_p": 0.0,
+   "typical_p": 1.0,
+   "repeat_penalty": 1.0,
+   "repeat_last_n": 64,
+   "presence_penalty": 0.0,
+   "frequency_penalty": 0.0,
+   "dry_multiplier": 0.0,
+   "dry_base": 1.75,
+   "dry_allowed_length": 2,
+   "dry_penalty_last_n": 0,
+   "xtc_probability": 0.0,
+   "xtc_threshold": 0.1
+  },
+  "table": {
+   "hire_chat": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 64,
+    "repeat_penalty": 1.12,
+    "repeat_last_n": 192
+   },
+   "mentor_chat": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 64,
+    "repeat_penalty": 1.12,
+    "repeat_last_n": 192
+   },
+   "exchange": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 64,
+    "repeat_penalty": 1.12,
+    "repeat_last_n": 192
+   },
+   "npc_conversation": {
+    "repeat_penalty": 1.12,
+    "repeat_last_n": 192
+   },
+   "narrate": {
+    "repeat_penalty": 1.15,
+    "repeat_last_n": 256
+   },
+   "dialogue_frame": {
+    "repeat_penalty": 1.15,
+    "repeat_last_n": 256
+   },
+   "combat_narrate": {
+    "repeat_penalty": 1.15,
+    "repeat_last_n": 256
+   },
+   "combat_opening": {
+    "repeat_penalty": 1.15,
+    "repeat_last_n": 256
+   },
+   "moment": {
+    "repeat_penalty": 1.15,
+    "repeat_last_n": 256
+   },
+   "player_line": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 64,
+    "repeat_penalty": 1.12,
+    "repeat_last_n": 192
+   },
+   "mentor_speech": {
+    "temperature": 0.85,
+    "top_p": 0.95,
+    "top_k": 64
+   },
+   "pair_dynamic": {
+    "temperature": 0.5,
+    "top_p": 0.9
+   },
+   "persona_details": {
+    "temperature": 0.8,
+    "top_p": 0.95,
+    "top_k": 64
+   },
+   "stranger_read": {
+    "temperature": 0.1
+   },
+   "live_judge": {
+    "temperature": 0.1
+   },
+   "canon_check": {
+    "temperature": 0.1
+   }
+  }
+ },
+ "server": {
+  "source": "llama-server",
+  "kind": "runtime",
+  "build": "cuda",
+  "device": "NVIDIA GeForce RTX 5090",
+  "class": "minimum",
+  "class_why": "",
+  "offloaded": "49/49",
+  "slot_ctx": 16384,
+  "slots": 2,
+  "embedder": true,
+  "embed_device": "card",
+  "embed_failure": "",
+  "model": "gemma4-12b-bb722270",
+  "model_sha": "bb722270d54346adc198f213851dbe0207e87c3ecf2a0aff4d92262726215391",
+  "llama_cpp": "b11963",
+  "threads": 14,
+  "warnings": []
+ }
+}
