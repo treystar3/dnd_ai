@@ -26,3 +26,16 @@ def news(store) -> list[dict]:
     """The news as held, oldest first."""
     return store._world.news()
 
+
+# ---------- (f590) one append path per list: a writer adds through these, never to the list itself ----------
+
+def add_effect(state: dict, row: dict) -> dict:
+    """Lay an effect on the world (a price rise, a danger, a closure) in the state in hand; the caller saves it."""
+    state.setdefault("effects", []).append(row)
+    return row
+
+
+def add_thread(state: dict, th: dict) -> dict:
+    """Start a matter in the state in hand; the caller saves it."""
+    state.setdefault("threads", []).append(th)
+    return th

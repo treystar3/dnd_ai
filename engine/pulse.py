@@ -424,7 +424,7 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
         if thread["town"] and not known(world, thread["town"]):                                    # (f376) never a stop on the road
             thread["town"] = town_of(world, proposal.place)
     thread["contract"] = proposal.contract.model_dump() if proposal.contract and proposal.contract.what else None
-    state["threads"].append(thread)
+    worldstate.add_thread(state, thread)
     if pressure and pressure.id in world.pressures:
         state["cooldowns"][pressure.id] = t
     if tier == "campaign":
@@ -845,11 +845,11 @@ def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: s
     elif kind in ("prices", "danger") and (known(world, e.get("place")) or (kind == "danger" and e.get("place") in world.roads)):
         lo, hi = lim[kind]["min"], lim[kind]["max"]
         place = town_of(world, e["place"]) if kind == "prices" else e["place"]
-        state["effects"].append({"kind": kind, "place": place, "value": max(lo, min(hi, e["value"])),
+        worldstate.add_effect(state, {"kind": kind, "place": place, "value": max(lo, min(hi, e["value"])),
                                  "until": t + days * 1440, "cause": cause, "thread": thread_id,
                                  **({"good": e["good"]} if kind == "prices" and e.get("good") else {})})     # (f545) one good's price
     elif kind == "closed" and known(world, e.get("place")):
-        state["effects"].append({"kind": "closed", "place": e["place"], "value": 0, "until": t + days * 1440,
+        worldstate.add_effect(state, {"kind": "closed", "place": e["place"], "value": 0, "until": t + days * 1440,
                                  "text": e.get("text") or cause, "cause": cause, "thread": thread_id})
     elif kind == "closed" and e.get("place") in world.roads:
         if not ways_through(state, thread_id, ways) and not roads.way_round(world, e["place"], shut_roads(state, world, t)):
@@ -857,7 +857,7 @@ def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: s
         th = thread_of(state, thread_id)
         until = (max(t + lim["max_days"] * 1440, int((th.get("times") or [t])[-1]) + 1440)      # the situation's whole span (renewed in
                  if th is not None and th.get("status") == "active" else t + days * 1440)      # tick_threads if it is put off); a fallout's
-        state["effects"].append({"kind": "closed", "place": e["place"], "value": 0, "until": until,
+        worldstate.add_effect(state, {"kind": "closed", "place": e["place"], "value": 0, "until": until,
                                  "text": e.get("text") or cause, "cause": cause, "thread": thread_id})
     elif kind == "mark" and known(world, e.get("place")) and e.get("text"):
         ps = store.load_place(e["place"])

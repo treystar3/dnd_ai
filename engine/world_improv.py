@@ -11,6 +11,7 @@ from pathlib import Path
 import yaml
 from core import yamlio
 
+from engine import worldstate
 from ui import console
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -76,7 +77,7 @@ def apply_changes(ws, effect: str, what: str, degree: str) -> list[str]:
         kind = ch.get("kind")
         if kind == "closed":
             minutes = max(1, int(ch.get("minutes", 60)) // (2 if half else 1))
-            state["effects"].append({"kind": "closed", "place": here, "value": 0, "until": ws.minutes + minutes,
+            worldstate.add_effect(state, {"kind": "closed", "place": here, "value": 0, "until": ws.minutes + minutes,
                                      "text": (ch.get("text") or "{what}").format(**fmt), "cause": "improvised"})
             done.append(f"closed {minutes}m")
         elif kind == "danger":
@@ -84,7 +85,7 @@ def apply_changes(ws, effect: str, what: str, degree: str) -> list[str]:
                 continue
             value = round(int(ch.get("value", 0)) / (2 if half else 1))
             if value:
-                state["effects"].append({"kind": "danger", "place": here, "value": value, "until": ws.minutes + max(1, int(ch.get("days", 1))) * 1440,
+                worldstate.add_effect(state, {"kind": "danger", "place": here, "value": value, "until": ws.minutes + max(1, int(ch.get("days", 1))) * 1440,
                                          "cause": "improvised"})
                 done.append(f"danger {value:+d}")
         elif kind == "news" and not half:

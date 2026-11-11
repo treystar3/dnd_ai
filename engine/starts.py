@@ -13,7 +13,7 @@ from pathlib import Path
 
 import yaml
 from core import yamlio
-from engine import streams
+from engine import streams, worldstate
 
 ROOT = Path(__file__).resolve().parent.parent
 S = yamlio.safe_load((ROOT / "data" / "rules" / "starts.yaml").read_text(encoding="utf-8"))
@@ -136,7 +136,7 @@ def past_situation(store, world, state: dict, player, town: str, p: dict, now: i
           "times": [t0 + i * 1440 for i in range(n + 1)], "groups": list(getattr(proposal, "groups", None) or ["everyone"]),
           "paths": [], "contract": None, "made_by": "engine", "told": True, "template": info["template"], "severity": info["severity"],
           "result": "player" if settled else "", "ending": "by the stranger's hand" if settled else "", "started_as": "past"}
-    state.setdefault("threads", []).append(th)
+    worldstate.add_thread(state, th)
     line = (f"{th['title']} - ended; {who} settled it." if settled
             else f"{th['title']} - left alone, so the fallout landed: {proposal.fallout.description[:120]}")
     from engine import pulse

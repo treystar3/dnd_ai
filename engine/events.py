@@ -19,7 +19,7 @@ from pathlib import Path
 import yaml
 from core import yamlio
 
-from engine import clock, deeds
+from engine import clock, deeds, worldstate
 from engine import pulse_prompts as pp
 from llm.contracts import CataclysmProposal, JudgeVerdict
 from llm.gateway import LLMError, generate
@@ -254,7 +254,7 @@ def apply_big(store, world, catalog, state, e: dict, tier: str, t: int, cause: s
     elif kind == "camp":
         add_camp(store, world, state, thread_id, e.get("place", ""), e.get("role", ""), t, days)
     elif kind == "seal" and pulse.known(world, e.get("place")):
-        state["effects"].append({"kind": "closed", "place": e["place"], "value": 0,
+        worldstate.add_effect(state, {"kind": "closed", "place": e["place"], "value": 0,
                                  "until": t + (days or E["seal"]["days"]) * 1440,
                                  "text": e.get("text") or "sealed off", "cause": cause, "seal": True, "thread": thread_id})
 
@@ -962,7 +962,7 @@ def start_cataclysm(store, world, catalog, state, t: int, rng: random.Random) ->
               "made_by": "model", "told": True,
               "triumph": {"description": proposal.triumph or "The danger passes, and the survivors begin to rebuild.",
                           "effects": [{"kind": "mark", "place": origin.id, "text": f"{proposal.title} was ended here"}]}}
-    state["threads"].append(thread)
+    worldstate.add_thread(state, thread)
     state["campaign"] = thread_id
     state["cataclysms"] = state.get("cataclysms", 0) + 1
     pulse.add_news(state, proposal.news, origin.id, t, ["everyone"], thread=thread_id, certainty="they say")
@@ -1064,7 +1064,7 @@ def town_outcome(store, world, catalog, state, th, town: str, stage_i: int, t: i
     refuge = _refuge(world, th, town)
     caught = _catch_people(store, world, state, th, town, fell, refuge, t, rng)
     if fell:
-        state.setdefault("effects", []).append({"kind": "danger", "place": town, "value": 40, "until": t + 40 * 1440, "cause": th["title"]})
+        worldstate.add_effect(state, {"kind": "danger", "place": town, "value": 40, "until": t + 40 * 1440, "cause": th["title"]})
         ps = store.load_place(town)
         ps.marks = (ps.marks + [f"half in ruin after {th['title']}"])[-12:]
         store.save_place(ps)
@@ -1288,4 +1288,4 @@ def after_ignored(store, world, state, th: dict, t: int) -> None:
             s["until"] = t + 3650 * 1440
             s["from"] = min(s["from"], t)
     for town in th.get("fallen", []):
-        state.setdefault("effects", []).append({"kind": "prices", "place": town, "value": 30, "until": t + 60 * 1440, "cause": th["title"]})
+        worldstate.add_effect(state, {"kind": "prices", "place": town, "value": 30, "until": t + 60 * 1440, "cause": th["title"]})

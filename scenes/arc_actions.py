@@ -6,7 +6,7 @@ the story ends. The model voices people and describes scenes. It can never add a
 import random
 import re
 
-from engine import arcs, checks, clock, field, leveling, money, pulse, quests
+from engine import arcs, checks, clock, field, leveling, money, pulse, quests, worldstate
 from engine import regard                                   # (f480)
 from engine.arcs import A
 from engine.arc_prompts import SYSTEM, user
@@ -605,14 +605,14 @@ class ArcActions:
                 return
             for r in self.world.roads.values():
                 if r.from_ in towns or r.to in towns:
-                    state["effects"].append({"kind": "danger", "place": self.road_key(r), "value": value, "until": until,
+                    worldstate.add_effect(state, {"kind": "danger", "place": self.road_key(r), "value": value, "until": until,
                                              "cause": cause, "arc": arc["id"]})
         elif kind == "prices":
             value = A["effects"]["failure_prices"] if failure else round(e["value"] * A["effect_scale"].get(arc["size"], 0))
             if not value:
                 return
             for t in towns:
-                state["effects"].append({"kind": "prices", "place": t, "value": value, "until": until, "cause": cause, "arc": arc["id"]})
+                worldstate.add_effect(state, {"kind": "prices", "place": t, "value": value, "until": until, "cause": cause, "arc": arc["id"]})
 
     def road_key(self, r) -> str:
         from engine import roads

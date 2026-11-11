@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import random
 
-from engine import pulselog
+from engine import pulselog, worldstate
 from ui import console
 
 
@@ -217,7 +217,7 @@ def situations(store, world, state: dict, t: int) -> str:
                 row["value"] += dd
     for row in lean.values():
         row["value"] = max(-cap, min(cap, row["value"]))
-        state["effects"].append(row)
+        worldstate.add_effect(state, row)
     return (f"{len(lean)} place{'s lean' if len(lean) != 1 else ' leans'} with the situations running") if lean else ""
 
 
