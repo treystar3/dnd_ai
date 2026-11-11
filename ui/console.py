@@ -1,5 +1,6 @@
 """Plain-text console output. The game shows mechanics here; characters speak through say()."""
 
+import builtins
 import contextlib
 import textwrap
 
@@ -8,6 +9,50 @@ from engine import items, money, stats
 
 WIDTH = 92
 CONTEXT_LABEL = {"combat": "C", "out_of_combat": "O", "both": "B"}
+
+
+class Channel:
+    """(f580) Where the console's text goes: one is current at a time (channel(), use()), so a second player's page is another one."""
+
+    def write(self, text: str, end: str = "\n") -> None:
+        raise NotImplementedError
+
+    def emit(self, args: tuple, sep: str, end: str, flush: bool) -> None:
+        self.write(sep.join(str(a) for a in args), end)
+
+
+class _Stdout(Channel):
+    """Whatever sys.stdout is when the line is written (the window swaps it in), in the built-in print's own pieces."""
+
+    def write(self, text: str, end: str = "\n") -> None:
+        self.emit((text,), " ", end, False)
+
+    def emit(self, args: tuple, sep: str, end: str, flush: bool) -> None:
+        builtins.print(*args, sep=sep, end=end, flush=flush)
+
+
+STDOUT = _Stdout()
+_channel: Channel = STDOUT
+
+
+def channel() -> Channel:
+    return _channel
+
+
+@contextlib.contextmanager
+def use(ch: Channel):
+    """(f580) This channel takes the console's text until the block ends; the one before it is back after, a fault or not."""
+    global _channel
+    was, _channel = _channel, ch
+    try:
+        yield ch
+    finally:
+        _channel = was
+
+
+def print(*args, sep: str = " ", end: str = "\n", flush: bool = False) -> None:
+    """(f580) The console's one way out: every print below is this one, to the current channel."""
+    _channel.emit(args, sep, end, flush)
 
 
 def say(text: str, speaker: str = "") -> None:
