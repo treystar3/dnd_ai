@@ -6,6 +6,7 @@ those docs describe. The owner's four answers of 2026-11-11 are in GOALS.md ("Ph
 
 How it was made: four read-only surveys of the code (rulings; situations and the judge; objects, features and entities; the world row,
 the budget and the gates), each claim with its file and line, and the claims this plan leans on most read again by hand.
+The map itself, with notes for whoever builds, is docs/design/15_phase2_survey.md.
 
 Feature numbers below are provisional: each takes the next free number when it is built. f582 to f588 are used on `prose/section-a`,
 so this phase starts at f589. Doc 13's "f582" and "f583" are this plan's f589 and f590; doc 13's later numbers (phase 3) move up after
