@@ -133,7 +133,7 @@ for p in CODE:
             legacy.append(f"{p}:{node.lineno} NPC({[k.arg for k in node.keywords if k.arg in LEGACY_REGARD]})")
 check("no code reads or writes a person's old view-of-the-player fields", legacy == [], legacy[:8])
 # where the acting character's id is taken from the one player: pinned, so a new site is a choice made on purpose
-SITES = {"scenes/world.py": 2, "engine/starts.py": 2, "engine/mentor.py": 1}   # the scene's acting and canon's ids; a start's people; Maren
+SITES = {"scenes/world.py": 2, "engine/starts.py": 1, "engine/mentor.py": 1}   # the scene's acting and canon's ids; a start's character; Maren
 found = {}
 for p in CODE:
     k = p.read_text(encoding="utf-8").count("player.character.id")

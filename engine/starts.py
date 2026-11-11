@@ -13,7 +13,7 @@ from pathlib import Path
 
 import yaml
 from core import yamlio
-from engine import streams, worldstate
+from engine import deeds, streams, worldstate
 
 ROOT = Path(__file__).resolve().parent.parent
 S = yamlio.safe_load((ROOT / "data" / "rules" / "starts.yaml").read_text(encoding="utf-8"))
@@ -70,6 +70,7 @@ def apply(store, world, catalog, player, name: str, rng: random.Random, who: str
     towns = towns_for(world, player.location)
     state = store.load_world_state() or pulse.empty_state(now)
     done = {"start": name, "days": int(sp.get("days", 0)), "situations": [], "met": 0}
+    cid = player.character.id                                     # (f591) the character this start is for, named once
     if sp.get("rank"):
         player.guild_rank = sp["rank"]
     if sp.get("contracts_done"):
@@ -91,15 +92,15 @@ def apply(store, world, catalog, player, name: str, rng: random.Random, who: str
             residents = populate_place(store, world, town, catalog, first_batch=None)
             for n in residents[:int((m or {}).get("people", 4))]:
                 from engine import regard                     # (f480) the start's people know this character
-                seen = regard.meet(n, player.character.id, -1)
+                seen = regard.meet(n, cid, -1)
                 seen.name_known = True
-                regard.set_trust(n, player.character.id, max(0, min(100, int((m or {}).get("trust", 55)) + rng.randint(-6, 6))), cause="the start")
+                regard.set_trust(n, cid, max(0, min(100, int((m or {}).get("trust", 55)) + rng.randint(-6, 6))), cause="the start")
                 seen.last_talk_day = max(0, day - rng.randint(1, 20))
                 store.save_npc(n)
                 done["met"] += 1
     for p in sp.get("past") or []:
         for town in resolve(world, (p or {}).get("where", "home"), towns)[:1]:
-            th = past_situation(store, world, state, player, town, p, now, rng, who)
+            th = past_situation(store, world, state, player, town, p, now, rng, who, by=cid)
             if th:
                 done["situations"].append(f"{th['title']} ({th['tier']}, {p.get('how', 'settled')})")
     store.save_world_state(state)
@@ -107,7 +108,7 @@ def apply(store, world, catalog, player, name: str, rng: random.Random, who: str
     return done
 
 
-def past_situation(store, world, state: dict, player, town: str, p: dict, now: int, rng: random.Random, who: str) -> dict | None:
+def past_situation(store, world, state: dict, player, town: str, p: dict, now: int, rng: random.Random, who: str, by: str = "") -> dict | None:
     """A situation already over: built by the engine from one of the town's pressures at its tier, ended days ago, and remembered the
     way a lived one is: a finished record, a line of history, old news, the town's memory, a deed and reputation when the player
     settled it, a cataclysm counted when that is what it was. None when nothing fits the town."""
@@ -146,8 +147,8 @@ def past_situation(store, world, state: dict, player, town: str, p: dict, now: i
         state.setdefault("cooldowns", {})[pressure.id] = t1
     matters.remember(store, world, th, how, who, t1, 1)
     if settled:
-        state.setdefault("deeds", []).append({"kind": "settled", "minute": t1, "place": town, "thread": th["id"], "title": th["title"],
-                                              "tier": tier, "how": "by the stranger's hand"})
+        deeds.add(state, "settled", t1, town, thread=th["id"], title=th["title"], tier=tier, how="by the stranger's hand",
+                  by=by)                                          # (f591) numbered and capped like any other, and whose it was
         player.reputation[town] = player.reputation.get(town, 0) + int(matters.D["memory"]["reputation"].get(tier, 6))
     if tier == "cataclysm":
         state["cataclysm_end"] = max(int(state.get("cataclysm_end", 0) or 0), t1)

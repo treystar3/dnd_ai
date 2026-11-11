@@ -74,7 +74,6 @@ RECORDED = {
     ("alias", "news", "engine.standing:report"),
     ("rebind", "news", "engine.standing:report"),
     ("append", "effects", "engine.pulselog:effect"),             # not the world's: a pulse log row's own list of effects
-    ("append", "deeds", "engine.starts:past_situation"),         # the start's deed, unnumbered: f591 moves it onto deeds.add
 }
 found = scan()
 check("no world list grows outside its writers, the rebinds and RECORDED", found <= RECORDED, sorted(found - RECORDED))
