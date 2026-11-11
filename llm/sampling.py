@@ -38,6 +38,7 @@ class Sampling:
     temperature: float
     explicit: dict = field(default_factory=dict)
     think: bool | None = None
+    seed: int | None = None             # (f585) sent to llama-server alone: never in resolved(), so no recording's request moves
 
     def resolved(self) -> dict:
         """Every sampler value, BASE under the task's own: what llama-server is sent (f521), so none of its own defaults apply."""

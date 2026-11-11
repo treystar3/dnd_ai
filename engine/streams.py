@@ -22,6 +22,7 @@ import random
 
 UNSEEDED = "unseeded"
 STRICT = False
+BEGUN = 0                       # (f585) how many inputs have been begun: a call's place (llm/gateway.py) is counted per input begun
 
 
 class Streams:
@@ -42,6 +43,11 @@ class Streams:
     def _seed(self, name: str) -> str:
         return f"{self._key}:{name}"
 
+    def _begun(self) -> None:
+        global BEGUN
+        if self._process:                        # (f585) the process's set counts its inputs; a set beside it moves nothing of it
+            BEGUN += 1
+
     def _reseed(self) -> None:
         for name, r in self._streams.items():
             r.seed(self._seed(name))
@@ -52,12 +58,14 @@ class Streams:
         """A new input: every stream starts again from (the campaign's seed, its count of inputs, the line typed). String seeds are
         hashed the same in every process. The process's set reseeds the global random module too, for anything that still rolls it."""
         self._key = f"{seed}:{step}:{said}"
+        self._begun()
         self._reseed()
 
     def reset(self) -> None:
         """(f453) A campaign opened or closed (engine/session.py): the key goes back to unseeded and every stream starts again from it,
         so nothing of the last campaign's dice reaches the next. STRICT is the recorder's and stays."""
         self._key = UNSEEDED
+        self._begun()
         self._reseed()
 
     def get(self, name: str) -> random.Random:

@@ -7,6 +7,8 @@ Callers get a validated proposal object or an LLMError, never raw text.
 """
 
 import contextlib
+import dataclasses
+import hashlib
 import json
 import os
 import threading
@@ -71,6 +73,32 @@ FALLBACKS: list[str] = []          # every task that gave up and left its caller
 OUTCOMES: list[tuple[str, bool, int]] = []      # (task, succeeded, attempts used), the most recent few hundred, for anyone measuring
 TALLY: dict[str, dict[str, int]] = {}           # task -> {calls, failed, attempts} for the whole session (engine/turnlog.py writes it out)
 _TASK = threading.local()                       # (f468) the task the calling thread is making a call for (the recorder files it with the call)
+_SEEN = {"input": None, "count": {}}             # (f585) this input's calls so far, by task: each call's place among its task's
+_SEEN_LOCK = threading.Lock()
+
+
+def request_seed(key: str, task: str, place: int, attempt: int) -> int | None:
+    """(f585) A live call's seed: a hash of the campaign's seed and count of inputs (the streams' key, engine/streams.py, less the line
+    typed), the task, the call's place among this input's calls of that task, and the try. A hash, never a draw: no die moves. None
+    outside a campaign: the server draws its own. It narrows the noise between two runs on one card; it does not end it."""
+    parts = (key or "").split(":", 2)
+    if len(parts) < 2 or not parts[0].lstrip("-").isdigit() or not parts[1].isdigit():
+        return None
+    text = f"{parts[0]}|{parts[1]}|{task}|{int(place)}|{int(attempt)}"
+    return int.from_bytes(hashlib.sha256(text.encode("utf-8")).digest()[:4], "big") & 0x7FFFFFFF
+
+
+def _place(task: str) -> tuple[str, int]:
+    """(f585) This input's key and this call's place among its task's calls; counted per task, so another thread's call of another task
+    (the background's) never shifts it, and from nothing at every input begun, so a line given back and typed again meets its seeds."""
+    from engine import streams
+    with _SEEN_LOCK:
+        key, now = streams.key(), (streams.key(), streams.BEGUN)
+        if _SEEN["input"] != now:
+            _SEEN["input"], _SEEN["count"] = now, {}
+        n = _SEEN["count"].get(task, 0)
+        _SEEN["count"][task] = n + 1
+    return key, n
 
 
 def timeout_words(limit, on_client: bool = False) -> str:
@@ -189,12 +217,16 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
     failure = ""                                # (f516) the last try's failure kind, '' when it was answered (and the answer refused)
     from engine import budget
     _TASK.name = task
+    key, place = _place(task)
     for attempt in range(retries + 1):
         start = time.perf_counter()
         chars = sum(len(str(m.get("content") or "")) for m in messages)           # (f468) what this attempt reads: a retry reads the draft too
         limit = budget.deadline()                                               # (f493) the limit this try had, for its message
         try:                                                                      # (f515) through the game's own interface; until f528
-            reply = backend.chat(messages, schema, plan.at(attempt), max_tokens, deadline=limit)   # its source sends today's request
+            samp = plan.at(attempt)
+            samp = dataclasses.replace(samp, seed=request_seed(key, task, place, attempt))           # (f585) this try's own seed
+            _TASK.seed = samp.seed
+            reply = backend.chat(messages, schema, samp, max_tokens, deadline=limit)   # its source sends today's request
         except Interrupt:
             raise                                                   # (f449) stopped on purpose (a replay parted), (f516) or cancelled: never a failed try
         except Exception as e:
@@ -437,6 +469,8 @@ def _log(task, attempt, elapsed, messages, raw, error, usage=None, shape=None):
     if shape:
         entry.update(shape)                             # (f475) chars, sizes, tail_chars, prompt_version: the prompt's shape, measured
     entry.update(getattr(_tag, "fields", None) or {})
+    if getattr(_TASK, "seed", None) is not None:
+        entry["seed"] = _TASK.seed                      # (f585) the try's seed, kept with it (never in a recording's fingerprint)
     with _log_lock:
         try:                                            # (f566) a log that cannot be written never fails the call it records
             path.parent.mkdir(parents=True, exist_ok=True)

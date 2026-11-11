@@ -121,6 +121,8 @@ def llama_body(req, machine: dict | None = None) -> dict:
     body.update({k: resolved[k] for k in SAMPLER_KEYS})                 # every sampler, in one fixed order
     body.update({"n_predict": int(req.max_tokens) + room, "chat_template_kwargs": {"enable_thinking": thinks(req)},
                  "cache_prompt": True, "stream": False})
+    if getattr(req.sampling, "seed", None) is not None:
+        body["seed"] = int(req.sampling.seed)                           # (f585) the try's own seed; none: the server draws its own
     if m.get("slot") is not None:
         body["id_slot"] = int(m["slot"])
     adapters = m.get("lora") or {}

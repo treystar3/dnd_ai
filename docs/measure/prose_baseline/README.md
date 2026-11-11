@@ -100,3 +100,12 @@ What these say:
    reported for every change, and kept or dropped on only when they move that far.
 5. A change is now judged task by task against the span of new1 and new2; the tool gives no verdict on a task with fewer than its
    draw size, or against a single baseline.
+
+## Seeded calls from f585 on
+
+From f585 every live model call is sent a seed of its own (a hash of the campaign's seed, its count of inputs, the task, the call's
+place among this input's calls of that task, and the try). new1, new2 and A2's measurement were taken before it, unseeded. Seeds narrow
+the noise between two runs of an unchanged game; they do not end it: the card's own arithmetic, batching across slots and a draft
+model can still move a word, and the same seed writes differently on another card. So a seeded measurement is compared with others
+taken the same way on the same kind of card. Each try's seed is in the call log. Tools that rebuild a request themselves (tools/rerun.py
+sending a recorded row live, tools/think_ab.py, tools/situation_ab.py, tools/lora_eval.py) send none.
