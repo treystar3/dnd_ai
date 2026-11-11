@@ -75,6 +75,8 @@ without the lists after A1 or A5, and taken out again if that setup does better.
 aim in positive terms ("say what is new; one exact detail") and the checker catches the slips.
 
 **A3. Draw exemplars from a pool.**
+*(Measured 2026-11-11 as A1's control, docs/measure/prose_a1: kept for narration and speech; the fight pool comes out until phase 4
+reshapes fight prose, the owner's decision the same day. Not yet built: the fight pool is still drawn.)*
 - Grow `voice.yaml exemplars` into pools tagged by moment (arrival, night, interior, grief, fight, small talk, refusal, gossip), with
   about 30–60 lines each.
 - Each call gets 3, drawn by tag and a seed and never the same 3 twice in a row.
