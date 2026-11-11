@@ -88,13 +88,12 @@ Rules:
   the middle of a sentence, and never two markers in one sentence. Never explain it and write no numbers yourself.
 - No numbers, no game words (damage, health, round, critical, status, ability, legendary, phase). No lists or markdown.
 - """ + GROUND_HEAD + """
-""" + __import__("engine.voice_rules", fromlist=["exemplar_block"]).exemplar_block("fight") + """
 Respond only with JSON matching the schema, with the prose in "text"."""
 
 
 def narrate_request(place: str, time_label: str, player_words: str, events: list[str], weapon: str,
                     you: str, foes: list[str], round_number: int, gear: str = "", recent: list[str] = (), ground: str = "",
-                    shown: list[str] = (), looks: list[str] = (), allies: list[str] = (), gone: list[str] = ()) -> str:
+                    shown: list[str] = (), looks: list[str] = (), allies: list[str] = (), gone: list[str] = (), exemplars: str = "") -> str:
     """shown: what the player has read in this fight already (scenes/combat_scene.py fight_shown).
     (f375) No length is given. (f385) allies: everyone on the player's side, with she, he or it and what they fight with. (f415) gone: foes
     alive but out of the fight (yielded or fled); each ally's line ends with how hurt they are now."""
@@ -114,6 +113,7 @@ def narrate_request(place: str, time_label: str, player_words: str, events: list
         + (("WHAT THE PLAYER'S ABILITIES LOOK LIKE (show each as this, with the weapon they carry; never as something thrown, cast or "
             "magical unless this says so):\n" + "\n".join(f"  - {x}" for x in looks) + "\n") if looks else "")
         + "EVENTS:\n" + "\n".join(f"  - {e}" for e in events)
+        + (f"\n\n{exemplars}" if exemplars else "")                         # (f583) drawn for this call, last: the system stays cached
     )
 
 

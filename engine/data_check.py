@@ -781,6 +781,8 @@ def check() -> list[str]:
     bad += improv_problems()                                           # (f567) the fight's improvisations, held to the resolver
     bad += ground_word_problems()                                      # (f571) what the narrator is told of each zone's ground
     bad += data_words_problems()                                       # (f621) no dash in any word of data/ that is told as true
+    from engine import voice_rules as _vr
+    bad += _vr.pool_problems()                                         # (f583) the exemplar pools: enough lines, none dashed, worn or stock
     bad += tables_problems()                                           # (f504) the fight's tables, both ways
     bad += trigger_problems()                                          # (f507) the triggers held to the code that evaluates them
     bad += allowlist_problems()                                        # (f509) every table the fight reads, held to the code, both ways

@@ -113,8 +113,8 @@ Your reply:
     offers_work.
   offers_work: only when you offer paid work right now: task a short phrase ("load the grain onto the wagon"), minutes it should take,
     pay in copper at honest village rates (about 20 copper an hour). If you already offered work, don't offer it again.
-""" + __import__("engine.quirks", fromlist=["style_block"]).style_block() + "\n" + __import__("engine.voice_rules", fromlist=["exemplar_block"]).exemplar_block("speech") + "\n" + __import__("llm.prompts", fromlist=["WORLD_RULES"]).WORLD_RULES + """
-Respond only with JSON matching the schema."""            # (f307) townsfolk talk like people too: the shared style rules, the voice shown (f347); and they know their world
+""" + __import__("engine.quirks", fromlist=["style_block"]).style_block() + "\n" + __import__("llm.prompts", fromlist=["WORLD_RULES"]).WORLD_RULES + """
+Respond only with JSON matching the schema."""            # (f307) townsfolk talk like people too: the shared style rules; (f583) the voice shown at the end of each request; and they know their world
 
 
 def trust_words(trust: int) -> str:
@@ -134,11 +134,11 @@ def conversation_request(npc, place, trait_lines: list[str], facts, convo: list[
                          time_label: str = "", wares: list[str] = (), extra: list[str] = (),
                          land: list[str] = (), buildings: list[str] = (), truth_text: str = "",
                          stance: str = "", voice_fact: str = "", voice_lines: list[str] = (), material: list[str] = (), unsaid: str = "",
-                         now: int | None = None, *, who: str, work: dict | None = None, pronoun: str = "") -> str:
+                         now: int | None = None, *, who: str, work: dict | None = None, pronoun: str = "", exemplars: str = "") -> str:
     """The request as one string (the typed form, conversation_prompt, is what the game sends)."""
     return conversation_prompt(npc, place, trait_lines, facts, convo, player_text, nearby, here_with, people_known, time_label, wares, extra,
                                land, buildings, truth_text, stance, voice_fact, voice_lines, material, unsaid, now=now, who=who,
-                               work=work, pronoun=pronoun).render()
+                               work=work, pronoun=pronoun, exemplars=exemplars).render()
 
 
 PROMISE_ASK = ("they_promised: if what was just said to you promises you something (\"I'll bring the herbs by nightfall\"), what was "
@@ -152,7 +152,7 @@ def conversation_prompt(npc, place, trait_lines: list[str], facts, convo: list[t
                         land: list[str] = (), buildings: list[str] = (), truth_text: str = "",
                         stance: str = "", voice_fact: str = "", voice_lines: list[str] = (), material: list[str] = (), unsaid: str = "",
                         now: int | None = None, *, who: str, work: dict | None = None, pronoun: str = "",
-                        promised: bool = False):
+                        promised: bool = False, exemplars: str = ""):
     """(f347) The request in typed parts (engine/prompt.py), so the gateway can tell an instruction from a fact and send back a reply that
     lifts the instructions' wording. stance: how they are for this conversation (engine/voice_rules.roll_stance); voice_fact and
     voice_lines: their people and tongue, and this reply's lines on how they talk (engine/voice_profile.resident_lines); material: a
@@ -177,6 +177,7 @@ def conversation_prompt(npc, place, trait_lines: list[str], facts, convo: list[t
     p.history(unsaid)
     so_far = "\n".join(f"  {who_}: {what}" for who_, what in convo[-10:]) or "  (this is the start of the conversation)"
     p.history(so_far, "THIS CONVERSATION SO FAR")
+    p.instruction(exemplars)                                     # (f583) drawn for this call, near the end: the system stays cached
     p.fact(f'THEY SAY: "{player_text}"')                     # (f375) no length: they say what they would say
     if promised:
         p.instruction(PROMISE_ASK, "A PROMISE?")

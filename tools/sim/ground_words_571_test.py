@@ -217,12 +217,18 @@ with tempfile.TemporaryDirectory() as d:
           and kept.read_text(encoding="utf-8") == cheap, said)
     said = latency.rekeep(1.0, N, path=kept, today="2026-01-01")
     after = kept.read_text(encoding="utf-8")
+    import card_profile
+    from engine import budget
+    with budget.priced(**(base.get("priced_at") or {})):            # today's price, as the gate prices it (it may sit under the kept one)
+        today = round(dict(card_profile.estimate_inputs(latency.GOLDENS / "stub_fight", expected=True))[i], 1)
+    want = yaml.safe_load(text)
+    want["estimates"]["stub_fight"][i] = today
     check("...and within what was accepted it is set to today's price, that line alone (and the note)", f"input {i} " in said
-          and yaml.safe_load(after) == yaml.safe_load(text), said)
+          and yaml.safe_load(after) == want, (said, today, was))
     head = after[:after.index("#   priced_at:")]
     check("--note writes the date, the reason, the cost and the inputs set into the estimates' header, as comments",
           "2026-01-01" in head and "f999: a reason, owner accepts up to 1 s" in head and f"stub_fight inputs {i}" in head
-          and yaml.safe_load(after) == yaml.safe_load(text), head[-400:])
+          and yaml.safe_load(after) == want, head[-400:])
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

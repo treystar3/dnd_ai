@@ -317,6 +317,58 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         else:
             w["prose"].add(text)
 
+    def narration_pool(self) -> str:
+        """(f583) Which pool a passage's exemplars are drawn from, by what the engine knows: a death this line, a place newly reached,
+        the dark, a roof; else the general mix (data/rules/voice.yaml exemplars narration)."""
+        from engine import stay
+        if getattr(self, "line_losses", 0) or self.died_this_line():
+            return "grief"
+        came = getattr(self, "line_from", self.player.location)
+        if came != self.player.location and pulse.town_of(self.world, came) != pulse.town_of(self.world, self.player.location):
+            return "arrival"                                     # a new town or the wild reached; a step into the inn is not one
+        if clock.is_dark(self.minutes):
+            return "night"
+        if self.place.type in stay.S.get("indoors", []):
+            return "interior"
+        return "general"
+
+    def died_this_line(self) -> bool:
+        """(f583) Someone the acting character has met died since the line began, in this town (engine/pulse.py remove_npc's journal
+        row): a death far off is news, not grief in the passage."""
+        from engine import regard
+        mark = getattr(self, "line_log", None)
+        if mark is None:
+            return False
+        town = pulse.town_of(self.world, self.player.location)
+        for row in self.store.journal_tail(10, kind="npc_gone"):
+            if row["seq"] <= mark or not row["data"].get("dead") or not self.store.npc_exists(row["target"]):
+                continue
+            if pulse.town_of(self.world, row["data"].get("place") or "") == town and regard.of(self.store.load_npc(row["target"]), self.acting).met:
+                return True
+        return False
+
+    def speech_pool(self, npc, stance: str, news: list[str]) -> str:
+        """(f583) Which pool a person's exemplars are drawn from: refusal when they are wary or busy or trust the one speaking little,
+        gossip when their brief carries news, else small talk. Never by what the model will say."""
+        from engine import regard, voice_rules as vr
+        moods = tuple(vr.V["stances"][k]["text"].split(":")[0] for k in ("wary", "busy"))      # the stance's own words, as voice.yaml has them
+        if stance.startswith(moods) or regard.of(npc, self.acting).trust < int(vr.V["exemplars"]["refusal_trust"]):
+            return "refusal"
+        return "gossip" if news else "small_talk"
+
+    def exemplars(self, kind: str, name: str = "") -> str:
+        """(f583) This call's lines of how the moment sounds, for the end of its request: drawn from the input's dice and a count kept
+        on the scene (an underscore cache: a failed operation takes it back, so its attempt run again draws the same), never the same
+        lines as the pool's last draw."""
+        from engine import voice_rules as vr
+        name = name or ("general" if kind == "fight" else self.narration_pool() if kind == "narration" else "small_talk")
+        held = self.__dict__.setdefault("_exemplars", {})
+        key = f"{kind}:{name}"
+        n = held.get(f"n:{key}", 0)
+        picked = vr.draw(vr.pool(kind, name), streams.keyed("exemplars", kind, name, n), held.get(f"last:{key}", ()))
+        held[f"n:{key}"], held[f"last:{key}"] = n + 1, picked
+        return vr.exemplar_block(kind, picked)
+
     def worn_words(self, kind: str = "prose") -> list[str]:
         """The words recent writing has leaned on, for the checkers (f582: never shown), less the nouns of this scene (names, labels, the place)."""
         w = self.__dict__.get("_worn")
@@ -332,7 +384,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                        wp.narration_request(self.time_label(), self.place, self.people_view(), event, self.last_text,
                                             self.recent_narration, self.gear_line(),
                                             self.store.load_place(self.player.location).marks, ground=self.lying_here(),
-                                            told=ledger.told()),                       # (f416) what the turn did: a fight's opening, a sighting
+                                            told=ledger.told(),   # (f416) what the turn did: a fight's opening, a sighting
+                                            exemplars=self.exemplars("narration")),
                        Narration, self.recent_narration)
         console.narrate(result.text)
         self.remember_narration(result.text)
@@ -349,7 +402,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         request = wp.narration_request(self.time_label(), self.place, self.people_view(), event, self.last_text,
                                        self.recent_narration, self.gear_line(),
                                        self.store.load_place(self.player.location).marks, ground=self.lying_here(),
-                                       told=ledger.told())                       # (f416) what the turn did: a fight's opening, a sighting
+                                       told=ledger.told(),   # (f416) what the turn did: a fight's opening, a sighting
+                                       exemplars=self.exemplars("fight"))
         recent = list(self.recent_narration)
 
         def tell():
@@ -1078,12 +1132,14 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
               "dungeon_fight", "rank_options", "learn_options", "step", "interpret_calls", "ran",
               "partner", "stance", "pending_check", "pending_beats", "buffering", "line_done",
               "last_hits",                            # (f489) how a beat hit each of the party goes back with the banter that measured it
-              "sneaking", "queued_buffs", "fight_text", "surrender_took")   # (f496) what a fight the player starts this turn opens with (f248:
+              "sneaking", "queued_buffs", "fight_text", "surrender_took",
+              "line_losses")   # (f496) what a fight the player starts this turn opens with (f248:
     # the creeping up, the buffs readied by name, the line's words), and whether a survivor was taken captive: set by one operation's
     # attempt and consumed by it, they go back to what the attempt found, so an attempt run again for its answer creeps up again
     # (f485) the conversation goes back whole: who is being spoken with and how they are this talk, with its lines (convo, last_spoken
     # above), so a first talk that did not stand opens a new conversation when it is tried again, with the stance it had; and the step's
     # own state, so an operation run again to be given its answer (engine/asked.py) starts where the first attempt did.
+    # (f583) line_losses: a death this line, for the grief pool, taken back with the operation that made it.
     # (f465) The scene's own state a line writes outside the save: snapshotted by the session at every operation's start and put back by a
     # rollback beside the `_` caches (engine/session.py begin_turn, rollback), so a rolled-back operation leaves no trace of itself in what
     # the narrator remembers, who was last spoken to, what was in view, the plan, the road, the fight that is coming. Declared, not guessed:
@@ -1094,6 +1150,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.last_crash = False
         self.line_ops, self.line_failed, self.line_done, self.line_world_failed = [], [], [], []
         self.passages, self.line_untold, self.unshown_ops, self.collecting = [], [], {}, False
+        self.line_from, self.line_losses = self.player.location, 0      # (f583) where the line began, and no death yet, for the pools
+        tail = self.store.journal_tail(1)
+        self.line_log = tail[-1]["seq"] if tail else 0
         self.store.arm(True)
 
     @contextmanager
@@ -2775,7 +2834,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                        fallen=here.lines("fallen"),                                 # ...and who fell, never seen alive again
                                        parts=features.lines(self),                                  # (f394) the parts of this place, real
                                        told=ledger.told(),                                          # ...and what the engine did this turn
-                                       habits=self.arrival_habits() + self.habits_due("rest"))      # (f412) ...and the companions' habits, to fold in
+                                       habits=self.arrival_habits() + self.habits_due("rest"),      # (f412) ...and the companions' habits, to fold in
+                                       exemplars=self.exemplars("narration"))                        # (f583) how this kind of moment sounds
         result = fresh("narrate", wp.NARRATOR_SYSTEM, request, Narration, self.recent_narration, max_tokens=config.PROSE_MAX_TOKENS,
                        temperature=0.4 if strict else 0.9, worn=self.worn_words("prose"), said=player_text or "")         # (f384) no invented speech
         shown = self.unnamed(result.text)
@@ -3441,7 +3501,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                    stance=getattr(self, "stance", ""), rng=streams.keyed("voice", npc.id, f"{npc.id}", len(self.convo)),   # (f486)
                                    worn=self.worn_words("speech"), pronoun=brief.pronoun(self, self.acting), given_also=town_lines,
                                    house=voices.house_phrases(self, town, npc.id),          # (f350) what everyone else here has been saying
-                                   wares=self.wares_said(npc), who=self.acting)             # (f418) at the prices the game charges; (f480) to whom
+                                   wares=self.wares_said(npc), who=self.acting,             # (f418) at the prices the game charges; (f480) to whom
+                                   exemplars=self.exemplars("speech", self.speech_pool(npc, getattr(self, "stance", "") or "",
+                                                                                         view.lines("news") if "news" in view.facets() else [])))
         voices.heard(self, town, npc.id, reply.speech)
         from engine import presence                                            # (f485) what was said aloud reaches those standing by
         claimed = (getattr(reply, "learned_player_name", "") or "").strip()
@@ -3605,7 +3667,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                     getattr(reply, "intent", "") == "leave", self.recent_narration,
                                     reach=within, moment=moment,
                                     why=reasons, already=self.shown_lines(),
-                                    who_is=entities.who_is_who(self, also=[npc.id])),                 # (f392)
+                                    who_is=entities.who_is_who(self, also=[npc.id]),                  # (f392)
+                                    exemplars=self.exemplars("narration")),
                 DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS,
                 context={"speaker": [npc.name, known_as, speaker], "others": self.other_names(npc), "speech": reply.speech}, worn=self.worn_words("prose"),
             )

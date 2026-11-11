@@ -70,7 +70,8 @@ class MentorActions:
                                                   reply_to or "(listening)", speech, gesture, False, self.recent_narration, M["frame"]["shows"],
                                                   reach=within, moment=moment, already=self.shown_lines(),
                                                   why=["the first words between them" if not introduced else "a moment of her walking the player through the guild"],
-                                                  who_is=entities.who_is_who(self, also=["maren"])),       # (f392)
+                                                  who_is=entities.who_is_who(self, also=["maren"]),        # (f392)
+                                                  exemplars=self.exemplars("narration")),
                               DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS,
                               context={"speaker": [mentor.NAME, label, "the woman", "she"], "others": self.other_names(mentor.NAME), "speech": speech})
                 before, after = frame.before, frame.after
@@ -177,7 +178,8 @@ class MentorActions:
                 self.flush(self.last_text)
                 r = fresh("narrate", wp.NARRATOR_SYSTEM,
                           wp.narration_request(self.time_label(), self.place, self.people_view(), event, (said or "").strip(), self.recent_narration, self.gear_line(),
-                                               self.store.load_place(self.player.location).marks),
+                                               self.store.load_place(self.player.location).marks,
+                                               exemplars=self.exemplars("narration")),
                           Narration, self.recent_narration)
                 text = r.text.strip()
             except LLMError:

@@ -647,7 +647,8 @@ class PartyActions:
                               wp.dialogue_request(self.time_label(), self.place, others, name, looks, doing, self.temper_text(m), False,
                                                   reply_to or "(listening)", speech, gesture, False, self.recent_narration,
                                                   self.frame_for(m, P["frame"]["fight" if in_fight else "talk"]), reach=within, moment=reach.moment(fight=in_fight),
-                                                  why=why, already=self.shown_lines(), who_is=entities.who_is_who(self)),
+                                                  why=why, already=self.shown_lines(), who_is=entities.who_is_who(self),
+                                                  exemplars=self.exemplars("fight" if in_fight else "narration")),
                               DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS,
                               context={"speaker": [name], "others": self.other_names(name)}, worn=self.worn_words("prose"))
                 after = "" if in_fight else frame.after
@@ -713,7 +714,8 @@ class PartyActions:
                                              again=convo.again_fact(before) if before else "",
                                              again_how=convo.again_rule(quirks.repeat_manner(m)) if before else "", fix=fix, truth_text=view.text(),
                                              others=self.fellow_names(m), recalled=recalled,
-                                             open_=self.hire_open(m, held), pronoun=brief.pronoun(self, self.acting)),
+                                             open_=self.hire_open(m, held), pronoun=brief.pronoun(self, self.acting),
+                                             exemplars=self.exemplars("speech", "small_talk")),
                              CompanionReply, temperature=0.8, max_tokens=config.PROSE_MAX_TOKENS, retries=1, validation_context=ctx,
                              relaxed_context=dict(ctx, recent=[] if before else m.get("said", [])[-1:], answer_to=None, kit=False, worn=[]))
             except LLMError:

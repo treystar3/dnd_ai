@@ -88,6 +88,7 @@ class Reactions:
                         knew=sorted(str(m["id"]) for m in self.ws.player.party if m.get("id") and str(m["id"]) != str(e.member_id)
                                     and not m.get("story")))   # (f488, S4) who travelled with them: only they grieve them
         entities.move(self.ws.store, ent, "dead", e.minute or self.ws.minutes, e.text())
+        self.ws.line_losses = getattr(self.ws, "line_losses", 0) + 1     # (f583) a death this line: the grief pool
         self._let_go(e.member_id, "hire_died")
 
     def departed(self, e) -> None:
