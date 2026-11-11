@@ -91,6 +91,7 @@ could become campaign-tier situations whose steps are parts and paths, not a req
 ## Revised structural recommendations (replacing my earlier "merge into situations")
 1. **Give every tier parts.** Normal and uncommon templates in `threads.yaml` should give their thread parts with no model call (the
    owner already approved template parts for the common tiers on 11-07). Then every situation can be resolved through its parts.
+   *(The owner, 2026-11-11: the model writes them at birth, as for rare and campaign, with the engine's parts when it fails. GOALS.md, phase 2.)*
 2. **Remove the judge's tier filter and its caps, and use cached rulings instead.** Keep the key the owner specified (the same act
    under unchanged circumstances reuses the earlier ruling), and keep the background-slot budget for time.
 3. **Make improvised acts and situation-relevant acts deeds**, so they reach a situation (`Improvised` gets a `ledger_row`, and
