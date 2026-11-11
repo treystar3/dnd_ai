@@ -22,6 +22,16 @@ def tick(state: dict) -> int:
     return state["seq"]
 
 
+def add(state: dict, kind: str, minute: int, place: str = "", **data) -> dict:
+    """(f578) Number a deed and append it to the state in hand, kept at the cap; the caller holds the world and saves it."""
+    deed = {"kind": kind, "minute": minute, "place": place, **data}
+    deed["seq"] = tick(state)
+    deeds = state.setdefault("deeds", [])
+    deeds.append(deed)
+    del deeds[:-KEEP]
+    return deed
+
+
 def log(store, kind: str, minute: int, place: str = "", **data) -> dict:
     """Record a deed. Returns it. Never raises: the ledger is a convenience, not a rule."""
     deed = {"kind": kind, "minute": minute, "place": place, **data}
@@ -29,10 +39,7 @@ def log(store, kind: str, minute: int, place: str = "", **data) -> dict:
         state = store.load_world_state()
         if not state:
             return deed
-        deed["seq"] = tick(state)
-        deeds = state.setdefault("deeds", [])
-        deeds.append(deed)
-        del deeds[:-KEEP]
+        deed = add(state, kind, minute, place, **data)
         store.save_world_state(state)
     except Exception:
         pass

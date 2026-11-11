@@ -544,7 +544,7 @@ def finish(ws, state, th, how: str, ending: str) -> None:
     th["result"] = "player"
     th["ending"] = ending
     th["touched"] = True                                # (f424) the journal shows the matter the player ended
-    deeds.log(store, "settled", t, th["place"], thread=th["id"], title=th["title"], tier=th["tier"], how=how)   # (f363) a situation ended by the player: the deed a campaign is earned by
+    deeds.add(state, "settled", t, th["place"], thread=th["id"], title=th["title"], tier=th["tier"], how=how, by=ws.acting)   # (f578) on the caller's state, whose save keeps it: the deed a campaign is earned by (f363)
     from engine import pulselog
     pulselog.mark("end", f"{th['title']} - ended by {name}: {how}", t, how="player", place=th["place"], tier=th["tier"])   # (f355) the player's own endings: the log's best rows
     from engine import threads as _threads
