@@ -1126,7 +1126,8 @@ def parts_lines(store, world, th: dict, by: str = "") -> list[str]:
             elif a.get("by"):
                 extra.append(f"imposed by {a['by']} ({a.get('by_kind')})")
         if a.get("kind") == "evidence" and not a.get("label") and isinstance(a.get("clue"), int) and a["clue"] < len(clues):
-            one = f"{store_name_s(store, a['holder']) if a.get('held') == 'person' else 'At ' + a['holder']} knows: {clues[a['clue']].get('text', '')}"
+            at = world.places[a["holder"]].name if a.get("holder") in world.places else "this place"   # (f593) a place's name, never its id
+            one = f"{store_name_s(store, a['holder']) if a.get('held') == 'person' else 'At ' + at} knows: {clues[a['clue']].get('text', '')}"
         notes = [a["now"]] if a.get("now") else []
         if by and (a.get("willing") or {}).get(by):
             notes.append(f"{a['willing'][by]} toward the player")

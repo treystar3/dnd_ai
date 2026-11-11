@@ -588,6 +588,8 @@ def check() -> list[str]:
     bad += _entities.problems()
     from engine import objects as _objects                                                    # (f592) things in the world
     bad += _objects.problems()
+    from engine import targets as _targets                                                    # (f593) the changes an act can make
+    bad += _targets.problems()
     from engine import ruling as _ruling                                                      # (f395) what a character can do beyond the ordinary
     bad += _ruling.problems()
     from engine import techniques as _techniques                                              # (f396) what hires can do in a fight
