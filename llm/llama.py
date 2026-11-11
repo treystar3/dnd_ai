@@ -55,7 +55,7 @@ SAMPLER_KEYS = ("temperature", "top_k", "top_p", "min_p", "typical_p", "repeat_p
 RANGES = {"temperature": (0.0, 2.0, False), "top_k": (0, 1000, True), "top_p": (0.0, 1.0, False), "min_p": (0.0, 1.0, False),
           "typical_p": (0.0, 1.0, False), "repeat_penalty": (0.5, 2.0, False), "repeat_last_n": (0, 8192, True),
           "presence_penalty": (-2.0, 2.0, False), "frequency_penalty": (-2.0, 2.0, False), "dry_multiplier": (0.0, 5.0, False),
-          "dry_base": (1.0, 4.0, False), "dry_allowed_length": (0, 64, True), "dry_penalty_last_n": (-1, 8192, True),
+          "dry_base": (1.0, 4.0, False), "dry_allowed_length": (0, 64, True), "dry_penalty_last_n": (0, 8192, True),
           "xtc_probability": (0.0, 1.0, False), "xtc_threshold": (0.0, 0.5, False)}
 STEP = 0.5                  # the caller looks at its deadline and its cancel flag this often while it waits
 CONNECT_SECONDS = 5.0       # a loopback connect that takes longer than this is a server that is not there

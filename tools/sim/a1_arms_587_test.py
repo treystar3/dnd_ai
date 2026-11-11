@@ -30,7 +30,7 @@ S = config._SAMPLING_FILE
 NEW = ("dry_base", "dry_allowed_length", "dry_penalty_last_n", "xtc_threshold")
 check("DRY's base, allowed length and look-back and XTC's threshold are samplers the game sends", all(k in llama.SAMPLER_KEYS and k in llama.RANGES for k in NEW))
 check("...at neutral values in the base, so nothing changes while DRY and XTC are off", {k: S["base"][k] for k in NEW}
-      == {"dry_base": 1.75, "dry_allowed_length": 2, "dry_penalty_last_n": -1, "xtc_threshold": 0.1}
+      == {"dry_base": 1.75, "dry_allowed_length": 2, "dry_penalty_last_n": 0, "xtc_threshold": 0.1}
       and S["base"]["dry_multiplier"] == 0.0 and S["base"]["xtc_probability"] == 0.0, {k: S["base"].get(k) for k in NEW})
 body = llama.llama_body(type("R", (), {"messages": [], "schema": Narration, "sampling": sampling.resolve("narrate", 0.9).at(0),
                                        "max_tokens": 10, "voice": None})())
