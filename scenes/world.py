@@ -150,6 +150,16 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 return n
         return self.store.load_npc(nid) if self.store.npc_exists(nid) else None
 
+    def lying_here(self) -> list[str]:
+        """(f592) The things lying where the player stands that the place's marks do not tell (one set down here), for the narrator."""
+        from engine import objects
+        return objects.lying_unmarked(self.store, self.player.location, self.minutes)
+
+    def carried_things(self) -> list:
+        """(f592) The things in the world the acting character carries in hand (engine/objects.py), for the inventory."""
+        from engine import objects
+        return objects.carried(self.store, self.acting)
+
     @property
     def acting(self) -> str:
         """(f480) The id of the character whose line is being played. What a person makes of "the player" is what they make of this
@@ -227,6 +237,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         held = c.equipment.get("main_hand")
         parts = [f"wearing {', '.join(worn)}" if worn else "no armor, only plain clothes"]
         parts.append(f"carrying {held.name}" if held else "empty-handed")
+        if (things := self.carried_things()):                # (f592) things in the world carried in hand
+            parts.append(f"holding {', '.join(o.name for o in things)}")
         if getattr(c, "look_text", ""):                    # (f388) how they look, as they chose at the Threshold
             parts.insert(0, c.look_text.rstrip("."))
         return "; ".join(parts)
@@ -268,7 +280,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         result = fresh("narrate", system,
                        wp.narration_request(self.time_label(), self.place, self.people_view(), event, self.last_text,
                                             self.recent_narration, self.gear_line(),
-                                            self.store.load_place(self.player.location).marks,
+                                            self.store.load_place(self.player.location).marks, ground=self.lying_here(),
                                             told=ledger.told()),                       # (f416) what the turn did: a fight's opening, a sighting
                        Narration, self.recent_narration)
         console.narrate(result.text)
@@ -285,7 +297,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.flush(self.last_text)
         request = wp.narration_request(self.time_label(), self.place, self.people_view(), event, self.last_text,
                                        self.recent_narration, self.gear_line(),
-                                       self.store.load_place(self.player.location).marks,
+                                       self.store.load_place(self.player.location).marks, ground=self.lying_here(),
                                        told=ledger.told())                       # (f416) what the turn did: a fight's opening, a sighting
         recent = list(self.recent_narration)
 
@@ -2436,7 +2448,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 what = text.strip().split(maxsplit=1)[1] if " " in text.strip() else ""
                 self.on_use(SimpleNamespace(item=what), what)
                 with console.scope("#inventory"):
-                    console.show_inventory(self.player.character)
+                    console.show_inventory(self.player.character, self.carried_things())
                 self.show_header()
             else:
                 from types import SimpleNamespace
@@ -2470,7 +2482,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.allocate(name.split(maxsplit=1)[1] if " " in name else "")
         elif name.split()[0] in ("inventory", "inv", "i"):
             c = self.player.character
-            console.show_inventory(c)
+            console.show_inventory(c, self.carried_things())
         elif name.split()[0] in ("equip", "wield", "wear"):
             self.equip_command(name.split(maxsplit=1)[1] if " " in name else "")
         elif name.split()[0] in ("unequip", "remove"):
@@ -2668,7 +2680,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             people, unlooked = self.first_seen(people)                                       # (f380) walking in: who the eye falls on first
         request = wp.narration_request(self.time_label(), self.place, people, event, player_text,
                                        self.recent_narration, self.gear_line(), marks,
-                                       [inv.label(i) for i in self.ground_here()],
+                                       [inv.label(i) for i in self.ground_here()] + self.lying_here(),
                                        unseen, streets=streets,
                                        town=" ".join(prof.character.split()) if prof and not self.place.danger else "",
                                        news=here.lines("news")[:3],                                 # (f331) the narrator hears what the town is talking about
@@ -2856,7 +2868,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             shown_places.append((pid, f"{name} ({tag})" if tag else name))
         req = wp.interpret_request(self.time_label(), self.place.name, shown_places, people, elsewhere,
                                    self.partner.id if self.partner else None, last, text,
-                                   shown["wares"], shown["abilities"], shown["pack"], [inv.label(i) for i in self.ground_here()],
+                                   shown["wares"], shown["abilities"], shown["pack"], [inv.label(i) for i in self.ground_here()] + self.lying_here(),
                                    shown["stash"] if stash_all is not None else None, shown["buyers"], shown["recipes"],
                                    [k.name for k in self.player.character.key_items],
                                    markup.describe(text) if markup.has_markup(text) else "", hint,

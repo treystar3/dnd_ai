@@ -1,0 +1,20 @@
+# THINGS IN THE WORLD (f592, engine/objects.py; docs/design/05 section 5.2). What a ruling makes for an attempt ("a loose rock", "a rope
+# left behind", "the brazier") is a saved thing, not words on a place: it can be picked up, carried, dropped, broken and found again.
+# What people say of a place stays a mark (the place's marks); the thing is what is there.
+
+# What a thing can be used as or for, by the words of its name and what it is. A ruling's `uses` (docs/design/02) is checked against
+# these; a heavy thing is never carried off.
+tags:
+  cover: [crate, barrel, cart, wagon, table, wall, boulder, log, pillar, door, bench, wardrobe, chest, haystack]
+  heavy: [boulder, anvil, barrel, crate, chest, log, millstone, statue, cart, wagon, beam, wardrobe, haystack,      # too heavy to lift
+          wall, door, gate, pillar, column, post, fence, table, bench, altar, well, tree, trunk, cauldron, bridge, shrine,  # and what
+          stair, stairs, wheel, cage, stall, trough, oven, forge, loom, mast, tomb, coffin, pew]               # is fixed
+  flammable: [rope, straw, hay, cloth, oil, tar, wood, log, paper, parchment, tinder, kindling, rag, sack, torch, brazier, haystack]
+  sharp: [blade, knife, glass, shard, nail, spike, sickle, scythe, hook, axe]
+  container: [barrel, crate, chest, sack, bag, box, jar, bucket, basket, pot, urn]
+  light_source: [torch, lantern, candle, brazier, lamp]
+  climbable: [rope, ladder, vine, chain, net, trellis]
+
+per_place: 6          # unowned things the world made at one place before the oldest unremarked goes
+carried_most: 4       # things carried that are no item of the pack, per character
+fade_days: 30         # an unowned thing nobody touched lies this long, then is gone

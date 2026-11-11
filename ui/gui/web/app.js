@@ -737,6 +737,15 @@ function renderInventory(d) {
     for (const x of rows) side.appendChild(itemRow(x, true));
   }
   if (!d.items.length) side.appendChild(el("div", "dimrow", "Your pack is empty."));
+  if ((d.carried || []).length) {                                          // (f592) things in the world carried in hand
+    side.appendChild(h2("CARRIED IN HAND", "no pack slots · say 'drop' to set one down"));
+    for (const k of d.carried) {
+      const row = el("div", "row2"), info = el("div", "info");
+      info.appendChild(el("div", "nm", k.name));
+      if (k.detail) info.appendChild(el("div", "dt", k.detail));
+      row.appendChild(info); side.appendChild(row);
+    }
+  }
   if (d.keys.length) {
     side.appendChild(h2("KEY ITEMS", "no slots · kept through death"));
     for (const k of d.keys) {

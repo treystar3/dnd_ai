@@ -176,7 +176,8 @@ def appeared_today(ws) -> int:
 
 def make_room(ws, r) -> list[str]:
     """What the world now holds that it did not, made for the attempt: parts of the place (kept, linked to where the player stands), a
-    person (made by the engine: name, people, gender; the model's words only say what they are), a thing (a mark on the place)."""
+    person (made by the engine: name, people, gender; the model's words only say what they are), a thing (engine/objects.py, its words
+    kept on the place)."""
     from engine import features, ledger
     out = []
     for n in r.needs:
@@ -197,8 +198,13 @@ def make_room(ws, r) -> list[str]:
             if npc is not None:
                 out.append(f"{npc.label(ws.acting)} ({npc.role.replace('_', ' ')}): {npc.description}")
         elif n.kind == "thing":
-            ws.add_mark(f"{n.name}: {n.what}".strip(": "))
-            ledger.add("made", ref=f"thing:{n.name}", name=n.name, how="ruled", say=f"{n.name} is here: {n.what}")
+            from engine import objects
+            mark = f"{n.name}: {n.what}".strip(": ")
+            ws.add_mark(mark)                                   # what is said of the place
+            spot = features.spot_of(ws)
+            obj = objects.make(ws.store, ws.player.location, n.name, n.what, "ruled", ws.minutes,
+                               part=spot.ref if spot is not None else "", mark=mark)   # (f592) and the thing itself, there to be used
+            ledger.add("made", ref=obj.ref, name=obj.name, how="ruled", say=f"{obj.name} is here: {n.what}")
             out.append(f"{n.name}: {n.what}")
     return out
 
