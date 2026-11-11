@@ -216,6 +216,22 @@ def sampling_problems(S: dict | None = None) -> list[str]:
     step = S.get("retry_temperature_step")
     if isinstance(step, bool) or not isinstance(step, (int, float)) or not 0 < step <= 1:
         bad.append("sampling.yaml retry_temperature_step: needs a number above 0 and at most 1")
+    from llm import llama                                                   # (f587) the arms: real samplers in range, real tasks
+    arms = S.get("arms") or {}
+    if not isinstance(arms, dict) or not all(isinstance(v, dict) for v in arms.values()):
+        return bad + ["sampling.yaml arms: a table of arms, each a table of samplers"]
+    for name, values in arms.items():
+        if "temperature" in values:
+            bad.append(f"sampling.yaml arms.{name}: an arm sets no temperature (a task's own is kept)")
+        bad += [p.replace("sampling.yaml tasks.", "sampling.yaml arms.") for p in llama.sampler_problems({name: values}, base=S.get("base") or {})
+                if "arms." in p.replace("sampling.yaml tasks.", "sampling.yaml arms.")]
+    known = set((_load("data/rules/budget.yaml").get("tasks") or {}))
+    for t in S.get("arm_tasks") or []:
+        if known and t not in known:
+            bad.append(f"sampling.yaml arm_tasks: '{t}' is no task the game asks for")
+    import config as _config
+    if _config.SAMPLING_ARM and _config.SAMPLING_ARM not in arms:
+        bad.append(f"DND_SAMPLING_ARM '{_config.SAMPLING_ARM}' is none of sampling.yaml's arms ({', '.join(arms)})")
     return bad
 
 

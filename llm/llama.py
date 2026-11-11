@@ -48,13 +48,15 @@ import config
 from llm.errors import Failure
 
 SAMPLER_KEYS = ("temperature", "top_k", "top_p", "min_p", "typical_p", "repeat_penalty", "repeat_last_n", "presence_penalty",
-                "frequency_penalty", "dry_multiplier", "xtc_probability")
+                "frequency_penalty", "dry_multiplier", "dry_base", "dry_allowed_length", "dry_penalty_last_n", "xtc_probability",
+                "xtc_threshold")                # (f587) DRY and XTC sent whole, for A1
 # Each sampler's lowest and highest sensible value, and whether it is a whole number: data_check refuses anything else, so a misspelt
 # or out-of-range key in config.SAMPLING cannot pass through to llama-server and be ignored there (sampler_problems).
 RANGES = {"temperature": (0.0, 2.0, False), "top_k": (0, 1000, True), "top_p": (0.0, 1.0, False), "min_p": (0.0, 1.0, False),
           "typical_p": (0.0, 1.0, False), "repeat_penalty": (0.5, 2.0, False), "repeat_last_n": (0, 8192, True),
           "presence_penalty": (-2.0, 2.0, False), "frequency_penalty": (-2.0, 2.0, False), "dry_multiplier": (0.0, 5.0, False),
-          "xtc_probability": (0.0, 1.0, False)}
+          "dry_base": (1.0, 4.0, False), "dry_allowed_length": (0, 64, True), "dry_penalty_last_n": (-1, 8192, True),
+          "xtc_probability": (0.0, 1.0, False), "xtc_threshold": (0.0, 0.5, False)}
 STEP = 0.5                  # the caller looks at its deadline and its cancel flag this often while it waits
 CONNECT_SECONDS = 5.0       # a loopback connect that takes longer than this is a server that is not there
 LOAD_WAIT = 600.0           # the longest a call waits on a model still loading before it is 'loading' (f522 reads data/runtime)

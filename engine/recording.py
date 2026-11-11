@@ -125,6 +125,8 @@ class Recorder:
             self.meta["slow"] = True
         if getattr(config, "THINK_TASKS", None):            # (f533) the tasks that thought, and their room: a replay asks as they did
             self.meta.update(think_tasks=sorted(config.THINK_TASKS), think_room=config.THINK_ROOM)
+        if getattr(config, "SAMPLING_ARM", ""):            # (f587) a measuring run's sampling arm: a replay samples as it did
+            self.meta["sampling_arm"] = config.SAMPLING_ARM
         (self.dir / "meta.json").write_text(json.dumps(self.meta, indent=1), encoding="utf-8", newline="\n")
         self.inputs = (self.dir / "inputs.jsonl").open("w", encoding="utf-8", newline="\n")
         self.calls = gzip.open(self.dir / "calls.jsonl.gz", "wt", encoding="utf-8", newline="\n")

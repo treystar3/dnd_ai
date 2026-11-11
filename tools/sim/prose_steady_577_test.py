@@ -91,7 +91,7 @@ def steady_rows(args):
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         pm.main(args)
-    part = buf.getvalue().split("fixed size")[-1]
+    part = buf.getvalue().split("fixed size")[-1].split("## First tries")[0]
     return [l for l in part.splitlines() if l.startswith("| narrate |")]
 two = steady_rows([str(runs[2]), "--against", str(j1), str(j2), "--samples", "0"])
 check("a run compared against two kept baselines gets a verdict on every measure",

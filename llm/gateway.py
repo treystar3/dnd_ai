@@ -88,6 +88,12 @@ def request_seed(key: str, task: str, place: int, attempt: int) -> int | None:
     return int.from_bytes(hashlib.sha256(text.encode("utf-8")).digest()[:4], "big") & 0x7FFFFFFF
 
 
+def _mends() -> int:
+    """(f587) Names mended so far: a told name written a letter off, a misspelt speaker."""
+    from engine import names
+    return names.REPAIRS["name"] + names.REPAIRS["speaker"]
+
+
 def _place(task: str) -> tuple[str, int]:
     """(f585) This input's key and this call's place among its task's calls; counted per task, so another thread's call of another task
     (the background's) never shifts it, and from nothing at every input begun, so a line given back and typed again meets its seeds."""
@@ -179,7 +185,7 @@ def generate(
             try:                                        # was read (too big, invalid), is refused again; a retry refused for the draft it
                                                         # carried is not, so the request as first made goes once more; (f527) nor after a
                                                         # transport failure on any try (the server, a timeout): looser checks mend no outage
-                with backend.task(task):
+                with backend.task(task), tagged(relaxed=True):    # (f587) logged as the relaxed try it is: never a first try
                     return _generate(task, system, user, schema, temperature, 1, relaxed_context, max_tokens)
             except LLMError:
                 pass
@@ -220,6 +226,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
     key, place = _place(task)
     for attempt in range(retries + 1):
         start = time.perf_counter()
+        mended = _mends()                       # (f587) the names this try's answer has mended, counted if it is taken
         chars = sum(len(str(m.get("content") or "")) for m in messages)           # (f468) what this attempt reads: a retry reads the draft too
         limit = budget.deadline()                                               # (f493) the limit this try had, for its message
         try:                                                                      # (f515) through the game's own interface; until f528
@@ -337,6 +344,8 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
                     from engine import guard, names
                     if guard.guarded(task):                              # (f412) a name it was told, written wrong ('Zorra' for Zurra)
                         names.mend_answer(result, system + "\n" + str(messages[1]["content"]))
+                    if _mends() > mended:
+                        names.BY_TASK[task] += _mends() - mended         # (f587) per task, for A1
                 except Exception:
                     pass
                 return result

@@ -208,6 +208,72 @@ def steady_table(result: dict[str, dict], bases: list[dict[str, dict]] | None = 
     return lines
 
 
+NAME_ERRORS = (("no one and nowhere", "is no one and nowhere you were (?:told of|given)"),     # (f587) refusals for a name (A1)
+               ("someone else here", r"is someone else here\. Do not call the player"),
+               ("not a speaker", "speaker must be one of: "),
+               ("a dead one named", r"who died: someone says"),
+               ("line opens on its speaker", "do not begin a line with the speaker's name"),
+               ("frame on the wrong one", r"the frame is about .+, but it opens on"),
+               ("a name never given", r"a name is learned only from the one who gave it"),
+               ("the wrong addressee", r"a block for .+, who did not speak to you|two blocks for |no block for "),
+               ("the cast left out", r"everyone named must speak|must say something|speaks first"))
+
+
+def _rows(path: str):
+    if str(path).endswith(".gz"):
+        import gzip
+        text = gzip.open(path, "rt", encoding="utf-8", errors="replace").read()
+    else:
+        text = Path(path).read_text(encoding="utf-8", errors="replace")
+    for line in text.splitlines():
+        try:
+            r = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(r, dict) and r.get("task"):
+            yield r
+
+
+def acceptance(paths: list[str]) -> dict[str, dict]:
+    """(f587) Per task: calls (first tries), those taken at the first try, rewrites (a call made to replace a draft), the name errors
+    answers were sent back for by kind, and the names mended silently in answers taken (the run.json beside each log)."""
+    out: dict[str, dict] = {}
+    for p in paths:
+        counted = (Path(p).parent / "run.json").exists()                # a log with no run beside it never counted its mends
+        for r in _rows(p):
+            t = out.setdefault(r["task"], {"calls": 0, "first_try": 0, "rewrites": 0, "name_errors": {}, "mended": 0, "mends_counted": False})
+            t["mends_counted"] |= counted
+            if r.get("attempt", 0) == 0 and not r.get("relaxed"):      # a relaxed last try is the same call, not a new one
+                t["calls"] += 1
+                t["first_try"] += 0 if r.get("error") else 1
+                t["rewrites"] += 1 if r.get("rewrite_of_draft") else 0
+            err = str(r.get("error") or "")
+            for kind, pattern in NAME_ERRORS:
+                if err and re.search(pattern, err):
+                    t["name_errors"][kind] = t["name_errors"].get(kind, 0) + 1
+        run = Path(p).parent / "run.json"
+        if run.exists():
+            try:
+                for task, n in (json.loads(run.read_text(encoding="utf-8")).get("name_repairs") or {}).items():
+                    out.setdefault(task, {"calls": 0, "first_try": 0, "rewrites": 0, "name_errors": {}, "mended": 0,
+                                          "mends_counted": True})["mended"] += int(n)
+            except ValueError:
+                pass
+    for t in out.values():
+        t["first_try_share"] = round(t["first_try"] / t["calls"], 3) if t["calls"] else None
+    return out
+
+
+def acceptance_table(acc: dict[str, dict]) -> list[str]:
+    lines = ["| task | calls | taken at first try | rewrites | name errors | names mended |", "|---|---|---|---|---|---|"]
+    for task in [t for t in ORDER if t in acc] + sorted(t for t in acc if t not in ORDER):
+        a = acc[task]
+        share = f"{a['first_try_share']:.0%}" if a["first_try_share"] is not None else "-"
+        errs = ", ".join(f"{k} {n}" for k, n in sorted(a["name_errors"].items())) or "0"
+        lines.append(f"| {task} | {a['calls']} | {share} | {a['rewrites']} | {errs} | {a['mended'] if a.get('mends_counted') else '-'} |")
+    return lines
+
+
 def _fmt(v, f: str) -> str:
     return format(v, f) if v is not None else "-"
 
@@ -266,10 +332,13 @@ def main(argv: list[str] | None = None) -> int:
     print("\n".join(table(result, base) + [""] + details(result)))
     print("\n## Over draws of a fixed size (mean [10th, 90th])" + (" against " + ", ".join(a.against) if kept else "") + "\n")
     print("\n".join(steady_table(held, [k["steady"] for k in kept if "steady" in k] or None)))
+    acc = acceptance(a.logs)
+    print("\n## First tries, rewrites and names (f587)\n")
+    print("\n".join(acceptance_table(acc)))
     if a.samples:
         print("\n## Sample passages" + "\n".join(samples(by_task, a.samples, a.seed)))
     if a.json:
-        Path(a.json).write_text(json.dumps({"logs": a.logs, "tasks": result, "steady": held}, indent=1), encoding="utf-8", newline="\n")
+        Path(a.json).write_text(json.dumps({"logs": a.logs, "tasks": result, "steady": held, "acceptance": acc}, indent=1), encoding="utf-8", newline="\n")
     return 0
 
 

@@ -86,4 +86,8 @@ _SAMPLING_FILE = __import__("yaml").safe_load((__import__("pathlib").Path(__file
 SAMPLING = {t: dict(v or {}) for t, v in (_SAMPLING_FILE.get("tasks") or {}).items()}
 SAMPLING_BASE = dict(_SAMPLING_FILE.get("base") or {})
 RETRY_TEMPERATURE_STEP = float(_SAMPLING_FILE.get("retry_temperature_step") or 0.15)
+# (f587) One of sampling.yaml's arms laid over its arm_tasks for a measuring run (A1); not data, so the hash never moves with it.
+SAMPLING_ARM = __import__("os").environ.get("DND_SAMPLING_ARM", "").strip()
+SAMPLING_ARMS = {k: dict(v or {}) for k, v in (_SAMPLING_FILE.get("arms") or {}).items()}
+ARM_TASKS = frozenset(_SAMPLING_FILE.get("arm_tasks") or ())
 PROFANITY = "strong"        # how a companion who curses may curse: "off" (the world's own curses only), "mild" (damn, hell...), "strong"

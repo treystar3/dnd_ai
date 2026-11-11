@@ -322,11 +322,11 @@ class Run:
         self.close_turn()
         for f in (self.turn_file, self.transcript, self.errors):
             f.close()
-        from engine import hygiene
+        from engine import hygiene, names
         info = {"ended": datetime.now().isoformat(timespec="seconds"), "turns": len(self.rows), "reason": self.reason,
                 "hours": round((time.time() - self.started) / 3600, 2), "cast": self.cast, "hygiene": dict(hygiene.REPAIRS),
                 "stale_world_saves": list(getattr(getattr(self.bot.ws.store, "_world", None), "stale", None) or []),   # (f589) for the owner to rule on
-                **extra}
+                "name_repairs": dict(names.BY_TASK), "sampling_arm": __import__("config").SAMPLING_ARM, **extra}       # (f587) for A1
         (self.out / "run.json").write_text(json.dumps(info, indent=1), encoding="utf-8", newline="\n")
 
 

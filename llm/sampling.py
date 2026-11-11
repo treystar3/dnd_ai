@@ -64,5 +64,8 @@ def resolve(task: str, temperature: float) -> Plan:
     base = tuned.pop("temperature", temperature)
     top = min(1.2, base + 0.1) if task in table else 1.2      # a retry warms a tuned task only a little
     base, top, tuned = shifted(task, base, top, tuned)
+    arm = getattr(config, "SAMPLING_ARM", "")
+    if arm and task in getattr(config, "ARM_TASKS", ()):                          # (f587) a measuring run's arm, over the six tasks only
+        tuned = {**tuned, **getattr(config, "SAMPLING_ARMS", {}).get(arm, {})}
     think = True if task in getattr(config, "THINK_TASKS", ()) else None          # (f533) only the tasks chosen to think
     return Plan(task=task, base=base, ceiling=top, explicit=tuned, think=think)
