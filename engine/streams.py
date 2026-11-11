@@ -21,59 +21,92 @@ from __future__ import annotations
 import random
 
 UNSEEDED = "unseeded"
-_streams: dict[str, random.Random] = {}
-_key = UNSEEDED
 STRICT = False
 
 
-def _seed(name: str) -> str:
-    return f"{_key}:{name}"
+class Streams:
+    """(f581) One set of dice: the named streams, the key they were last seeded from, and their snapshot. The process has one (DEFAULT,
+    which the functions below are); it alone seeds the global random module. A second set beside it moves nothing of the first."""
+
+    def __init__(self, process: bool = False):
+        self._streams: dict[str, random.Random] = {}
+        self._key = UNSEEDED
+        self._process = process
+
+    def __copy__(self):
+        return self
+
+    def __deepcopy__(self, memo):                # (f581) a copy of a set of dice is that set: a copied holder never rolls a second one
+        return self
+
+    def _seed(self, name: str) -> str:
+        return f"{self._key}:{name}"
+
+    def _reseed(self) -> None:
+        for name, r in self._streams.items():
+            r.seed(self._seed(name))
+        if self._process:
+            random.seed(self._seed("global"))
+
+    def begin(self, seed, step: int, said: str = "") -> None:
+        """A new input: every stream starts again from (the campaign's seed, its count of inputs, the line typed). String seeds are
+        hashed the same in every process. The process's set reseeds the global random module too, for anything that still rolls it."""
+        self._key = f"{seed}:{step}:{said}"
+        self._reseed()
+
+    def reset(self) -> None:
+        """(f453) A campaign opened or closed (engine/session.py): the key goes back to unseeded and every stream starts again from it,
+        so nothing of the last campaign's dice reaches the next. STRICT is the recorder's and stays."""
+        self._key = UNSEEDED
+        self._reseed()
+
+    def get(self, name: str) -> random.Random:
+        """The stream of this name, made the first time it is asked for and reseeded at every input after."""
+        r = self._streams.get(name)
+        if r is None:
+            r = self._streams[name] = random.Random(self._seed(name))
+        return r
+
+    def new_id(self, n: int = 8, stream: str = "ids") -> str:
+        """A fresh id of n hex digits from the ids stream, in place of a uuid: the same turn makes the same ids. (f462) Or from a stream
+        of the caller's naming (the operations' is "ops"), so drawing it moves no die the game already had."""
+        return format(self.get(stream).getrandbits(4 * n), f"0{n}x")
+
+    def key(self) -> str:
+        """What the streams were last seeded from (for a recording's rows)."""
+        return self._key
+
+    def keyed(self, purpose: str, speaker: str = "", conversation: str = "", n: int = 0) -> random.Random:
+        """(f476) A die of its own for one purpose (a brief's wording, a reply's pick), seeded from this input's key and the purpose, the
+        speaker, the conversation and a count: drawing it moves no stream the game already rolls, so a speaker's brief can never shift
+        a fight's dice, and the same input draws the same. Made fresh each call; nothing of it is kept."""
+        return random.Random(f"{self._key}:keyed:{purpose}:{speaker}:{conversation}:{int(n)}")
+
+    def snapshot(self) -> tuple:
+        """(f485) Every stream's state as it stands, the global module's with them: an operation asked again from its start
+        (engine/asked.py) meets the same dice."""
+        return (self._key, {name: r.getstate() for name, r in self._streams.items()}, random.getstate() if self._process else None,
+                id(self))
+
+    def restore(self, snap: tuple) -> None:
+        """(f485) The streams put back as snapshot() found them; one made since starts again from its seed, as if it had not been drawn."""
+        key_then, states, global_state, owner = snap
+        if owner != id(self):
+            raise RuntimeError("a snapshot of another set of dice")
+        if key_then != self._key:
+            raise RuntimeError("the streams were reseeded between snapshot and restore")
+        for name, r in self._streams.items():
+            if name in states:
+                r.setstate(states[name])
+            else:
+                r.seed(self._seed(name))
+        if self._process and global_state is not None:
+            random.setstate(global_state)
 
 
-def begin(seed, step: int, said: str = "") -> None:
-    """A new input: every stream starts again from (the campaign's seed, its count of inputs, the line typed). String seeds are
-    hashed the same in every process. The global random module is reseeded too, for anything that still rolls it."""
-    global _key
-    _key = f"{seed}:{step}:{said}"
-    for name, r in _streams.items():
-        r.seed(_seed(name))
-    random.seed(_seed("global"))
-
-
-def reset() -> None:
-    """(f453) A campaign opened or closed (engine/session.py): the key goes back to unseeded and every stream starts again from it, so
-    nothing of the last campaign's dice reaches the next. STRICT is the recorder's and stays."""
-    global _key
-    _key = UNSEEDED
-    for name, r in _streams.items():
-        r.seed(_seed(name))
-    random.seed(_seed("global"))
-
-
-def get(name: str) -> random.Random:
-    """The stream of this name, made the first time it is asked for and reseeded at every input after."""
-    r = _streams.get(name)
-    if r is None:
-        r = _streams[name] = random.Random(_seed(name))
-    return r
-
-
-def new_id(n: int = 8, stream: str = "ids") -> str:
-    """A fresh id of n hex digits from the ids stream, in place of a uuid: the same turn makes the same ids. (f462) Or from a stream of
-    the caller's naming (the operations' is "ops"), so drawing it moves no die the game already had."""
-    return format(get(stream).getrandbits(4 * n), f"0{n}x")
-
-
-def key() -> str:
-    """What the streams were last seeded from (for a recording's rows)."""
-    return _key
-
-
-def keyed(purpose: str, speaker: str = "", conversation: str = "", n: int = 0) -> random.Random:
-    """(f476) A die of its own for one purpose (a brief's wording, a reply's pick), seeded from this input's key and the purpose, the
-    speaker, the conversation and a count: drawing it moves no stream the game already rolls, so a speaker's brief can never shift a
-    fight's dice, and the same input draws the same. Made fresh each call; nothing of it is kept."""
-    return random.Random(f"{_key}:keyed:{purpose}:{speaker}:{conversation}:{int(n)}")
+DEFAULT = Streams(process=True)
+begin, reset, get, new_id, key, keyed, snapshot, restore = (DEFAULT.begin, DEFAULT.reset, DEFAULT.get, DEFAULT.new_id, DEFAULT.key,
+                                                             DEFAULT.keyed, DEFAULT.snapshot, DEFAULT.restore)
 
 
 def fixed(*parts) -> random.Random:
@@ -81,22 +114,3 @@ def fixed(*parts) -> random.Random:
     a companion's pronoun, chosen once from its id and name). The seed is the parts joined by ":", today's seed strings exactly, so
     nothing rolled this way moves. Made fresh each call; nothing of it is kept."""
     return random.Random(":".join(str(p) for p in parts))
-
-
-def snapshot() -> tuple:
-    """(f485) Every stream's state as it stands, the global module's with them: an operation asked again from its start (engine/asked.py)
-    meets the same dice."""
-    return (_key, {name: r.getstate() for name, r in _streams.items()}, random.getstate())
-
-
-def restore(snap: tuple) -> None:
-    """(f485) The streams put back as snapshot() found them; one made since starts again from its seed, as if it had not been drawn."""
-    key_then, states, global_state = snap
-    if key_then != _key:
-        raise RuntimeError("the streams were reseeded between snapshot and restore")
-    for name, r in _streams.items():
-        if name in states:
-            r.setstate(states[name])
-        else:
-            r.seed(_seed(name))
-    random.setstate(global_state)
