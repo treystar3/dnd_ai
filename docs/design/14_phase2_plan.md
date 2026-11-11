@@ -1,6 +1,6 @@
 # 14. Phase 2 plan: pillar 2 outside combat
 
-Status: a plan for the owner, nothing built. Written 2026-11-11 on `pillar2/outside-combat` (cut from `foundations/early`, PR #38).
+Status: the plan, with the owner's answers of 2026-11-11 (section 7); nothing built. Written 2026-11-11 on `pillar2/outside-combat` (cut from `foundations/early`, PR #38).
 It turns the roadmap's phase 2 (docs 01, 02 steps 2 to 4, 05 steps 1 and 2) into features in build order, after a survey of the code
 those docs describe. The owner's four answers of 2026-11-11 are in GOALS.md ("Phase 2, pillar 2 outside combat").
 
@@ -131,14 +131,27 @@ through `deeds.add`. No recording contains it.
 - The switch: `act.yaml enabled: false`, and `DND_ACT=1` for a measuring run, kept in a recording's meta as the sampling arm is.
   With it on, `on_other` calls `act()`; off, `ruling.run` as today. The rest check and the clue search before it stay as they are.
 - Road hazards keep `ruling.ask` (f447 is its own decision). `ruling.py` keeps `ask`, `odds` and `means_of`; nothing is deleted here.
-- When the ruling cannot be made, today's ask-back stands (the owner, 11-09), unchanged in this feature. See question 4.
+- When the ruling cannot be made, the act waits for it (f596). With the switch off, today's ask-back stands on the old path.
 - Tests: with the switch on, a stub play through an act that makes a thing, one that changes a part, one refused, one failed, each
   compared for prose and state agreeing; with it off, ruling_test, rulings_421_test, improv_test and the recordings pass untouched.
 - Replay: exact with the switch off.
 
+**f596: an act that waits for its ruling** (the owner, 2026-11-11: built inside this phase; 11-08's "every consequential act
+persists as an event, including those awaiting interpretation"). It replaces the ask-back of 11-09 on the new path.
+- When the ruling cannot be made (the model down, a timeout, the budget), the act is kept for the character as a pending record in
+  the save (capped, in data), the narrator tells the visible attempt and never its outcome, and the attempt's time passes.
+- At the next input's edge, before that line is read and outside any transaction, the ruling is asked again. Made, the act resolves
+  as any other and a short continuation tells how it went; then the new line plays.
+- If what it named is gone or the character has left, it lapses in the story's own terms. After its tries (data) it is told as
+  come to nothing and logged as a `ruling_failed` refusal, so the night's counts still see it. Nothing is ever rolled unruled.
+- Its price falls on the next turn's budget as a required call; counted at the pod session.
+- Tests: a failed call keeps the act and grants nothing; the next input rules on it first and tells it; a reload between the two
+  keeps it; a target gone in between lapses it; past its tries it is refused and counted; two characters' pending acts stay apart.
+- Replay: exact with the switch off.
+
 ### Track C: situations
 
-**f596: the gate** (the planned f548; doc 01 recommendations 2 and 3).
+**f597: the gate** (the planned f548; doc 01 recommendations 2 and 3).
 - A deed reaches a situation when it touches it by id: its person is one of the situation's people, its place is where the trouble
   is, its target is one of the heart's threats, or it carries the situation's id. The region test (events.py:463) goes.
 - Certain cases need no call and stay first: a way met, a condition met, a named threat killed.
@@ -153,8 +166,8 @@ through `deeds.add`. No recording contains it.
   is asserted, so a later change that multiplies it fails.
 - Replay: events.yaml moves the hash. stub_short's situation is touched by no deed today; if a call appears, stop and read it.
 
-**f597: the end, read from the world** (the planned f549; doc 01 recommendation 4). Needs its own short design note and the owner's
-answers before it is built (question 2 and 3). The outline:
+**f598: the end, read from the world** (the planned f549; doc 01 recommendation 4). Its own short design note comes to the owner
+before it is built. The outline, with the owner's answers of 2026-11-11:
 - A pure function over the heart and the world: for each threat, can anyone or anything still impose it (its effect lifted or run
   out, and its controller gone, unable or no longer willing); for each stake, is it safe, lost or still at risk.
 - From those, whether the situation is over and how: achieved, partly achieved, lost, transformed, abandoned. The engine decides;
@@ -163,28 +176,30 @@ answers before it is built (question 2 and 3). The outline:
   ending leaves its 'settled' deed, its follow-up and its memory (f578).
 - A contract hand-in stops ending a normal or uncommon situation on its own (events.py:392-401): it is a deed like any other, the
   contract pays by its agreement, and the situation ends when the reading says so.
+- What an ending gives: town reputation by ending, in data (most for achieved, some for partly, none or a loss for lost, nothing
+  for abandoned); a transformed ending starts its follow-up; a promised reward follows its agreement. Numbers at the balance pass.
 - Tests: the threat's holder killed but the condition still imposed by another is not over; everyone at stake lost is over and
   lost; a hand-in whose job removed the threat ends it, one that did not does not; the same world read twice gives the same ending.
 
-**f598: parts for every tier, from the model** (the owner, 2026-11-11).
+**f599: parts for every tier, from the model** (the owner, 2026-11-11).
 - `births.tiers` and `adopt_tiers` take normal and uncommon; the checks at situations.py:886-892 change with them; the stale comment
   at situations.yaml:287 goes. New people stay at none for these tiers.
 - For an engine-built situation the "prose" its parts must agree with is its template's telling.
-- When a birth is due, and what a drop costs, is question 1. As recommended there: due when the situation is within reach of a
-  character or that character first hears of it or acts on it; nearest first; a birth dropped for the budget waits without spending
-  a try (a try is for a model failure).
+- When a birth is due (the owner, 2026-11-11): when the situation is within reach of a character, or that character first hears of
+  it or acts on it; nearest first. One far away never asks and ends as it does today. A birth dropped for the budget waits without
+  spending a try (a try is for a model failure).
 - Tests: births_546's "normal is never due" is replaced by the reach rule's cases; a far situation asks for nothing and ends as
   today; a drop for the budget spends no try; three model failures still fall to the engine's parts.
 - Replay: situations.yaml moves the hash, and stub_short's situation, if within reach, now asks for its parts: a real difference,
   read line by line before it is kept.
 
-**f599: an act moves a situation** (doc 02 section 7). `act()`'s kept changes on a situation's parts go through f596's gate as
-already ruled (no second call) and then to f597's reading. Tests: barring the granary door moves the looting at every tier; the act
+**f600: an act moves a situation** (doc 02 section 7). `act()`'s kept changes on a situation's parts go through f597's gate as
+already ruled (no second call) and then to f598's reading. Tests: barring the granary door moves the looting at every tier; the act
 and its ruling are one call in the log.
 
 ### The measurement, then the switch
 
-**f600: both paths on the corpus.** `tools/ruling_eval.py --live --path old|new`, the corpora (about 50 and 28 cases in
+**f601: both paths on the corpus.** `tools/ruling_eval.py --live --path old|new`, the corpora (about 50 and 28 cases in
 data/replay/ruling_cases*.yaml) given the targets each case needs, and new cases for objects and for acts on a situation's parts.
 It prints false acceptances and false rejections side by side.
 
@@ -193,8 +208,8 @@ path on the same seeds for the made room and said no counts, the refusals log an
 seconds of births and situation rulings a game day at 3060 speeds; and the f536 slot question (does the understanding's checkpoint
 on slot 0 hold from turn to turn, and does a background call on the shared slot delay the turn). Kept under docs/measure.
 
-**f601: the switch flips.** Only on the owner's go, with the session's numbers in front of them: false rejections no higher than
-the old path, false acceptances no higher, the 60-second rule kept. `act.yaml enabled: true`; stub_short re-recorded for its one
+**f602: the switch flips.** Only on the owner's go, with the session's numbers in front of them (the owner, 2026-11-11: no bar
+fixed in advance; "show me the numbers"): false rejections and false acceptances on both paths, the night's counts, the turn's time. `act.yaml enabled: true`; stub_short re-recorded for its one
 improvised line, each changed row explained; `world_improv.resolve` and `ruling.run` retired for typed lines (the phrase tables stay
 in data; `is_rest` and the hazard's `ask` stay). `tools/latency.py --gate` re-priced if the ruling's answer is larger.
 
@@ -202,10 +217,10 @@ in data; `is_rest` and the hazard's `ask` stay). `tools/latency.py --gate` re-pr
 
 ```
 f589 -> f590 -> f591                     (A, in order)
-f592 -> f593 -> f594 -> f595             (B, in order; f592 can start beside A)
-f596 -> f597 -> f598                     (C, after f590; f596 uses f594's store)
-f599                                     (after f595 and f597)
-f600 -> the pod session -> f601          (last)
+f592 -> f593 -> f594 -> f595 -> f596     (B, in order; f592 can start beside A)
+f597 -> f598 -> f599                     (C, after f590; f597 uses f594's store)
+f600                                     (after f595 and f598)
+f601 -> the pod session -> f602          (last)
 ```
 A and C touch engine/events.py, pulse.py and situation_parts.py; B touches engine/ruling.py, scenes/world.py `on_other`, inventory
 and new modules. The two can be built side by side, but each data change re-records the same three recordings, so they land one at a
@@ -216,16 +231,18 @@ time.
 | Feature | Data that moves the hash | Expected in the recordings |
 |---|---|---|
 | f589, f590, f591, f595 | none | exact |
+| f596 | act.yaml (the pending act's cap and tries) | hash only |
 | f592 | lifecycles.yaml, objects.yaml | hash only |
 | f593 | changes.yaml | hash only |
 | f594 | budget.yaml, act.yaml | hash only |
-| f596 | events.yaml, reactions.yaml | hash only expected |
-| f598 | situations.yaml | hash, and stub_short's situation may ask for parts |
-| f601 | act.yaml | hash, and stub_short's improvised line |
+| f597 | events.yaml, reactions.yaml | hash only expected |
+| f599 | situations.yaml | hash, and stub_short's situation may ask for parts |
+| f602 | act.yaml | hash, and stub_short's improvised line |
 
-Seven re-records, five of them for the hash alone. Each follows the rebless skill: read what first differs, keep only what the
+Eight re-records, six of them for the hash alone. Each follows the rebless skill: read what first differs, keep only what the
 feature explains, list the rows in the commit. Two things outside this branch also re-record the same files: `prose/section-a`
-already has (f583, f587, f588), and phase 3's storage move wants one quiet re-record after this phase. See question 5.
+already has (f583, f587, f588) and will again when it is rebased onto this phase (the owner's order), and phase 3's storage move
+wants one quiet re-record after both.
 
 The recordings are thin for this work (one improvised line, one situation). The gate for it is the stub suite: the world script
 (tools/sim/world_script.py, f579) gains a situation ruled on, ended by the reading, and an act that moves one, with its coverage
@@ -233,43 +250,38 @@ asserted.
 
 ## 6. Risks
 
-1. **The end-reading is undesigned and decides what "won" means.** Guard: its own design note and the owner's answers before f597;
+1. **The end-reading is undesigned and decides what "won" means.** Guard: its own design note and the owner's answers before f598;
    pure and tested on built worlds before anything calls it.
-2. **Births price the turn.** Guard: the reach rule, no try spent on a drop, and the count measured on the pod before f598 is
+2. **Births price the turn.** Guard: the reach rule, no try spent on a drop, and the count measured on the pod before f599 is
    switched to every tier in shipped data if the numbers are worse than estimated.
 3. **Calls multiply once the caps go.** Guard: relevance by id, certain cases with no call, the kept ruling, a call count asserted
    over the world script, and the night's count read at the pod session.
-4. **Two ruling paths drift while both live.** Guard: the old path's tests stay untouched until f601; the corpus runs both.
+4. **Two ruling paths drift while both live.** Guard: the old path's tests stay untouched until f602; the corpus runs both.
 5. **The kept ruling's key is wrong in either direction:** too loose and a changed world reuses a stale ruling, too tight and
    nothing is ever reused. Guard: the state hash covers only what the ruling read (the targets it names), with tests for both.
 6. **A false object.** The model names a thing the place could not hold. Guard: objects are made only through a ruling's `needs`,
    within the cap, as marks are today; the corpus gains cases.
-7. **Seven re-records invite a careless one.** Guard: the rebless rule each time, and hash-only ones proven by an otherwise exact
+7. **Eight re-records invite a careless one.** Guard: the rebless rule each time, and hash-only ones proven by an otherwise exact
    replay.
 8. **Phase 3 rewrites the same turn code.** New modules sit in engine/ and take the actor's id, so phase 3's context moves under
    them; `on_other` changes by one branch.
 
-## 7. Questions for the owner
+## 7. The owner's answers (2026-11-11; GOALS.md holds them)
 
-1. **When does a normal or uncommon situation ask for its parts?** A birth costs 25 to 44 seconds on the 3060 and waits on the
-   player's turn. Recommended: when it is within reach of a character, or that character hears of it or acts on it; never for one far
-   away, which ends as it does today; and a birth dropped for the budget waits without spending a try. The other choice is every
-   situation at its making, as rare ones are now.
-2. **A contract hand-in.** Recommended: the contract pays by its agreement, and the situation ends only when the world says so (the
-   job that removed the threat ends it; one that did not leaves it standing). Today the hand-in ends it and pays reputation.
-3. **What each ending gives.** The engine names the ending (achieved, partly, lost, transformed, abandoned). Recommended: reputation
-   by ending in data, a promised reward by its agreement (already decided), a transformed ending starting its follow-up. The numbers
-   wait for the balance pass. I will bring the design note for f597 before building it.
-4. **An act whose ruling could not be made.** You kept the ask-back on 11-09 as interim. Recommended: keep it through this phase
-   and build the pending act (kept, told as a visible reaction, ruled at the next input) as its own feature after the switch, so the
-   comparison on the pod is like for like.
-5. **The order branches land.** Recommended: merge PR #38; decide `prose/section-a` (its measured features, and whether A3's
-   exemplars stay) and land it before f592, the first hash move here, so the recordings are re-recorded on one line of history.
-6. **Combat's rows wait.** Recommended: action tags, generic combat states and creature parts move from doc 02 step 2 to phase 4,
-   where they have callers. Phase 2 holds only what applies outside combat.
-7. **Road hazards** keep their own ruling call in this phase (f447). Agreed?
-8. **The pod session's bar for the switch:** false rejections and false acceptances no higher than the old path on the corpus, and
-   the 60-second rule kept. Is "no higher" the bar, or do you want a margin?
+| Question | Answer |
+|---|---|
+| 1. When a normal or uncommon situation asks for its parts | When a player can meet it: within reach of a character, or heard of, or acted on. A far one never asks. A drop for the budget spends no try. |
+| 2. A contract hand-in | The contract pays by its agreement; the situation ends only when the world says so. |
+| 3. What each ending gives | Reputation by ending, in data; a transformed ending starts its follow-up; numbers at the balance pass. |
+| 4. An act whose ruling could not be made | The pending act is built inside this phase (f596), not after the switch. |
+| 5. The order branches land | PR #38 now, and phase 2 on it. `prose/section-a` stays apart and is rebased onto phase 2 when it lands, its recordings re-recorded then. A3's exemplars stay for narration and speech; the fight pool comes out until phase 4 reshapes fight prose. |
+| 6. Combat's rows | Wait for phase 4. |
+| 7. Road hazards | Keep their own ruling call through this phase. |
+| 8. The bar for the switch | None fixed in advance: the numbers are brought to the owner. |
+
+What the answers changed in this plan: f596 is new, so the pod session compares a path that asks back with one that waits (the
+corpus measures rulings made, so it is unaffected; the nights will differ where a ruling fails, and those are counted apart).
+`prose/section-a` carries f582 to f588 and will be re-recorded once more when it lands on top of this phase.
 
 ## 8. Not in this phase
 
