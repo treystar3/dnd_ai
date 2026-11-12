@@ -423,6 +423,13 @@ class CampaignStore:
     def save_arcs(self, data: dict) -> None:
         self._put("arcs", json.dumps(data))
 
+    def load_act_rulings(self) -> dict:
+        """(f594) Each character's kept act rulings (engine/act.py), by character id."""
+        return self._kv("act_rulings") or {}
+
+    def save_act_rulings(self, data: dict) -> None:
+        self._put("act_rulings", json.dumps(data))
+
     def load_discoveries(self) -> dict:
         base = {"places": [], "tracks": [], "leads": []}
         got = self._kv("discoveries")

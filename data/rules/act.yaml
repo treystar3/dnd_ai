@@ -1,0 +1,18 @@
+# AN ACT AND ITS RULING (f594, engine/act.py; docs/design/02, outside combat). The dungeon master's ruling on what a character tries, in
+# one call with what it changes if it works (data/rules/changes.yaml), checked by the engine and kept.
+
+# The reuse rule (the owner, 2026-11-08: "Repeated actions without materially changed circumstances reuse their prior ruling"): a ruling
+# is kept per character, a no among them, with what it read (the targets it named, their state, what the character could do). The same
+# act at the same place, with all that unchanged, is ruled the same with no call. A kept ruling is let go when its character keeps more
+# than per_character, oldest first, or after days unused.
+kept:
+  per_character: 64
+  days: 60
+
+most_changes: 8         # the changes one ruling may carry
+
+# Words the reuse rule leaves out when it compares two acts ("I try to hide behind the crates" is "hide behind crates").
+filler: [i, the, a, an, my, to, and, then, try, trying, tries, attempt, attempts]
+
+# What a failure outside combat costs, the model's choice from these; the engine sets what each does (f595).
+fails: [time_lost, noise, noticed, object_breaks, hurt, exposed]

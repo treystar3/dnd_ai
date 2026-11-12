@@ -69,6 +69,10 @@ class Stub:
         improvised act was before there was a ruling."""
         return getattr(self, "ruling", None) or {"sense": "cost", "why": "", "needs": [], "requires": []}
 
+    def a_ActRuling(self, u, k):
+        """(f594) The act ruling (engine/act.py): what a test gives (self.act_ruling), else it makes sense, at a cost, and changes nothing."""
+        return getattr(self, "act_ruling", None) or {"sense": "cost", "why": "", "needs": [], "requires": [], "uses": [], "changes": []}
+
     def a_CombatIntent(self, u, k):
         return self.bot.combat_choice()
 

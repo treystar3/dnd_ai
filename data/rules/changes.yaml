@@ -39,7 +39,7 @@ changes:
   found:      {lands_on: [evidence, object]}
   destroyed:  {lands_on: [evidence, object]}
   # on a part of a place or a road: its state (data/rules/features.yaml becomes) or the way through it
-  state:      {lands_on: [part, road], args: [becomes]}
+  state:      {lands_on: [part], args: [becomes]}   # a road's way through is `access`; a road has no state of its own
   access:     {lands_on: [part, road], args: [open, closed, hidden]}
   # on a thing: put out of sight where it lies
   hidden_here: {lands_on: [object]}
