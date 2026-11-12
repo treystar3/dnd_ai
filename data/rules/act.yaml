@@ -14,6 +14,9 @@ kept:
   days: 60
 
 most_changes: 8         # the changes one ruling may carry
+# (f606) the most the ruling's free text and short lists may hold, in its grammar (characters; items)
+grammar: {why: 200, answer: 600, instead: 120, instead_items: 2, label: 60, need_name: 40, need_what: 160, need_where: 80, needs: 2,
+          uses: 4, requires: 2}
 
 # (f600) force counts only on a test of body or arms; talk, a performance or a plain yes never does (the owner, 2026-11-11)
 force_checks: [strength, dexterity, constitution, intimidation]

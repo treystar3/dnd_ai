@@ -91,6 +91,81 @@ def context(ws, T) -> dict:
             "changes": list(targets.CH["changes"]), "codes": T.codes(), "most": int(A["most_changes"]), "fails": list(A["fails"])}
 
 
+def shape(ws, T):
+    """(f606) The act ruling's contract for this call: it validates as ActRuling does, and the grammar the model writes against is made
+    for the scene, so a ruling can only be written in words the engine takes: targets by code, each with only the change words that land
+    on its kind (never a situation itself), who acts where a change needs it, the state a change of state or of access gives, the fail,
+    the check and the capabilities from their lists, a no that says what happens instead, and short free text."""
+    import copy
+    from engine import checks, features, ruling, situation_parts, targets
+    from llm.contracts import ActRuling
+    L = A["grammar"]
+    defs = ActRuling.model_json_schema()["$defs"]
+    actor = {w: r.get("actor") for w, r in situation_parts.S["rulings"]["changes"].items()}
+    kinds: dict[str, list[str]] = {}
+    for t in T.rows:
+        kinds.setdefault(t.kind, []).append(t.code)
+    codes = T.codes()
+    beside = [c for c in codes if T.kind_of(c) != "situation"]
+    people = kinds.get("person", [])
+    enum = lambda xs, empty=True: {"enum": ([""] if empty else []) + list(xs)} if xs else {"type": "string", "maxLength": 0}
+    text = lambda n: {"type": "string", "maxLength": int(L[n])}
+    states = {"state": list(features.F["becomes"]), "access": list(targets.CH["changes"]["access"]["args"])}
+
+    def variant(cs: list[str], group: list[str], how: str) -> dict:
+        """One shape of change: these targets, these words, and what the words need (who acts; the state given)."""
+        need = ["n", "target", "becomes"]
+        props = {"n": {"type": "integer"}, "target": {"enum": cs}, "becomes": {"enum": group}, "to": enum(kinds.get("part", [])),
+                 "about": enum(beside), "because": {"enum": defs["ActChange"]["properties"]["because"]["enum"]},
+                 "needs": {"type": "array", "items": {"type": "integer"}, "maxItems": int(A["most_changes"])}, "label": text("label")}
+        if how in ("self", "person"):
+            props["who"], need = enum(people, empty=False), need + ["who"]      # done by a person of the situation: who, by name
+        else:
+            props["who"] = enum([] if how == "act" else people)
+        if how in states:
+            props["state"], need = enum(states[how], empty=False), need + ["state"]
+        else:
+            props["state"] = enum([])                                        # no state for a change that gives none
+        return {"type": "object", "required": need, "properties": props}
+
+    changes = []
+    for kind, cs in kinds.items():
+        if kind == "situation":
+            continue
+        groups: dict[str, list[str]] = {}
+        for w in targets.CH["changes"]:
+            if targets.lands_on(w, kind):
+                how = w if w in states else ("person" if actor.get(w) == "person" else actor.get(w) or "either")
+                groups.setdefault(how if how in ("self", "person", "act", *states) else "either", []).append(w)
+        changes += [variant(cs, group, how) for how, group in groups.items() if not (how in ("self", "person") and not people)]
+    need = {"type": "object", "required": ["kind", "name"], "properties": {
+        "kind": {"enum": defs["Need"]["properties"]["kind"]["enum"]}, "name": text("need_name"), "what": text("need_what"),
+        "where": text("need_where"), "role": enum(sorted(ws.world.roles))}}
+    common = {
+        "why": text("why"),
+        "uses": {"type": "array", "items": enum(codes, empty=False), "maxItems": int(L["uses"])} if codes else {"type": "array", "maxItems": 0},
+        "needs": {"type": "array", "items": need, "maxItems": int(L["needs"])},
+        "requires": {"type": "array", "items": {"enum": list(ruling.C)}, "maxItems": int(L["requires"])},
+        "stakes": {"type": "object", "properties": {"check": {"enum": [""] + sorted(checks.CHECKS) + list(ruling.ATTRS)},
+                                                    "hard": {"enum": defs["Stakes"]["properties"]["hard"]["enum"]}}},
+        "fail": {"enum": list(A["fails"])},
+        "instead": {"type": "array", "items": text("instead"), "maxItems": int(L["instead_items"])}}
+    acts = {"type": "array", "items": {"anyOf": changes} if changes else {"type": "object"},
+            "maxItems": int(A["most_changes"]) if changes else 0}
+    yes = {"type": "object", "required": ["sense"], "properties": {"sense": {"enum": ["yes", "cost"]}, **common, "changes": acts,
+                                                                   "answer": text("answer")}}
+    no = {"type": "object", "required": ["sense", "answer"], "properties": {
+        "sense": {"enum": ["no"]}, **common, "changes": {"type": "array", "maxItems": 0}, "answer": {**text("answer"), "minLength": 1}}}
+    schema = {"title": "ActRuling", "anyOf": [yes, no]}
+
+    class Shaped(ActRuling):
+        @classmethod
+        def model_json_schema(cls, *a, **k) -> dict:
+            return copy.deepcopy(schema)
+    Shaped.__name__ = Shaped.__qualname__ = "ActRuling"
+    return Shaped
+
+
 def on() -> bool:
     """(f595) Whether an act outside combat goes through act(): the data's switch, or DND_ACT=1 for one run."""
     import config
@@ -103,7 +178,7 @@ def ask(ws, actor_id: str, T, words: str, text: str):
     from llm.gateway import LLMError, generate
     from ui import console
     try:
-        return generate("act_ruling", SYSTEM, request(ws, actor_id, T, words, text), ActRuling, temperature=0.3, max_tokens=700,
+        return generate("act_ruling", SYSTEM, request(ws, actor_id, T, words, text), shape(ws, T), temperature=0.3, max_tokens=700,
                         validation_context=context(ws, T))
     except LLMError as e:
         console.debug(f"act ruling: none ({e})")
@@ -372,6 +447,11 @@ def problems() -> list[str]:
     hand = A.get("hand_checks")
     if not (isinstance(hand, list) and hand and set(hand) <= set(checks.CHECKS) | set(ruling.ATTRS) and not set(hand) & set(talk or ())):
         bad.append("act.yaml hand_checks: a list of the checks a hand's work is tested on, none of talk_checks")
+    G = A.get("grammar") or {}
+    if set(G) != {"why", "answer", "instead", "instead_items", "label", "need_name", "need_what", "need_where", "needs", "uses", "requires"} \
+            or not all(isinstance(v, int) and not isinstance(v, bool) and v > 0 for v in G.values()):
+        bad.append("act.yaml grammar: why, answer, instead, instead_items, label, need_name, need_what, need_where, needs, uses and requires, "
+                   "each a whole number above 0")
     if not (isinstance(A.get("filler"), list) and all(isinstance(x, str) and x for x in A["filler"])):
         bad.append("act.yaml filler: needs a list of words")
     return bad
