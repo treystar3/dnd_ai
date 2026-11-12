@@ -4,12 +4,14 @@ The kept recordings change the world's state in 6 of their 83 inputs and start w
 recordings replay" proves little about where that state is kept. This script plays one stub campaign through the writers the game
 uses (typed lines, the pulse over many days, deeds, endings, news, effects) and takes the loaded world after every step, as text. Its
 coverage is counted, not assumed: a matter ended by the player with its settled deed, a rare matter ruled on through its parts (f597:
-the old judge's ending is gone) and ended by the reading of the world (f598), a rule of the town's answered, news told twice
+the old judge's ending is gone) and ended by the reading of the world (f598), (f605) an act on the act path that moves a matter in
+one ruling, a rule of the town's answered, news told twice
 folded into one row, news past its cap with a deed's tale kept, an effect lifted with its matter and later dropped, finished matters
 past what is kept, deeds past their cap, the history at its cap, and an operation that wrote the world and was rolled back.
 
     python tools/sim/world_script.py NAME --out FILE     one play in a process of its own: {"steps": [[label, the world as text]],
-                                                         "cover": {what: bool}, "other": the digest of every table of the save}
+                                                         "cover": {what: bool}, "other": the digest of every table of the save,
+                                                         "calls": the model's calls over the play, by kind (f605)}
     world_script.run_apart("name")                       the same from a test: the play's dict (the stand-in model numbers what it
                                                          invents by a count the process keeps, so two plays compared share none)
     play(name, stub, prepare=fn)                         in this process; fn(game) before anything is written: where a storage
@@ -30,7 +32,7 @@ PLACE = "trading_square"
 
 class Run:
     def __init__(self, game):
-        self.game, self.steps, self.cover, self.other = game, [], {}, {}
+        self.game, self.steps, self.cover, self.other, self.calls = game, [], {}, {}, {}
 
 
 def world_text(store) -> str:
@@ -88,8 +90,8 @@ def play(name: str, stub, seed: int = SEED, prepare=None) -> Run:
         with ws.operation("action:attack", f"kill the {creature}"):
             ws.notice(CreatureKilled(minute=ws.minutes, place=PLACE, witnesses=(), creature=creature, level=1))
 
-    def ruled_rare() -> str:
-        """(f597) A rare matter with parts: a townsperson it harms."""
+    def ruled_rare(conditions=()) -> str:
+        """(f597) A rare matter with parts: a townsperson it harms; (f605) and the conditions given."""
         import random
         from engine import retrieval, situation_parts, situations
         from llm.contracts import SituationParts
@@ -97,7 +99,8 @@ def play(name: str, stub, seed: int = SEED, prepare=None) -> Run:
         st = state()
         th = next(x for x in st["threads"] if x["id"] == tid)
         who = retrieval.people_in_town(store, world, town)[0]
-        acc, _ = situations.check(SituationParts.model_validate({"people": [{"who": who.id, "stake": "harmed", "want": "safety"}]}),
+        acc, _ = situations.check(SituationParts.model_validate({"people": [{"who": who.id, "stake": "harmed", "want": "safety"}],
+                                                                 "conditions": list(conditions)}),
                                   store, world, "rare", random.Random(seed), town=town, ways=False, now=ws.minutes, players=(ws.acting,))
         with ws.operation("test", "a rare matter's parts"):
             situation_parts.register(store, world, st, th, acc, ws.minutes, catalog=ws.catalog, ways=False)
@@ -111,6 +114,38 @@ def play(name: str, stub, seed: int = SEED, prepare=None) -> Run:
         who = next(a["who"] for a in th["parts"] if a.get("kind") == "person")
         with ws.operation("action:give", "give a loaf"):
             ws.notice(Gift(minute=ws.minutes, place=PLACE, witnesses=(), npc=who, name=store.load_npc(who).name, item=item, count=1))
+
+    def acted() -> None:
+        """(f605) An act on the act path (f595, f600): looters lay a danger on the square and harm a townsperson there; the act's one
+        ruling lifts the danger by force on a roll of the arms and makes them safe, and the world reads the matter over at once."""
+        import types
+        from engine import checks, targets
+        looted = ruled_rare([{"on": PLACE, "kind": "danger", "label": "looters in the square", "by": "the looting band", "by_kind": "group"}])
+        harmed = next(a["who"] for a in thread(looted)["parts"] if a.get("kind") == "person")
+        present, roll, act_on, ruling = list(ws.present), checks.roll, config.ACT, getattr(stub, "act_ruling", None)
+        ws.present = present + ([store.load_npc(harmed)] if harmed not in {n.id for n in present} else [])
+        config.ACT, checks.roll = True, (lambda odds, rng=None, c=None: ("success", 1))   # the dice are not what the script covers
+        try:
+            rows = targets.targets_for(ws, ws.acting).rows
+            sit = next(t.code for t in rows if t.kind == "situation" and t.ref == looted)
+            danger = next(t.code for t in rows if t.code.startswith(sit + ".") and t.kind == "condition")
+            person = next(t.code for t in rows if t.code.startswith(sit + ".") and t.kind == "person")
+            stub.act_ruling = {"sense": "cost", "stakes": {"check": "intimidation", "hard": "fair"},
+                               "changes": [{"n": 1, "target": danger, "becomes": "lifted", "because": "force"},
+                                           {"n": 2, "target": person, "becomes": "safe", "because": "earlier", "needs": [1]}]}
+            before = {k: stub.calls.get(k, 0) for k in ("ActRuling", "JudgeVerdict")}
+            text = "I bar the granary door and drive the looters off."
+            with ws.operation("action:other", text):
+                ws.on_other(types.SimpleNamespace(kind="other", summary=text), text)
+            spent = {k: stub.calls.get(k, 0) - v for k, v in before.items()}
+        finally:
+            stub.act_ruling, config.ACT, checks.roll, ws.present = ruling, act_on, roll, present
+        snap("an act moves a matter, in one ruling")
+        th = thread(looted) or {}
+        made = {(c.get("becomes"), c.get("act")) for c in th.get("changes") or []}        # the act's own changes ended it
+        run.cover["an act moved a matter, in one ruling"] = (th.get("status") == "resolved" and th.get("ending_kind") == "achieved"
+                                                            and spent == {"ActRuling": 1, "JudgeVerdict": 0}
+                                                            and {("lifted", "acted"), ("safe", "acted")} <= made)
 
     # ---- lines typed, and days passing
     ws.turn("look around")
@@ -145,6 +180,7 @@ def play(name: str, stub, seed: int = SEED, prepare=None) -> Run:
     snap("the one it harmed made safe: the world reads it over")
     run.cover["a matter ended by the reading"] = ((thread(rare) or {}).get("status") == "resolved"
                                                   and (thread(rare) or {}).get("ending_kind") == "achieved")
+    acted()
     before = len(state().get("threads", []))
     for i in range(4):
         days(2)
@@ -248,6 +284,7 @@ def play(name: str, stub, seed: int = SEED, prepare=None) -> Run:
     ws.turn("wait a while")
     snap("a last line")
     run.other = {k: v for k, v in statehash.digest(store).items()}
+    run.calls = dict(sorted(stub.calls.items()))
     return run
 
 
@@ -277,7 +314,8 @@ def main(argv: list[str] | None = None) -> int:
     simlib.quiet_console()
     run = play(a.name, stub, seed=a.seed)
     run.game.session.close()
-    Path(a.out).write_text(json.dumps({"steps": run.steps, "cover": run.cover, "other": run.other}, ensure_ascii=False), encoding="utf-8")
+    Path(a.out).write_text(json.dumps({"steps": run.steps, "cover": run.cover, "other": run.other, "calls": run.calls}, ensure_ascii=False),
+                           encoding="utf-8")
     return 0
 
 
