@@ -3,7 +3,8 @@
 # where it is, `carried` things in hand (only the act's ruling sees them), a `situation` with its people (here or away from the scene,
 # their stake and want, `against`: a stance toward the character, named in the line as {person:<n>}) and conditions. A `model` is a
 # ruling to try the engine's own checks against offline, its targets named @object:<word>, @condition or @person:<n>; `moves` what a good
-# dungeon master would leave each named target as (false: untouched), measured live too. `known`: where the engine is not yet what
+# dungeon master would leave each named target as: a word, a list of fair words, {not: words} (anything but these), or false
+# (untouched); measured live too. `known`: where the engine is not yet what
 # the owner decided, shown apart until its feature lands.
 # Force counts only on a test of body or arms, skill is a hand's work, a kept force change counts for its own target in person (the
 # owner, 2026-11-11, GOALS.md f600).
@@ -66,12 +67,12 @@
    situation: {tier: uncommon, title: The grain hoard, people: [{here: true, stake: blocks, want: coin, against: committed}],
                conditions: [{kind: danger, label: the hoarders' guard on the granary, by: the hoarders, by_kind: group}]},
    model: {sense: "cost", stakes: {check: strength, hard: fair}, changes: [{n: 1, target: "@person:1", becomes: terrified, because: force}]},
-   moves: {"@person:1": terrified}}
+   moves: {"@person:1": [terrified, surrenders]}}
 - {line: "I plead with {person:1} to let the hungry have some of the grain.", at: trading_square, expect: "cost",
    situation: {tier: uncommon, title: The grain hoard, people: [{here: true, stake: blocks, want: coin, against: committed}],
                conditions: [{kind: danger, label: the hoarders' guard on the granary, by: the hoarders, by_kind: group}]},
    model: {sense: "cost", stakes: {check: persuasion, hard: hard}, changes: [{n: 1, target: "@person:1", becomes: open, because: words}]},
-   moves: {"@person:1": false}}
+   moves: {"@person:1": {not: [open, wary, hostile, refusing, terrified, committed, flees, surrenders, joins, warns]}}}
 - {line: "I break down the cellar door where they keep {person:1} and pull them out.", at: trading_square, expect: "cost",
    situation: {tier: rare, title: The kidnapping, people: [{here: false, stake: harmed, want: safety}],
                conditions: [{kind: danger, label: the kidnappers in the square, by: the kidnappers, by_kind: group}]},
