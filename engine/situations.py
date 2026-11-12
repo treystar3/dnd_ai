@@ -697,6 +697,9 @@ def rulings_problems(c=None) -> list[str]:
             bad.append(f"situations.yaml rulings.changes.{w}.better: true or false")
     if set(RU.get("because") or ()) != lit("because"):
         bad.append("situations.yaml rulings.because: the contract's RulingChange.because, both ways")
+    eb = RU.get("engine_because")
+    if not (isinstance(eb, list) and eb and not set(eb) & set(RU.get("because") or ())):
+        bad.append("situations.yaml rulings.engine_because: a list of what the engine alone sets, none of rulings.because")
     will = {w for w, row in ch.items() if (row or {}).get("layer") == "willingness"}
     if not set(RU.get("wont") or ()) <= will or not RU.get("wont"):
         bad.append("situations.yaml rulings.wont: some of the willingness words")

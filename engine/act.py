@@ -304,10 +304,10 @@ def _chain(ws, actor_id: str, T, r) -> tuple[list, list]:
         if th is not None:
             idx = lambda code: int(code.split(".")[1]) if code.startswith(scode + ".") else 0
             rows = [{"n": ch.n, "part": idx(ch.target), "who": idx(ch.who), "becomes": ch.becomes,
-                     "because": "force" if ch.because == "skill" else ch.because, "about": idx(ch.about),
+                     "because": _because(ch, r.stakes.check), "about": idx(ch.about),
                      "needs": [n for n in ch.needs if n in {c.n for c in chs}]} for ch in chs]
             act = {"kind": "acted", "by": actor_id, "npc": "", "witnesses": sorted(n.id for n in ws.present), "place": ws.player.location,
-                   "coin": 0, "item": "", "count": 1, "degree": "", "words_only": False}
+                   "coin": 0, "item": "", "count": 1, "degree": "", "words_only": False, "force_by_change": True}   # (f600) never a violent act
             ok, bad = situation_parts.ruled(store, th, act, rows, world)
             held = {c["n"] for c in ok}
             why_of = {c.get("n"): w for c, w in bad}
@@ -325,6 +325,14 @@ def _chain(ws, actor_id: str, T, r) -> tuple[list, list]:
             continue
         out.append(ch)
     return out, dropped
+
+
+def _because(ch, check: str) -> str:
+    """(f600) What a change rests on, to a situation's rules: force only on a test of body or arms (act.yaml force_checks), the work of a
+    hand for skill and for force claimed on anything else (the owner, 2026-11-11)."""
+    if ch.because == "force":
+        return "force" if check in A["force_checks"] else "work"
+    return "work" if ch.because == "skill" else ch.because
 
 
 def problems() -> list[str]:
@@ -352,6 +360,9 @@ def problems() -> list[str]:
         v = P_.get(k)
         if not (isinstance(v, int) and not isinstance(v, bool) and v > 0):
             bad.append(f"act.yaml pending.{k}: needs a whole number above 0")
+    from engine import checks, ruling
+    if not (isinstance(A.get("force_checks"), list) and A["force_checks"] and set(A["force_checks"]) <= set(checks.CHECKS) | set(ruling.ATTRS)):
+        bad.append("act.yaml force_checks: a list of the checks and attributes force is tested on")
     if not (isinstance(A.get("filler"), list) and all(isinstance(x, str) and x for x in A["filler"])):
         bad.append("act.yaml filler: needs a list of words")
     return bad
@@ -530,7 +541,7 @@ def resolve(ws, actor_id: str, T, v: Checked, words: str, text: str, made: list[
                         changes=tuple(ch.becomes for ch in changes), heat=0.0 if worked else float(F.get("heat", 0) or 0),
                         considered=tuple(t.ref for t in T.rows if t.kind == "situation")))
     seq = int((ws.store.load_world_state() or {}).get("seq") or 0)
-    told = apply(ws, actor_id, T, changes, degree, seq) if changes else []
+    told = apply(ws, actor_id, T, changes, degree, seq, r.stakes.check) if changes else []
     room = (" THE WORLD NOW HOLDS (made for this, and real from now on; show it): " + "; ".join(made) + ".") if made else ""
     lasting = (" WHAT IS DIFFERENT NOW (real from now on; show it): " + " ".join(told)) if told else ""
     nots = (" WHAT DID NOT HAPPEN (the game refused it; never show it happening): " + "; ".join(_said(T, ch) for ch, _ in refused) + ".") \
@@ -575,7 +586,7 @@ def fail(ws, actor_id: str, T, r, F: dict) -> str:
     return out
 
 
-def apply(ws, actor_id: str, T, changes, degree: str, seq: int = 0) -> list[str]:
+def apply(ws, actor_id: str, T, changes, degree: str, seq: int = 0, check: str = "") -> list[str]:
     """Each checked change written through the game's own writers; returns what the narrator is told is different now."""
     from engine import entities, features, objects
     store = ws.store
@@ -611,7 +622,7 @@ def apply(ws, actor_id: str, T, changes, degree: str, seq: int = 0) -> list[str]
         elif t.kind == "person":
             told += _person(ws, actor_id, t, ch)
     for scode, chs in sits.items():
-        told += _situation(ws, actor_id, T, scode, chs, degree, seq)
+        told += _situation(ws, actor_id, T, scode, chs, degree, seq, check)
     return [x for x in told if x]
 
 
@@ -634,7 +645,7 @@ def _person(ws, actor_id: str, t, ch) -> list[str]:
     return [f"{n.label(actor_id)} is {w} now."]
 
 
-def _situation(ws, actor_id: str, T, scode: str, chs, degree: str = "success", seq: int = 0) -> list[str]:
+def _situation(ws, actor_id: str, T, scode: str, chs, degree: str = "success", seq: int = 0, check: str = "") -> list[str]:
     """A situation's parts changed through its own writer (engine/situation_parts.py keep_changes)."""
     from engine import situation_parts
     state = ws.store.load_world_state() or {}
@@ -643,10 +654,10 @@ def _situation(ws, actor_id: str, T, scode: str, chs, degree: str = "success", s
         return []
     idx = lambda code: int(code.split(".")[1]) if code.startswith(scode + ".") else 0
     rows = [{"n": ch.n, "part": idx(ch.target), "who": idx(ch.who), "becomes": ch.becomes,
-             "because": "force" if ch.because == "skill" else ch.because, "about": idx(ch.about),
+             "because": _because(ch, check), "about": idx(ch.about),
              "needs": [m for m in ch.needs if m in {c.n for c in chs}]} for ch in chs]
     act_ = {"kind": "acted", "by": actor_id, "npc": "", "witnesses": sorted(n.id for n in ws.present), "place": ws.player.location,
-            "coin": 0, "item": "", "count": 1, "degree": degree, "words_only": False, "seq": seq or None}   # the deed's own number
+            "coin": 0, "item": "", "count": 1, "degree": degree, "words_only": False, "seq": seq or None, "force_by_change": True}
     situation_parts.keep_changes(ws, state, th, act_, rows)
     from engine import events
     events.read_end(ws, state, th, "by what was done")      # (f598) whether it is over is the world's to say

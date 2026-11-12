@@ -15,6 +15,9 @@ kept:
 
 most_changes: 8         # the changes one ruling may carry
 
+# (f600) force counts only on a test of body or arms; talk, a performance or a plain yes never does (the owner, 2026-11-11)
+force_checks: [strength, dexterity, constitution, intimidation]
+
 # Words the reuse rule leaves out when it compares two acts ("I try to hide behind the crates" is "hide behind crates").
 filler: [i, the, a, an, my, to, and, then, try, trying, tries, attempt, attempts]
 

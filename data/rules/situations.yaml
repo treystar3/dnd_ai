@@ -337,6 +337,7 @@ rulings:
     found:      {layer: world, kinds: [evidence], actor: act, better: true}
     destroyed:  {layer: world, kinds: [evidence], actor: either, better: false}
   because: [words, coin, goods, force, evidence, earlier]
+  engine_because: [work]   # (f600) set by the engine for an act's change, never by the model: a hand's work, never force
   words_only_acts: [persuade, heard, talk, lie, deceived, lie_caught, part_done]   # acts of words alone (never the world itself)
   goods_acts: [gift, bribe, deliver]       # acts that hand goods over
   wont: [hostile, refusing, committed]     # a person standing so toward the one who acted takes no cooperative action, until moved

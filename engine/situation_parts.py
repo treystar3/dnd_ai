@@ -1016,6 +1016,8 @@ def ruled(store, th: dict, act: dict, changes: list[dict], world=None) -> tuple[
             return why["not_actor"]
         layer = row.get("layer")
         because = c.get("because") or "words"
+        if because not in RU["because"] and because not in RU["engine_because"]:
+            because = "words"                                      # (f600) nothing undeclared counts for more than words
         if layer in ("belief", "feeling", "willingness") and a["who"] not in reached:
             return why["not_heard"]
         if who and part(who)["who"] not in reached:
@@ -1029,7 +1031,7 @@ def ruled(store, th: dict, act: dict, changes: list[dict], world=None) -> tuple[
                 return why["words_only"]                          # a word or a coin by itself
             if a["kind"] == "person" and a["who"] not in heard and not (because == "force" and where_trouble()):
                 return why["not_heard"]                          # one freed by the player's own hand: where the act was, or freed by
-            hand = by_hand(a, k, w)                                 # force where the trouble is (their captor beaten); (f547's third
+            hand = by_hand(a, k, w, c)                              # force where the trouble is (their captor beaten); (f547's third
             if hand:                                             # review) anything else, by a hand that was there and could
                 return hand
         if failed and row.get("better"):
@@ -1082,13 +1084,15 @@ def ruled(store, th: dict, act: dict, changes: list[dict], world=None) -> tuple[
                 return stuck                                   # they are moved, never by words that soften them first
         return ""
 
-    def by_hand(a: dict, k: int, w: str) -> str:                       # (f547's third review) what the player's own hand may change: only
-        kind = a.get("kind")                                   # where it is, and as the one who holds it allows
+    def by_hand(a: dict, k: int, w: str, c: dict | None = None) -> str:   # (f547's third review) what the player's own hand may change:
+        kind = a.get("kind")                                   # only where it is, and as the one who holds it allows
         if kind == "condition":
-            how = "force" if act.get("kind") in violence else "work"           # one held by someone is broken only by force; a flood
+            how = "force" if act.get("kind") in violence or (act.get("force_by_change") and (c or {}).get("because") == "force") \
+                else "work"                                    # one held by someone is broken only by force; a flood
             if a.get("what") == "prices" and how == "work" and (here(a.get("on", "")) or in_town(a)):   # is not beaten. (f547's fourth
                 return ""                                      # and fifth reviews) goods brought ease a town's price rise anywhere in it,
-            if not here(a.get("on", "")):                      # whoever raised it; force breaks it only where it is
+            if not here(a.get("on", "")):                      # whoever raised it; force breaks it only where it is. (f600) An act's
+                                                               # force is its change's own, never the whole act's
                 return why["not_there"]
             return "" if how in RU["hand_lifts"].get(a.get("by_kind") or "world", ()) else why["no_means"]
         if kind == "evidence":
