@@ -579,19 +579,6 @@ class Pickpocketed(Deed):
 
 
 @dataclass(frozen=True)
-class Improvised(Deed):
-    kind: str = field(init=False, default="improvised")
-    effect: str = ""
-    degree: str = ""
-    what: str = ""
-    mark: str = ""
-    heat: float = 0.0              # the noise it made, as heat (engine/world_improv.py fails)
-
-    def text(self) -> str:
-        return f"improvised ({self.effect}: {self.what}) - {self.degree}"
-
-
-@dataclass(frozen=True)
 class Acted(Deed):
     """(f595) An act a character tried, ruled on and resolved (engine/act.py): a deed, so what it did can move what it touches."""
     kind: str = field(init=False, default="acted")

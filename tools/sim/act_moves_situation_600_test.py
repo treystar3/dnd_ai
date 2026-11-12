@@ -35,7 +35,6 @@ world = ws.world
 town = pulse.town_of(world, "trading_square")
 folk = retrieval.people_in_town(store, world, town)
 HERE = list(ws.present) or list(ws.residents[:2])
-config.ACT = True
 checks.roll = lambda odds, rng=None, c=None: ("success", 1)              # the dice are not what is under test
 
 
@@ -245,7 +244,6 @@ check("one only warned, never there, is not moved by force: force is done in per
 
 check("...and the act itself is no violent act to the situation's rules", "acted_by_force" not in situation_parts.S["rulings"]["force_acts"]
       and "acted" not in situation_parts.S["rulings"]["force_acts"])
-config.ACT = False
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

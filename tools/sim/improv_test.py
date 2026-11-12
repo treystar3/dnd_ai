@@ -52,12 +52,15 @@ check("...and the narrator is told it worked as a decided fact", narrated and "W
 hp_before = pools.current(char, "health")
 _checks.roll = lambda odds, rng=None, c=None: ("failure", 99)
 narrated.clear()
+stub.act_ruling = {"sense": "cost", "stakes": {"check": "dexterity", "hard": "fair"}, "fail": "hurt"}   # (f603) the ruling names the cost
 ws.on_other(ActionIntent(kind="other", summary="climb onto the roof of the stall"), "I climb onto the roof of the stall")
 check("a failed climb hurts and is told as a failure", pools.current(char, "health") < hp_before and "FAILS" in narrated[-1], (hp_before, pools.current(char, "health")))
 from engine import law, clock
 heat_before = law.current_heat(ws.player, "parth", clock.day(ws.minutes))
 narrated.clear()
+stub.act_ruling = {"sense": "cost", "stakes": {"check": "strength", "hard": "fair"}, "fail": "noise"}
 ws.on_other(ActionIntent(kind="other", summary="kick the shutter in"), "I kick the shutter in")
+stub.act_ruling = None
 check("a failed forcing is loud: the watch hears of it", law.current_heat(ws.player, "parth", clock.day(ws.minutes)) > heat_before and "loudly" in narrated[-1])
 _checks.roll = lambda odds, rng=None, c=None: ("partial", 50)
 narrated.clear()

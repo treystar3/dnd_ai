@@ -46,13 +46,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-TASKS = ("interpret_action", "ruling", "audit_meaning", "audit_compare", "canon_check", "combat_interpret")
+TASKS = ("interpret_action", "act_ruling", "ruling", "audit_meaning", "audit_compare", "canon_check", "combat_interpret")
 WRITING = ("road_event",)                      # (f534) writing tasks: replayed and timed, their text kept to be read; nothing to agree with
 EVENT_TASKS = ("pulse_cataclysm", "pulse_thread", "event_judge", "thread_telling")   # what the events evaluation asks the model for
 KNOWN = TASKS + WRITING + EVENT_TASKS
 DECISION = {                                   # what each answer decides, compared with what the night decided (None: free text only)
     "ActionPlan": lambda d: [a.get("kind") for a in d.get("actions", [])],
     "Ruling": lambda d: d.get("sense"),
+    "ActRuling": lambda d: d.get("sense"),
     "AuditVerdict": lambda d: d.get("matches"),
     "CombatIntent": lambda d: [d.get(k) or "" for k in ("kind", "target", "ability", "item", "move", "approach", "step")]
                               + [(d.get("buff_for") or "").replace("self", "")],          # '' and 'self' are both the player
@@ -230,7 +231,7 @@ SERVERS = {"llama": ("/v1/chat/completions", llama_body, read_llama)}
 
 # ---------- scoring
 
-def score(title: str, content: str, recorded: str) -> dict:
+def score(title: str, content: str, recorded: str, request: dict | None = None) -> dict:
     schema = schema_of(title)
     text = (content or "").strip()
     out = {"parsed": False, "valid": False, "leaked": bool(text) and not text.startswith("{") or "<think" in text.lower(),
@@ -242,7 +243,7 @@ def score(title: str, content: str, recorded: str) -> dict:
         out["error"] = f"not JSON: {str(e)[:80]}"
         return out
     try:
-        schema.model_validate_json(text, context=context_of(title))
+        schema.model_validate_json(text, context=context_of(title, request))
         out["valid"] = True
     except Exception as e:
         out["error"] = f"refused by the contract: {str(e).splitlines()[0][:160]}"
@@ -255,14 +256,33 @@ def score(title: str, content: str, recorded: str) -> dict:
     return out
 
 
-def context_of(title: str):
-    """What the game validates the answer against, where it gives the contract more than the answer (engine/ruling.py ask): the
-    capabilities, checks and changes the ruling may name. Roles only clear a field, never refuse, so none are given."""
-    if title != "Ruling":
-        return None
+def context_of(title: str, request: dict | None = None):
+    """What the game validates the answer against, where it gives the contract more than the answer (engine/ruling.py ask, engine/act.py
+    context): the capabilities, checks and changes the ruling may name, and for the act's ruling the codes its request listed. Roles only
+    clear a field, never refuse, so none are given."""
     from engine import checks, features, ruling
-    return {"capabilities": list(ruling.C), "checks": sorted(checks.CHECKS) + list(ruling.ATTRS), "roles": [],
-            "becomes": list(features.F["becomes"])}
+    if title == "Ruling":
+        return {"capabilities": list(ruling.C), "checks": sorted(checks.CHECKS) + list(ruling.ATTRS), "roles": [],
+                "becomes": list(features.F["becomes"])}
+    if title == "ActRuling":
+        from engine import act, targets
+        return {"capabilities": list(ruling.C), "checks": sorted(checks.CHECKS) + list(ruling.ATTRS), "roles": [],
+                "changes": list(targets.CH["changes"]), "codes": codes_of(request), "most": int(act.A["most_changes"]),
+                "fails": list(act.A["fails"])}
+    return None
+
+
+def codes_of(request: dict | None) -> list[str]:
+    """(f603) The target codes an act ruling's request listed under TARGETS, one a line, the code first."""
+    text = "\n".join(str(m.get("content") or "") for m in ((request or {}).get("messages") or []))
+    lines = text.split("\n")
+    start = next((i for i, line in enumerate(lines) if line.startswith("TARGETS")), len(lines))
+    codes = []
+    for line in lines[start + 1:]:
+        if not line.startswith("  ") or line.strip() == "(none)":
+            break
+        codes.append(line.split()[0])
+    return codes
 
 
 def card_seconds(prompt_tokens, answer_tokens, profile: dict) -> float | None:
@@ -360,7 +380,7 @@ def measure(chosen: dict[str, list[dict]], servers: list[tuple[str, str]], think
                     got = read(resp) if status == 200 and isinstance(resp, dict) else {"content": "", "thinking": "", "finish": None,
                                                                                           "prompt_tokens": None, "answer_tokens": None,
                                                                                           "server_seconds": None}
-                    sc = score(row["title"], got["content"], row.get("answer", "")) if status == 200 else \
+                    sc = score(row["title"], got["content"], row.get("answer", ""), row.get("request")) if status == 200 else \
                         {"parsed": False, "valid": False, "leaked": False, "agree": None, "error": f"HTTP {status}: {str(resp)[:200]}"}
                     res = {"server": name, "url": base, "task": task, "title": row["title"], "think": think, "row": row.get("i"),
                            "from": row.get("_from", ""), "status": status, "seconds": round(took, 3), **sc,

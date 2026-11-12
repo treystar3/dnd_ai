@@ -1,10 +1,8 @@
-# IMPROVISED ACTIONS OUTSIDE A FIGHT (f321, engine/world_improv.py): "I prop the door with the barrel", "I climb onto the roof", "I bar
-# the gate", "I tap the wall for a hollow". The interpreter marks what it cannot name as `other`; instead of narrating an attempt that
-# changes nothing, the engine reads what the player is after (by meaning, against the `about` lines below), rolls it on the attribute
-# that would do it, and makes something true either way: a success leaves a lasting mark on the place that every speaker and the
-# narrator see; a partial is done roughly, at a cost; a failure is a real event - noise, a hurt, time lost - never "nothing happens".
-#
-# The law, the same as in a fight (engine/combat_improv.py): an ability is a promise; an improvisation is a gamble.
+# WHAT AN ACT OUTSIDE A FIGHT MAKES TRUE BESIDES ITS OWN CHANGES (f321; since f603 engine/world_improv.py land). The act's one ruling
+# (engine/act.py, data/rules/act.yaml) rules on it, rolls it, changes what it changes and costs what a failure costs; when it works, the
+# effect its words read as (by meaning, against the `about` lines below) leaves the place's mark that every speaker and the narrator
+# see, and the effect's `changes`. A failure makes nothing true here. base_odds, min, max and an effect's attr and odds price an act
+# ruled a cost with no check (engine/ruling.py odds).
 #
 # changes (f332): what a success makes true in the world besides its mark, as small state operations the engine applies and the
 # start-up check validates, so `other` can grow without code. Kinds:
@@ -12,6 +10,9 @@
 #   danger  - value, days: the place's own danger leans (percent); only where the place has danger (a snare in the wood, not in the square)
 #   news    - text, groups: word of it goes round (groups: locals for the place's own, else everyone)
 # {what} is what was attempted, {place} the place's name. A partial success applies closed and danger at half, and no news.
+# told (f603): what the narrator is told each kind made true, beside the mark.
+# stands_for (f603): the act's change words (data/rules/changes.yaml, a part's states, a way's access) the effect is the same thing as:
+# when the act's ruling asked for one of them and the engine refused it, the effect does not land either, mark and all.
 #
 # needs (f386): words the line must hold for that reading to stand. A night's runs rolled "I lean against the wall and just watch the
 # shadows" as a block that barred the guild house to the player for twenty turns, pulling a cloak tight as a block, standing up and
@@ -26,41 +27,37 @@ max: 90
 effects:
   block:   {about: "blocking, barring, propping or wedging a door or a way shut; building a barricade across it",
             needs: "\\b(door|doors|gate|gates|entrance|entry|passage|hatch|window|tunnel|stair|stairs|bridge|barricade|bar|bars|barring|wedge|wedging|prop|propping|block|blocking|shut)\\b",
-            attr: [strength, intelligence], odds: 5,  mark: "the way is blocked: {what}", fail: noise,
+            attr: [strength, intelligence], odds: 5,  mark: "the way is blocked: {what}", stands_for: [closed, blocked, barred],
             changes: [{kind: closed, minutes: 90, text: "barred from inside: {what}"}]}
   force:   {about: "forcing, breaking, prying, smashing or kicking something open or apart",
-            attr: [strength], odds: -5, mark: "broken: {what}", fail: noise,
+            attr: [strength], odds: -5, mark: "broken: {what}", stands_for: [broken, destroyed],
             changes: [{kind: news, text: "Someone broke something at {place}: {what}.", groups: [locals]}]}
   climb:   {about: "climbing, getting up onto or over something, reaching a high place or a ledge, dropping down from one",
-            attr: [dexterity, strength], odds: 0, mark: "", fail: hurt}
+            attr: [dexterity, strength], odds: 0, mark: ""}
   rig:     {about: "rigging, tying, knotting, building or setting something up: a rope, a trap, a snare, a shelter, a lever",
-            attr: [intelligence, dexterity], odds: -5, mark: "rigged: {what}", fail: time,
+            attr: [intelligence, dexterity], odds: -5, mark: "rigged: {what}",
             changes: [{kind: danger, value: -10, days: 1}]}
   move:    {about: "dragging, carrying, heaving, overturning, pouring out or shifting a heavy or awkward thing",
-            attr: [strength], odds: 0, mark: "moved: {what}", fail: hurt}
+            attr: [strength], odds: 0, mark: "moved: {what}", stands_for: [moved]}
   hide:    {about: "hiding, stowing, burying or covering a thing, or covering your own tracks",
             needs: "\\b(hide|hiding|hid|stow|stowing|bury|burying|cover|covering|conceal|concealing|tuck|tucking|stash|stashing|camouflage|tracks)\\b",
-            attr: [dexterity, wisdom], odds: 0, mark: "hidden here: {what}", fail: noticed}
+            attr: [dexterity, wisdom], odds: 0, mark: "hidden here: {what}", stands_for: [hidden_here]}
   signal:  {about: "shouting, ringing a bell, lighting a fire or a lamp, waving, making a signal or a noise on purpose",
             needs: "\\b(shout|shouting|yell|yelling|call out|calling out|cry out|ring|ringing|bell|light|lighting|lamp|fire|torch|wave|waving|whistle|whistling|signal|signalling|signaling|horn|flare|beacon|bang|banging|drum)\\b",
-            attr: [charisma, strength], odds: 10, mark: "", fail: noise,
+            attr: [charisma, strength], odds: 10, mark: "",
             changes: [{kind: news, text: "A signal was raised at {place}: {what}.", groups: [locals]}]}
   practise: {about: "practice: practising, drilling, training, rehearsing, sparring alone, running through forms or exercises to keep a skill sharp",
              needs: "\\b(practi[cs]e|practi[cs]ing|drill|drilling|train|training|rehearse|rehearsing|spar|sparring|forms|exercise|exercises|kata|warm up|warming up)\\b",
-             attr: [dexterity, wisdom], odds: 15, mark: "", fail: time}
+             attr: [dexterity, wisdom], odds: 15, mark: ""}
   examine: {about: "testing, tasting, listening at, tapping, measuring, taking apart, working something out by hand",
-            attr: [wisdom, intelligence], odds: 10, mark: "", fail: time}
-  attempt: {about: "", attr: [dexterity, intelligence, strength], odds: -5, mark: "", fail: time}      # what none of the above fits
+            attr: [wisdom, intelligence], odds: 10, mark: ""}
+  attempt: {about: "", attr: [dexterity, intelligence, strength], odds: -5, mark: ""}      # what none of the above fits
   pose:    {about: "a gesture or a pose that changes nothing: leaning, sitting, standing, watching, waiting, nodding, shrugging, stretching, sighing, wiping one's hands, pulling a cloak tight, tightening a grip, settling in", roll: false}
 
 pose_words: "\\b(lean|leans|leaning|sit|sits|sitting|stand|stands|standing|watch|watching|wait|waiting|nod|nodding|shrug|shrugging|stretch|stretching|sigh|sighing|wipe|wiping|pull my cloak|pulling my cloak|tighten|tightening|grip|settle|settling|cross my arms|crossing my arms|gaze|gazing|stare|staring|smile|smiling|frown|frowning|yawn|yawning|crack my knuckles|spit|spitting|scratch|scratching|rub|rubbing|adjust|adjusting|straighten|straightening|keep (?:my|an) eye|look around|looking around|scan|scanning|ready|readying|brace|bracing)\\b"
 rest_words: "\\b(go to sleep|fall asleep|sleep|sleeping|nap|lie down|lay down|bed down|get some rest|get some sleep|turn in for the night|rest my eyes)\\b"
 
-# What a failure costs. Every failure is told to the narrator as a thing that happened.
-fails:
-  noise:   {minutes: 10, health_pct: 0, text: "it goes wrong, and loudly: whoever is near looks over, and it will be talked of", heat: 1}
-  hurt:    {minutes: 15, health_pct: 6, text: "it goes wrong and they come away hurt - a wrench, a fall, a bad knock"}
-  time:    {minutes: 30, health_pct: 0, text: "it does not work, and a good while is lost finding that out"}
-  noticed: {minutes: 5,  health_pct: 0, text: "it is done badly enough that anyone looking would see it at once", mark: "badly {mark}"}
-
-partial: {minutes: 10, text: "it works, roughly, and not for long or not well"}
+told:
+  closed: "the way through here is barred for a while"
+  danger: "this place is a little safer for a while"
+  news:   "word of it will go round"

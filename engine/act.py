@@ -167,12 +167,6 @@ def shape(ws, T):
     return Shaped
 
 
-def on() -> bool:
-    """(f595) Whether an act outside combat goes through act(): the data's switch, or DND_ACT=1 for one run."""
-    import config
-    return bool(A.get("enabled")) or bool(getattr(config, "ACT", False))
-
-
 def ask(ws, actor_id: str, T, words: str, text: str):
     """The model's ruling, or None when it cannot give one (the act is then never rolled unruled)."""
     from llm.contracts import ActRuling
@@ -427,8 +421,6 @@ def problems() -> list[str]:
         v = A.get(k)
         if not (isinstance(v, int) and not isinstance(v, bool) and v > 0):
             bad.append(f"act.yaml {k}: needs a whole number above 0")
-    if not isinstance(A.get("enabled"), bool):
-        bad.append("act.yaml enabled: needs true or false")
     from engine import situation_parts
     words = set(situation_parts.S["rulings"]["changes"])
     if not (isinstance(A.get("outside_situation"), list) and set(A["outside_situation"]) <= words):
@@ -482,6 +474,7 @@ def decide(ws, actor_id: str, T, r, fresh: bool, words: str, text: str, continui
     """A ruling in hand: checked, kept, and refused or made real. `continuing`: the attempt was told beginning before (f596); how it
     turned out is told as of then."""
     from engine import ruling
+    own = words or text
     if continuing:
         words = f"{continuing} {words or text}"
     v = validate(ws, actor_id, T, r)
@@ -493,7 +486,7 @@ def decide(ws, actor_id: str, T, r, fresh: bool, words: str, text: str, continui
         ruling.refuse(ws, {"answer": v.answer, "instead": v.instead, "why": v.why}, words, text)
         return
     made = make_needs(ws, v.ruling)
-    resolve(ws, actor_id, T, v, words, text, made)
+    resolve(ws, actor_id, T, v, words, text, made, own)
 
 
 # ---------- (f596) an act waiting for its ruling
@@ -598,7 +591,7 @@ def _said(T, ch) -> str:
     return f"{name}: {ch.becomes.replace('_', ' ')}" + (f" {ch.state}" if ch.state else "")
 
 
-def resolve(ws, actor_id: str, T, v: Checked, words: str, text: str, made: list[str]) -> str:
+def resolve(ws, actor_id: str, T, v: Checked, words: str, text: str, made: list[str], own: str = "") -> str:
     """The roll and what came of it. A plain yes needs no roll; a cost is rolled on the ruling's check and how hard it is. A strong
     success counts as such only when a real thing enables it (the owner, 2026-11-11); a partial success makes only what can be half
     made (a part's state, for less time). The narrator is told what changed and what the engine refused, never to show the latter.
@@ -625,21 +618,23 @@ def resolve(ws, actor_id: str, T, v: Checked, words: str, text: str, made: list[
         refused += [(ch, "it only half worked") for ch in changes if ch not in half]
         changes = half
     F = A["fails"].get(r.fail) or A["fails"][next(iter(A["fails"]))]
-    if rolled or changes or made:
+    no = {ch.becomes for ch, _ in refused} | {ch.state for ch, _ in refused if ch.state}
+    landed = world_improv.land(ws, own or words or text, degree, no)   # (f603) what the retired path made true besides, kept
+    if rolled or changes or made or landed:
         console.ledger(f"Attempt: {degree.replace('_', ' ')}")
-        ws.notice(Acted(minute=ws.minutes, place=ws.player.location, what=what, degree=degree, by=actor_id,
+        ws.notice(Acted(minute=ws.minutes, place=ws.player.location, what=world_improv.what_of(own or words or text), degree=degree, by=actor_id,
                         changes=tuple(ch.becomes for ch in changes), heat=0.0 if worked else float(F.get("heat", 0) or 0),
                         considered=tuple(t.ref for t in T.rows if t.kind == "situation")))
     seq = int((ws.store.load_world_state() or {}).get("seq") or 0)
     told = apply(ws, actor_id, T, changes, degree, seq, r.stakes.check) if changes else []
     room = (" THE WORLD NOW HOLDS (made for this, and real from now on; show it): " + "; ".join(made) + ".") if made else ""
-    lasting = (" WHAT IS DIFFERENT NOW (real from now on; show it): " + " ".join(told)) if told else ""
+    lasting = (" WHAT IS DIFFERENT NOW (real from now on; show it): " + " ".join(told + [x + "." for x in landed])) if told or landed else ""
     nots = (" WHAT DID NOT HAPPEN (the game refused it; never show it happening): " + "; ".join(_said(T, ch) for ch, _ in refused) + ".") \
         if refused and worked else ""
     if degree in ("success", "strong success"):
         ws.advance(int(A["success_minutes"]))
         ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) WORKS" + (" cleanly and well" if degree == "strong success" else "")
-                   + (". Show it done, as it would be seen, and what is different now." if (told or made)
+                   + (". Show it done, as it would be seen, and what is different now." if (told or made or landed)
                       else ". Show it done, as it would be seen. Nothing lasting is different.")
                    + " Nothing is gained that was not there, and no one is harmed." + room + lasting + nots, text)
         return degree

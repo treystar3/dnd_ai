@@ -103,7 +103,7 @@ def means_of(ws) -> set[str]:
 
 
 def ask(ws, words: str, text: str):
-    """The model's ruling, or None when it cannot give one (the act is then asked back, never rolled unruled: f559)."""
+    """The model's ruling, or None when it cannot give one (on the road, pressing on past an obstacle: f603)."""
     from engine import checks, features
     from llm.contracts import Ruling
     from llm.gateway import LLMError, generate
@@ -151,21 +151,6 @@ def verdict(ws, r) -> dict:
 def _same(a: str, b: str) -> bool:
     norm = lambda s: re.sub(r"^(the|a|an)\s+", "", (s or "").strip().lower())
     return norm(a) == norm(b)
-
-
-def change_parts(ws, ruled: dict | None, degree: str) -> list[str]:
-    """(f395) What the attempt made different about the parts of this place, on a success or a partial (features.change). The lines
-    told, as facts."""
-    from engine import features
-    out = []
-    for part, becomes in (ruled or {}).get("changes") or []:
-        if part == "-":
-            continue
-        e = features.find(ws, part) if part else features.spot_of(ws)
-        said = features.change(ws, e, becomes, degree)
-        if said:
-            out.append(said)
-    return out
 
 
 def appeared_today(ws) -> int:
@@ -250,22 +235,6 @@ def refuse(ws, v: dict, words: str, text: str) -> None:
     ws.narrate(f"THE GAME HAS DECIDED: what the player tries ({world_improv.what_of(words or text)}) does not happen. Show it as it would be "
                f"seen: {v['answer']} Nothing is made, nothing breaks, and nobody makes much of it.{instead} Let the way forward be plain "
                "without telling them what to do.", text)
-
-
-def run(ws, words: str, text: str) -> None:
-    """The whole loop for an improvised act: rule, check, make room, set the stakes, resolve; or say no."""
-    from engine import world_improv
-    r = ask(ws, words, text)
-    if r is None:   # (f559) no ruling: ask again, never roll it unruled (an impossible act would be granted)
-        ws.ask_back("ruling_failed", text, "the ruling on it could not be made", meaning=words)
-        return
-    v = verdict(ws, r)
-    if not v["ok"]:
-        refuse(ws, v, words, text)
-        return
-    made = make_room(ws, r)
-    world_improv.resolve(ws, words, text, ruled={"sense": r.sense, "check": r.stakes.check, "hard": r.stakes.hard, "made": made,
-                                                 "changes": [(ch.part, ch.becomes) for ch in r.changes]})
 
 
 def odds(ws, effect: str, ruled: dict) -> float:

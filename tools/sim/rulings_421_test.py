@@ -5,7 +5,8 @@ whole ruling back; and a no's answer was held to 'one or two sentences' (the own
 import random, shutil, sys, types
 sys.path.insert(0, ".")
 import simlib
-simlib.install(simlib.Stub("mage", 11))
+stub = simlib.Stub("mage", 11)
+simlib.install(stub)
 import ui.console as uc
 for fn in ("narrate", "say", "note", "ledger"):
     setattr(uc, fn, lambda *a, **k: None)
@@ -35,7 +36,11 @@ ws.enter("parth")
 # ---- a yes that changes nothing says so
 told = []
 ws.narrate = lambda event, text="", *a, **k: told.append(event)
-world_improv.resolve(ws, "hums a tune", "I hum a tune", {"sense": "yes", "why": "anyone can"})
+from engine import act as _act
+stub.act_ruling = {"sense": "yes", "why": "anyone can"}
+with ws.operation("action:other", "I hum a tune"):
+    _act.act(ws, ws.acting, "hums a tune", "I hum a tune")             # (f603) the act's ruling now, the old resolve retired
+stub.act_ruling = None
 check("a plain yes that changes nothing is told that nothing lasting is different", told and "Nothing lasting is different" in told[-1]
       and "what is different now" not in told[-1], told[-1:])
 

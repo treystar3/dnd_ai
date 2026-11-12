@@ -32,7 +32,6 @@ world = ws.world
 town = pulse.town_of(world, "trading_square")
 HERE = list(ws.present) or list(ws.residents[:2])
 away = next(p for p in retrieval.people_in_town(store, world, town) if p.id not in {n.id for n in HERE})
-config.ACT = True
 checks.roll = lambda odds, rng=None, c=None: ("success", 1)              # the dice are not what is under test
 
 
@@ -146,7 +145,6 @@ check("...and an act of violence there still frees them", len(kept) == 1)
 kept, _ = situation_parts.ruled(store, th, {**on_act, "place": "trading_square", "witnesses": sorted(n.id for n in HERE) + [away.id]},
                                 [{**row, "becomes": "grateful", "because": "words"}], world)
 check("talk still reaches what words reach: one who heard it is grateful", len(kept) == 1)
-config.ACT = False
 
 r = subprocess.run([sys.executable, "tools/ruling_eval.py", "--path", "new", "--cases", "data/replay/ruling_cases_act.yaml"],
                    capture_output=True, text=True, timeout=600, env={**__import__("os").environ, "MERAVIA_NO_SERVER": "1", "PYTHONUTF8": "1"})

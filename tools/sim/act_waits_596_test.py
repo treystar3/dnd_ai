@@ -38,7 +38,6 @@ with ws.operation("test", "set the scene") as op:
     door = features.register(ws, "trading_square", "the cellar door", kind, "a stout door under the steps", "known", "authored")
     store.save_world_state({**pulse.empty_state(ws.minutes), **(store.load_world_state() or {})})
 check("the scene is set", op.state == "committed")
-config.ACT = True
 
 
 def code_of(ref):
@@ -166,14 +165,6 @@ with ws.operation("test", "theirs"):
     act.take_up(ws, ws.acting, "I wait.")
 check("two characters' waiting acts stay apart", [w["text"] for w in act.waiting(ws, "another_character")] == ["Their own act."]
       and len(act.waiting(ws, ws.acting)) == act.A["pending"]["most"])
-config.ACT = False
-before = list(act.waiting(ws, ws.acting))
-seen_ops.clear()
-ws.asked_operation = lambda kind, text, body, **k: seen_ops.append(kind) or real(kind, text, body, **k)
-ws.turn("I look around again.")
-ws.asked_operation = real
-check("with the act path off, nothing waiting is taken up and no operation is opened for it", act.waiting(ws, ws.acting) == before
-      and "act:waiting" not in seen_ops, seen_ops)
 stub.a_ActRuling = working
 check("act.yaml passes its startup check", act.problems() == [])
 

@@ -481,10 +481,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def take_up_acts(self, text: str) -> None:
         """(f596) The oldest act this character left waiting for its ruling, ruled on before the new line is read, in an operation of its
-        own whose call is asked outside the transaction (engine/act.py take_up); told, then the line plays. Nothing when none waits, or
-        when the act path is off."""
+        own whose call is asked outside the transaction (engine/act.py take_up); told, then the line plays. Nothing when none waits."""
         from engine import act
-        if not act.on() or self.combat or not act.waiting(self, self.acting):
+        if self.combat or not act.waiting(self, self.acting):
             return                                         # never in a fight: an act outside combat waits for the fight to end
         said = act.waiting(self, self.acting)[0]["text"]
         op, _ = self.asked_operation("act:waiting", said, lambda op: act.take_up(self, self.acting, text), world=True)
@@ -4042,11 +4041,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if spot is not None and spot.data.get("clue") and not spot.data.get("read") and \
                 any(w in f"{intent.summary} {text}".lower().split() for w in self.CLUE_WORDS) and self.search_part(intent, text):
             return                                          # (f395) reading the marks where the player stands: what the part holds
-        from engine import act, ruling
-        if act.on():                                        # (f595) the one ruling outside combat, behind its switch
-            act.act(self, self.acting, intent.summary or text, text)
-            return
-        ruling.run(self, intent.summary or text, text)      # (f395) the dungeon master's ruling: make room, set the stakes, or say no
+        from engine import act
+        act.act(self, self.acting, intent.summary or text, text)   # (f603) the one ruling outside combat: rule, check, change, or say no
 
 
 from scenes import intercepts as _intercepts                                     # noqa: E402

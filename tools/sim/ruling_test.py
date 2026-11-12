@@ -116,27 +116,7 @@ h.gone = "dead"; store.save_npc(h)
 v = ruling.verdict(ws, rule(sense="yes", needs=[{"kind": "person", "name": h.name, "what": "the hermit again"}]))
 check("consistency: a person who is gone does not come back when called", not v["ok"] and "gone from the world" in v["answer"], v)
 
-# ---- saying no: nothing made, nothing broken, a moment spent, logged as a refusal
-NOTED = []
-_note = refusals.note
-refusals.note = lambda kind, *a, **k: NOTED.append(kind)
-stub.ruling = {"sense": "yes", "why": "they want to", "needs": [{"kind": "feature", "name": "the sky road", "what": "a road in the air"}], "requires": ["flight"]}
-before_parts = len(features.here(store, "tidepool_caves"))
-before_min = ws.minutes
-m0, r0 = ledger.count("made"), ledger.count("refused")
-ledger.begin(); TOLD.clear()
-ruling.run(ws, "grows wings and flies away", "I grow wings and fly away.")
-check("a refusal makes nothing", len(features.here(store, "tidepool_caves")) == before_parts and ledger.count("made") == m0, ledger.this_turn())
-check("...spends a moment, and is recorded as refused on the turn and in the refusals log", ws.minutes == before_min + 1 and ledger.count("refused") == r0 + 1
-      and NOTED == ["refused"], (ws.minutes - before_min, NOTED))
-check("...and is told as the world, with what it does not do", TOLD and "does not happen" in TOLD[-1] and ruling.C["flight"]["lacking"] in TOLD[-1], TOLD[-1][-500:] if TOLD else "")
-refusals.note = _note
-
 # ---- a plain yes is done without a roll; a cost is rolled on the ruling's check
-stub.ruling = {"sense": "yes", "why": "anyone can", "needs": [], "requires": []}
-TOLD.clear()
-ruling.run(ws, "calls out into the cave", "I call out into the cave.")              # (f421) a plain yes needs nothing they lack
-check("a plain yes simply happens", TOLD and "WORKS" in TOLD[-1], TOLD[-1][-400:] if TOLD else "")
 ruled = {"sense": "cost", "check": "athletics", "hard": "easy"}
 easy = ruling.odds(ws, "climb", ruled)
 hard = ruling.odds(ws, "climb", {**ruled, "hard": "hard"})
@@ -146,32 +126,7 @@ stub.ruling = None
 
 check("the capabilities check clean", ruling.problems() == [], ruling.problems())
 
-# ---- a part made different: kept on the part, told, and the way shut while it lasts
-ws.enter("tidepool_caves")
-dry = features.find(ws, "the dry chamber")
-stub.ruling = {"sense": "yes", "why": "driftwood is to hand", "needs": [], "requires": [], "changes": [{"part": "the dry chamber", "becomes": "blocked"}]}
-TOLD.clear(); NOTES.clear()
-ruling.run(ws, "wedges driftwood across the way into the dry chamber", "I wedge driftwood across the way into the dry chamber.")
-dry = features.find(ws, "the dry chamber")
-check("blocking a way works and is kept on the part", "blocked" in features.now_of(dry, ws.minutes) and TOLD and "blocked" in TOLD[-1], (dry.data.get("now"), TOLD[-1][-300:] if TOLD else ""))
-check("...the way there is shut, saying when it should be passable", not features.open_now(dry, ws.minutes)[0] and "passable again" in features.open_now(dry, ws.minutes)[1])
-ws.halted = False
-ws.go_to_part(dry, "I go to the dry chamber.")
-check("...walking there is told so", ws.halted and any("blocked" in n for n in NOTES) and ws.player.spot != dry.ref, NOTES)
-check("...and in a day it has worked loose", features.open_now(dry, ws.minutes + 25 * 60)[0])
-stub.ruling = {"sense": "yes", "why": "", "needs": [], "requires": [], "changes": [{"part": "the dry chamber", "becomes": "cleared"}]}
-ruling.run(ws, "pulls the driftwood away", "I pull the driftwood away.")
-check("clearing it opens the way at once", features.open_now(features.find(ws, "the dry chamber"), ws.minutes)[0])
-stub.ruling = {"sense": "yes", "why": "", "needs": [], "requires": [], "changes": [{"part": "", "becomes": "lit"}]}
-ruling.run(ws, "lights a torch and wedges it in the rock", "I light a torch and wedge it in the rock.")
-at = features.spot_of(ws)
-check("a change with no part named is to where the player stands, and is told beside it", at is not None and "lit" in features.now_of(at, ws.minutes)
-      and any("Now lit" in l for l in features.lines(ws)), features.lines(ws))
-stub.ruling = {"sense": "yes", "why": "", "needs": [], "requires": [], "changes": [{"part": "the crystal throne room", "becomes": "lit"}]}
-n_parts = len(features.here(store, "tidepool_caves"))
-ruling.run(ws, "lights the crystal throne room", "I light the crystal throne room.")
-check("a change to a part the place does not have changes nothing and makes nothing", len(features.here(store, "tidepool_caves")) == n_parts
-      and not any("throne" in e.name for e in features.here(store, "tidepool_caves")))
+# (f603) run's refusal, plain yes and part changes are the act path's now: act_595_test and act_ruling_594_test hold them
 try:
     rule(sense="yes", changes=[{"part": "", "becomes": "turned to gold"}])
     sent_back = False

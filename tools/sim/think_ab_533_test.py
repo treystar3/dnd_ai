@@ -191,7 +191,7 @@ class Fake(BaseHTTPRequestHandler):
             from llm import contracts as _contracts
             content = answer(getattr(_contracts, name).model_json_schema(), body["messages"])
             think = body["chat_template_kwargs"]["enable_thinking"]
-            if think and name == "Ruling":
+            if think and name == "ActRuling":
                 content = "<think>is it plausible?</think>" + content                # the risk: thinking inside the answer
             resp = {"choices": [{"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": content,
                                                                                     **({"reasoning_content": "Hmm. " * 30} if think else {})}}],
@@ -239,7 +239,7 @@ check("each answer is scored by the game's contract: an answer of the schema's s
       [r for r in valid_off if not r["valid"]][:2])
 leaks = [r for r in results if r["leaked"]]
 check("...thinking inside the answer is caught as leaked, and is no valid answer, and decides nothing",
-      leaks and all(r["server"] == "llama" and r["title"] == "Ruling" and r["think"] and not r["valid"] and r["agree"] is None for r in leaks),
+      leaks and all(r["server"] == "llama" and r["title"] == "ActRuling" and r["think"] and not r["valid"] and r["agree"] is None for r in leaks),
       leaks[:2])
 check("...its decision is set against the night's where it has one and the answer is valid, and not for the audit's free-text reading",
       all(isinstance(r["agree"], bool) for r in results if r["title"] in ("ActionPlan", "CombatIntent", "AuditVerdict") and r["valid"])
@@ -257,8 +257,8 @@ md = (OUT / "summary.md").read_text(encoding="utf-8")
 check("the summary is a row per server, task and setting, in summary.json and as a table in summary.md, with the server's own facts",
       len(keys) == 2 * sum(1 for rs in chosen.values() if rs) and "| server | task | thinking |" in md
       and summary["meta"]["servers_about"]["llama"]["build_info"] == "b-test", (sorted(keys)[:4], summary["meta"].get("servers_about")))
-ruling_on = next(c for c in summary["calls"] if c["server"] == "llama" and c["task"] == "ruling" and c["think"] == "on")
-ruling_off = next(c for c in summary["calls"] if c["server"] == "llama" and c["task"] == "ruling" and c["think"] == "off")
+ruling_on = next(c for c in summary["calls"] if c["server"] == "llama" and c["task"] == "act_ruling" and c["think"] == "on")
+ruling_off = next(c for c in summary["calls"] if c["server"] == "llama" and c["task"] == "act_ruling" and c["think"] == "off")
 check("...counting what leaked, every rate over all the calls: an answer that leaked agrees with nothing",
       ruling_on["leaked"] == ruling_on["n"] and ruling_on["valid_pct"] == 0.0 and ruling_on["agree_pct"] == 0.0
       and ruling_on["agree_valid_pct"] is None and ruling_on["thought"] == ruling_on["n"] and ruling_off["agree_pct"] is not None, ruling_on)
@@ -289,7 +289,7 @@ empty = OUT / "empty"
 empty.mkdir(parents=True, exist_ok=True)
 (empty / "results.jsonl").write_text("", encoding="utf-8")
 with contextlib.redirect_stdout(io.StringIO()):
-    rc_empty = think_ab.main(base + ["--tasks", "ruling", "--per-task", "1", "--out", str(empty)])
+    rc_empty = think_ab.main(base + ["--tasks", "act_ruling", "--per-task", "1", "--out", str(empty)])
 check("...while a results file a run left empty (it measured nothing) is no reason to refuse", rc_empty == 0
       and (empty / "results.jsonl").read_text(encoding="utf-8").strip() != "", rc_empty)
 (OUT / "summary.md").unlink()
@@ -336,8 +336,8 @@ kept = list(think_ab.recorded_rows(tmp))
 check("a recording cut off mid-night gives the rows before the cut and says so, rather than ending the run",
       0 < len(kept) < 30 and len(think_ab.WARNINGS) == 1 and "cut off" in think_ab.WARNINGS[0], (len(kept), think_ab.WARNINGS))
 rows_all = list(think_ab.recorded_rows(Path("data/replay/sessions")))
-alone = think_ab.pick(rows_all, ["ruling"], 2)["ruling"]
-among = think_ab.pick(rows_all, list(think_ab.TASKS), 2)["ruling"]
+alone = think_ab.pick(rows_all, ["act_ruling"], 2)["act_ruling"]
+among = think_ab.pick(rows_all, list(think_ab.TASKS), 2)["act_ruling"]
 check("each task's sample is its own, the same whatever other tasks are chosen with it", [r["req"] for r in alone] == [r["req"] for r in among]
       and alone, ([r.get("i") for r in alone], [r.get("i") for r in among]))
 same = {"messages": [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}], "options": {"temperature": 0.2}}
@@ -356,6 +356,13 @@ check("a fight's reading agrees only when the whole move does: the way it moves,
       and decide({"kind": "talk", "approach": "persuade"}) != decide({"kind": "talk", "approach": "intimidate"}))
 check("...and a ruling is held to the game's own context: a capability the game does not have is refused",
       think_ab.score("Ruling", json.dumps({"sense": "yes", "requires": ["flight_of_fancy"]}), "{}")["valid"] is False)
+asked = {"messages": [{"role": "system", "content": "uses: the codes from TARGETS"},
+                      {"role": "user", "content": "SCENE\nTARGETS (what the act can name, by code):\n  f1 the gate (feature)\n  p1 a guard (person)\nCHANGES"}]}
+on_gate = json.dumps({"sense": "yes", "uses": ["f1"]})
+check("...and an act's ruling to the codes its own request listed (f603): a code the request never gave is refused",
+      think_ab.codes_of(asked) == ["f1", "p1"] and think_ab.score("ActRuling", on_gate, "{}", asked)["valid"] is True
+      and think_ab.score("ActRuling", json.dumps({"sense": "yes", "uses": ["f9"]}), "{}", asked)["valid"] is False,
+      (think_ab.codes_of(asked), think_ab.score("ActRuling", on_gate, "{}", asked)))
 
 # ---- 3. the game's own evaluations, the switch off and then on
 ran = []

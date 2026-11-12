@@ -23,7 +23,7 @@ Both tests are in `tests/`, in the repo's own style (plain scripts for `tools/si
   narrator is told: *"THE GAME HAS DECIDED: what the player attempts (grow wings and fly away over the rooftops) WORKS."* (Reproduced
   exactly by the test.)
 - **Why it matters:** GOALS.md pillar 2 says "Impossible actions are refused, and never granted and then forgotten."
-- **Test:** `tests/ruling_fallback_repro_test.py`. The ruling call fails, the die is forced to a success, and the test checks the
+- **Test:** `tests/ruling_fallback_repro_test.py` (retired at f603 with `ruling.run` itself; act_waits_596_test holds that an act is never rolled unruled). The ruling call fails, the die is forced to a success, and the test checks the
   narrator is not told it worked.
 - **Fix:** with no ruling, ask back in character (`ask_back`, the game's existing clarify path, which logs a refusal) instead of
   rolling. The existing improvisation and ruling tests (13) still pass.

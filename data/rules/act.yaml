@@ -1,10 +1,6 @@
 # AN ACT AND ITS RULING (f594, engine/act.py; docs/design/02, outside combat). The dungeon master's ruling on what a character tries, in
 # one call with what it changes if it works (data/rules/changes.yaml), checked by the engine and kept.
 
-# (f595) The switch: off, an improvised act outside combat goes the old way (engine/ruling.py run, engine/world_improv.py); on, through
-# act(). DND_ACT=1 in the environment turns it on for one run (a measuring night), kept in a recording's meta so its replay plays the same.
-enabled: false
-
 # The reuse rule (the owner, 2026-11-08: "Repeated actions without materially changed circumstances reuse their prior ruling"): a ruling
 # is kept per character, a no among them, with what it read (the targets it named, their state, what the character could do). The same
 # act at the same place, with all that unchanged, is ruled the same with no call. A kept ruling is let go when its character keeps more

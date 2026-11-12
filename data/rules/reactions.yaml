@@ -83,8 +83,6 @@ kinds:
   pickpocket:
     memory: {victim: {importance: 2}}
     reputation: {caught: threat}
-  improvised:
-    heat: {event: true}
   acted:                                  # (f595) an act through engine/act.py: kept in the deeds, and its noise is heat
     ledger: true
     heat: {event: true}

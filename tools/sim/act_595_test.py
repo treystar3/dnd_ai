@@ -1,6 +1,5 @@
-"""(f595) act(): the one ruling outside combat, behind its switch (engine/act.py; docs/design/02 sections 4 and 6). Off (as shipped), an
-improvised line goes the old way (engine/ruling.py run); on (data/rules/act.yaml `enabled`, or DND_ACT=1 for one run, kept in a
-recording's meta), it goes through act(): the targets, the kept ruling or the model's, the engine's check, the ruling kept, what the
+"""(f595) act(): the one ruling outside combat (engine/act.py; docs/design/02 sections 4 and 6), the only path since f603. An improvised
+line goes through act(): the targets, the kept ruling or the model's, the engine's check, the ruling kept, what the
 world must hold made (never twice), the roll, what changed written through the game's own writers (a part's state, a thing broken or
 moved, a person's trust through the scene's own copy, a situation's part by its own rules), an Acted deed in the ledger when anything
 was at stake, and the telling, which carries what changed and what the engine refused (never to be shown). A no is told in the world's
@@ -58,21 +57,11 @@ def code_of(ref, actor=None):
 
 # ---- the switch
 spied = []
-real_run, real_act = ruling.run, act.act
-ruling.run = lambda ws_, words, text: spied.append(("old", text))
+real_act = act.act
 act.act = lambda ws_, who, words, text: spied.append(("act", text))
-check("shipped, the switch is off", act.A["enabled"] is False and not act.on())
 other("I wave at the gulls.")
-config.ACT = True
-other("I wave at the gulls again.")
-config.ACT = False
-ruling.run, act.act = real_run, real_act
-check("off, an improvised line goes the old way; on (DND_ACT=1), through act()", spied == [("old", "I wave at the gulls."), ("act", "I wave at the gulls again.")],
-      spied)
-src = open("engine/recording.py", encoding="utf-8").read() + open("tools/rerun.py", encoding="utf-8").read()
-check("...a recording keeps the path it was made on, a replay plays it, and a kept recording is made as shipped",
-      'self.meta["act"] = True' in src and 'rec["meta"].get("act")' in src and "config.ACT = False" in src)
-config.ACT = True
+act.act = real_act
+check("an improvised line goes through act(), the old path and its switch retired (f603)", spied == [("act", "I wave at the gulls.")], spied)
 
 # ---- a thing made for the act, and never twice
 stub.act_ruling = {"sense": "yes", "why": "a plank is easy to find", "needs": [{"kind": "thing", "name": "a loose plank", "what": "off a broken cart"}]}
@@ -106,8 +95,9 @@ stub.act_ruling = {"sense": "cost", "stakes": {"check": "athletics", "hard": "fa
 before_fx = list(store.load_world_state().get("effects", []))
 told.clear()
 other("I drag a cart across the road out of town and chalk the door.")
-check("a road is not closed by hand (a closure nobody keeps to is no closure); the rest of the act stands",
-      store.load_world_state().get("effects", []) == before_fx and "marked" in features.now_of(store.load_entity(door.ref), ws.minutes))
+check("a road is not closed by hand (a closure nobody keeps to is no closure), nor the way here barred instead; the rest of the act stands",
+      store.load_world_state().get("effects", []) == before_fx and "marked" in features.now_of(store.load_entity(door.ref), ws.minutes),
+      [e for e in store.load_world_state().get("effects", []) if e not in before_fx])
 check("...and the narrator is told what did not happen, never to show it", told and "WHAT DID NOT HAPPEN" in told[-1]
       and "access closed" in told[-1], told[-1:])
 
@@ -189,14 +179,20 @@ stub.act_ruling = {"sense": "cost", "stakes": {"check": "athletics", "hard": "fa
                    "changes": [{"n": 1, "target": code_of(door.ref), "becomes": "state", "state": "lit"},
                                {"n": 2, "target": code_of(box.ref), "becomes": "broken"}]}
 told.clear()
+marks_before = list(store.load_place("trading_square").marks)
 other("I light a lamp by the door and kick the tea chest apart.")
 check("a partial success makes only a part's state, and tells the rest as not happening", "lit" in features.now_of(store.load_entity(door.ref), ws.minutes)
       and store.load_entity(box.ref).state == "here" and "half works" in told[-1] and "WHAT DID NOT HAPPEN" in told[-1], told[-1:])
+check("...and what the words read as (a thing broken) does not land when the break itself was refused: no mark, nothing told (f603)",
+      not any("broken" in m for m in store.load_place("trading_square").marks if m not in marks_before) and "broken: light" not in told[-1],
+      store.load_place("trading_square").marks[-2:])
 check("nothing handed the narrator carries a dash", all(" - " not in x and "\u2014" not in x for x in told), told[-1:])
 n_deeds = len(store.load_world_state()["deeds"])
 stub.act_ruling = {"sense": "yes", "why": "easy"}
-other("I wave at the gulls once more.")
+other("I lean on the rail and watch the gulls.")
 check("a plain yes that changes nothing is no deed (the ledger keeps what the world could notice)", len(store.load_world_state()["deeds"]) == n_deeds)
+other("I wave at the gulls once more.")
+check("...one whose words make something true besides (a signal talked of, f603) is", len(store.load_world_state()["deeds"]) == n_deeds + 1)
 
 # ---- a strong success only with something real enabling it
 checks.roll = lambda odds, rng=None, c=None: ("strong success", 1)
@@ -223,7 +219,6 @@ stub.a_ActRuling = was
 check("with no ruling the act is never rolled: no deed, nothing kept, and it waits for its ruling (f596)",
       len(store.load_world_state()["deeds"]) == n_deeds and len(act.waiting(ws, ws.acting)) == 1
       and act.kept(ws, ws.acting, targets.targets_for(ws, ws.acting), "I do something nobody has ruled on.") is None)
-config.ACT = False
 check("act.yaml passes its startup check", act.problems() == [])
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))

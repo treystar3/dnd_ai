@@ -7,8 +7,6 @@ THINK = False
 # so its replay asks as it did (tools/rerun.py); a name no task has is refused at startup (engine/data_check.py).
 THINK_TASKS = frozenset(t.strip() for t in __import__("os").environ.get("DND_THINK_TASKS", "").split(",") if t.strip())
 THINK_ROOM = int(__import__("os").environ.get("DND_THINK_ROOM", "").strip() or 8192)       # an explicit 0 is no room
-# (f595) The one act ruling outside combat (engine/act.py) for one run: DND_ACT=1; else data/rules/act.yaml `enabled` decides.
-ACT = __import__("os").environ.get("DND_ACT", "").strip() == "1"
 # (f534) 8,192 since the first 5090 session (5 Nov), where 1,024 ran out on most of the interpreter's calls; a call is never given more
 # than its context holds beside the prompt and the answer (llm/backend.py think_room).
 # (f425) The context the model is given for each call. DND_NUM_CTX in the environment sets it for one night: a night of six runs on one

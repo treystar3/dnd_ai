@@ -70,8 +70,20 @@ class Stub:
         return getattr(self, "ruling", None) or {"sense": "cost", "why": "", "needs": [], "requires": []}
 
     def a_ActRuling(self, u, k):
-        """(f594) The act ruling (engine/act.py): what a test gives (self.act_ruling), else it makes sense, at a cost, and changes nothing."""
-        return getattr(self, "act_ruling", None) or {"sense": "cost", "why": "", "needs": [], "requires": [], "uses": [], "changes": []}
+        """(f594) The act ruling (engine/act.py): what a test gives (self.act_ruling); (f603) else a scene's or a test's ruling in the old
+        shape (self.ruling), said as an act ruling, a part named by name found by its code in TARGETS; else it makes sense, at a cost, and
+        changes nothing."""
+        if getattr(self, "act_ruling", None):
+            return self.act_ruling
+        old = getattr(self, "ruling", None)
+        if not old:
+            return {"sense": "cost", "why": "", "needs": [], "requires": [], "uses": [], "changes": []}
+        import re
+        parts = {name.strip().lower(): code for code, name in re.findall(r"^\s+(f\d+) ([^:\n]+)", str(u), re.M)}
+        out = {k_: v for k_, v in old.items() if k_ in ("sense", "why", "needs", "requires", "stakes", "answer", "instead")}
+        out["changes"] = [{"n": i, "target": parts[ch["part"].strip().lower()], "becomes": "state", "state": ch["becomes"]}
+                          for i, ch in enumerate(old.get("changes") or [], 1) if ch.get("part", "").strip().lower() in parts]
+        return out
 
     def a_CombatIntent(self, u, k):
         return self.bot.combat_choice()

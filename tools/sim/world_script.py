@@ -122,9 +122,9 @@ def play(name: str, stub, seed: int = SEED, prepare=None) -> Run:
         from engine import checks, targets
         looted = ruled_rare([{"on": PLACE, "kind": "danger", "label": "looters in the square", "by": "the looting band", "by_kind": "group"}])
         harmed = next(a["who"] for a in thread(looted)["parts"] if a.get("kind") == "person")
-        present, roll, act_on, ruling = list(ws.present), checks.roll, config.ACT, getattr(stub, "act_ruling", None)
+        present, roll, ruling = list(ws.present), checks.roll, getattr(stub, "act_ruling", None)
         ws.present = present + ([store.load_npc(harmed)] if harmed not in {n.id for n in present} else [])
-        config.ACT, checks.roll = True, (lambda odds, rng=None, c=None: ("success", 1))   # the dice are not what the script covers
+        checks.roll = lambda odds, rng=None, c=None: ("success", 1)       # the dice are not what the script covers
         try:
             rows = targets.targets_for(ws, ws.acting).rows
             sit = next(t.code for t in rows if t.kind == "situation" and t.ref == looted)
@@ -139,7 +139,7 @@ def play(name: str, stub, seed: int = SEED, prepare=None) -> Run:
                 ws.on_other(types.SimpleNamespace(kind="other", summary=text), text)
             spent = {k: stub.calls.get(k, 0) - v for k, v in before.items()}
         finally:
-            stub.act_ruling, config.ACT, checks.roll, ws.present = ruling, act_on, roll, present
+            stub.act_ruling, checks.roll, ws.present = ruling, roll, present
         snap("an act moves a matter, in one ruling")
         th = thread(looted) or {}
         made = {(c.get("becomes"), c.get("act")) for c in th.get("changes") or []}        # the act's own changes ended it
