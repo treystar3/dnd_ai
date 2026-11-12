@@ -17,6 +17,10 @@ most_changes: 8         # the changes one ruling may carry
 
 # (f600) force counts only on a test of body or arms; talk, a performance or a plain yes never does (the owner, 2026-11-11)
 force_checks: [strength, dexterity, constitution, intimidation]
+# (f604) a change on an act rolled on talk rests on words, whatever the ruling says: it frees no one and moves no world part by hand
+talk_checks: [persuasion, deception, performance]
+# (f604) a hand's work frees one held away only on a roll of the hand (the owner, 2026-11-12): no plain yes, no other roll
+hand_checks: [strength, dexterity, constitution, stealth]
 
 # Words the reuse rule leaves out when it compares two acts ("I try to hide behind the crates" is "hide behind crates").
 filler: [i, the, a, an, my, to, and, then, try, trying, tries, attempt, attempts]

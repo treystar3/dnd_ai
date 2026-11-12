@@ -81,7 +81,7 @@
    situation: {tier: rare, title: The kidnapping, people: [{here: false, stake: harmed, want: safety}],
                conditions: [{kind: danger, label: the kidnappers in the square, by: the kidnappers, by_kind: group}]},
    model: {sense: "cost", stakes: {check: dexterity, hard: fair}, changes: [{n: 1, target: "@person:1", becomes: safe, because: skill}]},
-   moves: {"@person:1": safe}, known: "a hand's work where the trouble is frees one held away too (the owner, 2026-11-11); the engine frees them only by force until its own feature"}
+   moves: {"@person:1": safe}}   # (f604) a hand's work where the trouble is frees one held away too (the owner, 2026-11-11)
 - {line: "I shout down to {person:1} in the cellar that they are free now.", at: trading_square, expect: "yes",
    situation: {tier: rare, title: The kidnapping, people: [{here: false, stake: harmed, want: safety}],
                conditions: [{kind: danger, label: the kidnappers in the square, by: the kidnappers, by_kind: group}]},

@@ -29,11 +29,10 @@ check("the act corpus on both paths, offline: every case the engine can judge is
       r.returncode == 0 and len(tail) == 2 and tail[0].startswith("old: ") and tail[1].startswith("new: ")
       and all("false acceptances 0, false rejections 0" in t for t in tail), (r.returncode, r.stdout[-600:], r.stderr[-600:]))
 check("...each path scored on its sense alike, the act's changes on each target apart (never by the ruling's own numbering)",
-      "new: 17 of 17 right" in r.stdout and "changes wrong 0" in tail[1] and "old: 18 of 18 right" in tail[0]
+      "new: 18 of 18 right" in r.stdout and "changes wrong 0" in tail[1] and "old: 18 of 18 right" in tail[0]
       and "| new ok  yes, moves ok" in r.stdout and "{person:" not in r.stdout, r.stdout[-1500:])
-
-check("...and where the engine is not yet what the owner decided, the case is shown apart, by name, never counted right",
-      "1 known, awaiting their feature" in tail[1] and "new KNW" in r.stdout and "known: a hand's work" in r.stdout, r.stdout[-800:])
+check("...and no case is shown apart as known once its feature landed (f604: the lock-picking rescue)",
+      "known" not in tail[1] and "KNW" not in r.stdout, r.stdout[-800:])
 
 r = run()
 check("the old path's own output is unchanged: the suite and tools/think_ab.py read it", r.returncode == 0

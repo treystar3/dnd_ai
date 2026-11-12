@@ -304,7 +304,7 @@ def _chain(ws, actor_id: str, T, r) -> tuple[list, list]:
         if th is not None:
             idx = lambda code: int(code.split(".")[1]) if code.startswith(scode + ".") else 0
             rows = [{"n": ch.n, "part": idx(ch.target), "who": idx(ch.who), "becomes": ch.becomes,
-                     "because": _because(ch, r.stakes.check), "about": idx(ch.about),
+                     "because": _because(ch, r.stakes.check), "hand": r.stakes.check in A["hand_checks"], "about": idx(ch.about),
                      "needs": [n for n in ch.needs if n in {c.n for c in chs}]} for ch in chs]
             act = {"kind": "acted", "by": actor_id, "npc": "", "witnesses": sorted(n.id for n in ws.present), "place": ws.player.location,
                    "coin": 0, "item": "", "count": 1, "degree": "", "words_only": False, "force_by_change": True}   # (f600) never a violent act
@@ -329,7 +329,9 @@ def _chain(ws, actor_id: str, T, r) -> tuple[list, list]:
 
 def _because(ch, check: str) -> str:
     """(f600) What a change rests on, to a situation's rules: force only on a test of body or arms (act.yaml force_checks), the work of a
-    hand for skill and for force claimed on anything else (the owner, 2026-11-11)."""
+    hand for skill and for force claimed on anything else; (f604) on an act rolled on talk (act.yaml talk_checks), words."""
+    if ch.because in ("force", "skill") and check in A["talk_checks"]:
+        return "words"
     if ch.because == "force":
         return "force" if check in A["force_checks"] else "work"
     return "work" if ch.because == "skill" else ch.because
@@ -363,6 +365,13 @@ def problems() -> list[str]:
     from engine import checks, ruling
     if not (isinstance(A.get("force_checks"), list) and A["force_checks"] and set(A["force_checks"]) <= set(checks.CHECKS) | set(ruling.ATTRS)):
         bad.append("act.yaml force_checks: a list of the checks and attributes force is tested on")
+    talk = A.get("talk_checks")
+    if not (isinstance(talk, list) and talk and set(talk) <= set(checks.CHECKS) | set(ruling.ATTRS)
+            and not set(talk) & set(A.get("force_checks") or ())):
+        bad.append("act.yaml talk_checks: a list of the checks talk is tested on, none of force_checks")
+    hand = A.get("hand_checks")
+    if not (isinstance(hand, list) and hand and set(hand) <= set(checks.CHECKS) | set(ruling.ATTRS) and not set(hand) & set(talk or ())):
+        bad.append("act.yaml hand_checks: a list of the checks a hand's work is tested on, none of talk_checks")
     if not (isinstance(A.get("filler"), list) and all(isinstance(x, str) and x for x in A["filler"])):
         bad.append("act.yaml filler: needs a list of words")
     return bad
@@ -654,7 +663,7 @@ def _situation(ws, actor_id: str, T, scode: str, chs, degree: str = "success", s
         return []
     idx = lambda code: int(code.split(".")[1]) if code.startswith(scode + ".") else 0
     rows = [{"n": ch.n, "part": idx(ch.target), "who": idx(ch.who), "becomes": ch.becomes,
-             "because": _because(ch, check), "about": idx(ch.about),
+             "because": _because(ch, check), "hand": check in A["hand_checks"], "about": idx(ch.about),
              "needs": [m for m in ch.needs if m in {c.n for c in chs}]} for ch in chs]
     act_ = {"kind": "acted", "by": actor_id, "npc": "", "witnesses": sorted(n.id for n in ws.present), "place": ws.player.location,
             "coin": 0, "item": "", "count": 1, "degree": degree, "words_only": False, "seq": seq or None, "force_by_change": True}

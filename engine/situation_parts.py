@@ -988,9 +988,12 @@ def ruled(store, th: dict, act: dict, changes: list[dict], world=None) -> tuple[
             return "" if how & {"evidence", "force"} else why["still_committed"]
         return "" if how else why["still_refusing"]
 
+    def freeing(c: dict, because: str) -> bool:               # (f604) what frees one held away: force, or a hand's work rolled for
+        return because == "force" or (because == "work" and bool(c.get("hand")))
+
     def where_trouble(c: dict) -> bool:                        # (f547's second review) an act of violence where the trouble is
-        place = act.get("place") or ""                         # (f600) or this change's own force
-        if words or not (act.get("kind") in violence or (act.get("force_by_change") and c.get("because") == "force")):
+        place = act.get("place") or ""                         # (f600) or this change's own force, (f604) or a hand's work there
+        if words or not (act.get("kind") in violence or (act.get("force_by_change") and c.get("because") in ("force", "work"))):
             return False
         if place and place == th.get("place"):
             return True
@@ -1032,9 +1035,10 @@ def ruled(store, th: dict, act: dict, changes: list[dict], world=None) -> tuple[
         if not who and layer in ("world", "action"):
             if words or because in ("words", "coin"):            # (f547's review) the player's own hand changes the world, never
                 return why["words_only"]                          # a word or a coin by itself
-            if a["kind"] == "person" and a["who"] not in heard and not (because == "force" and where_trouble(c)):
+            if a["kind"] == "person" and a["who"] not in heard and not (freeing(c, because) and where_trouble(c)):
                 return why["not_heard"]                          # one freed by the player's own hand: where the act was, or freed by
-            hand = by_hand(a, k, w, c)                              # force where the trouble is (their captor beaten); (f547's third
+            hand = by_hand(a, k, w, c)                              # force where the trouble is (their captor beaten), (f604) or by a
+                                                                 # hand's work there on a roll of the hand; (f547's third
             if hand:                                             # review) anything else, by a hand that was there and could
                 return hand
         if failed and row.get("better"):
