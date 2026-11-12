@@ -506,10 +506,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """(f546) After the tail, apart from it, and only when something waits (so an input with nothing born commits what it always did):
         the oldest birth due asks for its parts outside any transaction (engine/situation_parts.py birth), the people here read again
         inside it (f546's second review: every write within an operation); a birth that took none, or whose operation failed for any
-        reason, spends one of its tries in an operation of its own (f546's review), so none is asked forever; then the situations with
-        no parts to adopt (one past its tries among them) take the engine's own, in an operation with no call."""
+        reason but the turn's budget, spends one of its tries in an operation of its own (f546's review), so none is asked forever; then
+        the situations with no parts to adopt (one past its tries among them) take the engine's own, in an operation with no call.
+        (f599) The nearest birth a character can meet comes first; one with no room this turn waits, met, and spends no try."""
         from engine import situation_parts
-        th = situation_parts.due(self.store.load_world_state() or {})
+        from engine.budget import BudgetError
+        th = situation_parts.due(self.store.load_world_state() or {}, self.world, [self.player.location])   # (f599) where they stand
         if th is not None:
             tid, why = th["id"], {}
 
@@ -517,11 +519,14 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 try:
                     if situation_parts.birth(self, tid):
                         self.reread_here()
+                except BudgetError:
+                    why["budget"] = True                   # (f599) no room this turn: it waits, met, and spends no try
+                    situation_parts.wait_for_room(self, tid)
                 except LLMError as e:
                     why["it"] = str(e) or "the model gave nothing usable"
                     raise
             op, _ = self.asked_operation("parts", text, _born, world=True)
-            if op.state != "committed":
+            if op.state != "committed" and not why.get("budget"):
                 with self.operation("parts:missed", text, world=True):
                     situation_parts.missed(self, tid, why.get("it") or "its operation did not stand")
         if situation_parts.adoptable(self.store.load_world_state() or {}):

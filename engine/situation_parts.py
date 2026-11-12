@@ -664,27 +664,50 @@ def _unparted(x: dict) -> bool:
 
 
 def adoptable(state: dict) -> list[dict]:
-    """(f546) The live situations of the adopting tiers with no parts and no birth still due, oldest first."""
+    """(f546) The live situations of the adopting tiers with no parts and no birth still due, oldest first. (f599) One of a reach tier
+    is adopted only past its tries: one never met keeps no parts, and ends as it always did."""
     B = S.get("births") or {}
-    tries, tiers, born = int(B.get("tries", 3)), set(B.get("adopt_tiers") or ()), set(B.get("tiers") or ())
+    tries, tiers, born, reach = int(B.get("tries", 3)), set(B.get("adopt_tiers") or ()), set(B.get("tiers") or ()), set(B.get("reach_tiers") or ())
     return sorted((x for x in (state or {}).get("threads", []) if _unparted(x) and x.get("tier") in tiers
-                   and (not isinstance(x.get("parts_due"), int) or x["parts_due"] >= tries or x.get("tier") not in born)),
+                   and (isinstance(x.get("parts_due"), int) and x["parts_due"] >= tries if x.get("tier") in reach
+                        else (not isinstance(x.get("parts_due"), int) or x["parts_due"] >= tries or x.get("tier") not in born))),
                   key=lambda x: (int(x.get("made", 0)), x["id"]))      # (f546's second review) a tier no longer born: adopted, whatever its due
 
 
-def due(state: dict) -> dict | None:
-    """(f546) The oldest birth still due its parts, if any."""
+def met(world, th: dict, place: str) -> bool:
+    """(f599) Whether a character standing at `place` can meet a situation: it is in the situation's town or where its trouble is; or
+    they have heard of it from someone of it, been asked about it, or done something it reached."""
+    from engine import pulse
+    if th.get("touched") or th.get("answered") or th.get("summons") == "met" or th.get("ruled"):
+        return True
+    if not place or place not in world.places:
+        return False
+    near, _ = trouble_near(world, th, [])
+    return place in near or (th.get("place") in world.places and pulse.town_of(world, place) == pulse.town_of(world, th["place"]))
+
+
+def due(state: dict, world=None, places=()) -> dict | None:
+    """(f546) The oldest birth still due its parts, if any. (f599) One of a reach tier comes due once a character can meet it (`places`:
+    where the characters stand), the nearest first; one never met never asks."""
     B = S.get("births") or {}
-    tries, tiers = int(B.get("tries", 3)), set(B.get("tiers") or ())
-    return next(iter(sorted((x for x in (state or {}).get("threads", []) if _unparted(x) and x.get("tier") in tiers
-                             and isinstance(x.get("parts_due"), int) and x["parts_due"] < tries),
-                            key=lambda x: (int(x.get("made", 0)), x["id"]))), None)
+    tries, tiers, reach = int(B.get("tries", 3)), set(B.get("tiers") or ()), set(B.get("reach_tiers") or ())
+
+    def waiting_one(x) -> bool:
+        if not (_unparted(x) and x.get("tier") in tiers):
+            return False
+        if isinstance(x.get("parts_due"), int):
+            return x["parts_due"] < tries
+        return x.get("tier") in reach and world is not None and any(met(world, x, p) for p in places)
+
+    here = lambda x: 0 if world is not None and any(p == x.get("place") or p in trouble_near(world, x, [])[0] for p in places) else 1
+    return next(iter(sorted((x for x in (state or {}).get("threads", []) if waiting_one(x)),
+                            key=lambda x: (here(x), int(x.get("made", 0)), x["id"]))), None)
 
 
-def waiting(state: dict) -> bool:
+def waiting(state: dict, world=None, places=()) -> bool:
     """(f546) Whether there is anything for the parts operations to do; none is opened otherwise, so an input with nothing born commits
     what it always did."""
-    return bool(adoptable(state)) or due(state) is not None
+    return bool(adoptable(state)) or due(state, world, places) is not None
 
 
 def adopt_all(ws) -> bool:
@@ -699,6 +722,16 @@ def adopt_all(ws) -> bool:
     return bool(rows)
 
 
+def wait_for_room(ws, tid: str) -> None:
+    """(f599) A birth the turn's budget had no room for: it waits, and once met it stays due (parts_due 0) wherever the character goes."""
+    from engine import pulse
+    state = ws.store.load_world_state() or {}
+    th = pulse.thread_of(state, tid)
+    if th is not None and _unparted(th) and not isinstance(th.get("parts_due"), int):
+        th["parts_due"] = 0
+        ws.store.save_world_state(state)
+
+
 def missed(ws, tid: str, why: str = "its operation did not stand") -> None:
     """(f546's reviews) A birth that did not stand - its call failed, it kept or made no part, or its operation failed for any reason -
     counts as one of its tries, here, in an operation of its own, so no birth is asked for more than births.tries times. Past them it
@@ -706,9 +739,11 @@ def missed(ws, tid: str, why: str = "its operation did not stand") -> None:
     from engine import pulse, pulselog
     state = ws.store.load_world_state() or {}
     th = pulse.thread_of(state, tid)
-    if th is None or not _unparted(th) or not isinstance(th.get("parts_due"), int):
+    if th is None or not _unparted(th):
         return
-    th["parts_due"] = int(th["parts_due"]) + 1
+    if not isinstance(th.get("parts_due"), int) and th.get("tier") not in ((S.get("births") or {}).get("reach_tiers") or ()):
+        return
+    th["parts_due"] = int(th.get("parts_due") or 0) + 1                # (f599) a reach tier's first try counts from its meeting
     pulselog.note("miss", f"{th.get('title', '')}: no parts this time ({why})", thread=tid)
     ws.store.save_world_state(state)
 

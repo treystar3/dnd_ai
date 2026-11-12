@@ -450,7 +450,8 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
     if big:
         thread["scope_places"] = sorted({e.place for st in proposal.stages for e in st.effects if e.place in world.places})
     from engine import situations as _situations
-    if tier in ((_situations.S.get("births") or {}).get("tiers") or ()):
+    if tier in ((_situations.S.get("births") or {}).get("tiers") or ()) \
+            and tier not in ((_situations.S.get("births") or {}).get("reach_tiers") or ()):     # (f599) a common one waits to be met
         thread["parts_due"] = 0                                      # (f546) its parts asked for after the input's tail, in an operation
                                                                      # of their own (engine/situation_parts.py birth)
     console.debug(f"pulse: [{tier}] {proposal.title} at {proposal.place}")

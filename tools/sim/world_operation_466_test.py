@@ -68,6 +68,8 @@ ws.player.character.coins = 100000
 store.save_player(ws.player)
 now = ws.minutes
 TH = {"id": "t466", "title": "Wolves out of the Greywood", "place": "parth", "tier": "normal", "kind": "threat", "stage": 0, "status": "active",
+      "parts": [],   # (f599) given its parts already: the pulse's own operations are under test, a birth is born_when_met_599's
+     
       "stages": [{"description": "Wolves at the pens.", "effects": []}], "fallout": {"description": "The wolves had their fill.", "effects": []},
       "resolution": "Thin the wolves.", "truth": "Something pushed them out.", "clues": [{"text": "Count the tracks.", "holder": "farmer", "npc": "", "found": False}],
       "reveal": "", "made_by": "engine", "told": False, "moment": "", "words": {"town": "Parth", "wild": "the Greywood"},
