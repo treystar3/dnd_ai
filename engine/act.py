@@ -145,7 +145,8 @@ def shape(ws, T):
         "why": text("why"),
         "uses": {"type": "array", "items": enum(codes, empty=False), "maxItems": int(L["uses"])} if codes else {"type": "array", "maxItems": 0},
         "needs": {"type": "array", "items": need, "maxItems": int(L["needs"])},
-        "requires": {"type": "array", "items": {"enum": list(ruling.C)}, "maxItems": int(L["requires"])},
+        "requires": {"type": "array", "items": {"enum": list(ruling.C) + sorted(checks.CHECKS) + list(ruling.ATTRS)},   # a check named
+                     "maxItems": int(L["requires"])},                                        # here moves to the stakes, as the contract has it
         "stakes": {"type": "object", "properties": {"check": {"enum": [""] + sorted(checks.CHECKS) + list(ruling.ATTRS)},
                                                     "hard": {"enum": defs["Stakes"]["properties"]["hard"]["enum"]}}},
         "fail": {"enum": list(A["fails"])},

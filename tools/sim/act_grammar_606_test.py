@@ -65,7 +65,9 @@ check("the fail is one of FAIL, never free text (all 77 answers cut off were a l
       props["fail"])
 check("the check is one of CHECKS or an attribute, or none", props["stakes"]["properties"]["check"]["enum"]
       == [""] + sorted(checks.CHECKS) + list(ruling.ATTRS), props["stakes"])
-check("what it requires is named from CAPABILITIES", props["requires"]["items"]["enum"] == list(ruling.C), props["requires"])
+check("what it requires is a capability, or a check or attribute (which the contract moves to the stakes): never a capability "
+      "forced where the model meant a check (the corpus rerun: 'pass_through' to climb a ledge)",
+      props["requires"]["items"]["enum"] == list(ruling.C) + sorted(checks.CHECKS) + list(ruling.ATTRS), props["requires"])
 check("what it uses is named by code", set(props["uses"]["items"]["enum"]) == set(T.codes()), props["uses"])
 
 changes = props["changes"]["items"]["anyOf"]
@@ -147,6 +149,10 @@ fair = [good,
 if part:
     fair.append({"sense": "cost", "why": "a bar", "fail": "hurt", "changes": [{"n": 1, "target": part, "becomes": "state",
                                                                              "state": features.F["becomes"][0], "because": "skill"}]})
+climb = {"sense": "cost", "why": "wet rock", "requires": ["dexterity"], "fail": "hurt"}
+moved = Shaped.model_validate(climb, context=ctx)
+check("a climb that names its check under requires fits the grammar, and the check moves to the stakes with nothing required",
+      fits(climb, s) and moved.requires == [] and moved.stakes.check == "dexterity", (fits(climb, s), moved.requires, moved.stakes))
 check("fair rulings fit the grammar: a lifted danger, a surrender by the one who surrenders, a no that answers, a thing moved, a state",
       all(fits(x, s) for x in fair), [x for x in fair if not fits(x, s)])
 unfair = [{**good, "fail": "time_lost, noise, noticed, hurt"},
