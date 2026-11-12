@@ -479,6 +479,20 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self._doing_changes = doings.assign(self.store, self.present, self.minutes, moments.active(self.store, self.player.location, self.minutes) or street,
                                             visiting=self._routine_here, place_type=self.place.type if self.player.location in self.world.places else "")
 
+    def take_up_acts(self, text: str) -> None:
+        """(f596) The oldest act this character left waiting for its ruling, ruled on before the new line is read, in an operation of its
+        own whose call is asked outside the transaction (engine/act.py take_up); told, then the line plays. Nothing when none waits, or
+        when the act path is off."""
+        from engine import act
+        if not act.on() or self.combat or not act.waiting(self, self.acting):
+            return                                         # never in a fight: an act outside combat waits for the fight to end
+        said = act.waiting(self, self.acting)[0]["text"]
+        op, _ = self.asked_operation("act:waiting", said, lambda op: act.take_up(self, self.acting, text), world=True)
+        if op.state != "committed":                        # its operation failed for any reason: one of its tries spent, apart
+            with self.operation("act:waiting:missed", said, world=True):
+                act.missed(self, self.acting)
+        self.run_passages()
+
     def situation_births(self, text: str) -> None:
         """(f546) After the tail, apart from it, and only when something waits (so an input with nothing born commits what it always did):
         the oldest birth due asks for its parts outside any transaction (engine/situation_parts.py birth), the people here read again
@@ -1484,6 +1498,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.ran = []
                 plan = None
                 self.collecting = True                     # (f464) a narration asked for by an action is a passage operation after it
+                self.take_up_acts(text)                    # (f596) an act left waiting for its ruling, before this line is read
                 def _line(op):                             # (f470) the line taken whole (an answer, a fight's round, an intercept), or void
                     self._wrote_turn = False               # (f351) the narrator's mark is a flag, not a turn number; set inside the operation, so a rollback takes it back
                     got = self.take_line(text)

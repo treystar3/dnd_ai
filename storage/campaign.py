@@ -430,6 +430,13 @@ class CampaignStore:
     def save_act_rulings(self, data: dict) -> None:
         self._put("act_rulings", json.dumps(data))
 
+    def load_act_pending(self) -> dict:
+        """(f596) Each character's acts waiting for their ruling (engine/act.py), by character id."""
+        return self._kv("act_pending") or {}
+
+    def save_act_pending(self, data: dict) -> None:
+        self._put("act_pending", json.dumps(data))
+
     def load_discoveries(self) -> dict:
         base = {"places": [], "tracks": [], "leads": []}
         got = self._kv("discoveries")

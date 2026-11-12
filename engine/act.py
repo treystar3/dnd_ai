@@ -347,6 +347,11 @@ def problems() -> list[str]:
     words = set(situation_parts.S["rulings"]["changes"])
     if not (isinstance(A.get("outside_situation"), list) and set(A["outside_situation"]) <= words):
         bad.append("act.yaml outside_situation: needs a list of the situation ruling's words")
+    P_ = A.get("pending") or {}
+    for k in ("most", "tries", "minutes", "moment_minutes", "lapse_hours"):
+        v = P_.get(k)
+        if not (isinstance(v, int) and not isinstance(v, bool) and v > 0):
+            bad.append(f"act.yaml pending.{k}: needs a whole number above 0")
     if not (isinstance(A.get("filler"), list) and all(isinstance(x, str) and x for x in A["filler"])):
         bad.append("act.yaml filler: needs a list of words")
     return bad
@@ -357,8 +362,8 @@ def problems() -> list[str]:
 def act(ws, actor_id: str, words: str, text: str) -> None:
     """The whole loop for an act outside combat: its targets, the kept ruling or the model's, the engine's check, the ruling kept, what
     the world must hold made, the roll, what changed written through the game's own writers, the deed, and the telling. A no is told in
-    the world's words; with no ruling, the act is asked back (never rolled unruled)."""
-    from engine import ruling, targets
+    the world's words; with no ruling, the act waits for one (never rolled unruled)."""
+    from engine import targets
     if actor_id != ws.acting:                        # (f595) one character a scene until multiplayer M1
         raise ValueError(f"an act is played for the scene's own character, not {actor_id}")
     T = targets.targets_for(ws, actor_id)
@@ -367,8 +372,17 @@ def act(ws, actor_id: str, words: str, text: str) -> None:
     if fresh:
         r = ask(ws, actor_id, T, words, text)
     if r is None:
-        ws.ask_back("ruling_failed", text, "the ruling on it could not be made", meaning=words)
+        wait(ws, actor_id, words, text)                   # (f596) it waits for its ruling, never rolled unruled
         return
+    decide(ws, actor_id, T, r, fresh, words, text)
+
+
+def decide(ws, actor_id: str, T, r, fresh: bool, words: str, text: str, continuing: str = "") -> None:
+    """A ruling in hand: checked, kept, and refused or made real. `continuing`: the attempt was told beginning before (f596); how it
+    turned out is told as of then."""
+    from engine import ruling
+    if continuing:
+        words = f"{continuing} {words or text}"
     v = validate(ws, actor_id, T, r)
     if fresh:
         keep(ws, actor_id, T, text, r)
@@ -379,6 +393,88 @@ def act(ws, actor_id: str, words: str, text: str) -> None:
         return
     made = make_needs(ws, v.ruling)
     resolve(ws, actor_id, T, v, words, text, made)
+
+
+# ---------- (f596) an act waiting for its ruling
+
+def wait(ws, actor_id: str, words: str, text: str) -> None:
+    """The ruling could not be made: the act is kept for the character, its beginning told (never how it turns out), its time spent.
+    The same act typed again waits once. Past `most` waiting, the oldest is let go and counted as a ruling that failed."""
+    from engine import refusals, world_improv
+    P_ = A["pending"]
+    data = ws.store.load_act_pending()
+    key, place = words_key(text), ws.player.location
+    rows = [x for x in data.get(actor_id) or [] if not (words_key(x["text"]) == key and x["place"] == place)]   # typed again: one act
+    rows.append({"words": words, "text": text, "place": place, "minute": int(ws.minutes), "tries": 0})
+    for old in rows[:-int(P_["most"])]:
+        refusals.note("ruling_failed", old["text"], "let go: newer acts were waiting", old["place"], ws.store.meta.turn)
+    data[actor_id] = rows[-int(P_["most"]):]
+    ws.store.save_act_pending(data)
+    ws.advance(int(P_["minutes"]))
+    ws.narrate(f"THE GAME HAS NOT DECIDED YET: the player begins what they attempt ({world_improv.what_of(words or text)}). Show only the "
+               "attempt beginning, as it would be seen: never how it turns out, and nothing it would change.", text)
+
+
+def waiting(ws, actor_id: str) -> list[dict]:
+    return ws.store.load_act_pending().get(actor_id) or []
+
+
+def take_up(ws, actor_id: str, text: str) -> None:
+    """(f596) At the next input, before its line is read: the oldest act this character left waiting is ruled on, or lapses (they have
+    left the place, or it has waited past lapse_hours), or after its tries is told as come to nothing and counted as a ruling that
+    failed. One a line. `text` is the new line, never handed the narrator for the waiting act: the act's own words are."""
+    from engine import targets, world_improv
+    if actor_id != ws.acting:                        # one character a scene until multiplayer M1
+        raise ValueError(f"an act is played for the scene's own character, not {actor_id}")
+    P_ = A["pending"]
+    data = ws.store.load_act_pending()
+    rows = data.get(actor_id) or []
+    if not rows:
+        return
+    row = rows[0]
+    what = world_improv.what_of(row["words"] or row["text"])
+    since = int(ws.minutes) - int(row.get("minute", ws.minutes))
+    if row["place"] != ws.player.location or since > int(P_["lapse_hours"]) * 60:
+        _end(ws, actor_id, data, row, "lapsed: " + ("the character left the place" if row["place"] != ws.player.location else "it waited too long"),
+             f"THE GAME HAS DECIDED: what the player began earlier ({what}) was left unfinished; it came to nothing. Tell how it was left.")
+        return
+    T = targets.targets_for(ws, actor_id)
+    r = ask(ws, actor_id, T, row["words"], row["text"])
+    if r is None:
+        missed(ws, actor_id)
+        return
+    data[actor_id] = rows[1:]
+    ws.store.save_act_pending(data)
+    when = "the attempt they began a moment ago," if since <= int(P_["moment_minutes"]) else "the attempt they began earlier,"
+    decide(ws, actor_id, T, r, True, row["words"], row["text"], continuing=when)
+
+
+def missed(ws, actor_id: str) -> None:
+    """(f596) A try at the oldest waiting act did not stand (no ruling, or its operation failed for any reason): one of its tries spent,
+    in an operation of its own; past them it is told as come to nothing and counted as a ruling that failed."""
+    from engine import world_improv
+    data = ws.store.load_act_pending()
+    rows = data.get(actor_id) or []
+    if not rows:
+        return
+    row = rows[0]
+    row["tries"] = int(row.get("tries", 0)) + 1
+    if row["tries"] >= int(A["pending"]["tries"]):
+        what = world_improv.what_of(row["words"] or row["text"])
+        _end(ws, actor_id, data, row, f"no ruling after {row['tries']} tries",
+             f"THE GAME HAS DECIDED: what the player began ({what}) comes to nothing in the end: it peters out, unfinished, and nothing is "
+             "changed by it. Tell how it ends.")
+        return
+    ws.store.save_act_pending(data)
+
+
+def _end(ws, actor_id: str, data: dict, row: dict, why: str, telling: str) -> None:
+    """A waiting act ended without a ruling: let go, counted as a ruling that failed, and told ending in its own words."""
+    from engine import refusals
+    data[actor_id] = [x for x in data.get(actor_id) or [] if x is not row]
+    ws.store.save_act_pending(data)
+    refusals.note("ruling_failed", row["text"], why, row["place"], ws.store.meta.turn)
+    ws.narrate(telling, row["text"])
 
 
 def make_needs(ws, r) -> list[str]:

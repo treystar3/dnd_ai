@@ -5,8 +5,8 @@ world must hold made (never twice), the roll, what changed written through the g
 moved, a person's trust through the scene's own copy, a situation's part by its own rules), an Acted deed in the ledger when anything
 was at stake, and the telling, which carries what changed and what the engine refused (never to be shown). A no is told in the world's
 words; a failure costs what its kind costs and changes nothing; a partial success makes only what can be half made; a strong success
-counts only when a real thing enables it; a road, a companion, or one outside a situation made to act are refused; no ruling at all is
-asked back, never rolled. Nothing is handed the narrator with a dash.
+counts only when a real thing enables it; a road, a companion, or one outside a situation made to act are refused; with no ruling at
+all the act is never rolled (it waits for one: f596). Nothing is handed the narrator with a dash.
 Run: python tools/sim/act_595_test.py"""
 import random
 import sys
@@ -213,19 +213,16 @@ check("...with a real thing that enables it, it stands", row["degree"] == "stron
 checks.roll = checks_roll
 
 # ---- no ruling at all
-asked = []
-was_ask_back = ws.ask_back
-ws.ask_back = lambda kind, text, why, meaning="", place="": asked.append(kind)
 was = stub.a_ActRuling
 def broken(u, k):
     raise LLMError("the model failed")
 stub.a_ActRuling = broken
 n_deeds = len(store.load_world_state()["deeds"])
 other("I do something nobody has ruled on.")
-stub.a_ActRuling, ws.ask_back = was, was_ask_back
-check("with no ruling the act is asked back, never rolled: no deed, nothing kept", asked == ["ruling_failed"]
-      and len(store.load_world_state()["deeds"]) == n_deeds
-      and act.kept(ws, ws.acting, targets.targets_for(ws, ws.acting), "I do something nobody has ruled on.") is None, asked)
+stub.a_ActRuling = was
+check("with no ruling the act is never rolled: no deed, nothing kept, and it waits for its ruling (f596)",
+      len(store.load_world_state()["deeds"]) == n_deeds and len(act.waiting(ws, ws.acting)) == 1
+      and act.kept(ws, ws.acting, targets.targets_for(ws, ws.acting), "I do something nobody has ruled on.") is None)
 config.ACT = False
 check("act.yaml passes its startup check", act.problems() == [])
 

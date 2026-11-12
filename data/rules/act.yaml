@@ -29,6 +29,17 @@ fails:
   exposed:       {minutes: 10, text: "it goes wrong and leaves them in plain view, caught out where they stand"}
 partial: {minutes: 10, text: "it works, roughly, and not for long or not well"}
 success_minutes: 5          # the time a done act takes
+
+# (f596) An act whose ruling could not be made (the model down, a timeout, the turn's budget) waits for it (the owner, 2026-11-11, and
+# 2026-11-08: "every consequential act persists as an event, including those awaiting interpretation"). The attempt is told beginning,
+# never how it turns out; at the next input, before that line is read, its ruling is asked again. A character keeps at most `most`
+# waiting, the oldest let go first; one is asked again `tries` times, then told as come to nothing. Never rolled unruled.
+pending:
+  most: 3
+  tries: 3
+  minutes: 5                # the time the attempt's beginning takes
+  moment_minutes: 30        # within this, how it turned out is told as of a moment ago; later, as of earlier
+  lapse_hours: 12           # an act left waiting longer than this lapses, told as left unfinished
 # What one outside any situation can be moved to by an act: what they believe and how they feel toward the one who acted, each
 # through its own writer (a told memory, a mood, trust). Willingness and deeds are a situation's people's, by its own rules.
 outside_situation: [believes, doubts, warmer, colder, afraid, angry, grateful]
