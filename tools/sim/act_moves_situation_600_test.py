@@ -1,7 +1,7 @@
 """(f600) An act moves a situation, in one call (docs/design/02 section 7). With the act path on, a situation whose trouble is here is in
 the act's targets; the act's one ruling (act_ruling) may change its parts, checked by the situation's own rules (a change resting on force
-is force to them only when the act was rolled on body or arms, act.yaml force_checks; skill is the work of a hand; the owner,
-2026-11-11), written by its own writer, and read for its end at once
+is force to them only when the act was rolled on body or arms, act.yaml force_checks; skill is the work of a hand; a kept force change counts for its own
+target alone; the owner, 2026-11-11), written by its own writer, and read for its end at once
 (f598). The act's deed names the situations its ruling weighed, so the gate (f597) never asks a second ruling for them. Barring the
 granary against the looters moves the situation at every tier, and ends it when the world says so.
 Run: python tools/sim/act_moves_situation_600_test.py"""
@@ -158,6 +158,91 @@ check("on strength, the force change is kept: the danger it was done to is lifte
       and part(tid, d1).get("now") == "lifted", (op.state, part(tid, d1).get("now")))
 check("...and never spreads to its neighbour: the one done by skill, against a band, is refused", part(tid, d2).get("now") != "lifted",
       part(tid, d2).get("now"))
+# ---- (the owner, 2026-11-11) a kept force change counts for its own target: one committed is moved by it, one held away is freed
+away = next(p for p in folk if p.id not in {n.id for n in HERE} and p.id != folk[1].id)
+guard = next(n.id for n in HERE if n.id != folk[1].id)                 # present, and not the stallholder already harmed
+for chk, kept_ in (("strength", True), ("performance", False)):
+    tid = f"th600_own_{chk}"
+    with ws.operation("test", "done with it"):
+        st = store.load_world_state()
+        for x in st["threads"]:
+            if x["id"].startswith("th600_") and x["status"] == "active":
+                x["status"] = "resolved"
+        store.save_world_state(st)
+    looting(tid, "rare")
+    with ws.operation("test", "a guard set against them, and one held away"):
+        st = store.load_world_state()
+        th = pulse.thread_of(st, tid)
+        g_at = len(th["parts"])
+        th["parts"].append({"kind": "person", "who": guard, "stake": "blocks", "want": "coin", "willing": {ws.acting: "committed"}})
+        th["parts"].append({"kind": "person", "who": away.id, "stake": "harmed", "want": "safety"})
+        store.save_world_state(st)
+    ws.present = list(HERE)
+    T = targets.targets_for(ws, ws.acting)
+    mine = {t.ref: t.code for t in T.rows if t.kind == "person"}
+    g_code, a_code = mine.get(f"{tid}#{g_at}"), mine.get(f"{tid}#{g_at + 1}")
+    check(f"[{chk}] (the guard and the one held away are among the act's targets)", bool(g_code and a_code), sorted(mine))
+    stub.act_ruling = {"sense": "cost", "stakes": {"check": chk, "hard": "fair"},
+                       "changes": [{"n": 1, "target": g_code, "becomes": "terrified", "because": "force"},
+                                   {"n": 2, "target": a_code, "becomes": "safe", "because": "force"}]}
+    op = act("I wrestle the guard to the ground and break the lock on the cellar where they keep the trader.")
+    th = pulse.thread_of(store.load_world_state(), tid)
+    g, a = th["parts"][g_at], th["parts"][g_at + 1]
+    check(f"[{chk}] a committed guard {'is' if kept_ else 'is not'} moved by the force done to them",
+          op.state == "committed" and (g.get("willing", {}).get(ws.acting) == "terrified") == kept_, (op.state, g.get("willing")))
+    check(f"[{chk}] one held out of earshot {'is' if kept_ else 'is not'} freed by force where the trouble is",
+          (a.get("now") == "safe") == kept_, a.get("now"))
+
+tid = "th600_own_only"
+with ws.operation("test", "done with it"):
+    st = store.load_world_state()
+    for x in st["threads"]:
+        if x["id"].startswith("th600_") and x["status"] == "active":
+            x["status"] = "resolved"
+    store.save_world_state(st)
+looting(tid, "rare")
+with ws.operation("test", "a guard set against them"):
+    st = store.load_world_state()
+    th = pulse.thread_of(st, tid)
+    g_at = len(th["parts"])
+    th["parts"].append({"kind": "person", "who": guard, "stake": "blocks", "want": "coin", "willing": {ws.acting: "committed"}})
+    store.save_world_state(st)
+danger, _ = codes(tid)
+ws.present = list(HERE)
+g_code = {t.ref: t.code for t in targets.targets_for(ws, ws.acting).rows if t.kind == "person"}.get(f"{tid}#{g_at}")
+stub.act_ruling = {"sense": "cost", "stakes": {"check": "strength", "hard": "fair"},
+                   "changes": [{"n": 1, "target": danger, "becomes": "lifted", "because": "force"},
+                               {"n": 2, "target": g_code, "becomes": "terrified", "because": "earlier", "needs": [1]}]}
+act("I drive the looters out of the square while the guard watches.")
+th = pulse.thread_of(store.load_world_state(), tid)
+check("force done to the danger moves only the danger: the committed guard who saw it stands as they were",
+      part(tid, danger).get("now") == "lifted" and th["parts"][g_at].get("willing", {}).get(ws.acting) == "committed",
+      (part(tid, danger).get("now"), th["parts"][g_at].get("willing")))
+
+tid = "th600_warned"
+with ws.operation("test", "done with it"):
+    st = store.load_world_state()
+    pulse.thread_of(st, "th600_own_only")["status"] = "resolved"
+    store.save_world_state(st)
+looting(tid, "rare")
+ws.present = list(HERE)
+lookout = next(t.code for t in targets.targets_for(ws, ws.acting).rows if t.kind == "person" and t.ref == f"{tid}#0")
+with ws.operation("test", "the guard is elsewhere"):
+    st = store.load_world_state()
+    pulse.thread_of(st, tid)["parts"].append({"kind": "person", "who": away.id, "stake": "blocks", "want": "coin",
+                                              "willing": {ws.acting: "committed"}})
+    w_at = len(pulse.thread_of(st, tid)["parts"]) - 1
+    store.save_world_state(st)
+ws.present = list(HERE)
+w_code = {t.ref: t.code for t in targets.targets_for(ws, ws.acting).rows if t.kind == "person"}.get(f"{tid}#{w_at}")
+stub.act_ruling = {"sense": "cost", "stakes": {"check": "strength", "hard": "fair"},
+                   "changes": [{"n": 1, "target": lookout, "who": lookout, "becomes": "warns", "about": w_code, "because": "words"},
+                               {"n": 2, "target": w_code, "becomes": "terrified", "because": "force", "needs": [1]}]}
+act("I shove the stallholder toward the cellar to warn the other guard, and hope my fists carry.")
+th = pulse.thread_of(store.load_world_state(), tid)
+check("one only warned, never there, is not moved by force: force is done in person",
+      th["parts"][w_at].get("willing", {}).get(ws.acting) == "committed", th["parts"][w_at].get("willing"))
+
 check("...and the act itself is no violent act to the situation's rules", "acted_by_force" not in situation_parts.S["rulings"]["force_acts"]
       and "acted" not in situation_parts.S["rulings"]["force_acts"])
 config.ACT = False

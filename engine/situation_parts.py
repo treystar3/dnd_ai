@@ -958,6 +958,9 @@ def ruled(store, th: dict, act: dict, changes: list[dict], world=None) -> tuple[
                 out.add("force" if act.get("kind") in violence else "deed")    # refuses, never one committed)
         if not words and act.get("kind") in violence and me in heard:
             out.add("force")                                   # violence they saw done
+        if not words and me in heard and act.get("force_by_change") and any(x.get("part") == k and x.get("because") == "force"
+                                                                          for x in kept + [c]):
+            out.add("force")                                   # (f600) force done to them, there: its own target only
         if me in heard and c.get("because") == "evidence" and shown(c):
             out.add("evidence")                                # (f547's fourth review) shown to them: they were there to see it
         if me in heard and any(x["part"] == k and x.get("because") == "evidence" for x in kept):
@@ -985,9 +988,9 @@ def ruled(store, th: dict, act: dict, changes: list[dict], world=None) -> tuple[
             return "" if how & {"evidence", "force"} else why["still_committed"]
         return "" if how else why["still_refusing"]
 
-    def where_trouble() -> bool:                               # (f547's second review) an act of violence where the trouble is
-        place = act.get("place") or ""
-        if words or act.get("kind") not in violence:
+    def where_trouble(c: dict) -> bool:                        # (f547's second review) an act of violence where the trouble is
+        place = act.get("place") or ""                         # (f600) or this change's own force
+        if words or not (act.get("kind") in violence or (act.get("force_by_change") and c.get("because") == "force")):
             return False
         if place and place == th.get("place"):
             return True
@@ -1029,7 +1032,7 @@ def ruled(store, th: dict, act: dict, changes: list[dict], world=None) -> tuple[
         if not who and layer in ("world", "action"):
             if words or because in ("words", "coin"):            # (f547's review) the player's own hand changes the world, never
                 return why["words_only"]                          # a word or a coin by itself
-            if a["kind"] == "person" and a["who"] not in heard and not (because == "force" and where_trouble()):
+            if a["kind"] == "person" and a["who"] not in heard and not (because == "force" and where_trouble(c)):
                 return why["not_heard"]                          # one freed by the player's own hand: where the act was, or freed by
             hand = by_hand(a, k, w, c)                              # force where the trouble is (their captor beaten); (f547's third
             if hand:                                             # review) anything else, by a hand that was there and could
