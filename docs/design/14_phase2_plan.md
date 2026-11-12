@@ -168,7 +168,7 @@ persists as an event, including those awaiting interpretation"). It replaces the
 - Replay: events.yaml moves the hash. stub_short's situation is touched by no deed today; if a call appears, stop and read it.
 
 **f598: the end, read from the world** (the planned f549; doc 01 recommendation 4). Its own short design note comes to the owner
-before it is built. The outline, with the owner's answers of 2026-11-11:
+before it is built: docs/design/16_end_reading.md. The outline, with the owner's answers of 2026-11-11:
 - A pure function over the heart and the world: for each threat, can anyone or anything still impose it (its effect lifted or run
   out, and its controller gone, unable or no longer willing); for each stake, is it safe, lost or still at risk.
 - From those, whether the situation is over and how: achieved, partly achieved, lost, transformed, abandoned. The engine decides;
