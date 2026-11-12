@@ -1,6 +1,6 @@
 # 16. f598: a situation's end, read from the world
 
-Status: a design note for the owner, nothing built. It is the planned f549, named in docs 01 and 02 and never written, and f598 in
+Status: the design, with the owner's answers of 2026-11-11 (section 7, and GOALS.md); nothing built yet. It is the planned f549, named in docs 01 and 02 and never written, and f598 in
 docs/design/14. It decides what "won" means, so the plan asks for the owner's answers before it is built (section 6).
 
 ## 1. What the owner has already decided
@@ -145,3 +145,14 @@ decision ("no caps for anything but new people"), so a reading walks a handful o
    - "Only meaningful setbacks accelerate the clock" is not built here. Is that later, or is it part of this?
 6. **Credit:** Should every character whose change counted be a contributor, with their own deed and reputation? Or only the one whose
    act resolved the last threat?
+
+## 7. The owner's answers (2026-11-11)
+
+| Question | Answer |
+|---|---|
+| 1. A threat resolved | No longer in force, and nobody able and set on imposing it again; a controller won over counts as unable. |
+| 2. Achieved against partly | Any stake lost makes it partly achieved. |
+| 3. Transformed | The trouble ends while its source is still alive, free and set against the character; a follow-up starts. |
+| 4. Ways | A way met on a situation with parts feeds the reading. |
+| 5. The time limit | A touched situation is read by its stakes; an untouched one keeps the old roll; setbacks speeding the clock come later. |
+| 6. Credit | Every character whose change counted is a contributor, with their own deed and reputation. |
