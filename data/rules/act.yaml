@@ -1,6 +1,10 @@
 # AN ACT AND ITS RULING (f594, engine/act.py; docs/design/02, outside combat). The dungeon master's ruling on what a character tries, in
 # one call with what it changes if it works (data/rules/changes.yaml), checked by the engine and kept.
 
+# (f595) The switch: off, an improvised act outside combat goes the old way (engine/ruling.py run, engine/world_improv.py); on, through
+# act(). DND_ACT=1 in the environment turns it on for one run (a measuring night), kept in a recording's meta so its replay plays the same.
+enabled: false
+
 # The reuse rule (the owner, 2026-11-08: "Repeated actions without materially changed circumstances reuse their prior ruling"): a ruling
 # is kept per character, a no among them, with what it read (the targets it named, their state, what the character could do). The same
 # act at the same place, with all that unchanged, is ruled the same with no call. A kept ruling is let go when its character keeps more
@@ -14,5 +18,17 @@ most_changes: 8         # the changes one ruling may carry
 # Words the reuse rule leaves out when it compares two acts ("I try to hide behind the crates" is "hide behind crates").
 filler: [i, the, a, an, my, to, and, then, try, trying, tries, attempt, attempts]
 
-# What a failure outside combat costs, the model's choice from these; the engine sets what each does (f595).
-fails: [time_lost, noise, noticed, object_breaks, hurt, exposed]
+# What a failure outside combat costs, the model's choice from these, and what each does: minutes lost, a share of health, heat (talk
+# of it, engine/reactions.py), and the thing the act relied on broken. `text` is what the narrator is told happened.
+fails:
+  time_lost:     {minutes: 30, text: "it does not work, and a good while is lost finding that out"}
+  noise:         {minutes: 10, heat: 1, text: "it goes wrong, and loudly: whoever is near looks over, and it will be talked of"}
+  noticed:       {minutes: 5, heat: 1, text: "it is done badly enough that anyone looking would see it at once"}
+  object_breaks: {minutes: 5, breaks: true, text: "it goes wrong, and what they relied on gives way and breaks"}
+  hurt:          {minutes: 15, health_pct: 6, text: "it goes wrong and they come away hurt: a wrench, a fall, a bad knock"}
+  exposed:       {minutes: 10, text: "it goes wrong and leaves them in plain view, caught out where they stand"}
+partial: {minutes: 10, text: "it works, roughly, and not for long or not well"}
+success_minutes: 5          # the time a done act takes
+# What one outside any situation can be moved to by an act: what they believe and how they feel toward the one who acted, each
+# through its own writer (a told memory, a mood, trust). Willingness and deeds are a situation's people's, by its own rules.
+outside_situation: [believes, doubts, warmer, colder, afraid, angry, grateful]

@@ -4011,7 +4011,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if spot is not None and spot.data.get("clue") and not spot.data.get("read") and \
                 any(w in f"{intent.summary} {text}".lower().split() for w in self.CLUE_WORDS) and self.search_part(intent, text):
             return                                          # (f395) reading the marks where the player stands: what the part holds
-        from engine import ruling
+        from engine import act, ruling
+        if act.on():                                        # (f595) the one ruling outside combat, behind its switch
+            act.act(self, self.acting, intent.summary or text, text)
+            return
         ruling.run(self, intent.summary or text, text)      # (f395) the dungeon master's ruling: make room, set the stakes, or say no
 
 

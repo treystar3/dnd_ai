@@ -21,6 +21,7 @@ from core import yamlio
 A = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "act.yaml").read_text(encoding="utf-8"))
 _STOP = set(A.get("filler") or ())
 
+
 SYSTEM = """You are the dungeon master of a fantasy role-playing game. A player has said what their character tries. You rule on it the
 way a good dungeon master does at the table: if it makes sense here, for this character, in this world, the world makes room for it; if
 not, it does not happen. And you say what it changes if it works.
@@ -88,6 +89,12 @@ def context(ws, T) -> dict:
     from engine import checks, ruling, targets
     return {"capabilities": list(ruling.C), "checks": sorted(checks.CHECKS) + list(ruling.ATTRS), "roles": sorted(ws.world.roles),
             "changes": list(targets.CH["changes"]), "codes": T.codes(), "most": int(A["most_changes"]), "fails": list(A["fails"])}
+
+
+def on() -> bool:
+    """(f595) Whether an act outside combat goes through act(): the data's switch, or DND_ACT=1 for one run."""
+    import config
+    return bool(A.get("enabled")) or bool(getattr(config, "ACT", False))
 
 
 def ask(ws, actor_id: str, T, words: str, text: str):
@@ -264,8 +271,12 @@ def _chain(ws, actor_id: str, T, r) -> tuple[list, list]:
             why = "it needs a change that did not hold"
         elif ch.becomes == "state" and ch.state not in features.F["becomes"]:
             why = f"a part does not become '{ch.state}'"
-        elif ch.becomes == "access" and ch.state not in ("open", "closed", "hidden"):
-            why = "access is open, closed or hidden"
+        elif ch.becomes == "access" and ch.state not in ("open", "closed"):
+            why = "a way through is opened or closed"
+        elif t.kind == "person" and t.code.startswith("c"):
+            why = "a companion is moved by their own story, never by a ruling"
+        elif t.kind == "person" and not t.code.startswith("s") and ch.becomes not in A["outside_situation"]:
+            why = "one outside a situation is moved only in what they believe and how they feel"
         elif t.kind == "object":
             e = store.load_entity(t.ref)
             was = now.get(t.ref, e.state if e is not None else "")
@@ -274,8 +285,8 @@ def _chain(ws, actor_id: str, T, r) -> tuple[list, list]:
                 why = "the thing is gone"
             elif to != was and to not in moves.get(was, []):
                 why = f"a thing {was} cannot be {ch.becomes}"
-            elif ch.becomes == "moved" and T.kind_of(ch.to) != "part":
-                why = "a thing is moved to a part of this place"
+            elif ch.becomes == "moved" and (was != "here" or T.kind_of(ch.to) != "part"):
+                why = "a thing lying here is moved to a part of this place"
             else:
                 now[t.ref] = to
         if why:
@@ -323,8 +334,227 @@ def problems() -> list[str]:
     for name, v in (("kept.per_character", k.get("per_character")), ("kept.days", k.get("days")), ("most_changes", A.get("most_changes"))):
         if not (isinstance(v, int) and not isinstance(v, bool) and v > 0):
             bad.append(f"act.yaml {name}: needs a whole number above 0")
-    if not (isinstance(A.get("fails"), list) and A["fails"] and all(isinstance(x, str) and x for x in A["fails"])):
-        bad.append("act.yaml fails: needs a list of failures")
+    F = A.get("fails")
+    if not (isinstance(F, dict) and F and all(isinstance(v, dict) and v.get("text") for v in F.values())):
+        bad.append("act.yaml fails: needs each failure with its text")
+    for k in ("success_minutes",):
+        v = A.get(k)
+        if not (isinstance(v, int) and not isinstance(v, bool) and v > 0):
+            bad.append(f"act.yaml {k}: needs a whole number above 0")
+    if not isinstance(A.get("enabled"), bool):
+        bad.append("act.yaml enabled: needs true or false")
+    from engine import situation_parts
+    words = set(situation_parts.S["rulings"]["changes"])
+    if not (isinstance(A.get("outside_situation"), list) and set(A["outside_situation"]) <= words):
+        bad.append("act.yaml outside_situation: needs a list of the situation ruling's words")
     if not (isinstance(A.get("filler"), list) and all(isinstance(x, str) and x for x in A["filler"])):
         bad.append("act.yaml filler: needs a list of words")
     return bad
+
+
+# ---------- (f595) the act: ruled, checked, kept, resolved and told
+
+def act(ws, actor_id: str, words: str, text: str) -> None:
+    """The whole loop for an act outside combat: its targets, the kept ruling or the model's, the engine's check, the ruling kept, what
+    the world must hold made, the roll, what changed written through the game's own writers, the deed, and the telling. A no is told in
+    the world's words; with no ruling, the act is asked back (never rolled unruled)."""
+    from engine import ruling, targets
+    if actor_id != ws.acting:                        # (f595) one character a scene until multiplayer M1
+        raise ValueError(f"an act is played for the scene's own character, not {actor_id}")
+    T = targets.targets_for(ws, actor_id)
+    r = kept(ws, actor_id, T, text)
+    fresh = r is None
+    if fresh:
+        r = ask(ws, actor_id, T, words, text)
+    if r is None:
+        ws.ask_back("ruling_failed", text, "the ruling on it could not be made", meaning=words)
+        return
+    v = validate(ws, actor_id, T, r)
+    if fresh:
+        keep(ws, actor_id, T, text, r)
+    else:
+        use(ws, actor_id, text)
+    if not v.ok:
+        ruling.refuse(ws, {"answer": v.answer, "instead": v.instead, "why": v.why}, words, text)
+        return
+    made = make_needs(ws, v.ruling)
+    resolve(ws, actor_id, T, v, words, text, made)
+
+
+def make_needs(ws, r) -> list[str]:
+    """What the world must hold for the act and does not yet (engine/ruling.py make_room), never made twice: a thing already lying
+    here, or someone of that kind already here, is what was called for."""
+    from engine import objects, ruling
+    fresh = []
+    for n in r.needs:
+        if n.kind == "thing" and objects.find(objects.here(ws.store, ws.player.location, ws.minutes), n.name) is not None:
+            continue
+        if n.kind == "person" and any(getattr(p, "epithet", "") == objects.name_of(n.name) for p in ws.present):
+            continue
+        fresh.append(n)
+    return ruling.make_room(ws, r.model_copy(update={"needs": fresh})) if fresh else []
+
+
+def _said(T, ch) -> str:
+    t = T.get(ch.target)
+    name = (t.line.split(":")[0].split(" (")[0] if t else ch.target)
+    return f"{name}: {ch.becomes.replace('_', ' ')}" + (f" {ch.state}" if ch.state else "")
+
+
+def resolve(ws, actor_id: str, T, v: Checked, words: str, text: str, made: list[str]) -> str:
+    """The roll and what came of it. A plain yes needs no roll; a cost is rolled on the ruling's check and how hard it is. A strong
+    success counts as such only when a real thing enables it (the owner, 2026-11-11); a partial success makes only what can be half
+    made (a part's state, for less time). The narrator is told what changed and what the engine refused, never to show the latter.
+    The act is a deed when anything was at stake, made or changed. Returns the degree."""
+    from engine import checks, ruling, world_improv
+    from engine.domain_events import Acted
+    from ui import console
+    r = v.ruling
+    c = ws.player.character
+    what = world_improv.what_of(words or text)
+    rolled = not (r.sense == "yes" and not r.stakes.check)
+    if not rolled:
+        degree = "success"
+    else:
+        odds = ruling.odds(ws, "attempt", {"check": r.stakes.check, "hard": r.stakes.hard})
+        degree, _ = checks.roll(odds, ws.rng, c=c)
+    if degree == "strong success" and not v.enabled:
+        degree = "success"
+    worked = degree in ("success", "strong success", "partial")
+    changes = list(r.changes) if worked else []
+    refused = [(ch, why) for ch, why in v.dropped]
+    if degree == "partial":
+        half = [ch for ch in changes if ch.becomes == "state"]
+        refused += [(ch, "it only half worked") for ch in changes if ch not in half]
+        changes = half
+    F = A["fails"].get(r.fail) or A["fails"][next(iter(A["fails"]))]
+    if rolled or changes or made:
+        console.ledger(f"Attempt: {degree.replace('_', ' ')}")
+        ws.notice(Acted(minute=ws.minutes, place=ws.player.location, what=what, degree=degree, by=actor_id,
+                        changes=tuple(ch.becomes for ch in changes), heat=0.0 if worked else float(F.get("heat", 0) or 0)))
+    seq = int((ws.store.load_world_state() or {}).get("seq") or 0)
+    told = apply(ws, actor_id, T, changes, degree, seq) if changes else []
+    room = (" THE WORLD NOW HOLDS (made for this, and real from now on; show it): " + "; ".join(made) + ".") if made else ""
+    lasting = (" WHAT IS DIFFERENT NOW (real from now on; show it): " + " ".join(told)) if told else ""
+    nots = (" WHAT DID NOT HAPPEN (the game refused it; never show it happening): " + "; ".join(_said(T, ch) for ch, _ in refused) + ".") \
+        if refused and worked else ""
+    if degree in ("success", "strong success"):
+        ws.advance(int(A["success_minutes"]))
+        ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) WORKS" + (" cleanly and well" if degree == "strong success" else "")
+                   + (". Show it done, as it would be seen, and what is different now." if (told or made)
+                      else ". Show it done, as it would be seen. Nothing lasting is different.")
+                   + " Nothing is gained that was not there, and no one is harmed." + room + lasting + nots, text)
+        return degree
+    if degree == "partial":
+        ws.advance(int(A["partial"]["minutes"]))
+        ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) half works: {A['partial']['text']}. Show it as it would be seen, "
+                   "the flaw in it plain. Nothing is gained that was not there." + room + lasting + nots, text)
+        return degree
+    cost = fail(ws, actor_id, T, r, F)
+    ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) FAILS: {F['text']}. Show the failure as it happens and what it "
+               "costs them, and stop there; nothing it was meant to change has changed, no one gives them anything, and nobody speaks "
+               "beyond a look or a word." + room + cost, text)
+    return degree
+
+
+def fail(ws, actor_id: str, T, r, F: dict) -> str:
+    """What a failure costs (act.yaml fails): time, health, the thing relied on broken. Returns what the narrator is told of it."""
+    from engine import objects, pools
+    c = ws.player.character
+    ws.advance(int(F.get("minutes", 0) or 0))
+    out = ""
+    if F.get("health_pct"):
+        top = pools.maximum(c, "health")
+        c.health = max(1.0, pools.current(c, "health") - top * float(F["health_pct"]) / 100)
+        ws.store.save_player(ws.player)
+    if F.get("breaks"):
+        for u in r.uses:
+            t = T.get(u)
+            e = ws.store.load_entity(t.ref) if t is not None and t.kind == "object" else None
+            if e is not None and e.state == "here":
+                objects.change(ws.store, e, "broken", ws.minutes, "gave way")
+                out = f" {e.name} breaks."
+                break
+    return out
+
+
+def apply(ws, actor_id: str, T, changes, degree: str, seq: int = 0) -> list[str]:
+    """Each checked change written through the game's own writers; returns what the narrator is told is different now."""
+    from engine import entities, features, objects
+    store = ws.store
+    told: list[str] = []
+    sits: dict[str, list] = {}
+    for ch in changes:
+        t = T.get(ch.target)
+        if t is None:
+            continue
+        if t.code.startswith("s") and "." in t.code:
+            sits.setdefault(t.code.split(".")[0], []).append(ch)
+            continue
+        if t.kind == "part":
+            e = store.load_entity(t.ref)
+            word = ch.state if ch.becomes == "state" else {"open": "opened", "closed": "barred"}.get(ch.state, "")
+            said = features.change(ws, e, word, degree) if e is not None and word else ""
+            if said:
+                told.append(said)
+        elif t.kind == "object":
+            e = store.load_entity(t.ref)
+            if e is None:
+                continue
+            if ch.becomes == "moved":
+                to = T.get(ch.to)
+                e.data["part"], e.data["touched"] = to.ref, int(ws.minutes)
+                store.save_entity(e)
+                told.append(f"{e.name} is at {to.line.split(':')[0]} now.")
+            else:
+                to = {"broken": "broken", "mended": "here", "found": "here", "hidden_here": "hidden", "destroyed": "destroyed"}[ch.becomes]
+                if to != e.state and to in (entities.L["object"].get("moves") or {}).get(e.state, []):
+                    objects.change(store, e, to, ws.minutes, "an act")
+                    told.append(f"{e.name} is {'hidden away' if ch.becomes == 'hidden_here' else ch.becomes} now.")
+        elif t.kind == "person":
+            told += _person(ws, actor_id, t, ch)
+    for scode, chs in sits.items():
+        told += _situation(ws, actor_id, T, scode, chs, degree, seq)
+    return [x for x in told if x]
+
+
+def _person(ws, actor_id: str, t, ch) -> list[str]:
+    """One outside a situation moved in what they believe, feel or will do toward the one who acted (as a situation's person is)."""
+    from engine import circumstance, clock, memory, regard, situation_parts
+    RU = situation_parts.S["rulings"]
+    n = ws.npc_by_id(t.ref)                          # the scene's own copy, which it saves: never one it would save over
+    if n is None:
+        return []
+    w, now, key = ch.becomes, int(ws.minutes), f"act:{t.ref}:{ws.minutes}:{ch.n}"
+    if w in ("believes", "doubts"):
+        memory.keep(n, situation_parts._pick(RU["beliefs"][w], key).format(name=situation_parts.char_name(ws, actor_id)),
+                    day=clock.day(now), turn=-1, kind="told", subject=actor_id, source=actor_id, about=f"act:{t.ref}", minute=now)
+    elif w in ("afraid", "angry", "grateful"):
+        circumstance.set_mood(n, situation_parts._pick(RU["moods"][w], key), now, f"act:{actor_id}")
+    else:
+        regard.step(n, actor_id, int(RU["trust"]) * (1 if w == "warmer" else -1), "an act", about=f"act:{w}", minute=now)
+    ws.store.save_npc(n)
+    return [f"{n.label(actor_id)} is {w} now."]
+
+
+def _situation(ws, actor_id: str, T, scode: str, chs, degree: str = "success", seq: int = 0) -> list[str]:
+    """A situation's parts changed through its own writer (engine/situation_parts.py keep_changes)."""
+    from engine import situation_parts
+    state = ws.store.load_world_state() or {}
+    th = next((x for x in state.get("threads", []) if x["id"] == T.get(scode).ref), None)
+    if th is None:
+        return []
+    idx = lambda code: int(code.split(".")[1]) if code.startswith(scode + ".") else 0
+    rows = [{"n": ch.n, "part": idx(ch.target), "who": idx(ch.who), "becomes": ch.becomes,
+             "because": "force" if ch.because == "skill" else ch.because, "about": idx(ch.about),
+             "needs": [m for m in ch.needs if m in {c.n for c in chs}]} for ch in chs]
+    act_ = {"kind": "acted", "by": actor_id, "npc": "", "witnesses": sorted(n.id for n in ws.present), "place": ws.player.location,
+            "coin": 0, "item": "", "count": 1, "degree": degree, "words_only": False, "seq": seq or None}   # the deed's own number
+    situation_parts.keep_changes(ws, state, th, act_, rows)
+    ws.store.save_world_state(state)
+    out = []
+    for r_ in rows:
+        t = T.get(f"{scode}.{r_['part']}")
+        if t is not None:
+            out.append(f"{t.line.split(' (p')[0]} ({r_['becomes']})")
+    return out

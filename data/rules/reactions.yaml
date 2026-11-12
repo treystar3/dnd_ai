@@ -85,6 +85,9 @@ kinds:
     reputation: {caught: threat}
   improvised:
     heat: {event: true}
+  acted:                                  # (f595) an act through engine/act.py: kept in the deeds, and its noise is heat
+    ledger: true
+    heat: {event: true}
   trade:
     memory: {victim: {importance: 1}}
   worked:

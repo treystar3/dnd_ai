@@ -56,7 +56,7 @@ check("...and more changes than a ruling may carry", "at most" in bad_answer({"s
 r = ActRuling.model_validate({"sense": "no", "answer": "Nothing comes of it.", "uses": [crate_code], "fail": "explodes",
                               "changes": [{"n": 1, "target": crate_code, "becomes": "broken"}]}, context=ctx)
 check("a no makes no changes, but keeps what it rested on; a failure not in the list is the first of them", r.changes == []
-      and r.uses == [crate_code] and r.fail == act.A["fails"][0], r)
+      and r.uses == [crate_code] and r.fail == list(act.A["fails"])[0], r)
 check("...two changes of one number, a need of a later change, and a who that is no target are sent back",
       "own number" in bad_answer({"sense": "cost", "changes": [{"n": 1, "target": crate_code, "becomes": "broken"},
                                                               {"n": 1, "target": crate_code, "becomes": "mended"}]})
@@ -100,8 +100,9 @@ chain = [{"n": 1, "target": rope_code, "becomes": "broken"},
 v = act.validate(ws, ws.acting, T, ruled(changes=chain))
 kept_n = [c.n for c in v.ruling.changes]
 why = {c.n: w for c, w in v.dropped}
-check("each change is checked in order as one chain", kept_n == [1, 2, 4, 7], (kept_n, why))
-check("...a change on a kind it does not land on is dropped, with why", "does not land on" in why.get(3, "") and "does not land on" in why.get(5, ""), why)
+check("each change is checked in order as one chain", kept_n == [1, 2, 7], (kept_n, why))
+check("...a change on a kind it does not land on is dropped, with why (a road is shut or opened only by a situation's own condition)",
+      all("does not land on" in why.get(n, "") for n in (3, 4, 5)), why)
 check("...and every change that needs one dropped goes with it", "needs a change" in why.get(6, ""), why)
 check("...a thing's state is carried along the chain by its lifecycle's own moves: broken then mended stands, destroyed then broken does not",
       2 in kept_n and "destroyed cannot be broken" in why.get(8, ""), why)
