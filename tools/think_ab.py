@@ -13,14 +13,16 @@ engine the game ships with; (f532) nothing else is measured against):
      each request, the order alternating, so neither always finds the prompt already cached.
   2. The game's own evaluations (--evals, on the llama-server named: the children run with DND_BACKEND=llama at that URL, and an
      embedder when --embed-url names one): tools/interp_eval.py on the night corpus and tools/ruling_eval.py, both --live, once with
-     thinking off and once with it on for the chosen tasks (DND_THINK_TASKS): how many of their cases each gets right.
+     thinking off and once with it on for the chosen tasks (DND_THINK_TASKS): how many of their cases each gets right. The ruling's
+     evaluations score the act's one ruling (act_ruling, f608): a case is right when its sense is and its changes are.
 
     python tools/think_ab.py --recordings post_e_full.zip --server llama=http://127.0.0.1:8080
     python tools/think_ab.py --recordings nightrun/ --server llama=http://127.0.0.1:8080 --per-task 60 --evals --out think_ab/
-    (f534) python tools/think_ab.py --recordings post_e.zip --server llama=URL --tasks ruling,road_event,pulse_cataclysm,pulse_thread \
+    (f534) python tools/think_ab.py --recordings post_e.zip --server llama=URL --tasks act_ruling,road_event,pulse_cataclysm,pulse_thread \
                --room 8192 --num-ctx 32768 --evals ruling_complex,events --out think_ab_room8192/
       a writing task (road_event) is replayed and timed with its text kept to be read; the evaluations are chosen by name (interp,
-      ruling, ruling_complex: the improvised actions of several steps, events: the model writing campaigns and cataclysms)
+      ruling, ruling_complex: the improvised actions of several steps, ruling_act: acts on things and a situation's parts,
+      ruling_road: the old ruling the road still asks, events: the model writing campaigns and cataclysms)
 
 It writes results.jsonl (one row a call, with the first response's raw fields from the server, to learn their names), summary.json and
 summary.md (a table per server, task and setting). It sends nothing anywhere but the servers named."""
@@ -443,28 +445,37 @@ def summarise(results: list[dict]) -> list[dict]:
     return rows
 
 
+OLD_RULING = re.compile(r"(\d+) of (\d+) right(?:; (\d+) with no ruling)?")
+# (f608) the act's tally line: right by sense, of the cases ruled, the sense right with the changes wrong, the cases with no ruling
+ACT_RULING = re.compile(r"new: (\d+) of (\d+) right;[^\n]*?changes wrong (\d+)(?:[^\n]*?; (\d+) with no ruling)?")
 EVAL_PATTERNS = {"interp_eval": re.compile(r"(\d+)/(\d+) right"),
-                 "ruling_eval": re.compile(r"(\d+) of (\d+) right(?:; (\d+) with no ruling)?"),
-                 "ruling_eval_complex": re.compile(r"(\d+) of (\d+) right(?:; (\d+) with no ruling)?"),
+                 "ruling_eval": ACT_RULING, "ruling_eval_complex": ACT_RULING, "ruling_eval_act": ACT_RULING, "ruling_eval_road": OLD_RULING,
                  "event_eval": re.compile(r"(\d+)/(\d+) right in")}
 INTERP_NO_READING = re.compile(r"the model gave no usable reading (\d+) time")
 COMPLEX = "data/replay/ruling_cases_complex.yaml"
 # (f534) The game's own evaluations, by the name --evals takes: (its name in the summary, its command after the interpreter, the tasks
 # whose thinking it measures). Each runs live on the llama-server named, with the rest of the game stubbed.
+ACT_CASES = "data/replay/ruling_cases_act.yaml"
 EVALS = {"interp": ("interp_eval", ["tools/interp_eval.py", "--corpus", "{corpus}", "--live"], {"interpret_action"}),
-         "ruling": ("ruling_eval", ["tools/ruling_eval.py", "--live"], {"ruling"}),
-         "ruling_complex": ("ruling_eval_complex", ["tools/ruling_eval.py", "--live", "--cases", COMPLEX], {"ruling"}),
+         "ruling": ("ruling_eval", ["tools/ruling_eval.py", "--live", "--path", "new"], {"act_ruling"}),          # (f608) as the game rules
+         "ruling_complex": ("ruling_eval_complex", ["tools/ruling_eval.py", "--live", "--path", "new", "--cases", COMPLEX], {"act_ruling"}),
+         "ruling_act": ("ruling_eval_act", ["tools/ruling_eval.py", "--live", "--path", "new", "--cases", ACT_CASES], {"act_ruling"}),
+         "ruling_road": ("ruling_eval_road", ["tools/ruling_eval.py", "--live", "--path", "old"], {"ruling"}),
          "events": ("event_eval", ["tools/event_eval.py", "--live"], set(EVENT_TASKS))}
 
 
 def eval_score(name: str, text: str) -> dict:
     """The evaluation's last score line. interp_eval counts every case (a case the model failed is wrong); ruling_eval leaves the
-    cases with no ruling out of its 'of', so here they are put back: right out of every case, a missing ruling counted as wrong."""
+    cases with no ruling out of its 'of', so here they are put back: right out of every case, a missing ruling counted as wrong. The
+    act's ruling is right when its sense is and its changes are (f608)."""
     m = EVAL_PATTERNS[name].findall(text)
     if not m:
         return {"right": None, "of": None, "no_answer": None}
     last = m[-1]
     right, of = int(last[0]), int(last[1])
+    if EVAL_PATTERNS[name] is ACT_RULING:
+        none = int(last[3]) if last[3] else 0
+        return {"right": right - int(last[2]), "of": of + none, "no_answer": none}
     if name.startswith("ruling_eval"):
         none = int(last[2]) if last[2] else 0
         return {"right": right, "of": of + none, "no_answer": none}
@@ -533,7 +544,10 @@ def write_summary(folder: Path, rows: list[dict], eval_rows: list[dict], meta: d
                      f"{r['card_seconds_p90']} |")
     if eval_rows:
         lines += ["", f"Evaluations: interp_eval on {meta.get('corpus')}, ruling_eval on data/replay/ruling_cases.yaml, ruling_eval_complex "
-                  f"on {COMPLEX}, event_eval on data/replay/event_cases.yaml; right out of every case (no answer counts as wrong).", "",
+                  f"on {COMPLEX} and ruling_eval_act on {ACT_CASES} (these three the act's ruling, right in its sense and its changes), "
+                  "ruling_eval_road on "
+                  "data/replay/ruling_cases.yaml (the old ruling, the road's), event_eval on data/replay/event_cases.yaml; right out of every "
+                  "case (no answer counts as wrong).", "",
                   "| evaluation | thinking | right | of | no answer | rc | seconds |", "| --- | --- | --- | --- | --- | --- | --- |"]
         lines += [f"| {e['eval']} | {e['think']} | {e['right']} | {e['of']} | {e.get('no_answer')} | {e['rc']} | {e['seconds']} |"
                   for e in eval_rows]

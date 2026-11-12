@@ -376,24 +376,33 @@ def fake_run(cmd, cwd=None, env=None, capture_output=None, text=None, timeout=No
         if env.get("DND_THINK_TASKS"):
             raise subprocess.TimeoutExpired(cmd, timeout, output=b"ok   a\nok   b\n")
         return subprocess.CompletedProcess(cmd, 0, "\n41/50 right; intercepts took 0 line(s)", "")
-    return subprocess.CompletedProcess(cmd, 0, "\n17 of 19 right" + ("; 3 with no ruling" if env.get("DND_THINK_TASKS") else ""), "")
+    return subprocess.CompletedProcess(cmd, 0, "\nnew: 17 of 19 right; false acceptances 1, false rejections 1; changes wrong 2"
+                                       + ("; 3 with no ruling" if env.get("DND_THINK_TASKS") else "; 0 with no ruling"), "")
 
 
 think_ab.subprocess.run = fake_run
 seen_done = []
 try:
-    ev = think_ab.evals("http://127.0.0.1:11434", ["ruling", "interpret_action"], room=1536, corpus="data/replay/interp_cases.yaml",
+    ev = think_ab.evals("http://127.0.0.1:11434", ["act_ruling", "interpret_action"], room=1536, corpus="data/replay/interp_cases.yaml",
                         folder=OUT, done=lambda rows: seen_done.append(len(rows)))
 finally:
     think_ab.subprocess.run = real_run
 check("the evaluations run live on the llama-server named (DND_BACKEND=llama at its URL, f529), thinking off and then on with the same "
-      "room, and their scores are read out of every case: a ruling not given is a wrong one",
+      "room, and their scores are read out of every case: a ruling not given is a wrong one, and so is the act's ruling whose sense is "
+      "right but whose changes are not (f608)",
       [(e["eval"], e["think"], e["right"], e["of"], e["no_answer"]) for e in ev] == [
-          ("interp_eval", "off", 41, 50, 0), ("ruling_eval", "off", 17, 19, 0), ("interp_eval", "on", None, None, None), ("ruling_eval", "on", 17, 22, 3)]
-      and [r["think"] for r in ran] == ["", "", "ruling,interpret_action", "ruling,interpret_action"]
+          ("interp_eval", "off", 41, 50, 0), ("ruling_eval", "off", 15, 19, 0), ("interp_eval", "on", None, None, None), ("ruling_eval", "on", 15, 22, 3)]
+      and [r["think"] for r in ran] == ["", "", "act_ruling,interpret_action", "act_ruling,interpret_action"]
       and all(r["host"] == "http://127.0.0.1:11434" and r["backend"] == "llama" and r["switch"] is None and "--live" in r["cmd"]
               and r["room"] == "1536" for r in ran)
-      and "data/replay/interp_cases.yaml" in ran[0]["cmd"], (ev, ran))
+      and "data/replay/interp_cases.yaml" in ran[0]["cmd"] and ran[1]["cmd"][-2:] == ["--path", "new"], (ev, ran))
+check("the ruling's evaluations measure the act's ruling, and the road's old ruling has its own (f608)",
+      all(think_ab.EVALS[w][2] == {"act_ruling"} and "new" in think_ab.EVALS[w][1] for w in ("ruling", "ruling_complex", "ruling_act"))
+      and think_ab.EVALS["ruling_road"][2] == {"ruling"} and "old" in think_ab.EVALS["ruling_road"][1]
+      and think_ab.eval_score("ruling_eval_road", "\n17 of 19 right; 2 with no ruling") == {"right": 17, "of": 21, "no_answer": 2}
+      and think_ab.eval_score("ruling_eval_act", "\nnew: 18 of 18 right; false acceptances 0, false rejections 0; changes wrong 0; "
+                              "1 known, awaiting their feature; 4 with no ruling") == {"right": 18, "of": 22, "no_answer": 4},
+      {w: think_ab.EVALS[w] for w in ("ruling", "ruling_act", "ruling_road")})
 check("...an evaluation that runs out of time is a row of its own (the others still run), its output kept, and the summary rewritten "
       "after each", ev[2]["rc"] == "timeout" and (OUT / "eval_interp_eval_on.log").read_text(encoding="utf-8").startswith("ok   a")
       and seen_done == [1, 2, 3, 4], (ev[2], seen_done))

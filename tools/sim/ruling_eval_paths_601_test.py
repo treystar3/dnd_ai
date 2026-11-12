@@ -2,7 +2,7 @@
 old|new|both rules every case by the old ruling (engine/ruling.py) or the act's (engine/act.py), and counts false acceptances and false
 rejections for each, side by side. A case carries what it needs in the world (things lying here, things in hand, a situation with its
 parts), and no case sees another's. The act corpus (data/replay/ruling_cases_act.yaml) holds acts on things and on a situation's parts,
-offline where a model ruling is given; the old path's output stays as tools/think_ab.py and the suite read it.
+offline where a model ruling is given. Since f608 the act's is the default (the old one is the road's, --path old).
 Run: python tools/sim/ruling_eval_paths_601_test.py"""
 import os
 import subprocess
@@ -35,7 +35,10 @@ check("...and no case is shown apart as known once its feature landed (f604: the
       "known" not in tail[1] and "KNW" not in r.stdout, r.stdout[-800:])
 
 r = run()
-check("the old path's own output is unchanged: the suite and tools/think_ab.py read it", r.returncode == 0
+check("the act's ruling is what it measures unless asked (f608): the path the game rules by", r.returncode == 0
+      and r.stdout.strip().splitlines()[-1].startswith("new: 19 of 19 right") and "old:" not in r.stdout, r.stdout[-300:])
+r = run("--path", "old")
+check("the old path's own output is unchanged", r.returncode == 0
       and r.stdout.strip().splitlines()[-1].endswith("need the model (--live)") and " of " in r.stdout.strip().splitlines()[-1], r.stdout[-300:])
 r = run("--path", "both")
 check("...and the first corpus runs on both paths side by side", r.returncode == 0 and "old: 19 of 19 right" in r.stdout

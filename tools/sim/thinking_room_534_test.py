@@ -154,12 +154,13 @@ def fake_run(cmd, cwd=None, env=None, capture_output=None, text=None, timeout=No
     if "interp_eval.py" in joined:
         return subprocess.CompletedProcess(cmd, 1, "\n150/170 right; intercepts took 0 line(s) that were not theirs and missed 0 that were "
                                                    "(live: the model's reading counted); the model gave no usable reading 7 time(s)", "")
-    return subprocess.CompletedProcess(cmd, 0, "\n20 of 24 right; 4 with no ruling", "")
+    return subprocess.CompletedProcess(cmd, 0, "\nnew: 20 of 24 right; false acceptances 2, false rejections 2; changes wrong 0; "
+                                       "4 with no ruling", "")
 
 
 think_ab.subprocess.run = fake_run
 try:
-    ev = think_ab.evals("http://127.0.0.1:11434", ["ruling", "pulse_cataclysm"], room=8192, which=("ruling_complex", "events", "interp"),
+    ev = think_ab.evals("http://127.0.0.1:11434", ["act_ruling", "pulse_cataclysm"], room=8192, which=("ruling_complex", "events", "interp"),
                         num_ctx=32768)
 finally:
     think_ab.subprocess.run = real_run
@@ -174,7 +175,7 @@ check("...their scores read out of every case: a ruling not given is wrong, an e
       and by[("interp_eval", "on")]["no_answer"] == 7, by)
 check("...with the context and the room asked for, and thinking on only in the 'on' pass",
       all(r["ctx"] == "32768" and r["room"] == "8192" for r in ran)
-      and {r["think"] for r in ran} == {"", "ruling,pulse_cataclysm"}, ran[:2])
+      and {r["think"] for r in ran} == {"", "act_ruling,pulse_cataclysm"}, ran[:2])
 
 
 def refused(argv) -> bool:

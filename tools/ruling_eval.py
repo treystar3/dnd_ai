@@ -1,11 +1,12 @@
-"""(f395) How well the dungeon master rules (engine/ruling.py), on the test set (data/replay/ruling_cases.yaml).
+"""(f395) How well the dungeon master rules, on the test set (data/replay/ruling_cases.yaml): the act's one ruling (engine/act.py),
+the only path outside a fight; --path old is the ruling still asked on the road (engine/ruling.py ask).
 
     python tools/ruling_eval.py            offline: for every case with a `model` ruling, what the engine makes of it (its own grounds:
                                            what the character can do); the cases without one need the model and are counted, not run
     python tools/ruling_eval.py --live     the real model rules on every case (the game's own server, tools/runtime_cli.py): its sense against what a good dungeon
                                            master would say, and what it says the world needs
     python tools/ruling_eval.py --live --cases data/replay/ruling_cases_complex.yaml     (f534) the improvised actions of several steps
-    python tools/ruling_eval.py --path new|both                    (f601) the act's ruling (engine/act.py) instead, or both side by side:
+    python tools/ruling_eval.py --path old|both                    (f601) the old ruling instead, or both side by side:
                                            each scored on its sense alike (false acceptances, false rejections), with what the old
                                            one says the world needs and what the act's changes do apart; data/replay/ruling_cases_act.yaml
                                            holds the cases of things and of a situation's parts
@@ -352,7 +353,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--live", action="store_true")
     ap.add_argument("--cases", default=str(CASES), help="(f534) another case file, e.g. data/replay/ruling_cases_complex.yaml")
-    ap.add_argument("--path", default="old", choices=("old", "new", "both"), help="(f601) the old ruling, the act's, or both side by side")
+    ap.add_argument("--path", default="new", choices=("old", "new", "both"),
+                    help="(f608) the act's ruling (as the game rules), the old one (the road's), or both side by side")
     from tools import runtime_cli
     runtime_cli.add_args(ap)
     a = ap.parse_args()
@@ -365,7 +367,7 @@ def main() -> int:
     try:
         for c in cases:
             want = "no" if c["expect"] == "no" else "yes"
-            if a.path == "old":                                  # the old path's output, as tools/think_ab.py and the suite read it
+            if a.path == "old":                                  # (f395) the old path's output, as it always read
                 got, ok, shown = judge(b, c, a.live)
                 if got is None:
                     if a.live:

@@ -49,7 +49,7 @@ ws.player.mentor["never"] = True
 ws.enter("tidepool_caves")
 
 # ---- the test set, offline: every case that carries the model's ruling is judged by the engine as a good dungeon master would
-out = subprocess.run([sys.executable, "tools/ruling_eval.py"], capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=600)
+out = subprocess.run([sys.executable, "tools/ruling_eval.py", "--path", "old"], capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=600)
 check("the ruling test set: the engine's own grounds are right on every case it can judge offline", out.returncode == 0 and " right" in out.stdout,
       out.stdout[-800:] + out.stderr[-800:])
 
