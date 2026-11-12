@@ -17,9 +17,9 @@ again by hand; the rest is as the survey reported it. What nobody verified is li
   `asked_outside` to be asked before the transaction, a stub answer `a_<SchemaName>` in tools/sim/simlib.py, and a sampling entry only
   if it overrides the default (`ruling` passes temperature 0.3 itself and has no sampling entry).
 - New modules take the acting character's id (`ws.acting`, scenes/world.py:154). Do not copy the `ws.player` reads listed in 3.8.
-- f598 (the end-reading) needs a short design note taken to the owner before it is built. f602 (the switch) needs the owner's go
+- f598 (the end-reading) needs a short design note taken to the owner before it is built. f603 (the switch) needs the owner's go
   with the pod's numbers. The pod's hourly price is stated before one is created.
-- Tests that pin the old path and must pass untouched until f602: ruling_test, rulings_421_test, ruling_fallback_repro_test,
+- Tests that pin the old path and must pass untouched until f603: ruling_test, rulings_421_test, ruling_fallback_repro_test,
   improv_test, improv_odds_568_test, nightrun_review_test, plan_limit_test, hazard_ruled_447_test, scenery_test (until f592 changes
   pick-up, where its scenery-with-nothing-behind-it case must still hold).
 

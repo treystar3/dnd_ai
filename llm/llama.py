@@ -405,6 +405,8 @@ class LlamaServer:
         ch = (payload.get("choices") or [{}])[0]
         msg = ch.get("message") or {}
         usage = usage_of(payload, wall_ms, self.slot_ctx())
+        from llm import backend
+        usage.update(slot=body.get("id_slot"), lane=backend.current_lane())   # (f602) where it ran, for the night's slot measure
         return Reply(text=msg.get("content") or "", finish=ch.get("finish_reason"), usage=usage)
 
     def slot_ctx(self) -> int | None:

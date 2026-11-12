@@ -209,7 +209,12 @@ path on the same seeds for the made room and said no counts, the refusals log an
 seconds of births and situation rulings a game day at 3060 speeds; and the f536 slot question (does the understanding's checkpoint
 on slot 0 hold from turn to turn, and does a background call on the shared slot delay the turn). Kept under docs/measure.
 
-**f602: the switch flips.** Only on the owner's go, with the session's numbers in front of them (the owner, 2026-11-11: no bar
+**f602: a reader for the pod's two open questions.** `tools/night_measure.py` reads a night's run folders for what the other
+readers do not answer: the two slots (does the understanding's cached prompt hold from turn to turn, and does a call on the shared
+slot make the turn wait) and births and situation rulings a game day, their seconds priced on the minimum card as card_profile scales
+(the owner, 2026-11-12: built while the pod's first night played, before the switch; the switch moves to f603).
+
+**f603: the switch flips.** Only on the owner's go, with the session's numbers in front of them (the owner, 2026-11-11: no bar
 fixed in advance; "show me the numbers"): false rejections and false acceptances on both paths, the night's counts, the turn's time. `act.yaml enabled: true`; stub_short re-recorded for its one
 improvised line, each changed row explained; `world_improv.resolve` and `ruling.run` retired for typed lines (the phrase tables stay
 in data; `is_rest` and the hazard's `ask` stay). `tools/latency.py --gate` re-priced if the ruling's answer is larger.
@@ -221,7 +226,7 @@ f589 -> f590 -> f591                     (A, in order)
 f592 -> f593 -> f594 -> f595 -> f596     (B, in order; f592 can start beside A)
 f597 -> f598 -> f599                     (C, after f590; f597 uses f594's store)
 f600                                     (after f595 and f598)
-f601 -> the pod session -> f602          (last)
+f601 -> f602 -> the pod session -> f603   (last)
 ```
 A and C touch engine/events.py, pulse.py and situation_parts.py; B touches engine/ruling.py, scenes/world.py `on_other`, inventory
 and new modules. The two can be built side by side, but each data change re-records the same three recordings, so they land one at a
@@ -238,7 +243,7 @@ time.
 | f594 | budget.yaml, act.yaml | hash only |
 | f597 | events.yaml, reactions.yaml | hash only expected |
 | f599 | situations.yaml | hash, and stub_short's situation may ask for parts |
-| f602 | act.yaml | hash, and stub_short's improvised line |
+| f603 | act.yaml | hash, and stub_short's improvised line |
 
 Eight re-records, six of them for the hash alone. Each follows the rebless skill: read what first differs, keep only what the
 feature explains, list the rows in the commit. Two things outside this branch also re-record the same files: `prose/section-a`
@@ -257,7 +262,7 @@ asserted.
    switched to every tier in shipped data if the numbers are worse than estimated.
 3. **Calls multiply once the caps go.** Guard: relevance by id, certain cases with no call, the kept ruling, a call count asserted
    over the world script, and the night's count read at the pod session.
-4. **Two ruling paths drift while both live.** Guard: the old path's tests stay untouched until f602; the corpus runs both.
+4. **Two ruling paths drift while both live.** Guard: the old path's tests stay untouched until f603; the corpus runs both.
 5. **The kept ruling's key is wrong in either direction:** too loose and a changed world reuses a stale ruling, too tight and
    nothing is ever reused. Guard: the state hash covers only what the ruling read (the targets it names), with tests for both.
 6. **A false object.** The model names a thing the place could not hold. Guard: objects are made only through a ruling's `needs`,
