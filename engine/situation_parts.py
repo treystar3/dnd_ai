@@ -10,6 +10,8 @@ pulse's log told what was written and what could not be. A part that rests on so
 here is a clock (the owner): a worry lasts the situation, and nothing times out."""
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 import random
 import re
 
@@ -432,6 +434,138 @@ def heart(th: dict, parts: list[dict], state: dict, t: int, town: str = "") -> d
             threats.append({"kind": "creature", "target": p.get("target", ""), "spawn": p.get("spawn", "")})
     stakes.append({"kind": "place", "place": th.get("place", ""), "town": town or th.get("town", "")})
     return {"threats": threats, "stakes": stakes, "made": int(t)}
+
+
+@dataclass
+class Reading:
+    """(f598) A situation read against its original facts (its heart): each threat resolved or not, each stake secured, lost or at
+    risk, and whether it is over and how. The engine's alone: the model is never asked whether it is over."""
+    threats: list = field(default_factory=list)      # (threat, resolved)
+    stakes: list = field(default_factory=list)       # (stake, "secured" | "lost" | "at_risk")
+    over: bool = False
+    ending: str = ""                                 # achieved | partly | transformed | lost
+    contributors: list = field(default_factory=list)
+
+
+def _in_force(state: dict, th: dict, x: dict, t: int) -> bool:
+    """A harmful condition still laid on the world: its part not lifted and an effect of it live, or the effect it names live."""
+    parts = th.get("parts") or []
+    live = [e for e in (state or {}).get("effects", []) if e.get("thread") == th["id"] and not e.get("lifted") and int(e.get("until", 0)) > t]
+    if isinstance(x.get("part"), int):
+        a = parts[x["part"]] if x["part"] < len(parts) else {}
+        if a.get("now") == "lifted":
+            return False
+        mine = [e for e in live if e.get("of_part") == x["part"]]
+        return bool(mine) or not any(e.get("of_part") == x["part"] for e in (state or {}).get("effects", []) if e.get("thread") == th["id"])
+    kind, _, place = str(x.get("effect") or "").partition("@")
+    return any(e.get("kind") == kind and e.get("place", "") == place for e in live)
+
+
+def _person_part(th: dict, who: str) -> dict:
+    return next((a for a in th.get("parts") or [] if a.get("kind") == "person" and a.get("who") == who), {})
+
+
+def _stood_down(store, th: dict, who: str) -> bool:
+    """One who could impose or block no longer can or will: gone, fled, surrendered, joined, or won over (open to anyone who acted)."""
+    if not who or not store.npc_exists(who) or store.load_npc(who).gone:
+        return True
+    a = _person_part(th, who)
+    return a.get("now") in ("fled", "surrendered", "joined") or "open" in (a.get("willing") or {}).values()
+
+
+def _beaten(state: dict, th: dict, t: int) -> bool:
+    """Its creatures beaten back: none of its spawns abroad now (each defeated, or its time run out), or a way of killing them met."""
+    spawns = [s_ for s_ in (state or {}).get("spawns", []) if s_.get("thread") == th["id"]]
+    abroad = [s_ for s_ in spawns if not s_.get("defeated") and int(s_.get("from", 0)) <= t < int(s_.get("until", 0))]
+    way = any(p.get("done") for p in th.get("paths") or [] if p.get("kind") in ("kill", "horde"))
+    return (bool(spawns) and not abroad) or way
+
+
+def _free(store, th: dict, who: str) -> bool:
+    """Still at large in the world: alive, and neither surrendered nor joined (one who fled is free, and may come back to it)."""
+    return bool(who) and store.npc_exists(who) and not store.load_npc(who).gone and _person_part(th, who).get("now") not in ("surrendered", "joined")
+
+
+def reading(store, world, state: dict, th: dict, t: int, at_limit: bool = False) -> Reading:
+    """(f598; docs/design/16, the owner's answers of 2026-11-11) The situation read from the world, against its heart, never its parts as
+    they now stand. A condition is resolved when it is no longer in force and nobody able is set on imposing it again; one who blocks,
+    when they stand down; a creature, when its way is met or its spawn beaten. Every threat resolved: achieved, or partly with a stake
+    lost, or transformed with one who imposed a condition still free and set against one who acted. Every stake lost: lost. At its time
+    limit, touched: partly when anything was resolved or secured, else lost. Reads only."""
+    from engine import events
+    H = th.get("heart") or {}
+    r = Reading(contributors=contributors(th))
+    if not H:
+        return r                                     # an old save's situation with no heart: its ways and its time end it
+    spawns = [s for s in (state or {}).get("spawns", []) if s.get("thread") == th["id"]]
+    for x in _threats(H):
+        if x["kind"] == "condition":
+            if x.get("by_kind") == "creature":       # what a creature imposes goes with the creature
+                done = _beaten(state, th, t)
+            else:
+                controller = x.get("by", "") if x.get("by_kind") == "person" else ""
+                done = not _in_force(state, th, x, t) and not (controller and not _stood_down(store, th, controller))
+        elif x["kind"] == "person":
+            done = _stood_down(store, th, x.get("who", ""))
+        else:                                        # a creature its ways must defeat
+            way = [p for p in th.get("paths") or [] if p.get("kind") in ("kill", "horde")
+                   and (p.get("target") or "") == (x.get("target") or "") and (p.get("spawn") or "") == (x.get("spawn") or "")]
+            done = any(p.get("done") for p in way) or (bool(spawns) and all(s.get("defeated") for s in spawns) and not x.get("target"))
+        r.threats.append((x, done))
+    for x in H.get("stakes") or []:
+        if x["kind"] == "place":
+            continue
+        a = (th.get("parts") or [])[x["part"]] if isinstance(x.get("part"), int) and x["part"] < len(th.get("parts") or []) else {}
+        if x["kind"] == "person":
+            gone = not store.npc_exists(x.get("who", "")) or bool(store.load_npc(x["who"]).gone)
+            r.stakes.append((x, "lost" if gone else "secured" if a.get("now") == "safe" else "at_risk"))
+        else:
+            now = a.get("now")
+            secured = now in ("moved", "given_up") or bool(a.get("done"))      # its request handed in (part_done) secures it too
+            r.stakes.append((x, "secured" if secured else "lost" if now in ("lost", "destroyed") else "at_risk"))
+    standings = [s for _, s in r.stakes]
+    resolved = [d for _, d in r.threats]
+    if standings and all(s == "lost" for s in standings):
+        r.over, r.ending = True, "lost"
+    elif resolved and all(resolved):
+        hostile = any(x["kind"] == "condition" and x.get("by_kind") == "person" and _free(store, th, x.get("by", ""))
+                      and set((_person_part(th, x["by"]).get("willing") or {}).get(c, "") for c in r.contributors)
+                      & {"hostile", "refusing", "committed"} for x, _ in r.threats)
+        r.over = True
+        r.ending = "partly" if "lost" in standings else "transformed" if hostile else "achieved"
+    elif not resolved and standings and all(s == "secured" for s in standings):
+        r.over, r.ending = True, "achieved"           # no threat named: its objective is its stakes
+    elif at_limit:                                   # read by its stakes (the owner); with none at stake, by its threats
+        r.over = True
+        r.ending = ("partly" if "secured" in standings else "lost") if standings else ("partly" if any(resolved) else "lost")
+    return r
+
+
+def _threats(H: dict) -> list:
+    """The threats the reading settles. What the situation's own telling laid that no part holds (an "effect" threat) is its harm, not
+    a threat anyone can be ruled against: it lifts with the end (pulse.lift), so it never holds a situation open."""
+    return [x for x in H.get("threats") or [] if not (x.get("kind") == "condition" and "effect" in x and "part" not in x)]
+
+
+def nothing_to_read(th: dict) -> bool:
+    """(f598) A heart naming no threat and nothing at stake beyond its place: the reading has nothing to settle, so its ways end it."""
+    H = th.get("heart") or {}
+    return not H or (not _threats(H) and not [x for x in H.get("stakes") or [] if x.get("kind") != "place"])
+
+
+def contributors(th: dict) -> list[str]:
+    """(f598) The characters whose change counted: one that moved a threat or a stake of its heart the better way (a person won over, a
+    condition lifted, someone made safe, goods moved), as its record keeps them."""
+    H = th.get("heart") or {}
+    counted = {x["part"] for x in list(H.get("threats") or []) + list(H.get("stakes") or []) if isinstance(x.get("part"), int)}
+    better = {w for w, row in S["rulings"]["changes"].items() if row.get("better")}
+    return sorted({c["by"] for c in th.get("changes") or [] if c.get("by") and c.get("becomes") in better
+                   and int(c.get("part") or 0) - 1 in counted})
+
+
+def touched(th: dict) -> bool:
+    """(f598) Whether any character ever did anything that moved it: a change on its record, or a ruling made on a deed of theirs."""
+    return any(c.get("by") for c in th.get("changes") or []) or bool(th.get("ruled"))
 
 
 def _laid_by(state: dict, th: dict, e: dict, t: int) -> tuple[str, str]:
@@ -1180,6 +1314,10 @@ def met_way(ws, state: dict, th: dict, path: dict, by: str) -> None:
         for j, c in enumerate(parts):
             if c.get("kind") == "condition" and c.get("by_kind") == "person" and c.get("by") == a["who"] and c.get("now") != "lifted":
                 kept.append({"n": len(kept) + 1, "part": j + 1, "who": i + 1, "becomes": "lifted", "because": "earlier", "needs": [1]})
+    if path.get("need") == "given" and path.get("good"):   # (f598) the good they wanted is theirs now: no longer at stake
+        for j, c in enumerate(parts):
+            if c.get("kind") == "resource" and c.get("good") == path["good"] and c.get("wanted_by") == a["who"] and c.get("now") != "given_up":
+                kept.append({"n": len(kept) + 1, "part": j + 1, "who": i + 1, "becomes": "given_up", "because": "goods", "needs": [1]})
     keep_changes(ws, state, th, {"kind": "way", "by": by, "npc": a["who"]}, kept[1:])
     th["changes"] = (list(th.get("changes") or []) + [{"n": 1, "part": i + 1, "who": 0, "becomes": "open", "by": by, "act": "way",
                                                        "minute": int(ws.minutes)}])[-int(S["rulings"]["window"]):]

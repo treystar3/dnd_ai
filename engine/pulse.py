@@ -577,6 +577,13 @@ def tick_threads(store, world, catalog, state, t, rng) -> bool:
                         and not e.get("lifted") and t < e["until"] < th["times"][-1] + 1440:   # (f545) and what its parts lay, the
                                                                                             # same, but never a part done (lifted)
                     e["until"] = int(th["times"][-1]) + 1440
+        if th["status"] == "active" and t >= th["times"][-1] and th.get("heart") and th.get("parts"):
+            from engine import situation_parts
+            if situation_parts.touched(th) and not situation_parts.nothing_to_read(th):               # (f598) touched: read at its limit after the pulse (events.read_ends), not rolled
+                if not th.get("read_due"):
+                    th["read_due"] = True
+                    changed = True
+                continue
         if th["status"] == "active" and t >= th["times"][-1]:
             if rng.random() < P["tiers"][th["tier"]]["resolved_by_others"]:
                 who = resolver(store, world, th, rng, t)

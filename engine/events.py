@@ -390,7 +390,7 @@ def after_deed(ws, deed: dict) -> None:
                 matters.reveal(ws, state, th)
                 changed = True
                 continue
-            if th["tier"] in ("normal", "uncommon"):
+            if th["tier"] in ("normal", "uncommon") and not th.get("parts"):    # (f598) with parts, the hand-in pays and the world decides
                 pulse.end_thread(store, state, th, "resolved", f"{th['title']} - settled by {ws.player.character.name}.", ws.minutes)
                 th["result"] = "player"
                 matters.remember(store, world, th, "settled", ws.player.character.name, ws.minutes, ws.store.meta.turn)
@@ -414,7 +414,11 @@ def after_deed(ws, deed: dict) -> None:
                 if th.get("parts") and met.get("kind") in ("part", "persuade"):    # (f547) a met condition: a certain change on the
                     from engine import situation_parts                              # person, made with no model call
                     situation_parts.met_way(ws, state, th, met, deed.get("by") or ws.acting)
-                finish(ws, state, th, f"by way of '{met['name']}'", "truce" if met["kind"] == "treaty" else "victory")
+                from engine import situation_parts as _sp
+                if th.get("parts") and not _sp.nothing_to_read(th):   # (f598) a way met makes its change; the world decides
+                    read_end(ws, state, th, f"by way of '{met['name']}'")
+                else:
+                    finish(ws, state, th, f"by way of '{met['name']}'", "truce" if met["kind"] == "treaty" else "victory")
                 changed = True
                 continue
         if judge_ok(world, state, th, deed, ws.minutes):
@@ -545,6 +549,7 @@ def judge(ws, state, th, deed) -> bool:
         return _wait(ws, th, deed)
     if made is not None:
         _remember(th, deed, state)
+        read_end(ws, state, th, "by what was done")       # (f598) whether what it changed ends it is the world's to say
     return True
 
 
@@ -603,8 +608,60 @@ def take_up_waiting(ws) -> bool:
     return True
 
 
-def finish(ws, state, th, how: str, ending: str) -> None:
-    """The player ended an event. Lift what it did, tell the world, and pay the grand reward for the big ones."""
+def read_end(ws, state, th, how: str = "by what was done", at_limit: bool = False) -> bool:
+    """(f598) Read the situation's end from the world (situation_parts.reading); when it is over, end it the one way, by how it ended.
+    Returns whether it ended. The caller saves `state`."""
+    from engine import situation_parts
+    if th.get("status") != "active" or not th.get("heart") or not situation_parts.touched(th):
+        return False                                     # one nobody touched keeps the old roll (the owner)
+    r = situation_parts.reading(ws.store, ws.world, state, th, ws.minutes, at_limit=at_limit)
+    if not r.over:
+        return False
+    if r.ending == "lost" or not r.contributors:         # nobody's change counted: never anyone's success
+        lose(ws, state, th)
+    else:
+        finish(ws, state, th, how, "victory", kind=r.ending, contributors=r.contributors)
+    return True
+
+
+def read_ends(ws) -> bool:
+    """(f598) After the pulse: every live situation with a heart read again (an effect run out, someone fled or died off-screen), and
+    one whose time came while it was touched read at its limit."""
+    state = ws.store.load_world_state()
+    if not state:
+        return False
+    ended = False
+    for th in [x for x in state.get("threads", []) if x.get("status") == "active" and x.get("heart")]:
+        ended |= read_end(ws, state, th, "", at_limit=bool(th.get("read_due")))
+    if ended:
+        ws.store.save_world_state(state)
+    return ended
+
+
+def lose(ws, state, th) -> None:
+    """(f598) A situation lost: everything it put at stake gone. Its fallout lands, as when it is left alone; nobody is credited, and the
+    town remembers that it was lost for all that was done."""
+    pulse = _pulse()
+    store, world, t = ws.store, ws.world, ws.minutes
+    fall = th.get("fallout") or {"description": "", "effects": []}
+    pulse.end_thread(store, state, th, "ended", f"{th['title']} - lost. {fall.get('description', '')}".strip(), t)
+    pulse.apply_effects(store, world, ws.catalog, state, fall.get("effects", []), th["tier"], t, th["title"], raw=True, thread_id=th["id"])
+    th["result"], th["ending_kind"], th["touched"] = "lost", "lost", True
+    from engine import matters, threads as _threads
+    _threads.follow_up(state, th, "ignored", random.Random(f"{store.meta.seed}:chain:{th['id']}"), t)
+    if touched_by := sorted({c["by"] for c in th.get("changes") or [] if c.get("by")}):
+        matters.remember(store, world, th, "lost", situation_name(ws, touched_by[0]), t, store.meta.turn)
+    console.note(matters.D["memory"]["ended"]["lost"].format(title=th["title"]))
+
+
+def situation_name(ws, cid: str) -> str:
+    from engine import situation_parts
+    return situation_parts.char_name(ws, cid)
+
+
+def finish(ws, state, th, how: str, ending: str, kind: str = "achieved", contributors=None) -> None:
+    """The player ended an event. Lift what it did, tell the world, and pay the grand reward for the big ones. (f598) `kind`: how the
+    world reads its end (achieved, partly, transformed); `contributors`: every character whose change counted, each credited."""
     pulse = _pulse()
     store, world, t = ws.store, ws.world, ws.minutes
     name = ws.player.character.name
@@ -620,30 +677,37 @@ def finish(ws, state, th, how: str, ending: str) -> None:
         ps = store.load_place(won["side"])
         ps.marks = (ps.marks + [f"broken in the war ({th['title']})"])[-12:]
         store.save_place(ps)
-    pulse.end_thread(store, state, th, "resolved", f"{th['title']} - ended; {name} {how}.", t)
+    names = [situation_name(ws, c) for c in contributors] if contributors else [name]          # (f598) each whose change counted
+    name = names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
+    pulse.end_thread(store, state, th, "resolved", f"{th['title']} - ended; {name} {how}." if how else f"{th['title']} - ended by {name}.", t)
     if th.get("parts"):                                 # (f545) the scene's own copies of its people take what the end released
         from engine import situation_parts
         situation_parts.refresh(ws, th)
     th["result"] = "player"
     th["ending"] = ending
+    th["ending_kind"] = kind                            # (f598) achieved, partly or transformed
     th["touched"] = True                                # (f424) the journal shows the matter the player ended
-    deeds.add(state, "settled", t, th["place"], thread=th["id"], title=th["title"], tier=th["tier"], how=how, by=ws.acting)   # (f578) on the caller's state, whose save keeps it: the deed a campaign is earned by (f363)
+    for cid in (contributors or [ws.acting]):           # (f598) every character whose change counted: a deed each (a way of old: the one acting)
+        deeds.add(state, "settled", t, th["place"], thread=th["id"], title=th["title"], tier=th["tier"], how=how, by=cid, ending=kind)
     from engine import pulselog
     pulselog.mark("end", f"{th['title']} - ended by {name}: {how}", t, how="player", place=th["place"], tier=th["tier"])   # (f355) the player's own endings: the log's best rows
     from engine import threads as _threads
-    _threads.follow_up(state, th, "settled", random.Random(f"{store.meta.seed}:chain:{th['id']}"), t)     # (f358) what may come of it
+    _threads.follow_up(state, th, "settled", random.Random(f"{store.meta.seed}:chain:{th['id']}"), t,
+                       always=kind == "transformed")     # (f358) what may come of it; (f598) a transformed one's source goes on
     if th["tier"] == "cataclysm":
         state["cataclysm_end"] = t
     from engine import matters
     for pid in {th["place"], *th.get("hit_towns", [])}:
         if pid in world.places:
             try:
-                ws.reputation_add(pulse.town_of(world, pid), matters.D["memory"]["reputation"].get(th["tier"], 6))
+                share = float(matters.D["memory"]["ending_share"][kind])                      # (f598) by how it ended
+                ws.reputation_add(pulse.town_of(world, pid), round(matters.D["memory"]["reputation"].get(th["tier"], 6) * share))
             except Exception:
                 pass
-    matters.remember(store, world, th, "settled", name, t, ws.store.meta.turn)
-    console.note(f"{th['title']} is ended - {how}.")
-    if th["tier"] in ("campaign", "cataclysm"):
+    matters.remember(store, world, th, {"partly": "partly", "transformed": "transformed"}.get(kind, "settled"), name, t, ws.store.meta.turn)
+    console.note(matters.D["memory"]["ended"][kind].format(title=th["title"]) if contributors is not None
+                 else f"{th['title']} is ended - {how}.")      # (f598) told as it ended
+    if th["tier"] in ("campaign", "cataclysm") and kind in ("achieved", "partly"):
         grand_reward(ws, state, th)
     store.save_player(ws.player)
 

@@ -28,7 +28,7 @@ with ThreadPoolExecutor(2) as pool:                      # each play in a proces
 
 for what, met in a.cover.items():
     check(f"the script covers: {what}", met)
-check("...thirteen things in all, none dropped from the script", len(a.cover) == 13, sorted(a.cover))
+check("...fourteen things in all, none dropped from the script", len(a.cover) == 14, sorted(a.cover))
 check("the two plays took the same steps", [l for l, _ in a.steps] == [l for l, _ in b.steps] and len(a.steps) >= 25, len(a.steps))
 first = next((l for (l, x), (_, y) in zip(a.steps, b.steps) if x != y), None)
 check("after every step the two plays hold the same world, as text", first is None, first)

@@ -550,6 +550,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         town_memory.sweep(self.store, self.world, self.player.location, self.minutes)        # (f484) past their term; a settled matter leaves its mark
         self.__dict__.pop("_streets_cache", None)                                           # (f357) the world may have moved: read the streets afresh
         events.apply_player_events(self)
+        events.read_ends(self)                                                                # (f598) what the pulse's hours ended, read from the world
         self.arc_tick()
         here = self.store.load_place(self.player.location)
         if here.populated:

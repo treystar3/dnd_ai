@@ -4,7 +4,7 @@ The kept recordings change the world's state in 6 of their 83 inputs and start w
 recordings replay" proves little about where that state is kept. This script plays one stub campaign through the writers the game
 uses (typed lines, the pulse over many days, deeds, endings, news, effects) and takes the loaded world after every step, as text. Its
 coverage is counted, not assumed: a matter ended by the player with its settled deed, a rare matter ruled on through its parts (f597:
-the old judge's ending is gone), a rule of the town's answered, news told twice
+the old judge's ending is gone) and ended by the reading of the world (f598), a rule of the town's answered, news told twice
 folded into one row, news past its cap with a deed's tale kept, an effect lifted with its matter and later dropped, finished matters
 past what is kept, deeds past their cap, the history at its cap, and an operation that wrote the world and was rolled back.
 
@@ -104,13 +104,13 @@ def play(name: str, stub, seed: int = SEED, prepare=None) -> Run:
             store.save_world_state(st)
         return tid
 
-    def gift(tid: str) -> None:
+    def gift(tid: str, item: str = "a loaf") -> None:
         """(f597) A gift to the matter's person, as the world notices one: the reaction logs the deed, then rules on it."""
         from engine.domain_events import Gift
         th = thread(tid)
         who = next(a["who"] for a in th["parts"] if a.get("kind") == "person")
         with ws.operation("action:give", "give a loaf"):
-            ws.notice(Gift(minute=ws.minutes, place=PLACE, witnesses=(), npc=who, name=store.load_npc(who).name, item="a loaf", count=1))
+            ws.notice(Gift(minute=ws.minutes, place=PLACE, witnesses=(), npc=who, name=store.load_npc(who).name, item=item, count=1))
 
     # ---- lines typed, and days passing
     ws.turn("look around")
@@ -139,6 +139,12 @@ def play(name: str, stub, seed: int = SEED, prepare=None) -> Run:
     stub.changes = None
     snap("a rare matter's person moved by a gift, ruled on through its parts")
     run.cover["a matter ruled on through its parts"] = any(c.get("becomes") == "warmer" for c in (thread(rare) or {}).get("changes") or [])
+    stub.changes = [{"n": 1, "part": 1, "who": 0, "becomes": "safe", "because": "force"}]
+    gift(rare, "a warm cloak")
+    stub.changes = None
+    snap("the one it harmed made safe: the world reads it over")
+    run.cover["a matter ended by the reading"] = ((thread(rare) or {}).get("status") == "resolved"
+                                                  and (thread(rare) or {}).get("ending_kind") == "achieved")
     before = len(state().get("threads", []))
     for i in range(4):
         days(2)

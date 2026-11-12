@@ -156,3 +156,4 @@ decision ("no caps for anything but new people"), so a reading walks a handful o
 | 4. Ways | A way met on a situation with parts feeds the reading. |
 | 5. The time limit | A touched situation is read by its stakes; an untouched one keeps the old roll; setbacks speeding the clock come later. |
 | 6. Credit | Every character whose change counted is a contributor, with their own deed and reputation. |
+| (asked in its review) Meeting a fixer's condition | Makes them willing and secures nothing by itself; stakes are secured only by what is actually done. |

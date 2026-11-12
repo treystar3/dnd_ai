@@ -368,7 +368,7 @@ def build(store, world, state: dict, place, pressure, tier: str, rng: random.Ran
 
 # ---------- (f358) what follows: a situation ended queues what may come of it, and heats its pressure
 
-def follow_up(state: dict, th: dict, how: str, rng: random.Random, t: int) -> dict | None:
+def follow_up(state: dict, th: dict, how: str, rng: random.Random, t: int, always: bool = False) -> dict | None:
     """When a situation ends: the pressure's heat moves (up when ignored, down when settled by anyone), and by the chain's chance one
     of the template's `then` entries for how it ended is queued at the same place, to start after the delay. Returns the queued row."""
     from engine import pulse
@@ -380,7 +380,7 @@ def follow_up(state: dict, th: dict, how: str, rng: random.Random, t: int) -> di
         heat[pid] = max(0, min(int(C.get("heat_max", 3)), int(heat.get(pid, 0)) + (1 if ended == "ignored" else -1)))
     tpl = T["templates"].get(th.get("template") or "")
     opts = [o for o in ((tpl or {}).get("then") or {}).get(ended, []) if o.get("template") in T["templates"]]
-    if not opts or rng.random() >= float(C.get(ended, 0)):
+    if not opts or (not always and rng.random() >= float(C.get(ended, 0))):     # (f598) a transformed one always goes on
         return None
     o = rng.choices(opts, weights=[float(x.get("weight", 1) or 1) for x in opts])[0]
     lo, hi = C.get("delay_days", [1, 3])

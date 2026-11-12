@@ -99,8 +99,17 @@ gift(npc, coin=W["pay"]["rare"] // 3)
 check("coin short of what they ask leaves the situation going on", thread(tid)["status"] == "active")
 gift(npc, coin=W["pay"]["rare"])
 th = thread(tid)
-check("...paid in full, they set it right: the situation is over, the player's doing, by that way", th["status"] != "active"
-      and th.get("result") == "player" and (th.get("won_path") or {}).get("target") == a_.id, (th["status"], th.get("result"), th.get("won_path")))
+check("...paid in full, they set it right, but one who blocks still stands in the way: it goes on (f598, the world decides)",
+      th["status"] == "active" and (th.get("won_path") or {}).get("target") == a_.id
+      and th["parts"][1].get("willing", {}).get(ws.acting) == "open", (th["status"], th.get("won_path")))
+npc_b = present(b_.id)
+ws.notice(Persuaded(minute=ws.minutes, place="trading_square", witnesses=(b_.id,), npc=b_.id, name=npc_b.name, how="persuasion",
+                    degree="strong success"), npc_b)
+ws.notice(Persuaded(minute=ws.minutes, place="trading_square", witnesses=(b_.id,), npc=b_.id, name=npc_b.name, how="persuasion",
+                    degree="strong success"), npc_b)
+th = thread(tid)
+check("...and once the one who blocked stands aside too, the world reads it over: the player's doing", th["status"] != "active"
+      and th.get("result") == "player" and th.get("ending_kind") in ("achieved", "partly"), (th["status"], th.get("result"), th.get("ending_kind")))
 
 # ---- asked (helps freely): a persuasion that landed
 tid = born([{"who": a_.id, "stake": "can_fix", "want": "safety"}])
@@ -276,7 +285,9 @@ check("(the review) a kill at a stop on the road the trouble makes dangerous kee
       th["paths"])
 check("...and they say yes when the player is next with them, not before", th["status"] == "active")
 situation_parts.heard(ws, present(c_.id), "It is done; the road is safe.")
-check("...spoken with, they set it right", thread(tid)["status"] != "active")
+th = thread(tid)
+check("...spoken with, they are willing (open), and the danger still laid on the road keeps it going on (f598: the world decides)",
+      th["status"] == "active" and th["parts"][0].get("willing", {}).get(ws.acting) == "open", (th["status"], th["parts"][0]))
 if wild:
     tid = born([{"who": c_.id, "stake": "can_fix", "want": "safety", "condition": "protected"}])
     kill_at(wild[0])
@@ -375,8 +386,11 @@ ws.turn_in(b_.id)
 check("(the review) ...the scarce rise of the same good is its own part's, not lifted with the load's",
       pulse.price_factor(store, world, "trading_square", ws.minutes + 1, "salt") > pulse.price_factor(store, world, "trading_square", ws.minutes + 1))
 situation_parts.heard(ws, present(c_.id), "Your salt came.")
-check("(the review) ...and, carried and handed in, the one who wanted it has what they asked: they set it right",
-      thread(tid)["status"] != "active", thread(tid)["paths"])
+th = thread(tid)
+r_ = situation_parts.reading(store, world, store.load_world_state(), th, ws.minutes)
+check("(the review) ...and, carried and handed in, the one who wanted it has what they asked: the load's stake secured, while the one it"
+      " harms and the scarce salt are still at risk, so it goes on (f598)", th["status"] == "active"
+      and [s_ for x, s_ in r_.stakes if x.get("state") == "stranded"] == ["secured"] and "at_risk" in [s_ for _, s_ in r_.stakes], r_.stakes)
 
 # ---- (the fourth review) who a thing is for, as people say it; how many; a gift of several in words
 smith_ish = copy.copy(store.load_npc(a_.id))

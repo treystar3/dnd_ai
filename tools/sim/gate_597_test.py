@@ -169,7 +169,7 @@ sys.path.insert(0, "tools/sim")
 import world_script
 calls.clear()
 run = world_script.play("gate_597_ws", stub)
-CEILING = 1                                            # (f597) the rulings the seeded world script asks for, before the gate and after
+CEILING = 2                                            # (f598) the seeded world script's rulings: a gift moving a rare matter, one ending it
 check("the seeded world script plays whole", all(run.cover.values()), [k for k, v in run.cover.items() if not v])
 check(f"...and asks for no more rulings than it does today ({CEILING})", len(calls) <= CEILING, len(calls))
 

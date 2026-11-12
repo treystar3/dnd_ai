@@ -787,11 +787,28 @@ def check() -> list[str]:
     bad += _llama.sampler_problems()                                   # (f521) every sampler key one llama-server reads, in its range
     bad += model_problems()                                            # (f527) the model ids name the server's files
     bad += world_caps_problems()                                       # (f589) what the world's state keeps of each list
+    bad += endings_problems()                                          # (f598) how a matter's ending is told and paid
     bad += grammar_problems()                                          # (f527) every contract has its grammar
     from llm import runtime as _runtime
     bad += _runtime.runtime_problems()                                 # (f522) the server's settings hold what the game sends
     from llm import launch as _launch
     bad += _launch.problems()                                          # (f526) the load screen's lines, once the owner's are in
+    return bad
+
+
+def endings_problems(D: dict | None = None) -> list[str]:
+    """(f598) Each ending a situation's reading can name has its reputation share, its line told to the player, and its town memory."""
+    M = ((_load("data/rules/doors.yaml") if D is None else D).get("memory") or {})
+    bad = []
+    for kind in ("achieved", "partly", "transformed", "lost"):
+        v = (M.get("ending_share") or {}).get(kind)
+        if not (isinstance(v, (int, float)) and not isinstance(v, bool) and 0 <= v <= 1):
+            bad.append(f"doors.yaml memory.ending_share.{kind}: needs a share from 0 to 1")
+        if "{title}" not in str((M.get("ended") or {}).get(kind, "")):
+            bad.append(f"doors.yaml memory.ended.{kind}: needs a line naming {{title}}")
+    for how in ("partly", "transformed", "lost"):
+        if "{title}" not in str(M.get(how, "")) or "{name}" not in str(M.get(how, "")):
+            bad.append(f"doors.yaml memory.{how}: needs the town's words, naming {{title}} and {{name}}")
     return bad
 
 

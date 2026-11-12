@@ -648,6 +648,8 @@ def _situation(ws, actor_id: str, T, scode: str, chs, degree: str = "success", s
     act_ = {"kind": "acted", "by": actor_id, "npc": "", "witnesses": sorted(n.id for n in ws.present), "place": ws.player.location,
             "coin": 0, "item": "", "count": 1, "degree": degree, "words_only": False, "seq": seq or None}   # the deed's own number
     situation_parts.keep_changes(ws, state, th, act_, rows)
+    from engine import events
+    events.read_end(ws, state, th, "by what was done")      # (f598) whether it is over is the world's to say
     ws.store.save_world_state(state)
     out = []
     for r_ in rows:
