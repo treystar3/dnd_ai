@@ -3,7 +3,8 @@
 The kept recordings change the world's state in 6 of their 83 inputs and start with no matters, deeds, news or effects, so "the
 recordings replay" proves little about where that state is kept. This script plays one stub campaign through the writers the game
 uses (typed lines, the pulse over many days, deeds, endings, news, effects) and takes the loaded world after every step, as text. Its
-coverage is counted, not assumed: a matter ended by the player with its settled deed, a rule of the town's answered, news told twice
+coverage is counted, not assumed: a matter ended by the player with its settled deed, a rare matter ruled on through its parts (f597:
+the old judge's ending is gone), a rule of the town's answered, news told twice
 folded into one row, news past its cap with a deed's tale kept, an effect lifted with its matter and later dropped, finished matters
 past what is kept, deeds past their cap, the history at its cap, and an operation that wrote the world and was rolled back.
 
@@ -87,6 +88,30 @@ def play(name: str, stub, seed: int = SEED, prepare=None) -> Run:
         with ws.operation("action:attack", f"kill the {creature}"):
             ws.notice(CreatureKilled(minute=ws.minutes, place=PLACE, witnesses=(), creature=creature, level=1))
 
+    def ruled_rare() -> str:
+        """(f597) A rare matter with parts: a townsperson it harms."""
+        import random
+        from engine import retrieval, situation_parts, situations
+        from llm.contracts import SituationParts
+        tid = born(tier="rare", stage=1)
+        st = state()
+        th = next(x for x in st["threads"] if x["id"] == tid)
+        who = retrieval.people_in_town(store, world, town)[0]
+        acc, _ = situations.check(SituationParts.model_validate({"people": [{"who": who.id, "stake": "harmed", "want": "safety"}]}),
+                                  store, world, "rare", random.Random(seed), town=town, ways=False, now=ws.minutes, players=(ws.acting,))
+        with ws.operation("test", "a rare matter's parts"):
+            situation_parts.register(store, world, st, th, acc, ws.minutes, catalog=ws.catalog, ways=False)
+            store.save_world_state(st)
+        return tid
+
+    def gift(tid: str) -> None:
+        """(f597) A gift to the matter's person, as the world notices one: the reaction logs the deed, then rules on it."""
+        from engine.domain_events import Gift
+        th = thread(tid)
+        who = next(a["who"] for a in th["parts"] if a.get("kind") == "person")
+        with ws.operation("action:give", "give a loaf"):
+            ws.notice(Gift(minute=ws.minutes, place=PLACE, witnesses=(), npc=who, name=store.load_npc(who).name, item="a loaf", count=1))
+
     # ---- lines typed, and days passing
     ws.turn("look around")
     snap("a first line")
@@ -108,12 +133,12 @@ def play(name: str, stub, seed: int = SEED, prepare=None) -> Run:
     run.cover["a matter ended by the player"] = all((thread(t) or {}).get("result") == "player" for t in (first, second))
     run.cover["its settled deed kept, numbered"] = (len([d for d in st.get("deeds", []) if d["kind"] == "settled"]) == 2
                                                     and st.get("seq") == max(d.get("seq", 0) for d in st["deeds"]))
-    rare = born(tier="rare", stage=1)
-    stub.verdict = "resolved"
-    kill("bandit")
-    stub.verdict = "no"
-    snap("a rare matter ended by the judge's word")
-    run.cover["a matter ended by the judge"] = (thread(rare) or {}).get("status") == "resolved"
+    rare = ruled_rare()
+    stub.changes = [{"n": 1, "part": 1, "who": 0, "becomes": "warmer", "because": "goods"}]
+    gift(rare)
+    stub.changes = None
+    snap("a rare matter's person moved by a gift, ruled on through its parts")
+    run.cover["a matter ruled on through its parts"] = any(c.get("becomes") == "warmer" for c in (thread(rare) or {}).get("changes") or [])
     before = len(state().get("threads", []))
     for i in range(4):
         days(2)

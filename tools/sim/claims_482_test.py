@@ -76,7 +76,7 @@ pulse.add_news(state, "Wolves took a lamb, they say.", "parth", 120, ["everyone"
 check("an engine fact is sure; words the model wrote are 'they say'", state["news"][0]["certainty"] == "sure"
       and state["news"][-1]["certainty"] == "they say", state["news"])
 check("...and a tale told again keeps its first teller", len(state["news"]) == 2 and state["news"][-1]["source"] == "c2" and state["news"][-1]["times"] == 2)
-MODEL_WRITTEN = {"engine/pulse.py": 5, "engine/events.py": 4, "engine/matters.py": 1, "scenes/road_actions.py": 3, "scenes/explore_actions.py": 1,
+MODEL_WRITTEN = {"engine/pulse.py": 5, "engine/events.py": 3, "engine/matters.py": 1, "scenes/road_actions.py": 3, "scenes/explore_actions.py": 1,
                  "engine/stakes.py": 1, "engine/motives.py": 1, "scenes/arc_actions.py": 1}
 said = {}
 for f in MODEL_WRITTEN:

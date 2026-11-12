@@ -29,7 +29,7 @@ def check(n, ok, x=""):
 RECORDED = frozenset({                                                  # (f485) the talk's five are asked outside (engine/asked.py); (f488) the
                                                                         # hires' and Maren's four; (f489) the party's own six: fifteen in all
     "road_event", "discovery", "ruling", "plausible_object", "classify_field", "camp_intent", "party_intent", "stranger_read",
-    "pulse_thread", "pulse_motive", "pulse_cataclysm", "thread_telling", "board_stakes", "event_judge", "moment",
+    "pulse_thread", "pulse_motive", "pulse_cataclysm", "thread_telling", "board_stakes", "moment",   # (f597) event_judge asked outside
     "arc_story", "generate_lessons", "lesson_want",                     # (f502) the five naming tasks asked outside
     "narrate",                                                          # (f497) combat_interpret asked outside; (f498) the three tellings and the
 })                                                                      # opening (combat_opening) asked outside; narrate stays for its inline uses

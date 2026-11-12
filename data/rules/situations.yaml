@@ -304,6 +304,8 @@ rulings:
   most: 12                         # the changes one ruling may carry
   max_tokens: 900                  # the ruling's answer room (budget.yaml event_judge answer_tokens is what it is expected to use)
   window: 40                       # the changes a situation keeps on record, newest last
+  kept: 24                         # (f597) the rulings a situation remembers for the reuse rule: a repeat with nothing changed is ruled no more
+  waiting: 4                       # (f597) the deeds a situation keeps waiting for a ruling the turn's budget had no room for
   trust: 10                        # how far warmer or colder moves a person's trust in the one who acted
   changes:
     believes:   {layer: belief, kinds: [person], actor: act, better: true}

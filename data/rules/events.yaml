@@ -28,14 +28,10 @@ seal:
   days: 40
 
 # ---------- judge: did the player end it in a way nobody planned? ----------
+# (f597) What can move a situation: a deed that touches it by id (its person, its own id, a threat it names, or where its trouble is),
+# ruled on against its parts at every tier. A situation without parts is ruled on not at all; it ends by its ways and its time.
 judge:
-  tiers: [rare, campaign, cataclysm]
-  min_stage: 1                   # the event must have moved on at least once
-  per_day: 1                     # at most one call per event per game day
-  max_calls: 8                   # and this many in all
-  partial_delay: 0.30            # a partial result pushes the next stage back by this share of the time left
-  partial_pay: 0.25              # and pays this share of a grand reward's gold
-  relevant_deeds: [kill, persuade, dungeon_cleared, quest_done, deliver, defend]
+  relevant_deeds: [kill, persuade, dungeon_cleared, quest_done, deliver, defend, gift, bribe, offense, found, acted]
   keep_deeds: 300
 
 # ---------- the grand reward for ending a campaign or cataclysm yourself ----------

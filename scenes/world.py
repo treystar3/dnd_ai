@@ -493,6 +493,15 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 act.missed(self, self.acting)
         self.run_passages()
 
+    def take_up_rulings(self, text: str) -> None:
+        """(f597) The oldest deed left waiting on a situation for room in a turn's budget, ruled on after the line, as a birth is: a world
+        operation of its own, its call asked outside the transaction, with what time the turn has left. Never in a fight."""
+        from engine import events
+        if self.combat or not events.waiting(self.store.load_world_state() or {}):
+            return
+        self.asked_operation("situation:waiting", text, lambda op: events.take_up_waiting(self), world=True)
+        self.run_passages()
+
     def situation_births(self, text: str) -> None:
         """(f546) After the tail, apart from it, and only when something waits (so an input with nothing born commits what it always did):
         the oldest birth due asks for its parts outside any transaction (engine/situation_parts.py birth), the people here read again
@@ -1572,6 +1581,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.asked_operation("tail", text, _tail, world=True)
                 self.run_passages()                            # (f498) the tail collects too: a road fight walked into as it resumes the
                 if not self.combat:
+                    self.take_up_rulings(text)                 # (f597) a deed left waiting on a situation, after the line, as births are
                     self.situation_births(text)                # (f546) a situation born given its parts, each in operations of its own
                 self.collecting = False                        # road (resume_road) begins committed, its opening a passage told after it
                 ledger.LAST = ledger.end()

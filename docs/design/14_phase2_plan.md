@@ -279,6 +279,8 @@ asserted.
 | 6. Combat's rows | Wait for phase 4. |
 | 7. Road hazards | Keep their own ruling call through this phase. |
 | 8. The bar for the switch | None fixed in advance: the numbers are brought to the owner. |
+| (f597, asked in its review) A situation without parts | Ruled on not at all: the old judge is retired; it ends by its ways and its time. |
+| (f597) Where a waiting ruling is asked | After a later line, where births are asked, never before the player's line. |
 
 What the answers changed in this plan: f596 is new, so the pod session compares a path that asks back with one that waits (the
 corpus measures rulings made, so it is unaffected; the nights will differ where a ruling fails, and those are counted apart).

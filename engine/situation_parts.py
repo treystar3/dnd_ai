@@ -1096,7 +1096,7 @@ def act_of(ws, deed: dict) -> dict:
     how it went, and whether it was words alone. Read from the deed and the scene, as they stand."""
     RU = S["rulings"]
     from engine import deeds
-    here = sorted({n.id for n in (getattr(ws, "present", None) or []) if getattr(n, "id", "")})
+    here = deed.get("witnesses_at") or sorted({n.id for n in (getattr(ws, "present", None) or []) if getattr(n, "id", "")})   # (f597)
     place = deed.get("place", "")
     shown = ws.world.places[place].name if place in getattr(ws.world, "places", {}) else place    # (f547's second review) its name
     beaten = deed.get("kind") == "offense" and deed.get("offense") == "assault"                   # (f547's second review) one beaten is
