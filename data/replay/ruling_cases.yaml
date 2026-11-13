@@ -1,7 +1,10 @@
 # THE RULING'S TEST SET (f393; tools/ruling_eval.py, slice 2). What a good dungeon master would say to each line: `expect` is yes, cost
 # (yes, at a cost or with a check) or no; `needs` the kinds of thing the world must hold for it (feature, person, thing, way), when it
 # does not already; `means` the capabilities the character has in the case. `model` (optional) is a ruling to try the engine's own
-# checks against, offline: whatever the model says, a line that needs a capability the character lacks is a no.
+# checks against, offline: whatever the model says, a line that needs a capability the character lacks is a no, unless something stands
+# in for that capability (f618, data/rules/capabilities.yaml `without`): then it is a cost on that check.
+# `kind` (f616) says what kind of act the line is, where its kind decides what is fair (tools/ruling_eval.py KINDS): a `claim` claims
+# more than saying it could bring about; a no is right, and so is a ruling held to what it comes to that changes and makes nothing.
 #
 # GOAL.md: "Investigate further into the cave" is met with more cave. "I grow wings and fly away" is not.
 
@@ -29,21 +32,21 @@
 
 # ---------- nonsensical: the world says no, in its own words ----------
 - {line: "I grow wings and fly away.", at: tidepool_caves, expect: "no", model: {sense: "yes", requires: [flight]}}
-- {line: "I summon a dragon to burn the market.", at: trading_square, expect: "no"}
+- {line: "I call a giant up out of the earth to flatten the market.", at: trading_square, expect: "no"}
 - {line: "I walk straight through the wall.", at: trading_square, expect: "no", model: {sense: "yes", requires: [pass_through]}}
-- {line: "I declare myself king of Parth.", at: trading_square, expect: "no", bounded: true}   # (f610) a claim heard, not granted
-- {line: "I conjure a thousand gold coins.", at: trading_square, expect: "no"}
+- {line: "I declare myself king of Parth.", at: trading_square, expect: "no", kind: claim}   # (f610, f616) a claim heard, not granted
+- {line: "I wish a chest of silver into my hands.", at: trading_square, expect: "no"}
 - {line: "I teleport to the capital.", at: trading_square, expect: "no", model: {sense: "yes", requires: [teleport]}}
-- {line: "I breathe underwater and swim to the sea floor.", at: tidepool_caves, expect: "no", model: {sense: "yes", requires: [water_breathing]}}
+- {line: "I breathe underwater and swim to the sea floor.", at: tidepool_caves, expect: "cost", model: {sense: "yes", requires: [water_breathing]}}   # (f618) on one held breath
 - {line: "I lift the whole inn off the ground.", at: trading_square, expect: "no"}
 - {line: "I turn into a wolf.", at: greywood, expect: "no", model: {sense: "yes", requires: [shape_change]}}
 - {line: "I find a legendary sword lying in the gutter.", at: trading_square, expect: "no"}
-- {line: "I make the sun go down now.", at: trading_square, expect: "no"}
-- {line: "I read the merchant's mind.", at: trading_square, expect: "no", model: {sense: "yes", requires: [mind_reading]}}
+- {line: "I tell the moon to rise at noon.", at: trading_square, expect: "no"}
+- {line: "I read the merchant's mind.", at: trading_square, expect: "cost", model: {sense: "yes", requires: [mind_reading]}}   # (f618) what a face gives away
 - {line: "I raise the dead guard from his grave.", at: trading_square, expect: "no", model: {sense: "yes", requires: [raise_dead]}}
-- {line: "I become invisible.", at: trading_square, expect: "no", model: {sense: "yes", requires: [invisibility]}}
+- {line: "I become invisible.", at: trading_square, expect: "cost", model: {sense: "yes", requires: [invisibility]}}   # (f618) by cover and shadow
 - {line: "I jump to the top of the guild hall.", at: trading_square, expect: "no"}
-- {line: "I order the whole town to bow to me.", at: trading_square, expect: "no"}
+- {line: "I order the whole town to bow to me.", at: trading_square, expect: "no", kind: claim}   # (f616) an order given, not obeyed
 - {line: "I pull a cannon out of my pack.", at: trading_square, expect: "no"}
 - {line: "I instantly heal every wound in the town.", at: trading_square, expect: "no"}
 - {line: "I grow ten feet tall.", at: trading_square, expect: "no", model: {sense: "yes", requires: [shape_change]}}
@@ -58,6 +61,6 @@
 - {line: "I ask the dead sailor how he drowned.", at: tidepool_caves, expect: "yes", means: [speak_with_dead], model: {sense: "yes", requires: [speak_with_dead]}}
 - {line: "I see in the dark of the back tunnel.", at: tidepool_caves, expect: "yes", means: [darkvision], model: {sense: "yes", requires: [darkvision]}}
 - {line: "I see in the dark of the back tunnel.", at: tidepool_caves, expect: "cost", means: [],
-   model: {sense: "cost", requires: [], stakes: {check: perception, hard: fair}}}   # (f612) without darkvision, a perception check (the owner)
+   model: {sense: "no", answer: "The tunnel stays black.", requires: [darkvision]}}   # (f612, f618) a perception check (the owner), whatever the ruling says
 - {line: "I slip unseen past the guard.", at: trading_square, expect: "cost", means: [], model: {sense: "cost", requires: []}}
 - {line: "I turn into a wolf.", at: greywood, expect: "yes", means: [shape_change], model: {sense: "yes", requires: [shape_change]}}
