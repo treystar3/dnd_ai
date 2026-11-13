@@ -441,6 +441,8 @@ def side(b: Bench, c: dict, path: str, live: bool, tally: Tally) -> str:
         shown = got or "-"
     if path == "new" and want == "no" and got == "yes" and b.bounded(c):   # (f610, f616) a claim, its success no further than its ruling
         want, shown = "yes", f"{b.last.ruling.sense}, bounded"
+    if path == "new" and got == "yes" and getattr(b.last, "without", ""):  # (f618) done without a power, on what stands in for it
+        shown += f", without {b.last.without}"
     known, retire = tally.known, tally.retire
     ok = tally.add(want, got, needs_ok, moves_ok, known=bool(c.get("known")) and path == "new")   # (f601) the gap is the act engine's
     shown += {True: ", moves ok", False: ", moves WRONG"}.get(moves_ok, "") + (", needs missed" if needs_ok is False else "")

@@ -29,6 +29,7 @@ ROOT = Path(__file__).resolve().parent.parent
 C = yamlio.safe_load((ROOT / "data" / "rules" / "capabilities.yaml").read_text(encoding="utf-8"))
 ATTRS = ("strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma")
 HARD = {"easy": 20, "fair": 0, "hard": -20, "": 0}
+HARDER = ("easy", "fair", "hard")                    # (f618) each harder than the one before
 APPEAR_PER_DAY = 2
 
 SYSTEM = """You are the dungeon master of a fantasy role-playing game. A player has said what their character tries. You rule on it the
@@ -102,6 +103,23 @@ def means_of(ws) -> set[str]:
     return have
 
 
+def standing(have: set[str], r) -> tuple[str, str, dict | None]:
+    """(f618) A ruling as the engine takes it for what the character can do beyond the ordinary, on either path: (how, the capability,
+    the stakes). "has": nothing it requires is lacked, and it is as ruled. "lacks": it requires a capability they lack that nothing
+    stands in for: a no. "stand_in": every capability it requires and they lack has something that stands in for it (capabilities.yaml
+    `without`): a cost on the first one's check, at the hardest of their difficulties and the ruling's own. A no is read the same
+    way, by the power it says it wants."""
+    lacked = [cap for cap in r.requires if cap in C and cap not in have]
+    if not lacked:
+        return "has", "", None
+    bare = [cap for cap in lacked if not C[cap].get("without")]
+    if bare:
+        return "lacks", bare[0], None
+    own = getattr(getattr(r, "stakes", None), "hard", "") or ""
+    hard = max([C[cap]["without"]["hard"] for cap in lacked] + ([own] if own in HARDER else []), key=HARDER.index)
+    return "stand_in", lacked[0], {"check": C[lacked[0]]["without"]["check"], "hard": hard}
+
+
 def ask(ws, words: str, text: str):
     """The model's ruling, or None when it cannot give one (on the road, pressing on past an obstacle: f603)."""
     from engine import checks, features
@@ -119,11 +137,11 @@ def ask(ws, words: str, text: str):
 def verdict(ws, r) -> dict:
     """The engine's checks on a ruling: {ok, answer, instead, why}. A no from the model stands; a yes may be refused on the engine's
     grounds only."""
-    if r.sense == "no":
+    how, cap, _ = standing(means_of(ws), r)            # (f618) a stand-in's stakes are the caller's to roll
+    if r.sense == "no" and how != "stand_in":
         return {"ok": False, "answer": r.answer, "instead": r.instead, "why": r.why or "it does not make sense here"}
-    missing = [cap for cap in r.requires if cap in C and cap not in means_of(ws)]
-    if missing:
-        return {"ok": False, "answer": C[missing[0]]["lacking"], "instead": r.instead, "why": f"needs {missing[0]}, which they do not have"}
+    if how == "lacks":
+        return {"ok": False, "answer": C[cap]["lacking"], "instead": r.instead, "why": f"needs {cap}, which they do not have"}
     from engine import features
     for n in r.needs:
         if n.kind in ("feature", "way"):
@@ -258,4 +276,10 @@ def problems() -> list[str]:
     for k, spec in C.items():
         if not spec.get("about") or not spec.get("lacking"):
             bad.append(f"capabilities.yaml {k}: needs about and lacking")
+        if "without" in spec:                        # (f618) what stands in for it: a real check, a difficulty, how it is then done
+            from engine import checks
+            w = spec["without"]
+            if not (isinstance(w, dict) and w.get("check") in set(checks.CHECKS) | set(ATTRS) and w.get("hard") in HARDER
+                    and str(w.get("told") or "").strip()):
+                bad.append(f"capabilities.yaml {k} without: needs check (one of the checks or an attribute), hard ({', '.join(HARDER)}) and told")
     return bad

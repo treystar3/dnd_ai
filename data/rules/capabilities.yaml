@@ -4,6 +4,10 @@
 #
 # Each: what it is (for the ruling), what grants it (a field use of an ability, a people, the character's own list - Character.capabilities,
 # given by the story or an item), and the in-world answer when it is lacking.
+#
+# (f618) `without`: what stands in for it. An act that needs the capability, by a character who lacks it, is then not a no but a cost
+# rolled on this check, at this difficulty or the ruling's own if that is harder; `told` is how the narrator is told it is done. A
+# capability with no `without` cannot be done without: the act is a no, in its `lacking` words. The owner's, 2026-11-12 and 2026-11-13.
 
 flight:
   about: flying under one's own power
@@ -21,6 +25,7 @@ water_breathing:
   about: breathing water as if it were air
   grants: {look_element: [water]}
   lacking: "Your lungs want air. Under the water, you would have only as long as one breath."
+  without: {check: constitution, hard: hard, told: "on one held breath, no longer"}
 shape_change:
   about: taking another shape or size
   grants: {}
@@ -29,6 +34,7 @@ mind_reading:
   about: hearing another's thoughts
   grants: {}
   lacking: "Their face tells you what faces tell anyone, and no more."
+  without: {check: insight, hard: hard, told: "by what a face and a voice give away, never the thought itself"}
 raise_dead:
   about: bringing the dead back to life or unlife
   grants: {field: [revivify]}
@@ -37,6 +43,7 @@ invisibility:
   about: not being seen at all, in plain view
   grants: {}
   lacking: "There is nowhere to hide in plain sight; you are as seen as ever. Cover and shadow would serve better."
+  without: {check: stealth, hard: hard, told: "by cover and shadow, seen by anyone who looks straight at them"}
 speak_with_beasts:
   about: talking with animals and understanding them
   grants: {field: [beastspeak]}
@@ -49,6 +56,7 @@ darkvision:
   about: seeing in darkness without light
   grants: {people: [dwarf, elf, half_elf, gnome, orc]}
   lacking: "It is dark, and your eyes need light. A torch, a lamp, or slow care feeling the way."
+  without: {check: perception, hard: fair, told: "by slow care and what little can be made out, not by sight"}
 summoning:
   about: calling a creature or a being out of nothing
   grants: {ability_effect: [summon]}

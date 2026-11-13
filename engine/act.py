@@ -158,7 +158,7 @@ def shape(ws, T):
             "maxItems": int(A["most_changes"]) if changes else 0}
     yes = {"type": "object", "required": ["sense", "works"], "properties": {"sense": {"enum": ["yes", "cost"]}, **common, "changes": acts,
                                                                             "works": {**text("works"), "minLength": 1}}}   # (f609)
-    no = {"type": "object", "required": ["sense", "answer"], "properties": {
+    no = {"type": "object", "required": ["sense", "answer", "requires"], "properties": {       # (f618) a no says what power it wants, if any
         "sense": {"enum": ["no"]}, **common, "changes": {"type": "array", "maxItems": 0}, "answer": {**text("answer"), "minLength": 1}}}
     schema = {"title": "ActRuling", "anyOf": [yes, no]}
 
@@ -294,6 +294,7 @@ class Checked:
     why: str = ""
     dropped: list = field(default_factory=list)      # (change, why)
     enabled: bool = False      # a real thing it relies on (a tagged thing, the ground of a part): a strong success may match an ability's
+    without: str = ""          # (f618) the capability it is done without, on what stands in for it
 
 
 def validate(ws, actor_id: str, T, r) -> Checked:
@@ -302,14 +303,16 @@ def validate(ws, actor_id: str, T, r) -> Checked:
     reason and so is every change that needs it."""
     from types import SimpleNamespace
     from engine import ruling
-    if r.sense == "no":
+    how, cap, stakes = ruling.standing(means(ws, actor_id), r)   # (f618) the engine decides what lacking a power means
+    if r.sense == "no" and how != "stand_in":
         return Checked(False, r, r.answer, list(r.instead), r.why or "it does not make sense here")
     if r.stakes.hard == "beyond":                    # (f613) the ruling's own word: past anyone with what they have
         why = (r.why or "").strip().rstrip(".")
         return Checked(False, r, A["beyond"]["answer"] + (f" ({why})" if why else "") + ".", list(r.instead), A["beyond"]["why"])
-    lacking = [cap for cap in r.requires if cap in ruling.C and cap not in means(ws, actor_id)]
-    if lacking:
-        return Checked(False, r, ruling.C[lacking[0]]["lacking"], list(r.instead), f"needs {lacking[0]}, which they do not have")
+    if how == "lacks":
+        return Checked(False, r, ruling.C[cap]["lacking"], list(r.instead), f"needs {cap}, which they do not have")
+    if how == "stand_in":                            # done without it: a cost on what stands in, whichever way the model ruled
+        r = r.model_copy(update={"sense": "cost", "stakes": type(r.stakes)(**stakes)})
     v = ruling.verdict(ws, SimpleNamespace(sense=r.sense, requires=[], needs=r.needs, changes=[], answer=r.answer, instead=r.instead,
                                            why=r.why))
     if not v["ok"]:
@@ -317,7 +320,7 @@ def validate(ws, actor_id: str, T, r) -> Checked:
     kept_changes, dropped = _chain(ws, actor_id, T, r)
     out = r.model_copy(update={"changes": kept_changes})
     enabled = any((t := T.get(u)) is not None and (t.kind == "part" or (t.kind == "object" and t.tags)) for u in r.uses)
-    return Checked(True, out, "", [], r.why, dropped, enabled)
+    return Checked(True, out, "", [], r.why, dropped, enabled, cap if how == "stand_in" else "")
 
 
 def _chain(ws, actor_id: str, T, r) -> tuple[list, list]:
@@ -658,6 +661,10 @@ def resolve(ws, actor_id: str, T, v: Checked, words: str, text: str, made: list[
     nots = (" WHAT DID NOT HAPPEN (the game refused it; never show it happening): " + "; ".join(_said(T, ch) for ch, _ in refused) + ".") \
         if refused and worked else ""
     comes = (r.works or "").strip().rstrip(" .!?")
+    lack = ""
+    if v.without:                                    # (f618) how it is done by one who lacks the power it would take
+        W = ruling.C[v.without]
+        lack = f" THEY DO IT WITHOUT {W['about'].upper()}: {W['without']['told']}. Show it done that way, never by that power."
     if degree in ("success", "strong success"):
         ws.advance(int(A["success_minutes"]))
         if comes:                                   # (f609) a success is what the ruling says it comes to, never what the words claim
@@ -665,18 +672,18 @@ def resolve(ws, actor_id: str, T, v: Checked, words: str, text: str, made: list[
                        + (", and this is what it comes to, short of what did not happen (below)" if nots else ", and this is what it comes to")
                        + f": {comes}. Show that, as it would be seen, and nothing beyond it"
                        + (", with what is different now." if (told or made or landed) else ". Nothing lasting is different.")
-                       + " Nothing is gained that was not there, and no one is harmed." + room + lasting + nots, text)
+                       + " Nothing is gained that was not there, and no one is harmed." + lack + room + lasting + nots, text)
             return degree
         ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) WORKS" + (" cleanly and well" if degree == "strong success" else "")
                    + (". Show it done, as it would be seen, and what is different now." if (told or made or landed)
                       else ". Show it done, as it would be seen. Nothing lasting is different.")
-                   + " Nothing is gained that was not there, and no one is harmed." + room + lasting + nots, text)
+                   + " Nothing is gained that was not there, and no one is harmed." + lack + room + lasting + nots, text)
         return degree
     if degree == "partial":
         ws.advance(int(A["partial"]["minutes"]))
         ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) half works: {A['partial']['text']}"
                    + (f"; it falls short of this, which is the most it could have come to: {comes}" if comes else "")
-                   + ". Show it as it would be seen, the flaw in it plain. Nothing is gained that was not there." + room + lasting + nots, text)
+                   + ". Show it as it would be seen, the flaw in it plain. Nothing is gained that was not there." + lack + room + lasting + nots, text)
         return degree
     cost = fail(ws, actor_id, T, r, F)
     ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) FAILS: {F['text']}. Show the failure as it happens and what it "

@@ -482,6 +482,12 @@ class RoadActions:
         r = None
         if not re.search(R["hazard"]["around_words"], (text or "").lower()):
             r = ruling.ask(self, f"pressing straight on past {what}", text or "I keep going")
+            if r is not None:                        # (f618) what lacking a power means is the engine's, here as for any act
+                how, _, stakes = ruling.standing(ruling.means_of(self), r)
+                if how == "stand_in":
+                    r = r.model_copy(update={"sense": "cost", "stakes": type(r.stakes)(**stakes)})
+                elif how == "lacks":
+                    r = r.model_copy(update={"sense": "no"})
             if r is None or r.sense != "no":
                 self.push_past(hz, r)
                 return

@@ -64,7 +64,8 @@ found = {f.name: R.taught(R.load(f)) for f in files}
 check("no line of any corpus file repeats an example of either prompt", len(files) >= 3 and not any(found.values()), found)
 lines = [c["line"] for f in files for c in R.load(f)]
 check("...the three are gone from the corpus, one of each kind in their place, and no other line was changed for the check",
-      not any(x in lines for x in OLD) and len(R.load(R.CASES)) == 50 and sum(c["expect"] == "no" for c in R.load(R.CASES)) == 22
+      not any(x in lines for x in OLD) and len(R.load(R.CASES)) == 50 and all(any(c["line"] == x and c["expect"] == "no" for c in R.load(R.CASES))
+      for x in ("I call a giant up out of the earth to flatten the market.", "I wish a chest of silver into my hands.", "I tell the moon to rise at noon."))
       and "I climb the rope down into the dry well." in lines)
 
 folder = Path(tempfile.mkdtemp(prefix="corpus_apart_615_"))
