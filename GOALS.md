@@ -110,7 +110,9 @@ How we check: the prose analysis by task, and the blind readings.
 
 - **Infrastructure over patches.** Fix the system that let a problem happen, not the single instance: "I'd want to create a robust
   infrastructure that can handle a sandbox rpg environment", and "more infrastructure enhancements instead of more rules to give the
-  narrator".
+  narrator". A fix names the class of cases it covers (every rescue, every "you lack X"), never one scene; a special case in code, a
+  prompt line for one situation, or a corpus entry changed so a measure passes is a patch, not a fix. The corpus records what the
+  owner rules fair; it never stands in for the engine change that would make the game get the case right.
 - **The engine decides; the model names, describes and speaks.** Every number, rule and state change is the engine's. What the model
   writes is checked before the player sees it.
 - **Data is the source of truth.** Tunable numbers and content live in data/ (YAML) and are validated at startup (engine/data_check.py).
@@ -126,7 +128,8 @@ Before building, and again before calling it done:
 1. Which pillar does this serve? Say so in the commit.
 2. Does it leave a facade, something shown that cannot be used, or prose the game state does not back?
 3. Does it add a line the player will see over and over in the same words?
-4. Is it a rule for the narrator where infrastructure would do the job?
+4. Is it a rule for the narrator, or a fix for one scenario (a special case in code, a prompt line, a corpus entry), where infrastructure
+   would cover the whole class? Name the class, and test it on a case other than the one that found it.
 5. Will it bloat on a long campaign? Is it easy to extend later, with its numbers in data?
 6. Does it keep identities straight: names, pronouns and voices?
 7. Is it tested, and does the full suite pass?
@@ -142,6 +145,7 @@ Newest first. Each is a call the owner made about what the game should be; follo
 
 | Decision | Feature |
 | --- | --- |
+| No patching single scenarios, the owner on 2026-11-13: “let's make sure in the future we aren't patching specific scenarios but instead building infrastructure that is all encompassing”. A wrong ruling or a failed case is fixed by the system that let it happen, for every case of its kind (checklist item 4); the measure's corpus records the owner's rulings and is never changed to make a case pass. Prompted by f611 and f612, which recorded rulings in the corpus while the engine stayed as it was. | (process) |
 | The switch (f603), the owner's go on 2026-11-12 with the pod sessions' numbers in front of them (docs/measure/2026-11-12_phase2_pod.md): “Yes, flip the switch”. Every improvised line outside a fight goes to the act's one ruling (engine/act.py); the old path (ruling.run and world_improv.resolve) is retired. Asked during its build: what the old path made true in the world on a success is kept, beside the act's own changes: the effect an act's words read as (improv.yaml: a way barred closed for a while, a snare making the wood a little safer, a signal talked of) and the place's mark. Working decisions: the switch itself is retired with the old path (act.yaml `enabled`, DND_ACT); what an act makes true besides is told to the narrator, read from the act's own words, an effect that stands for a change the act was refused (improv.yaml stands_for) does not land; on a partial an effect lands at half and roughly, as the retired path did; a failed hide no longer leaves a mark (act.yaml fails cost time, health or the thing relied on). | f603 |
 | A success goes no further than its ruling (f609), the owner's go on 2026-11-12 (“Yes, start”) on the tuning plan after the pod rerun (docs/measure/2026-11-12_phase2_pod.md section 7): a yes or a cost now says what it comes to if it works (`works`, only what someone with what they have could bring about here), and the narrator is told that success and nothing beyond it, never “show it done”; a proclamation that rolls well is a speech heard, not a crown. A no keeps its `answer`; a ruling with no `works` (kept from before, or a stand-in's) is told as before. The corpus accepts a bounded cost for the king's and the dragon's hoard lines (f610, the owner on 2026-11-12: “Yes, accept it”): on the act's path a cost that says what it comes to and changes and makes nothing (no needs, even an ordinary crowd: the owner, “Keep it strict”) is right there, as a no is (`bounded: true`); a plain yes is not; the old ruling is held to the no. | f609, f610 |
 | The cart wheel (f611), the owner on 2026-11-12: “force on a body check”. Jamming the looters' cart with a stake may lift the band's danger when the ruling frames it as force on a test of body or arms (act.yaml force_checks, f600); framed as a hand's skill it leaves the danger standing. The corpus holds both as fair (`moves: [lifted, false]`) and the engine's rule decides. The owner also chose, for now, not to name, in a situation person's target line, the change that settles their stake (“let's not include it for now”). | f611 |
