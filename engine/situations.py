@@ -697,6 +697,9 @@ def rulings_problems(c=None) -> list[str]:
             bad.append(f"situations.yaml rulings.changes.{w}.better: true or false")
     if set(RU.get("because") or ()) != lit("because"):
         bad.append("situations.yaml rulings.because: the contract's RulingChange.because, both ways")
+    eb = RU.get("engine_because")
+    if not (isinstance(eb, list) and eb and not set(eb) & set(RU.get("because") or ())):
+        bad.append("situations.yaml rulings.engine_because: a list of what the engine alone sets, none of rulings.because")
     will = {w for w, row in ch.items() if (row or {}).get("layer") == "willingness"}
     if not set(RU.get("wont") or ()) <= will or not RU.get("wont"):
         bad.append("situations.yaml rulings.wont: some of the willingness words")
@@ -883,12 +886,14 @@ def problems() -> list[str]:
         if not (S.get("reasons") or {}).get(k):
             bad.append(f"situations.yaml reasons.{k}: a reason is needed")
     B = S.get("births") or {}                                            # (f546) births and the engine's own parts
-    if not isinstance(B.get("tiers"), list) or not set(B["tiers"]) <= {"rare", "campaign"}:
-        bad.append("situations.yaml births.tiers: of rare and campaign only (the owner: common and uncommon stay as they are)")
+    if not isinstance(B.get("tiers"), list) or not set(B["tiers"]) <= {"normal", "uncommon", "rare", "campaign"}:
+        bad.append("situations.yaml births.tiers: of normal, uncommon, rare and campaign")
+    if not isinstance(B.get("reach_tiers"), list) or not set(B["reach_tiers"]) <= set(B.get("tiers") or ()):
+        bad.append("situations.yaml births.reach_tiers: some of births.tiers (born once a character can meet them)")
     if not isinstance(B.get("tries"), int) or isinstance(B.get("tries"), bool) or B["tries"] < 1:
         bad.append("situations.yaml births.tries: a whole number above 0")
-    if not isinstance(B.get("adopt_tiers"), list) or not set(B["adopt_tiers"]) <= {"rare", "campaign", "cataclysm"}:
-        bad.append("situations.yaml births.adopt_tiers: of rare, campaign and cataclysm only")
+    if not isinstance(B.get("adopt_tiers"), list) or not set(B["adopt_tiers"]) <= {"normal", "uncommon", "rare", "campaign", "cataclysm"}:
+        bad.append("situations.yaml births.adopt_tiers: of the tiers only")
     elif isinstance(B.get("tiers"), list) and not set(B["tiers"]) <= set(B["adopt_tiers"]):
         bad.append("situations.yaml births.adopt_tiers: every tier of births.tiers, so a birth past its tries takes the engine's own parts")
     H = S.get("heart") or {}

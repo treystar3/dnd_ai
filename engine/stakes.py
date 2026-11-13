@@ -17,6 +17,7 @@ from pathlib import Path
 import yaml
 from core import yamlio
 
+from engine import worldstate
 from ui import console
 from engine import streams
 
@@ -188,7 +189,7 @@ def done(ws, q: dict) -> None:
             pulse.add_news(state, f"{q['result'][0].upper() + q['result'][1:]} - {name}'s doing, they say.", town, ws.minutes, ["everyone"], certainty="they say")
             if q["kind"] in ("hunt", "bounty") and q.get("place") in ws.world.places:
                 D = G.get("done_danger", {"value": -15, "days": 5})
-                state["effects"].append({"kind": "danger", "place": q["place"], "value": D["value"], "until": ws.minutes + D["days"] * 1440, "cause": q["title"]})
+                worldstate.add_effect(state, {"kind": "danger", "place": q["place"], "value": D["value"], "until": ws.minutes + D["days"] * 1440, "cause": q["title"]})
             ws.store.save_world_state(state)
         ws.weight_hint = "rich"
         ws.narrate(f"THE JOB IS DONE AND PAID. What is different now, seen or heard of: {q['result']}. Show it as it would be noticed; no speeches.")      # (f384) no length
@@ -219,7 +220,7 @@ def _open_matter(ws, q: dict) -> None:
             paths = [PathProposal(**p)]
         except Exception:
             paths = []
-    state["threads"].append(th)
+    worldstate.add_thread(state, th)
     th["paths"] = events.build_paths(ws.store, ws.world, state, paths, th, False)
     matters._bind_holders(ws.store, ws.world, th)
     if th["clues"] and not th["clues"][0]["npc"] and q.get("issuer"):

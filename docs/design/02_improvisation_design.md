@@ -298,6 +298,7 @@ filter and no daily cap**. The repeated-act rule is the cache key.
 - `act_multiplayer_test`: two characters' acts keep their own caches and regard (keyed by actor).
 
 ## Questions for the owner
+*Answered 2026-11-11 (GOALS.md, phase 2): 1 yes, when something real enables it; 2 yes, after phase 2; 3 yes, the reuse rule and the background slot's time budget replace them.*
 1. Should improvised acts be able to match an ability's strength on a strong success, if something real enables it?
 2. Should arcs become campaign-tier situations?
 3. Should the judge's caps of 1 a day and 8 in all go, replaced by the reuse rule?

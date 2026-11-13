@@ -63,7 +63,7 @@ _roll = _checks.roll
 _checks.roll = lambda odds, rng=None, c=None: ("success", 1)
 world_improv.read_effect = lambda words: "rig"
 t = ws.minutes
-world_improv.resolve(ws, "rig a snare across the deer path", "I rig a snare across the deer path")
+world_improv.land(ws, "rig a snare across the deer path", "success")   # (f603) kept from the retired resolve
 st = store.load_world_state()
 mine = [e for e in st["effects"] if e.get("cause") == "improvised"]
 check("a snare rigged in the wood makes it a little safer for a day", any(e["kind"] == "danger" and e["place"] == "greywood" and e["value"] == -10 and e["until"] == t + 1440 for e in mine), mine)
@@ -71,19 +71,19 @@ check("...and the place carries the mark", any(m.startswith("rigged: rig a snare
 ws.enter("trading_square")
 world_improv.read_effect = lambda words: "block"
 t = ws.minutes
-world_improv.resolve(ws, "bar the gate with the cart", "I bar the gate with the cart")
+world_improv.land(ws, "bar the gate with the cart", "success")
 st = store.load_world_state()
 seen = pulse.happenings_at(store, world, "trading_square", ws.minutes + 1)
 check("a way barred is closed for a while, and the world says so - as the player's own doing (f386)", any("barred the way here themselves" in h and "barred from inside" in h for h in seen)
       and not any("barred" in h for h in pulse.happenings_at(store, world, "trading_square", t + 91)), seen)
 check("...and it never bars the player who barred it (f386)", pulse.closed_reason(store, "trading_square", ws.minutes + 1) == "")
 world_improv.read_effect = lambda words: "signal"
-world_improv.resolve(ws, "ring the alarm bell", "I ring the alarm bell")
+world_improv.land(ws, "ring the alarm bell", "success")
 st = store.load_world_state()
 check("a signal is talked of", any("signal was raised" in n["text"] and n["origin"] == "trading_square" for n in st["news"]), st["news"][-1:])
 _checks.roll = lambda odds, rng=None, c=None: ("partial", 50)
 world_improv.read_effect = lambda words: "rig"
-world_improv.resolve(ws, "rig a tripwire", "I rig a tripwire")
+world_improv.land(ws, "rig a tripwire", "partial")
 st = store.load_world_state()
 check("a partial in the square rigs nothing the wood would feel (no danger here), and spreads no word", not any(e["kind"] == "danger" and e["place"] == "trading_square" for e in st["effects"]) and not any("tripwire" in n["text"] for n in st["news"]))
 _checks.roll = _roll

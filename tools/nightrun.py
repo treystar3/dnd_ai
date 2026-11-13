@@ -324,7 +324,9 @@ class Run:
             f.close()
         from engine import hygiene
         info = {"ended": datetime.now().isoformat(timespec="seconds"), "turns": len(self.rows), "reason": self.reason,
-                "hours": round((time.time() - self.started) / 3600, 2), "cast": self.cast, "hygiene": dict(hygiene.REPAIRS), **extra}
+                "hours": round((time.time() - self.started) / 3600, 2), "cast": self.cast, "hygiene": dict(hygiene.REPAIRS),
+                "stale_world_saves": list(getattr(getattr(self.bot.ws.store, "_world", None), "stale", None) or []),   # (f589) for the owner to rule on
+                **extra}
         (self.out / "run.json").write_text(json.dumps(info, indent=1), encoding="utf-8", newline="\n")
 
 
@@ -570,6 +572,8 @@ def main() -> None:
     config.CRASH_LOG_PATH = str(out / "crash.log")            # (f492) each run's faults in its own folder: runs on one card never interleave
     config.LOG_MAX_MB = 10 ** 6
     config.LOG_FULL_PROMPTS = True                           # (f361) every system prompt whole: a run's log is training data (tools/lora_dataset.py)
+    from storage import worldrow
+    worldrow.WATCH_STALE = True                              # (f589) a world state saved over a newer one is noted in run.json
 
     import simlib
     if args.cls not in simlib.CLASSES:

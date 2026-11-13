@@ -21,18 +21,20 @@ def check(n, ok, x=""):
 
 class Play:
     def __init__(self, d):
-        self.steps, self.cover, self.other = [tuple(x) for x in d["steps"]], d["cover"], d["other"]
+        self.steps, self.cover, self.other, self.calls = [tuple(x) for x in d["steps"]], d["cover"], d["other"], d.get("calls")
 
 with ThreadPoolExecutor(2) as pool:                      # each play in a process of its own (the stand-in model counts what it invents)
     a, b = (Play(d) for d in pool.map(world_script.run_apart, ("world_script_579_a", "world_script_579_b")))
 
 for what, met in a.cover.items():
     check(f"the script covers: {what}", met)
-check("...thirteen things in all, none dropped from the script", len(a.cover) == 13, sorted(a.cover))
+check("...fifteen things in all, none dropped from the script", len(a.cover) == 15, sorted(a.cover))   # (f605) an act
 check("the two plays took the same steps", [l for l, _ in a.steps] == [l for l, _ in b.steps] and len(a.steps) >= 25, len(a.steps))
 first = next((l for (l, x), (_, y) in zip(a.steps, b.steps) if x != y), None)
 check("after every step the two plays hold the same world, as text", first is None, first)
 check("...and every other table of the save, by its digest", a.other == b.other, [k for k in a.other if a.other[k] != b.other.get(k)])
+check("(f605) the two plays made the same model calls, kind by kind (world_script_605_test pins them)", a.calls and a.calls == b.calls,
+      (a.calls, b.calls))
 end = json.loads(a.steps[-1][1])
 check("the four lists the storage move takes are all in use at the end", all(end.get(k) for k in ("threads", "deeds", "news", "effects")),
       {k: len(end.get(k) or []) for k in ("threads", "deeds", "news", "effects")})

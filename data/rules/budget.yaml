@@ -30,7 +30,9 @@ asked_outside: [npc_conversation, npc_profile, work_offer_read, dialogue_frame, 
                 combat_interpret,                                                                            # (f497) the fight's reading of the line
                 combat_opening, combat_narrate, combat_aftermath, goddess_line,                              # (f498) the fight's tellings
                 loot_name, legendary_name, accessory_name, named_spell, spell_rank,                           # (f502) the naming of finds and spells
-                situation_parts, situation_agree]                                                            # (f546) a situation's parts, at its birth
+                situation_parts, situation_agree,                                                            # (f546) a situation's parts, at its birth
+                act_ruling,                                                                                  # (f594) an act's ruling
+                event_judge]                                                                                 # (f597) a situation's ruling
 asked_max: 48                 # (f489) the most calls one operation may ask outside it (each one runs the operation again from its start)
 tasks:
   # ---- understanding the line
@@ -55,6 +57,7 @@ tasks:
   mentor_speech:            {need: required, answer_tokens: 400}
   mentor_voice:             {need: required, answer_tokens: 200}
   ruling:                   {need: required, answer_tokens: 200}
+  act_ruling:               {need: required, answer_tokens: 260}     # (f594) an act's ruling and its changes: a first estimate, to measure
   plausible_object:         {need: required, answer_tokens: 80}
   classify_field:           {need: required, answer_tokens: 400}
   discovery:                {need: required, answer_tokens: 300}

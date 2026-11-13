@@ -123,7 +123,7 @@ from engine import checks
 real_roll = checks.roll
 world_improv.read_effect = lambda w: "block"
 checks.roll = lambda odds, *a, **k: ("success", 1)
-world_improv.resolve(ws, "bar the gate with the cart", "I bar the gate with the cart")
+world_improv.land(ws, "bar the gate with the cart", "success")      # (f603) what an act that worked makes true besides
 world_improv.read_effect, checks.roll = real, real_roll
 check("a way the player barred themselves never bars them", pulse.closed_reason(store, "trading_square", ws.minutes + 1) == "")
 check("...and the world tells it as theirs", any("barred the way here themselves" in h for h in pulse.happenings_at(store, world, "trading_square", ws.minutes + 1)))

@@ -150,6 +150,16 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 return n
         return self.store.load_npc(nid) if self.store.npc_exists(nid) else None
 
+    def lying_here(self) -> list[str]:
+        """(f592) The things lying where the player stands that the place's marks do not tell (one set down here), for the narrator."""
+        from engine import objects
+        return objects.lying_unmarked(self.store, self.player.location, self.minutes)
+
+    def carried_things(self) -> list:
+        """(f592) The things in the world the acting character carries in hand (engine/objects.py), for the inventory."""
+        from engine import objects
+        return objects.carried(self.store, self.acting)
+
     @property
     def acting(self) -> str:
         """(f480) The id of the character whose line is being played. What a person makes of "the player" is what they make of this
@@ -227,6 +237,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         held = c.equipment.get("main_hand")
         parts = [f"wearing {', '.join(worn)}" if worn else "no armor, only plain clothes"]
         parts.append(f"carrying {held.name}" if held else "empty-handed")
+        if (things := self.carried_things()):                # (f592) things in the world carried in hand
+            parts.append(f"holding {', '.join(o.name for o in things)}")
         if getattr(c, "look_text", ""):                    # (f388) how they look, as they chose at the Threshold
             parts.insert(0, c.look_text.rstrip("."))
         return "; ".join(parts)
@@ -268,7 +280,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         result = fresh("narrate", system,
                        wp.narration_request(self.time_label(), self.place, self.people_view(), event, self.last_text,
                                             self.recent_narration, self.gear_line(),
-                                            self.store.load_place(self.player.location).marks,
+                                            self.store.load_place(self.player.location).marks, ground=self.lying_here(),
                                             told=ledger.told()),                       # (f416) what the turn did: a fight's opening, a sighting
                        Narration, self.recent_narration)
         console.narrate(result.text)
@@ -285,7 +297,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.flush(self.last_text)
         request = wp.narration_request(self.time_label(), self.place, self.people_view(), event, self.last_text,
                                        self.recent_narration, self.gear_line(),
-                                       self.store.load_place(self.player.location).marks,
+                                       self.store.load_place(self.player.location).marks, ground=self.lying_here(),
                                        told=ledger.told())                       # (f416) what the turn did: a fight's opening, a sighting
         recent = list(self.recent_narration)
 
@@ -467,14 +479,38 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self._doing_changes = doings.assign(self.store, self.present, self.minutes, moments.active(self.store, self.player.location, self.minutes) or street,
                                             visiting=self._routine_here, place_type=self.place.type if self.player.location in self.world.places else "")
 
+    def take_up_acts(self, text: str) -> None:
+        """(f596) The oldest act this character left waiting for its ruling, ruled on before the new line is read, in an operation of its
+        own whose call is asked outside the transaction (engine/act.py take_up); told, then the line plays. Nothing when none waits."""
+        from engine import act
+        if self.combat or not act.waiting(self, self.acting):
+            return                                         # never in a fight: an act outside combat waits for the fight to end
+        said = act.waiting(self, self.acting)[0]["text"]
+        op, _ = self.asked_operation("act:waiting", said, lambda op: act.take_up(self, self.acting, text), world=True)
+        if op.state != "committed":                        # its operation failed for any reason: one of its tries spent, apart
+            with self.operation("act:waiting:missed", said, world=True):
+                act.missed(self, self.acting)
+        self.run_passages()
+
+    def take_up_rulings(self, text: str) -> None:
+        """(f597) The oldest deed left waiting on a situation for room in a turn's budget, ruled on after the line, as a birth is: a world
+        operation of its own, its call asked outside the transaction, with what time the turn has left. Never in a fight."""
+        from engine import events
+        if self.combat or not events.waiting(self.store.load_world_state() or {}):
+            return
+        self.asked_operation("situation:waiting", text, lambda op: events.take_up_waiting(self), world=True)
+        self.run_passages()
+
     def situation_births(self, text: str) -> None:
         """(f546) After the tail, apart from it, and only when something waits (so an input with nothing born commits what it always did):
         the oldest birth due asks for its parts outside any transaction (engine/situation_parts.py birth), the people here read again
         inside it (f546's second review: every write within an operation); a birth that took none, or whose operation failed for any
-        reason, spends one of its tries in an operation of its own (f546's review), so none is asked forever; then the situations with
-        no parts to adopt (one past its tries among them) take the engine's own, in an operation with no call."""
+        reason but the turn's budget, spends one of its tries in an operation of its own (f546's review), so none is asked forever; then
+        the situations with no parts to adopt (one past its tries among them) take the engine's own, in an operation with no call.
+        (f599) The nearest birth a character can meet comes first; one with no room this turn waits, met, and spends no try."""
         from engine import situation_parts
-        th = situation_parts.due(self.store.load_world_state() or {})
+        from engine.budget import BudgetError
+        th = situation_parts.due(self.store.load_world_state() or {}, self.world, [self.player.location])   # (f599) where they stand
         if th is not None:
             tid, why = th["id"], {}
 
@@ -482,11 +518,14 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 try:
                     if situation_parts.birth(self, tid):
                         self.reread_here()
+                except BudgetError:
+                    why["budget"] = True                   # (f599) no room this turn: it waits, met, and spends no try
+                    situation_parts.wait_for_room(self, tid)
                 except LLMError as e:
                     why["it"] = str(e) or "the model gave nothing usable"
                     raise
             op, _ = self.asked_operation("parts", text, _born, world=True)
-            if op.state != "committed":
+            if op.state != "committed" and not why.get("budget"):
                 with self.operation("parts:missed", text, world=True):
                     situation_parts.missed(self, tid, why.get("it") or "its operation did not stand")
         if situation_parts.adoptable(self.store.load_world_state() or {}):
@@ -515,6 +554,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         town_memory.sweep(self.store, self.world, self.player.location, self.minutes)        # (f484) past their term; a settled matter leaves its mark
         self.__dict__.pop("_streets_cache", None)                                           # (f357) the world may have moved: read the streets afresh
         events.apply_player_events(self)
+        events.read_ends(self)                                                                # (f598) what the pulse's hours ended, read from the world
         self.arc_tick()
         here = self.store.load_place(self.player.location)
         if here.populated:
@@ -1472,6 +1512,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.ran = []
                 plan = None
                 self.collecting = True                     # (f464) a narration asked for by an action is a passage operation after it
+                self.take_up_acts(text)                    # (f596) an act left waiting for its ruling, before this line is read
                 def _line(op):                             # (f470) the line taken whole (an answer, a fight's round, an intercept), or void
                     self._wrote_turn = False               # (f351) the narrator's mark is a flag, not a turn number; set inside the operation, so a rollback takes it back
                     got = self.take_line(text)
@@ -1545,6 +1586,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.asked_operation("tail", text, _tail, world=True)
                 self.run_passages()                            # (f498) the tail collects too: a road fight walked into as it resumes the
                 if not self.combat:
+                    self.take_up_rulings(text)                 # (f597) a deed left waiting on a situation, after the line, as births are
                     self.situation_births(text)                # (f546) a situation born given its parts, each in operations of its own
                 self.collecting = False                        # road (resume_road) begins committed, its opening a passage told after it
                 ledger.LAST = ledger.end()
@@ -2436,7 +2478,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 what = text.strip().split(maxsplit=1)[1] if " " in text.strip() else ""
                 self.on_use(SimpleNamespace(item=what), what)
                 with console.scope("#inventory"):
-                    console.show_inventory(self.player.character)
+                    console.show_inventory(self.player.character, self.carried_things())
                 self.show_header()
             else:
                 from types import SimpleNamespace
@@ -2470,7 +2512,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.allocate(name.split(maxsplit=1)[1] if " " in name else "")
         elif name.split()[0] in ("inventory", "inv", "i"):
             c = self.player.character
-            console.show_inventory(c)
+            console.show_inventory(c, self.carried_things())
         elif name.split()[0] in ("equip", "wield", "wear"):
             self.equip_command(name.split(maxsplit=1)[1] if " " in name else "")
         elif name.split()[0] in ("unequip", "remove"):
@@ -2668,7 +2710,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             people, unlooked = self.first_seen(people)                                       # (f380) walking in: who the eye falls on first
         request = wp.narration_request(self.time_label(), self.place, people, event, player_text,
                                        self.recent_narration, self.gear_line(), marks,
-                                       [inv.label(i) for i in self.ground_here()],
+                                       [inv.label(i) for i in self.ground_here()] + self.lying_here(),
                                        unseen, streets=streets,
                                        town=" ".join(prof.character.split()) if prof and not self.place.danger else "",
                                        news=here.lines("news")[:3],                                 # (f331) the narrator hears what the town is talking about
@@ -2856,7 +2898,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             shown_places.append((pid, f"{name} ({tag})" if tag else name))
         req = wp.interpret_request(self.time_label(), self.place.name, shown_places, people, elsewhere,
                                    self.partner.id if self.partner else None, last, text,
-                                   shown["wares"], shown["abilities"], shown["pack"], [inv.label(i) for i in self.ground_here()],
+                                   shown["wares"], shown["abilities"], shown["pack"], [inv.label(i) for i in self.ground_here()] + self.lying_here(),
                                    shown["stash"] if stash_all is not None else None, shown["buyers"], shown["recipes"],
                                    [k.name for k in self.player.character.key_items],
                                    markup.describe(text) if markup.has_markup(text) else "", hint,
@@ -3999,8 +4041,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if spot is not None and spot.data.get("clue") and not spot.data.get("read") and \
                 any(w in f"{intent.summary} {text}".lower().split() for w in self.CLUE_WORDS) and self.search_part(intent, text):
             return                                          # (f395) reading the marks where the player stands: what the part holds
-        from engine import ruling
-        ruling.run(self, intent.summary or text, text)      # (f395) the dungeon master's ruling: make room, set the stakes, or say no
+        from engine import act
+        act.act(self, self.acting, intent.summary or text, text)   # (f603) the one ruling outside combat: rule, check, change, or say no
 
 
 from scenes import intercepts as _intercepts                                     # noqa: E402

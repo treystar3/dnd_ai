@@ -249,6 +249,8 @@ class CampaignStore:
         self._exempt = 0               # (f462) writes the fence lets through (mark_shown)
         self._writes = 0               # (f470) rows written since the store opened: an operation compares before and after
         self._later: list = []         # (f470) people a read filled in outside any operation, saved by the next (save_npc_later)
+        from storage.worldrow import RowWorld
+        self._world = RowWorld(self)   # (f589) the world's state behind one seam (engine/worldstate.py reads through it)
 
     # ---------- opening ----------
 
@@ -402,10 +404,10 @@ class CampaignStore:
             return [Entity.model_validate_json(r[0]) for r in self._db.execute(sql, args)]
 
     def load_world_state(self) -> dict:
-        return self._kv("world_state") or {}
+        return self._world.load()
 
     def save_world_state(self, state: dict) -> None:
-        self._put("world_state", json.dumps(state))
+        self._world.save(state)
 
     def load_dungeons(self) -> list[dict]:
         return self._kv("dungeons") or []
@@ -420,6 +422,20 @@ class CampaignStore:
 
     def save_arcs(self, data: dict) -> None:
         self._put("arcs", json.dumps(data))
+
+    def load_act_rulings(self) -> dict:
+        """(f594) Each character's kept act rulings (engine/act.py), by character id."""
+        return self._kv("act_rulings") or {}
+
+    def save_act_rulings(self, data: dict) -> None:
+        self._put("act_rulings", json.dumps(data))
+
+    def load_act_pending(self) -> dict:
+        """(f596) Each character's acts waiting for their ruling (engine/act.py), by character id."""
+        return self._kv("act_pending") or {}
+
+    def save_act_pending(self, data: dict) -> None:
+        self._put("act_pending", json.dumps(data))
 
     def load_discoveries(self) -> dict:
         base = {"places": [], "tracks": [], "leads": []}

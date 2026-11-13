@@ -576,7 +576,8 @@ def check() -> list[str]:
     from engine import motives as _mo                                                        # (f360) known people's steps, by the trait their goal came from
     bad += _mo.problems(set(((_pulse_rules.get("drift") or {}).get("motives") or {}).get("seeds") or {}))
     from engine import consequences as _cq                                                   # (f359) the town answers the stranger's deeds
-    bad += _cq.problems(_th.T["templates"], ("kill", "offense", "quest_done", "persuade", "deliver", "dungeon_cleared", "found", "defend", "settled"))
+    bad += _cq.problems(_th.T["templates"], ("kill", "offense", "quest_done", "persuade", "deliver", "dungeon_cleared", "found", "defend", "settled",
+                                            "gift", "bribe"))                    # (f589) every kind the ledger keeps
     from engine import starts as _starts                                                      # (f367) starting points for the night run
     bad += _starts.problems(set(_load("data/rules/standing.yaml")["groups"]), set(_pulse_rules["tiers"]), set(_load("data/rules/guild.yaml")["ranks"]))
     from engine import guard as _guard                                                        # (f364) the content guard's categories
@@ -585,6 +586,12 @@ def check() -> list[str]:
     bad += _hygiene.problems()
     from engine import entities as _entities                                                  # (f392) the lifecycles
     bad += _entities.problems()
+    from engine import objects as _objects                                                    # (f592) things in the world
+    bad += _objects.problems()
+    from engine import targets as _targets                                                    # (f593) the changes an act can make
+    bad += _targets.problems()
+    from engine import act as _act                                                            # (f594) an act's ruling, kept
+    bad += _act.problems()
     from engine import ruling as _ruling                                                      # (f395) what a character can do beyond the ordinary
     bad += _ruling.problems()
     from engine import techniques as _techniques                                              # (f396) what hires can do in a fight
@@ -779,11 +786,44 @@ def check() -> list[str]:
     bad += sampling_problems()                                         # (f527) data/rules/sampling.yaml's shape
     bad += _llama.sampler_problems()                                   # (f521) every sampler key one llama-server reads, in its range
     bad += model_problems()                                            # (f527) the model ids name the server's files
+    bad += world_caps_problems()                                       # (f589) what the world's state keeps of each list
+    bad += endings_problems()                                          # (f598) how a matter's ending is told and paid
     bad += grammar_problems()                                          # (f527) every contract has its grammar
     from llm import runtime as _runtime
     bad += _runtime.runtime_problems()                                 # (f522) the server's settings hold what the game sends
     from llm import launch as _launch
     bad += _launch.problems()                                          # (f526) the load screen's lines, once the owner's are in
+    return bad
+
+
+def endings_problems(D: dict | None = None) -> list[str]:
+    """(f598) Each ending a situation's reading can name has its reputation share, its line told to the player, and its town memory."""
+    M = ((_load("data/rules/doors.yaml") if D is None else D).get("memory") or {})
+    bad = []
+    for kind in ("achieved", "partly", "transformed", "lost"):
+        v = (M.get("ending_share") or {}).get(kind)
+        if not (isinstance(v, (int, float)) and not isinstance(v, bool) and 0 <= v <= 1):
+            bad.append(f"doors.yaml memory.ending_share.{kind}: needs a share from 0 to 1")
+        if "{title}" not in str((M.get("ended") or {}).get(kind, "")):
+            bad.append(f"doors.yaml memory.ended.{kind}: needs a line naming {{title}}")
+    for how in ("partly", "transformed", "lost"):
+        if "{title}" not in str(M.get(how, "")) or "{name}" not in str(M.get(how, "")):
+            bad.append(f"doors.yaml memory.{how}: needs the town's words, naming {{title}} and {{name}}")
+    return bad
+
+
+def world_caps_problems(E: dict | None = None, P: dict | None = None) -> list[str]:
+    """(f589) The caps on the world's lists: every store has one (GOALS.md "How it is built"), and a cap of 0, below it or not a whole
+    number would empty a list or grow it without bound."""
+    E = _load("data/rules/events.yaml") if E is None else E
+    P = _load("data/rules/pulse.yaml") if P is None else P
+    bad = []
+    for where, v in (("events.yaml judge.keep_deeds", (E.get("judge") or {}).get("keep_deeds")),
+                     ("pulse.yaml history_keep", P.get("history_keep")),
+                     ("pulse.yaml news.keep", (P.get("news") or {}).get("keep")),
+                     ("pulse.yaml news.keep_days", (P.get("news") or {}).get("keep_days"))):
+        if not (isinstance(v, int) and not isinstance(v, bool) and v > 0):
+            bad.append(f"{where}: needs a whole number above 0 (got {v!r})")
     return bad
 
 

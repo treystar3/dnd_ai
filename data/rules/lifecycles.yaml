@@ -58,3 +58,15 @@ obligation:
   start: active
   final: [fulfilled, broken, released]
   moves: {active: [fulfilled, broken, released]}
+
+# (f592) A thing in the world (engine/objects.py, data/rules/objects.yaml): a loose rock, a rope left behind, a brazier. It lies where it
+# was made, is carried by a character (its owner), hidden or broken where it lies; destroyed or gone, it is no more.
+object:
+  states: [here, carried, hidden, broken, destroyed, gone]
+  start: here
+  final: [destroyed, gone]
+  moves:
+    here: [carried, hidden, broken, destroyed, gone]
+    carried: [here, destroyed, gone]                # a thing is broken where it lies, never in hand
+    hidden: [here, carried, gone]
+    broken: [here, carried, destroyed, gone]

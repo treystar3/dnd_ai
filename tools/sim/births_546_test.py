@@ -174,14 +174,14 @@ check("...and its heart: the closed road a threat, the place at stake",
       any(x["kind"] == "condition" and x["what"] == "closed" for x in old["heart"]["threats"])
       and any(x["kind"] == "place" for x in old["heart"]["stakes"]), old.get("heart"))
 
-# ---- a normal birth asks nothing; nothing is born during a fight
-calls2 = stub.calls.get("SituationParts", 0)
+# ---- (f599) a normal birth asks for its parts once a character can meet it; nothing is born during a fight
 th3 = start(store, world, ws.catalog, ws.minutes, "normal", seed=13)
-check("(a normal situation is born)", th3 is not None)
-ws.turn("I look around.")
-check("a normal birth is never due and asks nothing", th3 is not None and "parts_due" not in thread_of(store, th3["id"])
-      and stub.calls.get("SituationParts", 0) == calls2)
+check("(a normal situation is born, here, with no birth due yet)", th3 is not None and "parts_due" not in thread_of(store, th3["id"]))
 stub.a_SituationParts = parts_answer
+calls2 = stub.calls.get("SituationParts", 0)
+ws.turn("I look around.")
+check("(f599) a normal one where the character stands is met, and asks for its parts", thread_of(store, th3["id"]).get("parts")
+      and stub.calls.get("SituationParts", 0) == calls2 + 1, (stub.calls.get("SituationParts", 0), calls2))
 th4 = start(store, world, ws.catalog, ws.minutes, "rare", seed=17)
 ws.combat = object()
 check("nothing is born during a fight", situation_parts.birth(ws, th4["id"]) is False and "parts" not in thread_of(store, th4["id"])

@@ -1,6 +1,6 @@
 # 6. Design: time when players split up
 
-Status: a proposal for the owner. It answers the open question in GOALS.md: "how does time work when players separate (one player
+Status: superseded in part on 2026-11-12. The owner took place clocks with agreed skips in its place (docs/design/17_multiplayer_survey_and_plan.md section 3.5): no last-touched time on people and things, the window a warning, a resident asked instead of moved. Its lazy catch-up, per-character clock and offline check-out stand. Written as a proposal for the owner. It answers the open question in GOALS.md: "how does time work when players separate (one player
 fighting while another travels for days, sleeping while another fights)?" It serves the multiplayer decisions of 2026-11-03 (a shared
 campaign, players who split up and reunite, each player's model calls on their own card) and pillar 1 (the world keeps moving).
 

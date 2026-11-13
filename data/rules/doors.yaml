@@ -48,6 +48,9 @@ reopen_after_days: 3
 memory:
   keep_days: 30
   settled:  "{title}: settled by {name}"
+  partly:   "{title}: settled by {name}, though not without loss"          # (f598) the endings read from the world
+  transformed: "{title}: ended by {name}, though the one behind it is not done"
+  lost:     "{title}: lost, for all {name} did"
   ignored:  "{title}: {name} was asked, and let it be"
   mark:     "{title}, settled by {name}"
   kinds:
@@ -57,3 +60,9 @@ memory:
     job:     {days: 30, cap: 12}        # a job done here (its result is already a mark at its spot, engine/stakes.py)
   marks_cap: 12
   reputation: {normal: 3, uncommon: 4, rare: 6, campaign: 12, cataclysm: 12}
+  ending_share: {achieved: 1.0, partly: 0.5, transformed: 0.75, lost: 0.0}   # (f598) of the tier's reputation, by ending; numbers to tune
+  ended:                                    # (f598) what the player is told when the world reads a matter ended
+    achieved: "{title} is settled."
+    partly: "{title} is settled, though not without loss."
+    transformed: "{title} is over, though the one behind it is not done."
+    lost: "{title} is lost, for all that was done."

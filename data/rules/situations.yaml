@@ -278,15 +278,16 @@ register:
       blocks: "Win {name} over, and they will stand aside."
 
 # (f546) Births and the situation's heart (the owner, 2026-11-08: "Their objectives are derived from their original facts: what
-# threatens the situation, what is at stake, and who or what controls the relevant conditions"). A rare or campaign situation is born
-# with its prose (the world's operation), then given its parts in an operation of their own after the input's tail, asked outside any
-# transaction; a call that fails or finds no room is tried again on a later input, `tries` times in all, and past them the situation
-# takes the parts the engine can build from what it already holds. Those engine parts are also what every rare, campaign or cataclysm
-# situation that has none takes (an old save, a cataclysm): no model call. The heart is written once, when the parts are, and never again.
+# threatens the situation, what is at stake, and who or what controls the relevant conditions"). A situation is born with its prose
+# (the world's operation), then given its parts in an operation of their own after the input's tail, asked outside any transaction:
+# a rare or campaign one at once, (f599) a normal or uncommon one once a character can meet it. A call that fails is tried again on a
+# later input, `tries` times in all (a turn with no room spends none), and past them the situation takes the parts the engine can build
+# from what it already holds; so does one of an adopting tier that has none (an old save, a cataclysm). The heart is written once.
 births:
-  tiers: [rare, campaign]        # the tiers whose birth asks the model for parts (common and uncommon stay as they are: the owner)
-  tries: 3                       # the inputs a due birth is tried on before the engine's own parts stand
-  adopt_tiers: [rare, campaign, cataclysm]   # the tiers that take the engine's own parts when they have none
+  tiers: [normal, uncommon, rare, campaign]  # (f599, the owner 2026-11-11) every tier's parts are the model's
+  reach_tiers: [normal, uncommon]            # (f599) asked only once a character can meet it: within reach, or heard of, or acted on
+  tries: 3                       # the inputs a due birth is tried on before the engine's own parts stand (a turn with no room spends none)
+  adopt_tiers: [normal, uncommon, rare, campaign, cataclysm]   # the tiers that take the engine's own parts when they have none
 heart:
   threat_kinds: [closed, danger, prices]     # the conditions that harm (a mark is a sign of what happened, not a harm)
   stake_states: [scarce, stranded, wanted]   # the goods a situation puts at stake
@@ -304,6 +305,8 @@ rulings:
   most: 12                         # the changes one ruling may carry
   max_tokens: 900                  # the ruling's answer room (budget.yaml event_judge answer_tokens is what it is expected to use)
   window: 40                       # the changes a situation keeps on record, newest last
+  kept: 24                         # (f597) the rulings a situation remembers for the reuse rule: a repeat with nothing changed is ruled no more
+  waiting: 4                       # (f597) the deeds a situation keeps waiting for a ruling the turn's budget had no room for
   trust: 10                        # how far warmer or colder moves a person's trust in the one who acted
   changes:
     believes:   {layer: belief, kinds: [person], actor: act, better: true}
@@ -334,6 +337,7 @@ rulings:
     found:      {layer: world, kinds: [evidence], actor: act, better: true}
     destroyed:  {layer: world, kinds: [evidence], actor: either, better: false}
   because: [words, coin, goods, force, evidence, earlier]
+  engine_because: [work]   # (f600) set by the engine for an act's change, never by the model: a hand's work, never force
   words_only_acts: [persuade, heard, talk, lie, deceived, lie_caught, part_done]   # acts of words alone (never the world itself)
   goods_acts: [gift, bribe, deliver]       # acts that hand goods over
   wont: [hostile, refusing, committed]     # a person standing so toward the one who acted takes no cooperative action, until moved

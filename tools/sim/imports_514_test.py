@@ -166,6 +166,8 @@ named = []
 for rel in tracked:
     if not rel or rel in EXEMPT or rel.startswith("data/replay/") or (rel.startswith("tools/sim/") and rel.endswith("_test.py")):
         continue
+    if rel.startswith("docs/research/"):
+        continue                                            # (f606) research cites other projects' servers; it is no dependency
     try:
         text = (ROOT / rel).read_text(encoding="utf-8")
     except (UnicodeDecodeError, OSError):

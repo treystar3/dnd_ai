@@ -1,0 +1,100 @@
+# (f601) ACTS ON THINGS AND ON A SITUATION'S PARTS: the third ruling set, for the act's ruling (engine/act.py; tools/ruling_eval.py
+# --path new|both --cases <this file>). The shape of data/replay/ruling_cases.yaml, and what a case needs in the world: `objects` lying
+# where it is, `carried` things in hand (only the act's ruling sees them), a `situation` with its people (here or away from the scene,
+# their stake and want, `against`: a stance toward the character, named in the line as {person:<n>}) and conditions. A `model` is a
+# ruling to try the engine's own checks against offline, its targets named @object:<word>, @condition or @person:<n>; `moves` what a good
+# dungeon master would leave each named target as: a word, a list of fair words, {not: words} (anything but these), or false
+# (untouched); measured live too. `known`: where the engine is not yet what
+# the owner decided, shown apart until its feature lands.
+# Force counts only on a test of body or arms, skill is a hand's work, a kept force change counts for its own target in person (the
+# owner, 2026-11-11, GOALS.md f600).
+
+# ---------- things: a ruling uses and changes what is really here ----------
+- {line: "I climb the rope down into the dry well.", at: trading_square, expect: "cost", objects: [a knotted rope],
+   model: {sense: "cost", uses: ["@object:rope"], stakes: {check: dexterity, hard: fair}}}
+- {line: "I smash the barrel open to see what is inside.", at: trading_square, expect: "cost", objects: [a barrel],
+   model: {sense: "cost", stakes: {check: strength, hard: fair}, changes: [{n: 1, target: "@object:barrel", becomes: broken, because: force}]},
+   moves: {"@object:barrel": broken}}
+- {line: "I tuck the lantern out of sight behind the stalls.", at: trading_square, expect: "yes", objects: [a lantern],
+   model: {sense: "yes", changes: [{n: 1, target: "@object:lantern", becomes: hidden_here, because: skill}]}, moves: {"@object:lantern": hidden_here}}
+- {line: "I set the straw bale alight, then kick it apart.", at: trading_square, expect: "cost", objects: [a straw bale],
+   model: {sense: "cost", stakes: {check: dexterity, hard: fair}, changes: [{n: 1, target: "@object:straw", becomes: destroyed, because: skill},
+                                                                          {n: 2, target: "@object:straw", becomes: broken, because: force}]},
+   moves: {"@object:straw": destroyed}}
+- {line: "I tie the rope in my hand to the post and lower myself to the riverbank.", at: trading_square, expect: "cost", carried: [a coil of rope],
+   model: {sense: "cost", uses: ["@object:rope"], stakes: {check: dexterity, hard: fair}}}
+- {line: "I light my torch and hold it up to the back tunnel.", at: tidepool_caves, expect: "yes", pack: [torch]}
+- {line: "I summon a fire spirit to burn the barrel.", at: trading_square, expect: "no", objects: [a barrel],
+   model: {sense: "yes", requires: [summoning], changes: [{n: 1, target: "@object:barrel", becomes: destroyed, because: force}]},
+   moves: {"@object:barrel": false}}
+
+# ---------- a situation's parts: the act's one ruling moves them, by the situation's own rules ----------
+- {line: "I bar the granary door and drive the looters off with my sword.", at: trading_square, expect: "cost",
+   situation: {tier: rare, title: Looting, people: [{here: true, stake: harmed, want: safety}],
+               conditions: [{kind: danger, label: looters in the square, by: the looting band, by_kind: group}]},
+   model: {sense: "cost", stakes: {check: intimidation, hard: fair},
+           changes: [{n: 1, target: "@condition", becomes: lifted, because: force},
+                     {n: 2, target: "@person:1", becomes: safe, because: earlier, needs: [1]}]},
+   moves: {"@condition": lifted, "@person:1": safe}}
+- {line: "I sing to the looters until they lose heart.", at: trading_square, expect: "cost",
+   situation: {tier: rare, title: Looting, people: [{here: true, stake: harmed, want: safety}],
+               conditions: [{kind: danger, label: looters in the square, by: the looting band, by_kind: group}]},
+   model: {sense: "cost", stakes: {check: performance, hard: fair}, changes: [{n: 1, target: "@condition", becomes: lifted, because: words}]},
+   moves: {"@condition": false}}
+- {line: "I sing so fiercely that the looters flee the square.", at: trading_square, expect: "cost",
+   situation: {tier: rare, title: Looting, people: [{here: true, stake: harmed, want: safety}],
+               conditions: [{kind: danger, label: looters in the square, by: the looting band, by_kind: group}]},
+   model: {sense: "cost", stakes: {check: performance, hard: fair}, changes: [{n: 1, target: "@condition", becomes: lifted, because: force}]},
+   moves: {"@condition": false}}
+- {line: "I jam the looters' cart wheel with a stake so they cannot haul the grain away.", at: trading_square, expect: "cost",
+   situation: {tier: normal, title: Looting, people: [{here: true, stake: harmed, want: safety}],
+               conditions: [{kind: danger, label: looters in the square, by: the looting band, by_kind: group}]},
+   model: {sense: "cost", stakes: {check: dexterity, hard: fair}, changes: [{n: 1, target: "@condition", becomes: lifted, because: skill}]},
+   moves: {"@condition": [lifted, false]}}   # (f611) force on a body check may lift it (the owner); a hand's skill leaves it
+- {line: "I drive the looters out of the square while {person:2} watches from the granary step.", at: trading_square, expect: "cost",
+   situation: {tier: rare, title: Looting, people: [{here: true, stake: harmed, want: safety}, {here: true, stake: blocks, want: coin, against: committed}],
+               conditions: [{kind: danger, label: looters in the square, by: the looting band, by_kind: group}]},
+   model: {sense: "cost", stakes: {check: strength, hard: fair},
+           changes: [{n: 1, target: "@condition", becomes: lifted, because: force},
+                     {n: 2, target: "@person:2", becomes: terrified, because: earlier, needs: [1]}]},
+   moves: {"@condition": lifted, "@person:2": false}}
+- {line: "I chase the smugglers' lookouts out of the square, far from the tower they hold.", at: trading_square, expect: "cost",
+   situation: {tier: uncommon, title: Smugglers, people: [{here: true, stake: harmed, want: safety}],
+               conditions: [{kind: danger, label: smugglers holding the watch tower, by: the smugglers, by_kind: group, place: watch_tower}]},
+   model: {sense: "cost", stakes: {check: strength, hard: fair}, changes: [{n: 1, target: "@condition", becomes: lifted, because: force}]},
+   moves: {"@condition": false}}
+- {line: "I wrestle {person:1} to the ground until they give up the fight.", at: trading_square, expect: "cost",
+   situation: {tier: uncommon, title: The grain hoard, people: [{here: true, stake: blocks, want: coin, against: committed}],
+               conditions: [{kind: danger, label: the hoarders' guard on the granary, by: the hoarders, by_kind: group}]},
+   model: {sense: "cost", stakes: {check: strength, hard: fair}, changes: [{n: 1, target: "@person:1", becomes: terrified, because: force}]},
+   moves: {"@person:1": [terrified, surrenders]}}
+- {line: "I plead with {person:1} to let the hungry have some of the grain.", at: trading_square, expect: "cost",
+   situation: {tier: uncommon, title: The grain hoard, people: [{here: true, stake: blocks, want: coin, against: committed}],
+               conditions: [{kind: danger, label: the hoarders' guard on the granary, by: the hoarders, by_kind: group}]},
+   model: {sense: "cost", stakes: {check: persuasion, hard: hard}, changes: [{n: 1, target: "@person:1", becomes: open, because: words}]},
+   moves: {"@person:1": {not: [open, wary, hostile, refusing, terrified, committed, flees, surrenders, joins, warns]}}}
+- {line: "I break down the cellar door where they keep {person:1} and pull them out.", at: trading_square, expect: "cost",
+   situation: {tier: rare, title: The kidnapping, people: [{here: false, stake: harmed, want: safety}],
+               conditions: [{kind: danger, label: the kidnappers in the square, by: the kidnappers, by_kind: group}]},
+   model: {sense: "cost", stakes: {check: strength, hard: fair}, changes: [{n: 1, target: "@person:1", becomes: safe, because: force}]},
+   moves: {"@person:1": safe}}
+- {line: "I pick the lock of the cellar where they keep {person:1} and lead them out quietly.", at: trading_square, expect: "cost",
+   situation: {tier: rare, title: The kidnapping, people: [{here: false, stake: harmed, want: safety}],
+               conditions: [{kind: danger, label: the kidnappers in the square, by: the kidnappers, by_kind: group}]},
+   model: {sense: "cost", stakes: {check: dexterity, hard: fair}, changes: [{n: 1, target: "@person:1", becomes: safe, because: skill}]},
+   moves: {"@person:1": safe}}   # (f604) a hand's work where the trouble is frees one held away too (the owner, 2026-11-11)
+- {line: "I shout down to {person:1} in the cellar that they are free now.", at: trading_square, expect: "yes",
+   situation: {tier: rare, title: The kidnapping, people: [{here: false, stake: harmed, want: safety}],
+               conditions: [{kind: danger, label: the kidnappers in the square, by: the kidnappers, by_kind: group}]},
+   model: {sense: "yes", changes: [{n: 1, target: "@person:1", becomes: safe, because: words}]}, moves: {"@person:1": false}}
+- {line: "I wave my hand and the looters vanish.", at: trading_square, expect: "no",
+   situation: {tier: rare, title: Looting, people: [{here: true, stake: harmed, want: safety}],
+               conditions: [{kind: danger, label: looters in the square, by: the looting band, by_kind: group}]},
+   model: {sense: "yes", requires: [teleport], changes: [{n: 1, target: "@condition", becomes: lifted, because: force}]},
+   moves: {"@condition": false}}
+- {line: "I stand in the granary doorway with my sword drawn so no looter gets past.", at: trading_square, expect: "cost",
+   situation: {tier: normal, title: Looting, people: [{here: true, stake: harmed, want: safety}],
+               conditions: [{kind: danger, label: looters in the square, by: the looting band, by_kind: group}]}}
+- {line: "I promise the looters a share of my pay if they leave {person:1} be.", at: trading_square, expect: "cost",
+   situation: {tier: normal, title: Looting, people: [{here: true, stake: harmed, want: safety}],
+               conditions: [{kind: danger, label: looters in the square, by: the looting band, by_kind: group}]}}

@@ -184,8 +184,10 @@ class InventoryActions:
     def on_discard(self, intent, text: str) -> None:
         key = self.find_key(intent.item or text)
         if not key:
-            if inv.find(self.pack, intent.item or text):
-                self.on_drop(intent, text)
+            if inv.find(self.pack, intent.item or text) or self.carried_named(intent.item or text) is not None \
+                    or self.drop_object(intent.item or text, text):
+                if inv.find(self.pack, intent.item or text) or self.carried_named(intent.item or text) is not None:
+                    self.on_drop(intent, text)
                 return
             self.refuse("You don't have that.")
             return
@@ -255,10 +257,57 @@ class InventoryActions:
         """Frugal Hands: a consumable that is not used up, some of the time (the mechanic's value is the percent)."""
         return self.owns("frugal_hands") and self.rng.random() * 100 < self.mech("frugal_hands")
 
+    def take_object(self, words: str, text: str) -> bool:
+        """(f592) A thing lying here (engine/objects.py) picked up: one that names a good becomes that good in the pack; any other is
+        carried as itself, unless it is too heavy to carry off or the character's hands are full. False when no thing here is meant."""
+        from engine import objects
+        obj = objects.find(objects.here(self.store, self.player.location, self.minutes), words)
+        if obj is None:
+            return False
+        good = inv.is_good(obj.name)
+        if good and good in inv.GOODS:
+            objects.change(self.store, obj, "gone", self.minutes, "taken into the pack")
+            self.to_pack(inv.make_good(good))
+            self.store.save_player(self.player)
+            self.narrate(f"The player picks up {obj.name}.", text)
+            return True
+        why = objects.take(self.store, obj, self.acting, self.minutes)
+        if why == "heavy":
+            self.narrate(f"The player tries to lift {obj.name}, but it is far too heavy to carry off; it stays where it lies.", text)
+        elif why == "full":
+            held = ", ".join(o.name for o in objects.carried(self.store, self.acting))
+            self.narrate(f"The player's hands are already full ({held}); {obj.name} stays where it lies.", text)
+        else:
+            ledger.add("carried", {"what": obj.name}, ref=obj.ref, say=f"The player carries {obj.name} now, in hand.")
+            self.narrate(f"The player picks up {obj.name} and carries it.", text)
+        return True
+
+    def carried_named(self, words: str):
+        """(f592) The thing carried in hand these words name in full ("the rope ladder", not "the rope"), or None."""
+        from engine import objects
+        obj = objects.find(objects.carried(self.store, self.acting), words)
+        return obj if obj is not None and objects._words(words) <= objects._words(obj.name) else None
+
+    def drop_object(self, words: str, text: str) -> bool:
+        """(f592) A thing the character carries set down where they stand. False when they carry no such thing."""
+        from engine import objects
+        obj = self.carried_named(words) or objects.find(objects.carried(self.store, self.acting), words)
+        if obj is None:
+            return False
+        objects.drop(self.store, obj, self.player.location, self.minutes)
+        ledger.add("left", {"what": obj.name}, ref=obj.ref, say=f"{obj.name} lies here now, set down by the player.")
+        self.narrate(f"The player sets down {obj.name} and leaves it here.", text)
+        return True
+
     def on_drop(self, intent, text: str) -> None:
         if self.refuse_key(intent.item or text, "drop"):
             return
+        if self.carried_named(intent.item or text) is not None:       # (f592) a thing in hand named in full comes before the pack's
+            self.drop_object(intent.item or text, text)
+            return
         item = inv.take(self.pack, intent.item or text, max(1, intent.count))
+        if not item and self.drop_object(intent.item or text, text):
+            return
         if not item:
             self.refuse("You aren't carrying that.")
             return
@@ -276,6 +325,8 @@ class InventoryActions:
         if not item and self.coin_word(intent.item or text):        # (f384) loot coin goes straight to the purse
             self.refuse(f"Any coin worth taking is already in your purse ({money.fmt(self.player.character.coins)}); none lies here.")
             return
+        if not item and self.take_object(intent.item or text, text):
+            return                                           # (f592) a thing lying here, made real by a ruling
         if not item:                                         # not an item the game keeps: an ordinary bit of the scenery is narrated, and kept nowhere
             from scenes import world_prompts as wp
             self.narrate(wp.SCENERY_PICKUP.format(thing=(intent.item or "it").strip()), text)

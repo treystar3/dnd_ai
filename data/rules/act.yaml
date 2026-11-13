@@ -1,0 +1,59 @@
+# AN ACT AND ITS RULING (f594, engine/act.py; docs/design/02, outside combat). The dungeon master's ruling on what a character tries, in
+# one call with what it changes if it works (data/rules/changes.yaml), checked by the engine and kept.
+
+# The reuse rule (the owner, 2026-11-08: "Repeated actions without materially changed circumstances reuse their prior ruling"): a ruling
+# is kept per character, a no among them, with what it read (the targets it named, their state, what the character could do). The same
+# act at the same place, with all that unchanged, is ruled the same with no call. A kept ruling is let go when its character keeps more
+# than per_character, oldest first, or after days unused.
+kept:
+  per_character: 64
+  days: 60
+
+most_changes: 8         # the changes one ruling may carry
+# (f606) the most the ruling's free text and short lists may hold, in its grammar (characters; items)
+grammar: {why: 200, answer: 600, works: 300, instead: 120, instead_items: 2, label: 60, need_name: 40, need_what: 160, need_where: 80,
+          needs: 2, uses: 4, requires: 2}
+
+# (f600) force counts only on a test of body or arms; talk, a performance or a plain yes never does (the owner, 2026-11-11)
+force_checks: [strength, dexterity, constitution, intimidation]
+# (f604) a change on an act rolled on talk rests on words, whatever the ruling says: it frees no one and moves no world part by hand
+talk_checks: [persuasion, deception, performance]
+# (f604) a hand's work frees one held away only on a roll of the hand (the owner, 2026-11-12): no plain yes, no other roll
+hand_checks: [strength, dexterity, constitution, stealth]
+
+# (f613) An attempt the ruling calls beyond anyone with what they have is a no, told so (what could be tried instead is the ruling's own).
+beyond:
+  answer: "they try, and it is past anything they could do with what they have: it does not come close"
+  why: "beyond anyone with what they have"
+# (f613) A person takes at most one change from each group of these layers (data/rules/situation_parts.yaml rulings): how they stand and
+# what they do about it, how they feel, what they believe. A later change in a group already taken is dropped.
+one_a_person: [[willingness, action], [feeling], [belief]]
+
+# Words the reuse rule leaves out when it compares two acts ("I try to hide behind the crates" is "hide behind crates").
+filler: [i, the, a, an, my, to, and, then, try, trying, tries, attempt, attempts]
+
+# What a failure outside combat costs, the model's choice from these, and what each does: minutes lost, a share of health, heat (talk
+# of it, engine/reactions.py), and the thing the act relied on broken. `text` is what the narrator is told happened.
+fails:
+  time_lost:     {minutes: 30, text: "it does not work, and a good while is lost finding that out"}
+  noise:         {minutes: 10, heat: 1, text: "it goes wrong, and loudly: whoever is near looks over, and it will be talked of"}
+  noticed:       {minutes: 5, heat: 1, text: "it is done badly enough that anyone looking would see it at once"}
+  object_breaks: {minutes: 5, breaks: true, text: "it goes wrong, and what they relied on gives way and breaks"}
+  hurt:          {minutes: 15, health_pct: 6, text: "it goes wrong and they come away hurt: a wrench, a fall, a bad knock"}
+  exposed:       {minutes: 10, text: "it goes wrong and leaves them in plain view, caught out where they stand"}
+partial: {minutes: 10, text: "it works, roughly, and not for long or not well"}
+success_minutes: 5          # the time a done act takes
+
+# (f596) An act whose ruling could not be made (the model down, a timeout, the turn's budget) waits for it (the owner, 2026-11-11, and
+# 2026-11-08: "every consequential act persists as an event, including those awaiting interpretation"). The attempt is told beginning,
+# never how it turns out; at the next input, before that line is read, its ruling is asked again. A character keeps at most `most`
+# waiting, the oldest let go first; one is asked again `tries` times, then told as come to nothing. Never rolled unruled.
+pending:
+  most: 3
+  tries: 3
+  minutes: 5                # the time the attempt's beginning takes
+  moment_minutes: 30        # within this, how it turned out is told as of a moment ago; later, as of earlier
+  lapse_hours: 12           # an act left waiting longer than this lapses, told as left unfinished
+# What one outside any situation can be moved to by an act: what they believe and how they feel toward the one who acted, each
+# through its own writer (a told memory, a mood, trust). Willingness and deeds are a situation's people's, by its own rules.
+outside_situation: [believes, doubts, warmer, colder, afraid, angry, grateful]

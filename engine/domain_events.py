@@ -579,16 +579,20 @@ class Pickpocketed(Deed):
 
 
 @dataclass(frozen=True)
-class Improvised(Deed):
-    kind: str = field(init=False, default="improvised")
-    effect: str = ""
-    degree: str = ""
+class Acted(Deed):
+    """(f595) An act a character tried, ruled on and resolved (engine/act.py): a deed, so what it did can move what it touches."""
+    kind: str = field(init=False, default="acted")
     what: str = ""
-    mark: str = ""
-    heat: float = 0.0              # the noise it made, as heat (engine/world_improv.py fails)
+    degree: str = ""
+    changes: tuple = ()            # the change words that stood
+    heat: float = 0.0              # the noise a failure made, as heat
+    considered: tuple = ()         # (f597) the situations its ruling already weighed: never ruled on again for it
 
     def text(self) -> str:
-        return f"improvised ({self.effect}: {self.what}) - {self.degree}"
+        return f"acted ({self.what}) - {self.degree}"
+
+    def ledger_row(self) -> dict | None:
+        return {"kind": "acted", "what": self.what, "degree": self.degree, "changes": list(self.changes), "considered": list(self.considered)}
 
 
 @dataclass(frozen=True)

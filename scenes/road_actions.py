@@ -8,7 +8,7 @@ there until they pick it up, a hazard waits for how they mean to get past it, an
 import re
 
 from engine import checks, clock, encounters, inventory as inv, loot, money, pools, pulse, roads, weather
-from engine import effects
+from engine import effects, worldstate
 from engine.road_prompts import SYSTEM, user
 from engine.roads import R
 from llm.contracts import ActionIntent, RoadEvent
@@ -534,7 +534,7 @@ class RoadActions:
                     pulse.add_news(state, e.text, spot, t, ["everyone"], certainty="they say")
             elif e.kind == "danger" and e.value:
                 key = e.place if e.place in self.world.roads else roads.edge_key(self.world, a, b)
-                state.setdefault("effects", []).append({"kind": "danger", "place": key, "value": max(-lim_v, min(lim_v, e.value)),
+                worldstate.add_effect(state, {"kind": "danger", "place": key, "value": max(-lim_v, min(lim_v, e.value)),
                                          "until": t + max(1, min(lim_d, e.days or 3)) * 1440, "cause": ev.title})
         self.store.save_world_state(state)
 

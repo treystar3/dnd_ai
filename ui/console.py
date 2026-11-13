@@ -531,10 +531,13 @@ def key_item_rows(c) -> list[dict]:
     return out
 
 
-def show_inventory(c) -> None:
+def show_inventory(c, carried=()) -> None:
+    """The pack and what is worn; (f592) `carried`: the things in the world the character carries in hand (engine/objects.py)."""
     from engine import inventory as inv
+    held = [{"name": o.name, "detail": o.data.get("what", "")} for o in carried]
     if panel("inventory", {"purse": money.fmt(c.coins), "count": len(c.inventory), "cap": inv.RULES["pack_slots"],
-                           "items": item_rows(c.inventory, usable=True), "keys": key_item_rows(c), "groups": [g for g, _ in PACK_GROUPS] + ["Materials"]}):
+                           "items": item_rows(c.inventory, usable=True), "keys": key_item_rows(c), "carried": held,
+                           "groups": [g for g, _ in PACK_GROUPS] + ["Materials"]}):
         return                                        # (f327) the window draws the pack itself; worn gear has its own pane
     print("\n" + "═" * min(WIDTH, 92))
     print(f"  INVENTORY · {money.fmt(c.coins)}")
@@ -564,6 +567,10 @@ def show_inventory(c) -> None:
             src = f" · from {k.source}, day {k.day}" if k.source else ""
             src += f" · for {k.for_whom}" if k.for_whom else ""
             print(textwrap.fill(f"  {tag}  {k.name} - {k.description}{src}", WIDTH, subsequent_indent="           "))
+    if held:
+        _section("CARRIED IN HAND  (no pack slots · set down with 'drop')")
+        for h in held:
+            print(textwrap.fill(f"  {h['name']}" + (f" - {h['detail']}" if h["detail"] else ""), WIDTH, subsequent_indent="      "))
     print("\n  #equip <number or name>   #unequip <slot or name>   #stash to see your item box")
     print("  Or just say it: drink a draught, drop the hides, sell the pelts to the hunter, brew a tonic...")
     print("═" * min(WIDTH, 92))

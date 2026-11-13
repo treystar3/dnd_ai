@@ -31,7 +31,7 @@
 - {line: "I grow wings and fly away.", at: tidepool_caves, expect: "no", model: {sense: "yes", requires: [flight]}}
 - {line: "I summon a dragon to burn the market.", at: trading_square, expect: "no"}
 - {line: "I walk straight through the wall.", at: trading_square, expect: "no", model: {sense: "yes", requires: [pass_through]}}
-- {line: "I declare myself king of Parth.", at: trading_square, expect: "no"}
+- {line: "I declare myself king of Parth.", at: trading_square, expect: "no", bounded: true}   # (f610) a claim heard, not granted
 - {line: "I conjure a thousand gold coins.", at: trading_square, expect: "no"}
 - {line: "I teleport to the capital.", at: trading_square, expect: "no", model: {sense: "yes", requires: [teleport]}}
 - {line: "I breathe underwater and swim to the sea floor.", at: tidepool_caves, expect: "no", model: {sense: "yes", requires: [water_breathing]}}
@@ -57,6 +57,7 @@
 - {line: "I ask the wolf what it saw.", at: greywood, expect: "no", means: [], model: {sense: "yes", requires: [speak_with_beasts]}}
 - {line: "I ask the dead sailor how he drowned.", at: tidepool_caves, expect: "yes", means: [speak_with_dead], model: {sense: "yes", requires: [speak_with_dead]}}
 - {line: "I see in the dark of the back tunnel.", at: tidepool_caves, expect: "yes", means: [darkvision], model: {sense: "yes", requires: [darkvision]}}
-- {line: "I see in the dark of the back tunnel.", at: tidepool_caves, expect: "cost", means: [], model: {sense: "cost", requires: []}}
+- {line: "I see in the dark of the back tunnel.", at: tidepool_caves, expect: "cost", means: [],
+   model: {sense: "cost", requires: [], stakes: {check: perception, hard: fair}}}   # (f612) without darkvision, a perception check (the owner)
 - {line: "I slip unseen past the guard.", at: trading_square, expect: "cost", means: [], model: {sense: "cost", requires: []}}
 - {line: "I turn into a wolf.", at: greywood, expect: "yes", means: [shape_change], model: {sense: "yes", requires: [shape_change]}}

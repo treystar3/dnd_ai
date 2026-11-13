@@ -70,14 +70,12 @@ check("...numbered after the deed that ended it, and the world's count stands at
 check("...and it names who did it, the matter and how", bool(mine) and mine[0].get("by") == ws.acting and mine[0].get("title") == "Trouble 1"
       and mine[0].get("tier") == "normal" and "kill the wolves" in mine[0].get("how", ""), mine)
 
-# ---- ended by the judge's word
-tid2 = born(tier="rare", stage=1)
-stub.verdict = "resolved"
+# ---- a rare matter ended by its way (f597: the old judge's word ends nothing now; a situation ends by its ways and its time)
+tid2 = born(tier="rare", stage=1, paths=[dict(WAY, target="bandit", name="drive off the bandits", how="the bandits are driven off")])
 kill("bandit")
-stub.verdict = "no"
-check("(the judge ruled the rare matter ended)", thread(tid2)["status"] == "resolved" and thread(tid2).get("result") == "player",
-      (thread(tid2)["status"], thread(tid2).get("judge_calls")))
-check("a matter the judge rules ended leaves its 'settled' deed too", len(settled(tid2)) == 1 and settled(tid2)[0].get("by") == ws.acting,
+check("(the rare matter ended by its way, as the player's doing)", thread(tid2)["status"] == "resolved" and thread(tid2).get("result") == "player",
+      (thread(tid2)["status"], thread(tid2).get("result")))
+check("a rare matter ended by its way leaves its 'settled' deed too", len(settled(tid2)) == 1 and settled(tid2)[0].get("by") == ws.acting,
       store.load_world_state().get("deeds"))
 
 # ---- what counts them

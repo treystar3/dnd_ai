@@ -1,0 +1,45 @@
+# EVERY CHANGE AN ACT CAN MAKE (f593; docs/design/02 section 2, the part outside combat). The model names a change from this list and
+# the target it lands on (`lands_on`; engine/targets.py: p1 a person here, f1 a part of the place, o1 a thing, r1 a road out, s1.2 the second part of
+# a situation near); the engine checks the change may land on that kind of target, applies it through the game's own writers, and sets
+# every number. A situation's own words (data/rules/situations.yaml rulings.changes) are here as they are, on the kinds they land on
+# there; the startup check holds the two lists together. The fight's changes (hindered, blocked, held, opened, harmed, their tiers and
+# a target's resistance) come with the fight (phase 4).
+
+kinds: [person, part, object, road, condition, resource, tie, evidence]
+
+changes:
+  # on a person: what they believe, feel, are willing to do, or do (the situation ruling's layers)
+  believes:   {lands_on: [person]}
+  doubts:     {lands_on: [person]}
+  warmer:     {lands_on: [person]}
+  colder:     {lands_on: [person]}
+  afraid:     {lands_on: [person]}
+  angry:      {lands_on: [person]}
+  grateful:   {lands_on: [person]}
+  open:       {lands_on: [person]}
+  wary:       {lands_on: [person]}
+  hostile:    {lands_on: [person]}
+  refusing:   {lands_on: [person]}
+  terrified:  {lands_on: [person]}
+  committed:  {lands_on: [person]}
+  flees:      {lands_on: [person]}
+  surrenders: {lands_on: [person]}
+  joins:      {lands_on: [person]}
+  warns:      {lands_on: [person]}
+  safe:       {lands_on: [person]}
+  # on a situation's own conditions, goods, ties and evidence
+  lifted:     {lands_on: [condition]}
+  given_up:   {lands_on: [resource]}
+  lost:       {lands_on: [resource]}
+  tested:     {lands_on: [evidence]}
+  # on a situation's parts and on things alike
+  moved:      {lands_on: [resource, object]}
+  broken:     {lands_on: [tie, object]}
+  mended:     {lands_on: [tie, object]}
+  found:      {lands_on: [evidence, object]}
+  destroyed:  {lands_on: [evidence, object]}
+  # on a part of a place or a road: its state (data/rules/features.yaml becomes) or the way through it
+  state:      {lands_on: [part], args: [becomes]}   # a road's way through is `access`; a road has no state of its own
+  access:     {lands_on: [part], args: [open, closed]}   # a road is shut or opened by a situation's own condition, never by hand
+  # on a thing: put out of sight where it lies
+  hidden_here: {lands_on: [object]}

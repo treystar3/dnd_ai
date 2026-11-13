@@ -523,6 +523,11 @@ class Stakes(BaseModel):
     hard: Literal["", "easy", "fair", "hard"] = ""
 
 
+class ActStakes(Stakes):
+    """(f613) The act's ruling may say an attempt is beyond anyone with what they have; the engine makes that a no."""
+    hard: Literal["", "easy", "fair", "hard", "beyond"] = ""
+
+
 class Change(BaseModel):
     """(f395) What an attempt, if it works, makes different about a part of the place: its name (empty: where the player stands), and
     what it becomes (features.yaml becomes)."""
@@ -1661,6 +1666,101 @@ class CataclysmProposal(BaseModel):
         need = _ctx(info).get("stages")
         if need and len(self.stages) != need:
             raise ValueError(f"write exactly {need} stages, not {len(self.stages)}")
+        return self
+
+
+class ActChange(BaseModel):
+    """(f594) One change an act makes if it works (docs/design/02 section 3, outside combat): to the target coded `target` in TARGETS
+    ("o1", "f2", "p1", "s1.2"), a change named from CHANGES. `state`: for a change of state, what the part becomes (BECOMES); for
+    access, open, closed or hidden. `to`: for a thing moved, the code of the part of this place it goes to. `who`: for a situation's
+    person moved by their own doing, their code (else empty: the act itself). `about`: for believes or doubts, the code of the
+    evidence it is about; for warns, the code of the one warned. `because`: what it rests on; `needs`: the numbers of earlier changes
+    it cannot stand without. `label`: a few words for it, for the telling only."""
+    n: int
+    target: str
+    becomes: str
+    state: str = ""
+    to: str = ""
+    who: str = ""
+    about: str = ""
+    because: Literal["words", "coin", "goods", "force", "evidence", "earlier", "skill"] = "skill"
+    needs: list[int] = []
+    label: str = ""
+
+
+class ActRuling(BaseModel):
+    """(f594) The dungeon master's ruling on one act, and the changes it makes if it works, in one answer (docs/design/02 section 3;
+    engine/act.py). sense, why, needs, requires, stakes, answer and instead as a Ruling. uses: the TARGETS the act relies on ("o1",
+    "f2: the brazier"); a thing to hide behind, a rope to climb. changes: what it makes different if it works. fail: what a failure costs
+    (FAIL). works: a yes's or a cost's success, as it would be seen; the narrator is told no more (f609)."""
+    sense: Literal["yes", "cost", "no"]
+    why: str = ""
+    answer: str = ""
+    works: str = ""
+    instead: list[str] = []
+    uses: list[str] = []
+    needs: list[Need] = []
+    requires: list[str] = []
+    stakes: ActStakes = ActStakes()
+    changes: list[ActChange] = []
+    fail: str = ""
+
+    @model_validator(mode="after")
+    def check(self, info: ValidationInfo):
+        ctx = _ctx(info)
+        caps = ctx.get("capabilities") or []
+        self.requires = [r.strip().lower() for r in self.requires if r and r.strip()]
+        checks = ctx.get("checks") or []
+        moved = [r for r in self.requires if r in checks and r not in caps]
+        if moved:                                  # a check named where a capability goes is the check, as for a Ruling
+            self.stakes.check = self.stakes.check or moved[0]
+            self.requires = [r for r in self.requires if r not in moved]
+        wrong = [r for r in self.requires if caps and r not in caps]
+        if wrong:
+            raise ValueError(f"requires lists only names from CAPABILITIES ({', '.join(caps)}), not {', '.join(wrong)}")
+        if self.sense == "no" and not self.answer.strip():
+            raise ValueError("a no needs `answer`: what happens instead, in the world, as the player would see it")
+        if len(self.needs) > 2:
+            raise ValueError("at most two needs: only what the attempt cannot happen without")
+        if any(not n.name.strip() for n in self.needs):
+            raise ValueError("every need has a short name ('the high ledge', 'the hermit')")
+        if self.stakes.check and checks and self.stakes.check not in checks:
+            self.stakes.check = ""
+        roles = ctx.get("roles") or []
+        for n in self.needs:
+            if n.kind == "person" and roles and n.role not in roles:
+                n.role = ""
+        self.instead = [i for i in self.instead if i and i.strip()][:2]
+        codes = {c.lower() for c in ctx.get("codes") or []}
+        self.uses = [u.strip() for u in self.uses if u and u.strip()]
+        code = lambda s: (s or "").strip().split(":", 1)[0].strip().lower()
+        bad = [u for u in self.uses if codes and code(u) not in codes]
+        if bad:
+            raise ValueError(f"uses names only codes from TARGETS ({', '.join(sorted(codes)[:12])}...), not {', '.join(bad)}")
+        names = ctx.get("changes") or []
+        for ch in self.changes:
+            ch.becomes = (ch.becomes or "").strip().lower()
+            ch.target = code(ch.target)
+            ch.who, ch.about, ch.to = code(ch.who), code(ch.about), code(ch.to)
+        wrong = [ch.becomes for ch in self.changes if names and ch.becomes not in names]
+        if wrong:
+            raise ValueError(f"changes: becomes is one of CHANGES ({', '.join(names)}), not {', '.join(wrong)}")
+        missing = [x for ch in self.changes for x in (ch.target, ch.who, ch.about, ch.to) if codes and x and x not in codes]
+        if missing or any(not ch.target for ch in self.changes):
+            raise ValueError(f"changes: target, who, about and to are codes from TARGETS, not {', '.join(missing) or 'nothing'}")
+        nums = [ch.n for ch in self.changes]
+        if len(set(nums)) != len(nums):
+            raise ValueError("changes: each change has its own number n")
+        if any(m not in nums[:i] for i, ch in enumerate(self.changes) for m in ch.needs):
+            raise ValueError("changes: needs names only the numbers of earlier changes")
+        most = int(ctx["most"])
+        if len(self.changes) > most:
+            raise ValueError(f"at most {most} changes: only what the act makes lastingly different")
+        fails = ctx.get("fails") or []
+        if self.fail not in fails:
+            self.fail = fails[0] if fails else ""
+        if self.sense == "no":
+            self.changes = []                        # a no changes nothing; what it rested on (uses) is kept, for the reuse rule
         return self
 
 

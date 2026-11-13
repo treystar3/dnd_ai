@@ -553,7 +553,8 @@ check("(the fourth review) ...nor, once a gift has made him only wary, the words
       and th["parts"][N - 1]["willing"][by] == "wary", (dropped, th["status"], th["parts"][N - 1].get("willing")))
 events.after_deed(ws, deeds.log(store, "persuade", ws.minutes, "trading_square", npc=noble.id, degree="strong success", by=by))
 th = pulse.thread_of(store.load_world_state(), "th547")
-check("(the fifth review) ...words since, he answers: won over", th["status"] == "resolved", th["status"])
+check("(the fifth review) ...words since, he answers: won over (open), though the chain his guard keeps holds it open still (f598)",
+      th["parts"][N - 1]["willing"][by] == "open" and th["status"] == "active", (th["status"], th["parts"][N - 1].get("willing")))
 
 st, th = fresh()
 th["clues"].append({"text": "The noble paid the forger.", "holder": "", "npc": noble.id, "found": False, "certainty": "sure", "true": True})

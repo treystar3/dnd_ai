@@ -1,8 +1,5 @@
-"""Improvised actions outside a fight (f321): what the interpreter cannot name becomes a gamble with a consequence, never an attempt
-that changes nothing. The player's words are read for what they are after (data/rules/improv.yaml, by meaning), rolled on the attribute
-that would do it, and something is made true either way: a mark on the place, a cost, a noise the watch hears of.
-
-Mirrors engine/combat_improv.py: AN ABILITY IS A PROMISE; AN IMPROVISATION IS A GAMBLE."""
+"""What an act outside a fight makes true besides its own changes (f321; engine/act.py rules and rolls it since f603): the player's words
+read for what they are after (data/rules/improv.yaml, by meaning), and on a success the place's mark and the effect's changes."""
 from __future__ import annotations
 
 import re
@@ -11,6 +8,7 @@ from pathlib import Path
 import yaml
 from core import yamlio
 
+from engine import worldstate
 from ui import console
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -76,7 +74,7 @@ def apply_changes(ws, effect: str, what: str, degree: str) -> list[str]:
         kind = ch.get("kind")
         if kind == "closed":
             minutes = max(1, int(ch.get("minutes", 60)) // (2 if half else 1))
-            state["effects"].append({"kind": "closed", "place": here, "value": 0, "until": ws.minutes + minutes,
+            worldstate.add_effect(state, {"kind": "closed", "place": here, "value": 0, "until": ws.minutes + minutes,
                                      "text": (ch.get("text") or "{what}").format(**fmt), "cause": "improvised"})
             done.append(f"closed {minutes}m")
         elif kind == "danger":
@@ -84,7 +82,7 @@ def apply_changes(ws, effect: str, what: str, degree: str) -> list[str]:
                 continue
             value = round(int(ch.get("value", 0)) / (2 if half else 1))
             if value:
-                state["effects"].append({"kind": "danger", "place": here, "value": value, "until": ws.minutes + max(1, int(ch.get("days", 1))) * 1440,
+                worldstate.add_effect(state, {"kind": "danger", "place": here, "value": value, "until": ws.minutes + max(1, int(ch.get("days", 1))) * 1440,
                                          "cause": "improvised"})
                 done.append(f"danger {value:+d}")
         elif kind == "news" and not half:
@@ -97,8 +95,13 @@ def apply_changes(ws, effect: str, what: str, degree: str) -> list[str]:
 
 
 def problems() -> list[str]:
-    """What is wrong with improv.yaml's changes: a kind the engine cannot apply, or a field it needs missing; a `needs` that is no pattern."""
-    bad = []
+    """What is wrong with improv.yaml's changes: a kind the engine cannot apply, or a field it needs missing; a `needs` that is no pattern;
+    a kind with nothing to tell the narrator; a stands_for word that is no change of the act's."""
+    from engine import features, targets
+    bad = [f"improv.yaml told: needs a line for {k}" for k in CHANGE_KINDS if not str((W.get("told") or {}).get(k) or "").strip()]
+    words = set(targets.CH["changes"]) | set(features.F["becomes"]) | set(targets.CH["changes"]["access"]["args"])
+    bad += [f"improv.yaml {name}: stands_for '{w}' is no change the act can make" for name, e in (W.get("effects") or {}).items()
+            for w in e.get("stands_for") or [] if w not in words]
     for name, e in (W.get("effects") or {}).items():
         try:
             re.compile(e.get("needs") or "")
@@ -130,77 +133,24 @@ def what_of(words: str) -> str:
     return w.rstrip(".!").strip()[:80]
 
 
-def changed_text(ws, ruled: dict | None, degree: str) -> str:
-    """(f395) The parts the attempt made different (engine/ruling.change_parts), as the narrator is told them."""
-    if not (ruled or {}).get("changes"):
-        return ""
-    from engine import ruling
-    lines = ruling.change_parts(ws, ruled, degree)
-    return (" WHAT IS DIFFERENT NOW (real from now on; show it): " + " ".join(lines)) if lines else ""
-
-
-def resolve(ws, words: str, text: str, ruled: dict | None = None) -> None:
-    """The whole action: read it, roll it, make something true, and tell the narrator what happened as a decided fact. (f395) With the
-    dungeon master's ruling (engine/ruling.py): a plain yes is done without a roll; a cost is rolled on the ruling's check and how hard
-    it is; and what the world made for it is told as real."""
-    from engine import asked, checks, pools
-    c = ws.player.character
-    effect = asked.compute(f"improv_effect:{words or text}", lambda: read_effect(words or text))   # (f500) as the fight's improv: read once a line
-    made = (ruled or {}).get("made") or []
-    room = (" THE WORLD NOW HOLDS (made for this, and real from now on; show it): " + "; ".join(made) + ".") if made else ""
-    if effect == "pose" and not made and not (ruled or {}).get("changes"):                       # (f386) shown, and nothing else: no roll, no mark, nothing barred
-        ws.advance(1)
-        ws.narrate(f"THE GAME HAS DECIDED: the player does a small thing ({what_of(words or text)}) and nothing comes of it: it changes nothing "
-                   "and nobody makes anything of it. Show it in passing, as it would be seen.", text)
-        return
-    if effect == "pose":
-        effect = "attempt"
-    e = W["effects"][effect]
-    if ruled is not None and ruled.get("sense") == "yes" and not ruled.get("check"):
-        degree, rolled, odds = "success", 0, 100.0               # a plain yes: a dungeon master does not roll for calling out
-    else:
-        from engine import ruling
-        odds = ruling.odds(ws, effect, ruled) if ruled is not None else odds_for(c, effect)
-        degree, rolled = checks.roll(odds, ws.rng, c=c)
-    console.debug(f"improvised ({effect}): {odds:.0f}% - rolled {rolled}: {degree}")
-    console.ledger(f"{effect.capitalize()} — {degree.replace('_', ' ')}")
-    what = what_of(words or text)
+def land(ws, words: str, degree: str, refused: set[str] = frozenset()) -> list[str]:
+    """(f603) What an act that worked makes true besides its own changes (improv.yaml effects; the owner kept them): the effect its words
+    read as and the place's mark, rough on a partial. A gesture leaves nothing, nor an effect that stands for a change the engine refused
+    (`refused`: those change words). Returns what the narrator is told of it."""
+    from engine import asked
+    if degree not in ("success", "strong success", "partial"):
+        return []
+    effect = asked.compute(f"improv_effect:{words}", lambda: read_effect(words))   # (f500) read once a line
+    if effect == "pose" or effect not in W["effects"]:
+        return []
+    if set(W["effects"][effect].get("stands_for") or []) & set(refused):
+        return []
+    e, what = W["effects"][effect], what_of(words)
     mark = e["mark"].format(what=what) if e["mark"] and what else ""
-    from engine.domain_events import Improvised
-    failed = degree not in ("success", "strong success", "partial")
-    ws.notice(Improvised(minute=ws.minutes, place=ws.player.location, effect=effect, degree=degree, what=what, mark=mark,
-                         heat=float(W["fails"][e["fail"]].get("heat", 0) or 0) if failed else 0.0))
-    if degree in ("success", "strong success"):
-        if mark:
-            ws.add_mark(mark)
-        changed = apply_changes(ws, effect, what, degree)
-        if changed:
-            console.debug(f"improvised ({effect}): made true - {', '.join(changed)}")
-        ws.advance(5)
-        room += changed_text(ws, ruled, degree)
-        lasting = bool(changed or room or mark)                  # (f421) asked what is different when nothing is, the narrator made something up
-        ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) WORKS" + (" cleanly and well" if degree == "strong success" else "")
-                   + (". Show it done, as it would be seen, and what is different now." if lasting
-                      else ". Show it done, as it would be seen. Nothing lasting is different.")
-                   + " Nothing is gained that was not there, and no one is harmed." + room, text)
-        return
-    if degree == "partial":
-        P = W["partial"]
-        if mark:
-            ws.add_mark("roughly, " + mark)
-        apply_changes(ws, effect, what, degree)
-        ws.advance(P["minutes"])
-        room += changed_text(ws, ruled, degree)
-        ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) half works - {P['text']}. Show it as it would be seen, "
-                   "the flaw in it plain. Nothing is gained that was not there." + room, text)
-        return
-    F = W["fails"][e["fail"]]
-    ws.advance(F["minutes"])
-    if F.get("health_pct"):
-        top = pools.maximum(c, "health")
-        c.health = max(1.0, pools.current(c, "health") - top * F["health_pct"] / 100)
-    if F.get("mark") and mark:
-        ws.add_mark(F["mark"].format(mark=mark))
-    ws.store.save_player(ws.player)
-    ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) FAILS - {F['text']}. Show the failure as it happens and what it "
-               "costs them, and stop there; no one gives them anything, and nobody speaks beyond a look or a word." + room, text)
+    mark = ("roughly, " if degree == "partial" and mark else "") + mark
+    if mark:
+        ws.add_mark(mark)
+    changed = apply_changes(ws, effect, what, degree)
+    if changed:
+        console.debug(f"improvised ({effect}): made true - {', '.join(changed)}")
+    return ([mark] if mark else []) + [W["told"][c.split()[0]] for c in changed]

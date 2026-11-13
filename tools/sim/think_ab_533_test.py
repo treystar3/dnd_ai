@@ -191,7 +191,7 @@ class Fake(BaseHTTPRequestHandler):
             from llm import contracts as _contracts
             content = answer(getattr(_contracts, name).model_json_schema(), body["messages"])
             think = body["chat_template_kwargs"]["enable_thinking"]
-            if think and name == "Ruling":
+            if think and name == "ActRuling":
                 content = "<think>is it plausible?</think>" + content                # the risk: thinking inside the answer
             resp = {"choices": [{"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": content,
                                                                                     **({"reasoning_content": "Hmm. " * 30} if think else {})}}],
@@ -239,7 +239,7 @@ check("each answer is scored by the game's contract: an answer of the schema's s
       [r for r in valid_off if not r["valid"]][:2])
 leaks = [r for r in results if r["leaked"]]
 check("...thinking inside the answer is caught as leaked, and is no valid answer, and decides nothing",
-      leaks and all(r["server"] == "llama" and r["title"] == "Ruling" and r["think"] and not r["valid"] and r["agree"] is None for r in leaks),
+      leaks and all(r["server"] == "llama" and r["title"] == "ActRuling" and r["think"] and not r["valid"] and r["agree"] is None for r in leaks),
       leaks[:2])
 check("...its decision is set against the night's where it has one and the answer is valid, and not for the audit's free-text reading",
       all(isinstance(r["agree"], bool) for r in results if r["title"] in ("ActionPlan", "CombatIntent", "AuditVerdict") and r["valid"])
@@ -257,8 +257,8 @@ md = (OUT / "summary.md").read_text(encoding="utf-8")
 check("the summary is a row per server, task and setting, in summary.json and as a table in summary.md, with the server's own facts",
       len(keys) == 2 * sum(1 for rs in chosen.values() if rs) and "| server | task | thinking |" in md
       and summary["meta"]["servers_about"]["llama"]["build_info"] == "b-test", (sorted(keys)[:4], summary["meta"].get("servers_about")))
-ruling_on = next(c for c in summary["calls"] if c["server"] == "llama" and c["task"] == "ruling" and c["think"] == "on")
-ruling_off = next(c for c in summary["calls"] if c["server"] == "llama" and c["task"] == "ruling" and c["think"] == "off")
+ruling_on = next(c for c in summary["calls"] if c["server"] == "llama" and c["task"] == "act_ruling" and c["think"] == "on")
+ruling_off = next(c for c in summary["calls"] if c["server"] == "llama" and c["task"] == "act_ruling" and c["think"] == "off")
 check("...counting what leaked, every rate over all the calls: an answer that leaked agrees with nothing",
       ruling_on["leaked"] == ruling_on["n"] and ruling_on["valid_pct"] == 0.0 and ruling_on["agree_pct"] == 0.0
       and ruling_on["agree_valid_pct"] is None and ruling_on["thought"] == ruling_on["n"] and ruling_off["agree_pct"] is not None, ruling_on)
@@ -289,7 +289,7 @@ empty = OUT / "empty"
 empty.mkdir(parents=True, exist_ok=True)
 (empty / "results.jsonl").write_text("", encoding="utf-8")
 with contextlib.redirect_stdout(io.StringIO()):
-    rc_empty = think_ab.main(base + ["--tasks", "ruling", "--per-task", "1", "--out", str(empty)])
+    rc_empty = think_ab.main(base + ["--tasks", "act_ruling", "--per-task", "1", "--out", str(empty)])
 check("...while a results file a run left empty (it measured nothing) is no reason to refuse", rc_empty == 0
       and (empty / "results.jsonl").read_text(encoding="utf-8").strip() != "", rc_empty)
 (OUT / "summary.md").unlink()
@@ -336,8 +336,8 @@ kept = list(think_ab.recorded_rows(tmp))
 check("a recording cut off mid-night gives the rows before the cut and says so, rather than ending the run",
       0 < len(kept) < 30 and len(think_ab.WARNINGS) == 1 and "cut off" in think_ab.WARNINGS[0], (len(kept), think_ab.WARNINGS))
 rows_all = list(think_ab.recorded_rows(Path("data/replay/sessions")))
-alone = think_ab.pick(rows_all, ["ruling"], 2)["ruling"]
-among = think_ab.pick(rows_all, list(think_ab.TASKS), 2)["ruling"]
+alone = think_ab.pick(rows_all, ["act_ruling"], 2)["act_ruling"]
+among = think_ab.pick(rows_all, list(think_ab.TASKS), 2)["act_ruling"]
 check("each task's sample is its own, the same whatever other tasks are chosen with it", [r["req"] for r in alone] == [r["req"] for r in among]
       and alone, ([r.get("i") for r in alone], [r.get("i") for r in among]))
 same = {"messages": [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}], "options": {"temperature": 0.2}}
@@ -356,6 +356,13 @@ check("a fight's reading agrees only when the whole move does: the way it moves,
       and decide({"kind": "talk", "approach": "persuade"}) != decide({"kind": "talk", "approach": "intimidate"}))
 check("...and a ruling is held to the game's own context: a capability the game does not have is refused",
       think_ab.score("Ruling", json.dumps({"sense": "yes", "requires": ["flight_of_fancy"]}), "{}")["valid"] is False)
+asked = {"messages": [{"role": "system", "content": "uses: the codes from TARGETS"},
+                      {"role": "user", "content": "SCENE\nTARGETS (what the act can name, by code):\n  f1 the gate (feature)\n  p1 a guard (person)\nCHANGES"}]}
+on_gate = json.dumps({"sense": "yes", "uses": ["f1"]})
+check("...and an act's ruling to the codes its own request listed (f603): a code the request never gave is refused",
+      think_ab.codes_of(asked) == ["f1", "p1"] and think_ab.score("ActRuling", on_gate, "{}", asked)["valid"] is True
+      and think_ab.score("ActRuling", json.dumps({"sense": "yes", "uses": ["f9"]}), "{}", asked)["valid"] is False,
+      (think_ab.codes_of(asked), think_ab.score("ActRuling", on_gate, "{}", asked)))
 
 # ---- 3. the game's own evaluations, the switch off and then on
 ran = []
@@ -369,24 +376,33 @@ def fake_run(cmd, cwd=None, env=None, capture_output=None, text=None, timeout=No
         if env.get("DND_THINK_TASKS"):
             raise subprocess.TimeoutExpired(cmd, timeout, output=b"ok   a\nok   b\n")
         return subprocess.CompletedProcess(cmd, 0, "\n41/50 right; intercepts took 0 line(s)", "")
-    return subprocess.CompletedProcess(cmd, 0, "\n17 of 19 right" + ("; 3 with no ruling" if env.get("DND_THINK_TASKS") else ""), "")
+    return subprocess.CompletedProcess(cmd, 0, "\nnew: 17 of 19 right; false acceptances 1, false rejections 1; changes wrong 2"
+                                       + ("; 3 with no ruling" if env.get("DND_THINK_TASKS") else "; 0 with no ruling"), "")
 
 
 think_ab.subprocess.run = fake_run
 seen_done = []
 try:
-    ev = think_ab.evals("http://127.0.0.1:11434", ["ruling", "interpret_action"], room=1536, corpus="data/replay/interp_cases.yaml",
+    ev = think_ab.evals("http://127.0.0.1:11434", ["act_ruling", "interpret_action"], room=1536, corpus="data/replay/interp_cases.yaml",
                         folder=OUT, done=lambda rows: seen_done.append(len(rows)))
 finally:
     think_ab.subprocess.run = real_run
 check("the evaluations run live on the llama-server named (DND_BACKEND=llama at its URL, f529), thinking off and then on with the same "
-      "room, and their scores are read out of every case: a ruling not given is a wrong one",
+      "room, and their scores are read out of every case: a ruling not given is a wrong one, and so is the act's ruling whose sense is "
+      "right but whose changes are not (f608)",
       [(e["eval"], e["think"], e["right"], e["of"], e["no_answer"]) for e in ev] == [
-          ("interp_eval", "off", 41, 50, 0), ("ruling_eval", "off", 17, 19, 0), ("interp_eval", "on", None, None, None), ("ruling_eval", "on", 17, 22, 3)]
-      and [r["think"] for r in ran] == ["", "", "ruling,interpret_action", "ruling,interpret_action"]
+          ("interp_eval", "off", 41, 50, 0), ("ruling_eval", "off", 15, 19, 0), ("interp_eval", "on", None, None, None), ("ruling_eval", "on", 15, 22, 3)]
+      and [r["think"] for r in ran] == ["", "", "act_ruling,interpret_action", "act_ruling,interpret_action"]
       and all(r["host"] == "http://127.0.0.1:11434" and r["backend"] == "llama" and r["switch"] is None and "--live" in r["cmd"]
               and r["room"] == "1536" for r in ran)
-      and "data/replay/interp_cases.yaml" in ran[0]["cmd"], (ev, ran))
+      and "data/replay/interp_cases.yaml" in ran[0]["cmd"] and ran[1]["cmd"][-2:] == ["--path", "new"], (ev, ran))
+check("the ruling's evaluations measure the act's ruling, and the road's old ruling has its own (f608)",
+      all(think_ab.EVALS[w][2] == {"act_ruling"} and "new" in think_ab.EVALS[w][1] for w in ("ruling", "ruling_complex", "ruling_act"))
+      and think_ab.EVALS["ruling_road"][2] == {"ruling"} and "old" in think_ab.EVALS["ruling_road"][1]
+      and think_ab.eval_score("ruling_eval_road", "\n17 of 19 right; 2 with no ruling") == {"right": 17, "of": 21, "no_answer": 2}
+      and think_ab.eval_score("ruling_eval_act", "\nnew: 18 of 18 right; false acceptances 0, false rejections 0; changes wrong 0; "
+                              "1 known, awaiting their feature; 4 with no ruling") == {"right": 18, "of": 22, "no_answer": 4},
+      {w: think_ab.EVALS[w] for w in ("ruling", "ruling_act", "ruling_road")})
 check("...an evaluation that runs out of time is a row of its own (the others still run), its output kept, and the summary rewritten "
       "after each", ev[2]["rc"] == "timeout" and (OUT / "eval_interp_eval_on.log").read_text(encoding="utf-8").startswith("ok   a")
       and seen_done == [1, 2, 3, 4], (ev[2], seen_done))

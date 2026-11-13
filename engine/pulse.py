@@ -19,7 +19,7 @@ from pathlib import Path
 import yaml
 from core import yamlio
 
-from engine import clock, events, pulselog, roads
+from engine import clock, events, pulselog, roads, worldstate
 from engine import pulse_prompts as pp
 from llm.contracts import MotiveStep, ThreadProposal
 from llm.gateway import LLMError, generate
@@ -40,9 +40,9 @@ def empty_state(now: int) -> dict:
 
 def active_effects(state: dict, now: int, kind: str, place: str, good: str = "") -> list[dict]:
     """The effects of this kind live at this place. (f545) A price rise on one good (its `good`) counts only when that good is asked
-    about: a scarce salt is no dearer bread."""
-    return [e for e in state.get("effects", []) if e["kind"] == kind and e["place"] == place and e["until"] > now
-            and (not e.get("good") or e["good"] == good)]
+    about: a scarce salt is no dearer bread. (f589) One definition, the seam's (storage/worldrow.py)."""
+    from storage.worldrow import effects_matching
+    return effects_matching(state, now, kind, place, good)
 
 
 def known(world, place_id) -> bool:
@@ -83,27 +83,23 @@ def town_of(world, place_id: str) -> str:
 def price_factor(store, world, place_id: str, now: int, good: str = "") -> float:
     """How dear the town's market is now; (f545) for `good`, with what is laid on that good alone."""
     town = town_of(world, place_id)
-    state = store.load_world_state()
-    return 1 + sum(e["value"] for e in active_effects(state, now, "prices", town, good)) / 100
+    return 1 + sum(e["value"] for e in worldstate.effects_at(store, "prices", town, now, good)) / 100
 
 
 def danger_factor(store, place_id: str, now: int) -> float:
-    state = store.load_world_state()
-    return max(0.0, 1 + sum(e["value"] for e in active_effects(state, now, "danger", place_id)) / 100)
+    return max(0.0, 1 + sum(e["value"] for e in worldstate.effects_at(store, "danger", place_id, now)) / 100)
 
 
 def closed_reason(store, place_id: str, now: int) -> str:
     """Why the way through a place is shut to the player now, or ''. (f386) Never a barring the player made themselves: they barred it
     against others, and can unbar it (a night's run was shut out of the guild house for twenty turns by its own leaning on a wall)."""
-    state = store.load_world_state()
-    hits = [e for e in active_effects(state, now, "closed", place_id) if e.get("cause") != "improvised"]
+    hits = [e for e in worldstate.effects_at(store, "closed", place_id, now) if e.get("cause") != "improvised"]
     return hits[0]["text"] if hits else ""
 
 
 def closed_until(store, place_id: str, now: int) -> int:
     """(f390) The minute the way through this place opens again (the last closure on it to lift), or 0 when it is open."""
-    state = store.load_world_state()
-    return max((e["until"] for e in active_effects(state, now, "closed", place_id) if e.get("cause") != "improvised"), default=0)
+    return max((e["until"] for e in worldstate.effects_at(store, "closed", place_id, now) if e.get("cause") != "improvised"), default=0)
 
 
 def way_out(world, here: str) -> set[str]:
@@ -428,7 +424,7 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
         if thread["town"] and not known(world, thread["town"]):                                    # (f376) never a stop on the road
             thread["town"] = town_of(world, proposal.place)
     thread["contract"] = proposal.contract.model_dump() if proposal.contract and proposal.contract.what else None
-    state["threads"].append(thread)
+    worldstate.add_thread(state, thread)
     if pressure and pressure.id in world.pressures:
         state["cooldowns"][pressure.id] = t
     if tier == "campaign":
@@ -454,7 +450,8 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
     if big:
         thread["scope_places"] = sorted({e.place for st in proposal.stages for e in st.effects if e.place in world.places})
     from engine import situations as _situations
-    if tier in ((_situations.S.get("births") or {}).get("tiers") or ()):
+    if tier in ((_situations.S.get("births") or {}).get("tiers") or ()) \
+            and tier not in ((_situations.S.get("births") or {}).get("reach_tiers") or ()):     # (f599) a common one waits to be met
         thread["parts_due"] = 0                                      # (f546) its parts asked for after the input's tail, in an operation
                                                                      # of their own (engine/situation_parts.py birth)
     console.debug(f"pulse: [{tier}] {proposal.title} at {proposal.place}")
@@ -581,6 +578,13 @@ def tick_threads(store, world, catalog, state, t, rng) -> bool:
                         and not e.get("lifted") and t < e["until"] < th["times"][-1] + 1440:   # (f545) and what its parts lay, the
                                                                                             # same, but never a part done (lifted)
                     e["until"] = int(th["times"][-1]) + 1440
+        if th["status"] == "active" and t >= th["times"][-1] and th.get("heart") and th.get("parts"):
+            from engine import situation_parts
+            if situation_parts.touched(th) and not situation_parts.nothing_to_read(th):               # (f598) touched: read at its limit after the pulse (events.read_ends), not rolled
+                if not th.get("read_due"):
+                    th["read_due"] = True
+                    changed = True
+                continue
         if th["status"] == "active" and t >= th["times"][-1]:
             if rng.random() < P["tiers"][th["tier"]]["resolved_by_others"]:
                 who = resolver(store, world, th, rng, t)
@@ -849,11 +853,11 @@ def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: s
     elif kind in ("prices", "danger") and (known(world, e.get("place")) or (kind == "danger" and e.get("place") in world.roads)):
         lo, hi = lim[kind]["min"], lim[kind]["max"]
         place = town_of(world, e["place"]) if kind == "prices" else e["place"]
-        state["effects"].append({"kind": kind, "place": place, "value": max(lo, min(hi, e["value"])),
+        worldstate.add_effect(state, {"kind": kind, "place": place, "value": max(lo, min(hi, e["value"])),
                                  "until": t + days * 1440, "cause": cause, "thread": thread_id,
                                  **({"good": e["good"]} if kind == "prices" and e.get("good") else {})})     # (f545) one good's price
     elif kind == "closed" and known(world, e.get("place")):
-        state["effects"].append({"kind": "closed", "place": e["place"], "value": 0, "until": t + days * 1440,
+        worldstate.add_effect(state, {"kind": "closed", "place": e["place"], "value": 0, "until": t + days * 1440,
                                  "text": e.get("text") or cause, "cause": cause, "thread": thread_id})
     elif kind == "closed" and e.get("place") in world.roads:
         if not ways_through(state, thread_id, ways) and not roads.way_round(world, e["place"], shut_roads(state, world, t)):
@@ -861,7 +865,7 @@ def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: s
         th = thread_of(state, thread_id)
         until = (max(t + lim["max_days"] * 1440, int((th.get("times") or [t])[-1]) + 1440)      # the situation's whole span (renewed in
                  if th is not None and th.get("status") == "active" else t + days * 1440)      # tick_threads if it is put off); a fallout's
-        state["effects"].append({"kind": "closed", "place": e["place"], "value": 0, "until": until,
+        worldstate.add_effect(state, {"kind": "closed", "place": e["place"], "value": 0, "until": until,
                                  "text": e.get("text") or cause, "cause": cause, "thread": thread_id})
     elif kind == "mark" and known(world, e.get("place")) and e.get("text"):
         ps = store.load_place(e["place"])

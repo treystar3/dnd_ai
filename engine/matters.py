@@ -534,9 +534,11 @@ def remember(store, world, th: dict, how: str, name: str, minutes: int, turn: in
         return
     from engine import town_memory                         # (f484) the one writer: typed, its words undated, a settled one's mark after its month
     text = M[how].format(title=th["title"], name=name)
-    town_memory.file(store, world, town, how, text, minutes, subjects=[f"thread:{th['id']}"] if th.get("id") else [],
+    kind = "settled" if how in ("settled", "partly", "transformed") else "note" if how == "lost" else how   # (f598) the endings' kinds
+    town_memory.file(store, world, town, kind, text, minutes, subjects=[f"thread:{th['id']}"] if th.get("id") else [],
                      mark=M["mark"].format(title=th["title"], name=name) if how == "settled" else "")
-    line = f"{name} settled {th['title'].lower()}." if how == "settled" else f"{name} was asked about {th['title'].lower()}, and let it be."
+    line = (f"{name} settled {th['title'].lower()}." if how == "settled" else f"{text}." if how in ("partly", "transformed", "lost")
+            else f"{name} was asked about {th['title'].lower()}, and let it be.")
     for nid in sorted({c["npc"] for c in th.get("clues", []) if c["npc"]} | ({th["sender"]} if th.get("sender") else set())):   # (f478) in order,
         if store.npc_exists(nid):                                                            # never the set's, so the row ids are the same in every process
             n = store.load_npc(nid)
@@ -578,7 +580,10 @@ def journal(ws) -> list[dict]:
         if th["status"] == "active":
             standing = "still going on"
         elif th.get("result") == "player":
-            standing = "settled by you"
+            standing = {"partly": "settled by you, though not without loss", "transformed": "ended by you, though the one behind it is not done"
+                        }.get(th.get("ending_kind", ""), "settled by you")       # (f598) as the world read its end
+        elif th.get("result") == "lost":
+            standing = "lost, for all you did"
         elif th["status"] == "resolved":
             standing = "settled by others"
         else:

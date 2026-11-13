@@ -13,13 +13,14 @@ The engine decides every number; the model only names and tells. Rules live in d
 """
 
 import heapq
+import json
 import random
 from pathlib import Path
 
 import yaml
 from core import yamlio
 
-from engine import clock, deeds
+from engine import clock, deeds, worldstate
 from engine import pulse_prompts as pp
 from llm.contracts import CataclysmProposal, JudgeVerdict
 from llm.gateway import LLMError, generate
@@ -254,7 +255,7 @@ def apply_big(store, world, catalog, state, e: dict, tier: str, t: int, cause: s
     elif kind == "camp":
         add_camp(store, world, state, thread_id, e.get("place", ""), e.get("role", ""), t, days)
     elif kind == "seal" and pulse.known(world, e.get("place")):
-        state["effects"].append({"kind": "closed", "place": e["place"], "value": 0,
+        worldstate.add_effect(state, {"kind": "closed", "place": e["place"], "value": 0,
                                  "until": t + (days or E["seal"]["days"]) * 1440,
                                  "text": e.get("text") or "sealed off", "cause": cause, "seal": True, "thread": thread_id})
 
@@ -389,7 +390,7 @@ def after_deed(ws, deed: dict) -> None:
                 matters.reveal(ws, state, th)
                 changed = True
                 continue
-            if th["tier"] in ("normal", "uncommon"):
+            if th["tier"] in ("normal", "uncommon") and not th.get("parts"):    # (f598) with parts, the hand-in pays and the world decides
                 pulse.end_thread(store, state, th, "resolved", f"{th['title']} - settled by {ws.player.character.name}.", ws.minutes)
                 th["result"] = "player"
                 matters.remember(store, world, th, "settled", ws.player.character.name, ws.minutes, ws.store.meta.turn)
@@ -413,7 +414,11 @@ def after_deed(ws, deed: dict) -> None:
                 if th.get("parts") and met.get("kind") in ("part", "persuade"):    # (f547) a met condition: a certain change on the
                     from engine import situation_parts                              # person, made with no model call
                     situation_parts.met_way(ws, state, th, met, deed.get("by") or ws.acting)
-                finish(ws, state, th, f"by way of '{met['name']}'", "truce" if met["kind"] == "treaty" else "victory")
+                from engine import situation_parts as _sp
+                if th.get("parts") and not _sp.nothing_to_read(th):   # (f598) a way met makes its change; the world decides
+                    read_end(ws, state, th, f"by way of '{met['name']}'")
+                else:
+                    finish(ws, state, th, f"by way of '{met['name']}'", "truce" if met["kind"] == "treaty" else "victory")
                 changed = True
                 continue
         if judge_ok(world, state, th, deed, ws.minutes):
@@ -455,54 +460,97 @@ def _scope_regions(world, th: dict) -> set[str]:
 
 
 def judge_ok(world, state, th, deed, now) -> bool:
-    J = E["judge"]
-    if th["tier"] not in J["tiers"] or th["stage"] < J["min_stage"] or deed["kind"] not in J["relevant_deeds"]:
+    """(f597) Whether a deed is ruled on against a situation: one with parts, at any tier, that it touches by id, never an act whose
+    own ruling already weighed it, never a repeat with nothing changed (ruled_before). One without parts is ruled on not at all."""
+    if deed["kind"] not in E["judge"]["relevant_deeds"] or not th.get("parts"):
         return False
-    if th.get("judge_calls", 0) >= J["max_calls"] or now - th.get("judge_last", -10 ** 9) < J["per_day"] * 1440:
+    if deed["kind"] == "acted" and th["id"] in (deed.get("considered") or ()):
         return False
-    place = world.places.get(deed.get("place") or "")
-    return bool(place and place.region in _scope_regions(world, th))
+    return touches(world, state, th, deed, now) and not ruled_before(th, deed, state)
+
+
+def touches(world, state, th, deed, now) -> bool:
+    """(f597) A deed touches a situation by id: it carries the situation's id, it was done to one of its people, it killed one of the
+    threats it names, or it was done where its trouble is (its town's places, those it makes dangerous, its own place; or on a road it
+    makes dangerous, or a road out of its town)."""
+    from engine import roads, situation_parts
+    if deed.get("thread") == th["id"]:
+        return True
+    parts = th.get("parts") or []
+    people = {a.get("who") for a in parts if a.get("kind") == "person"} | {x for p in th.get("paths") or []
+                                                                            for x in str(p.get("target") or "").split(",") if x}
+    if deed.get("npc") and deed["npc"] in people or deed.get("target") and deed["target"] in people:
+        return True
+    if deed["kind"] == "kill":
+        named = {x.get("target") for x in (th.get("heart") or {}).get("threats", []) if x.get("kind") == "creature"} - {"", None}
+        spawns = {s["id"] for s in state.get("spawns", []) if s.get("thread") == th["id"]}
+        if deed.get("spawn") and deed["spawn"] in spawns or deed.get("creature") in named:
+            return True
+    near, on = situation_parts.trouble_near(world, th, parts)
+    place = deed.get("place") or ""
+    return place in near or any(roads.on_road(world, place, r) for r in on)
+
+
+def _deed_key(th, deed) -> str:
+    """What makes two deeds the same act for the reuse rule: its kind, who did it, to whom, what was handed over, how it went."""
+    return "|".join(str(deed.get(k) or "") for k in ("kind", "by", "npc", "target", "item", "count", "coin", "creature", "spawn",
+                                                     "offense", "what", "degree"))
+
+
+def _circumstance(th, state=None) -> str:
+    """What a ruling read of the situation: its parts as they stand (what has changed in each, who stands how toward whom), and how
+    far its creatures have been beaten back."""
+    import hashlib
+    seen = [(a.get("now"), a.get("willing"), a.get("beliefs"), a.get("met")) for a in th.get("parts") or []]
+    seen += [(s_.get("id"), s_.get("kills"), s_.get("defeated")) for s_ in (state or {}).get("spawns", []) if s_.get("thread") == th.get("id")]
+    return hashlib.sha1(json.dumps(seen, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]
+
+
+def ruled_before(th, deed, state=None) -> bool:
+    """(f597) The reuse rule (the owner, 2026-11-08): the same deed against the situation as it stood after its last ruling on that deed
+    is ruled no more; nothing it could change has changed."""
+    key, now = _deed_key(th, deed), _circumstance(th, state)
+    return any(r["key"] == key and r["after"] == now for r in th.get("ruled") or [])
+
+
+def _remember(th, deed, state=None) -> None:
+    """A ruling made on this deed, kept with the situation as the ruling left it (never a call that gave no ruling)."""
+    from engine import situation_parts
+    key = _deed_key(th, deed)
+    rows = [r for r in th.get("ruled") or [] if r["key"] != key] + [{"key": key, "after": _circumstance(th, state)}]
+    th["ruled"] = rows[-int(situation_parts.S["rulings"]["kept"]):]
 
 
 def judge(ws, state, th, deed) -> bool:
-    """Ask the model whether the ledger ended this event. Returns True if the state changed."""
-    pulse = _pulse()
-    world = ws.world
-    th["judge_calls"] = th.get("judge_calls", 0) + 1
-    th["judge_last"] = ws.minutes
-    if "parts" in th:                                    # (f547) a situation with parts: the act ruled against them, change by change
-        return _rule(ws, state, th, deed)
-    mine = [d for d in deeds.since(state, th["made"], E["judge"]["relevant_deeds"])
-            if world.places.get(d.get("place") or "") and world.places[d["place"]].region in _scope_regions(world, th)]
-    live = "; ".join(f"{s['name']} (boss)" if s["boss"] else f"{s['name']} (kills {s['kills']}/{s['need']})"
-                     for s in live_spawns(state, ws.minutes, th["id"])) or ""
-    try:
-        v = generate("event_judge", pp.JUDGE_SYSTEM, pp.judge_request(th, [deeds.describe(d) for d in mine[-14:]], live),
-                     JudgeVerdict, temperature=0.3, max_tokens=300)
-    except LLMError as e:
-        console.debug(f"event judge: no verdict ({e})")
+    """(f547) The dungeon master's ruling on a deed against a situation's parts, change by change. Returns True if the state changed.
+    (f597) The turn's budget is asked first: with no room, the deed waits on the situation and is ruled after a later line
+    (take_up_waiting), and no operation stands down for a call it would not make; once one waits in an operation, the rest of that
+    operation's wait too. A ruling made is remembered (the reuse rule); a call that gave none is not."""
+    from engine import budget, operation, situation_parts
+    from engine.budget import BudgetError
+    if not th.get("parts"):
         return False
-    console.debug(f"event judge: {th['title']} -> {v.verdict} ({v.ending}): {v.reason}")
-    kinds = {d["kind"] for d in mine}
-    if v.verdict == "resolved":
-        # hard checks the model cannot talk its way past: a live boss needs more than one kind of deed
-        if live_spawns(state, ws.minutes, th["id"]) and any(s["boss"] for s in live_spawns(state, ws.minutes, th["id"])) and len(kinds) < 2:
-            v.verdict = "partial"
-        elif not mine:
-            v.verdict = "no"
-    if v.verdict == "resolved":
-        finish(ws, state, th, v.reason.rstrip("."), v.ending)
-        return True
-    if v.verdict == "partial":
-        left = th["times"][-1] - ws.minutes
-        for i in range(th["stage"] + 1, len(th["times"])):
-            th["times"][i] += round(left * E["judge"]["partial_delay"])
-        th["partial"] = th.get("partial", 0) + 1
-        pulse.add_news(state, f"{th['title']}: word is that {v.reason.rstrip('.').lower()} - it has bought some time.",
-                       th["place"], ws.minutes, th["groups"], thread=th["id"], certainty="they say")
-        console.note(f"What you have done has set {th['title']} back. It is not over.")
-        return True
-    return False
+    op = operation.current()
+    if op is not None and getattr(op, "rulings_wait", False):
+        return _wait(ws, th, deed)
+    try:
+        budget.allow("event_judge", len(pp.JUDGE_PARTS_SYSTEM) + 2400)
+    except BudgetError:
+        if op is not None:
+            op.rulings_wait = True
+        return _wait(ws, th, deed)
+    th["judge_calls"] = th.get("judge_calls", 0) + 1     # a count kept for the tools, never a limit
+    th["judge_last"] = ws.minutes
+    try:
+        made = _rule(ws, state, th, deed)
+    except BudgetError:
+        if op is not None:
+            op.rulings_wait = True
+        return _wait(ws, th, deed)
+    if made is not None:
+        _remember(th, deed, state)
+        read_end(ws, state, th, "by what was done")       # (f598) whether what it changed ends it is the world's to say
+    return True
 
 
 def _rule(ws, state, th, deed) -> bool:
@@ -510,18 +558,110 @@ def _rule(ws, state, th, deed) -> bool:
     engine keeps. Its verdict ends nothing (the owner: never "pretending they completed it successfully"); f549 reads the end from the
     world. A call that fails changes nothing."""
     from engine import situation_parts
+    from engine.budget import BudgetError
     try:
         v, kept, dropped = situation_parts.rule(ws, state, th, situation_parts.act_of(ws, deed))
+    except BudgetError:
+        raise                                            # (f597) the caller keeps it waiting
     except LLMError as e:
         console.debug(f"event ruling: no ruling ({e})")
-        return False
+        return None                                      # (f597) no ruling: nothing remembered, so the deed may be ruled again
     console.debug(f"event ruling: {th['title']} -> {len(kept)} kept, {len(dropped)} dropped")
     return bool(kept)                                    # (f547's review) never the model's to end it: what it changed stands, and
                                                          # whether that ends it is read from the world (f549)
 
 
-def finish(ws, state, th, how: str, ending: str) -> None:
-    """The player ended an event. Lift what it did, tell the world, and pay the grand reward for the big ones."""
+def _wait(ws, th, deed) -> bool:
+    """(f597) A deed the turn's budget had no room to rule on waits on the situation, with who saw it; past the cap the oldest is let go,
+    counted as a ruling that failed."""
+    from engine import refusals, situation_parts
+    row = dict(deed)
+    row.setdefault("witnesses_at", sorted(n.id for n in (getattr(ws, "present", None) or []) if getattr(n, "id", "")))
+    rows = [d for d in th.get("waiting") or [] if d.get("seq") != deed.get("seq")] + [row]
+    cap = int(situation_parts.S["rulings"]["waiting"])
+    for old in rows[:-cap]:
+        refusals.note("ruling_failed", f"{old.get('kind')}: {th.get('title', '')}", "let go: newer deeds were waiting", old.get("place", ""),
+                      ws.store.meta.turn)
+    th["waiting"] = rows[-cap:]
+    console.debug(f"event ruling: {th['title']} waits for room to rule on a {deed.get('kind')}")
+    return True
+
+
+def waiting(state: dict) -> list[dict]:
+    """(f597) The live situations with a deed waiting for its ruling, oldest first."""
+    return sorted((th for th in (state or {}).get("threads", []) if th.get("status") == "active" and th.get("waiting")),
+                  key=lambda th: (int(th.get("made", 0)), th["id"]))
+
+
+def take_up_waiting(ws) -> bool:
+    """(f597) After a line, where a situation's birth is asked (the owner, 2026-11-11: the player's line first): the oldest deed
+    waiting on a situation is ruled on, its call asked outside the transaction. One a line; one that still finds no room waits on."""
+    state = ws.store.load_world_state()
+    rows = waiting(state)
+    if not rows:
+        return False
+    th = rows[0]
+    deed = th["waiting"].pop(0)
+    if not ruled_before(th, deed, state):                # ruled meanwhile, with nothing changed since: no more
+        judge(ws, state, th, deed)                       # no room again: it waits again (_wait)
+    ws.store.save_world_state(state)
+    return True
+
+
+def read_end(ws, state, th, how: str = "by what was done", at_limit: bool = False) -> bool:
+    """(f598) Read the situation's end from the world (situation_parts.reading); when it is over, end it the one way, by how it ended.
+    Returns whether it ended. The caller saves `state`."""
+    from engine import situation_parts
+    if th.get("status") != "active" or not th.get("heart") or not situation_parts.touched(th):
+        return False                                     # one nobody touched keeps the old roll (the owner)
+    r = situation_parts.reading(ws.store, ws.world, state, th, ws.minutes, at_limit=at_limit)
+    if not r.over:
+        return False
+    if r.ending == "lost" or not r.contributors:         # nobody's change counted: never anyone's success
+        lose(ws, state, th)
+    else:
+        finish(ws, state, th, how, "victory", kind=r.ending, contributors=r.contributors)
+    return True
+
+
+def read_ends(ws) -> bool:
+    """(f598) After the pulse: every live situation with a heart read again (an effect run out, someone fled or died off-screen), and
+    one whose time came while it was touched read at its limit."""
+    state = ws.store.load_world_state()
+    if not state:
+        return False
+    ended = False
+    for th in [x for x in state.get("threads", []) if x.get("status") == "active" and x.get("heart")]:
+        ended |= read_end(ws, state, th, "", at_limit=bool(th.get("read_due")))
+    if ended:
+        ws.store.save_world_state(state)
+    return ended
+
+
+def lose(ws, state, th) -> None:
+    """(f598) A situation lost: everything it put at stake gone. Its fallout lands, as when it is left alone; nobody is credited, and the
+    town remembers that it was lost for all that was done."""
+    pulse = _pulse()
+    store, world, t = ws.store, ws.world, ws.minutes
+    fall = th.get("fallout") or {"description": "", "effects": []}
+    pulse.end_thread(store, state, th, "ended", f"{th['title']} - lost. {fall.get('description', '')}".strip(), t)
+    pulse.apply_effects(store, world, ws.catalog, state, fall.get("effects", []), th["tier"], t, th["title"], raw=True, thread_id=th["id"])
+    th["result"], th["ending_kind"], th["touched"] = "lost", "lost", True
+    from engine import matters, threads as _threads
+    _threads.follow_up(state, th, "ignored", random.Random(f"{store.meta.seed}:chain:{th['id']}"), t)
+    if touched_by := sorted({c["by"] for c in th.get("changes") or [] if c.get("by")}):
+        matters.remember(store, world, th, "lost", situation_name(ws, touched_by[0]), t, store.meta.turn)
+    console.note(matters.D["memory"]["ended"]["lost"].format(title=th["title"]))
+
+
+def situation_name(ws, cid: str) -> str:
+    from engine import situation_parts
+    return situation_parts.char_name(ws, cid)
+
+
+def finish(ws, state, th, how: str, ending: str, kind: str = "achieved", contributors=None) -> None:
+    """The player ended an event. Lift what it did, tell the world, and pay the grand reward for the big ones. (f598) `kind`: how the
+    world reads its end (achieved, partly, transformed); `contributors`: every character whose change counted, each credited."""
     pulse = _pulse()
     store, world, t = ws.store, ws.world, ws.minutes
     name = ws.player.character.name
@@ -537,30 +677,37 @@ def finish(ws, state, th, how: str, ending: str) -> None:
         ps = store.load_place(won["side"])
         ps.marks = (ps.marks + [f"broken in the war ({th['title']})"])[-12:]
         store.save_place(ps)
-    pulse.end_thread(store, state, th, "resolved", f"{th['title']} - ended; {name} {how}.", t)
+    names = [situation_name(ws, c) for c in contributors] if contributors else [name]          # (f598) each whose change counted
+    name = names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
+    pulse.end_thread(store, state, th, "resolved", f"{th['title']} - ended; {name} {how}." if how else f"{th['title']} - ended by {name}.", t)
     if th.get("parts"):                                 # (f545) the scene's own copies of its people take what the end released
         from engine import situation_parts
         situation_parts.refresh(ws, th)
     th["result"] = "player"
     th["ending"] = ending
+    th["ending_kind"] = kind                            # (f598) achieved, partly or transformed
     th["touched"] = True                                # (f424) the journal shows the matter the player ended
-    deeds.add(state, "settled", t, th["place"], thread=th["id"], title=th["title"], tier=th["tier"], how=how, by=ws.acting)   # (f578) on the caller's state, whose save keeps it: the deed a campaign is earned by (f363)
+    for cid in (contributors or [ws.acting]):           # (f598) every character whose change counted: a deed each (a way of old: the one acting)
+        deeds.add(state, "settled", t, th["place"], thread=th["id"], title=th["title"], tier=th["tier"], how=how, by=cid, ending=kind)
     from engine import pulselog
     pulselog.mark("end", f"{th['title']} - ended by {name}: {how}", t, how="player", place=th["place"], tier=th["tier"])   # (f355) the player's own endings: the log's best rows
     from engine import threads as _threads
-    _threads.follow_up(state, th, "settled", random.Random(f"{store.meta.seed}:chain:{th['id']}"), t)     # (f358) what may come of it
+    _threads.follow_up(state, th, "settled", random.Random(f"{store.meta.seed}:chain:{th['id']}"), t,
+                       always=kind == "transformed")     # (f358) what may come of it; (f598) a transformed one's source goes on
     if th["tier"] == "cataclysm":
         state["cataclysm_end"] = t
     from engine import matters
     for pid in {th["place"], *th.get("hit_towns", [])}:
         if pid in world.places:
             try:
-                ws.reputation_add(pulse.town_of(world, pid), matters.D["memory"]["reputation"].get(th["tier"], 6))
+                share = float(matters.D["memory"]["ending_share"][kind])                      # (f598) by how it ended
+                ws.reputation_add(pulse.town_of(world, pid), round(matters.D["memory"]["reputation"].get(th["tier"], 6) * share))
             except Exception:
                 pass
-    matters.remember(store, world, th, "settled", name, t, ws.store.meta.turn)
-    console.note(f"{th['title']} is ended - {how}.")
-    if th["tier"] in ("campaign", "cataclysm"):
+    matters.remember(store, world, th, {"partly": "partly", "transformed": "transformed"}.get(kind, "settled"), name, t, ws.store.meta.turn)
+    console.note(matters.D["memory"]["ended"][kind].format(title=th["title"]) if contributors is not None
+                 else f"{th['title']} is ended - {how}.")      # (f598) told as it ended
+    if th["tier"] in ("campaign", "cataclysm") and kind in ("achieved", "partly"):
         grand_reward(ws, state, th)
     store.save_player(ws.player)
 
@@ -962,7 +1109,7 @@ def start_cataclysm(store, world, catalog, state, t: int, rng: random.Random) ->
               "made_by": "model", "told": True,
               "triumph": {"description": proposal.triumph or "The danger passes, and the survivors begin to rebuild.",
                           "effects": [{"kind": "mark", "place": origin.id, "text": f"{proposal.title} was ended here"}]}}
-    state["threads"].append(thread)
+    worldstate.add_thread(state, thread)
     state["campaign"] = thread_id
     state["cataclysms"] = state.get("cataclysms", 0) + 1
     pulse.add_news(state, proposal.news, origin.id, t, ["everyone"], thread=thread_id, certainty="they say")
@@ -1064,7 +1211,7 @@ def town_outcome(store, world, catalog, state, th, town: str, stage_i: int, t: i
     refuge = _refuge(world, th, town)
     caught = _catch_people(store, world, state, th, town, fell, refuge, t, rng)
     if fell:
-        state.setdefault("effects", []).append({"kind": "danger", "place": town, "value": 40, "until": t + 40 * 1440, "cause": th["title"]})
+        worldstate.add_effect(state, {"kind": "danger", "place": town, "value": 40, "until": t + 40 * 1440, "cause": th["title"]})
         ps = store.load_place(town)
         ps.marks = (ps.marks + [f"half in ruin after {th['title']}"])[-12:]
         store.save_place(ps)
@@ -1288,4 +1435,4 @@ def after_ignored(store, world, state, th: dict, t: int) -> None:
             s["until"] = t + 3650 * 1440
             s["from"] = min(s["from"], t)
     for town in th.get("fallen", []):
-        state.setdefault("effects", []).append({"kind": "prices", "place": town, "value": 30, "until": t + 60 * 1440, "cause": th["title"]})
+        worldstate.add_effect(state, {"kind": "prices", "place": town, "value": 30, "until": t + 60 * 1440, "cause": th["title"]})

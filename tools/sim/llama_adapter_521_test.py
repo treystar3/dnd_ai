@@ -247,11 +247,14 @@ check("cancel(thread) ends that thread's call and no other", res == {"a": "cance
 # each lane's slot
 lanes = llama.LlamaServer(llama.Server(fake.port, "k1", step=0.1), machine={"slot_ctx": 1000, "slots": {"foreground": 0, "background": 1}})
 fake.script = lambda p, b, n: {"content": '{"x": "y"}'}
-lanes.chat(r1)
+fg_rep = lanes.chat(r1)
 fg_slot = fake.chats()[-1]["body"].get("id_slot")
 with backend.lane("background"):
-    lanes.chat(r1)
+    bg_rep = lanes.chat(r1)
 check("each lane is sent its own slot", fg_slot == 0 and fake.chats()[-1]["body"].get("id_slot") == 1, (fg_slot, fake.chats()[-1]["body"].get("id_slot")))
+check("(f602) its usage says the slot it ran on and its lane, for the night's slot measure",
+      (fg_rep.usage["slot"], bg_rep.usage["slot"], bg_rep.usage["lane"]) == (0, 1, "background") and fg_rep.usage["lane"] != "background",
+      (fg_rep.usage, bg_rep.usage))
 
 # a slot's context read from /props when the machine does not say
 props = llama.LlamaServer(llama.Server(fake.port, "k1", step=0.1))

@@ -109,6 +109,13 @@ stood:
     - "You are mended, by {who}'s hands. The telling slipped away."
     - "{who} tended you. The relief is real whatever was left unsaid."
     - "The wounds are seen to; {who} did it. That holds."
+  carried:                                           # (f592) a thing in the world carried in hand, no item of the pack
+    - "You carry {what} now, in hand. The moment went untold."
+    - "{what} is with you, held and not packed. That stands."
+    - "In your hands: {what}. The words for taking it did not come."
+    - "{what} goes where you go now. The telling slipped away."
+    - "You took up {what}. Nothing more came of the moment."
+    - "{what}, lifted and kept by you. The rest went unsaid."
   left:
     - "{what} lies here still, left where it was. The moment went untold."
     - "You left {what} behind. It stays where you left it."

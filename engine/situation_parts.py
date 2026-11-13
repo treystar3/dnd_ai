@@ -10,6 +10,8 @@ pulse's log told what was written and what could not be. A part that rests on so
 here is a clock (the owner): a worry lasts the situation, and nothing times out."""
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 import random
 import re
 
@@ -434,6 +436,138 @@ def heart(th: dict, parts: list[dict], state: dict, t: int, town: str = "") -> d
     return {"threats": threats, "stakes": stakes, "made": int(t)}
 
 
+@dataclass
+class Reading:
+    """(f598) A situation read against its original facts (its heart): each threat resolved or not, each stake secured, lost or at
+    risk, and whether it is over and how. The engine's alone: the model is never asked whether it is over."""
+    threats: list = field(default_factory=list)      # (threat, resolved)
+    stakes: list = field(default_factory=list)       # (stake, "secured" | "lost" | "at_risk")
+    over: bool = False
+    ending: str = ""                                 # achieved | partly | transformed | lost
+    contributors: list = field(default_factory=list)
+
+
+def _in_force(state: dict, th: dict, x: dict, t: int) -> bool:
+    """A harmful condition still laid on the world: its part not lifted and an effect of it live, or the effect it names live."""
+    parts = th.get("parts") or []
+    live = [e for e in (state or {}).get("effects", []) if e.get("thread") == th["id"] and not e.get("lifted") and int(e.get("until", 0)) > t]
+    if isinstance(x.get("part"), int):
+        a = parts[x["part"]] if x["part"] < len(parts) else {}
+        if a.get("now") == "lifted":
+            return False
+        mine = [e for e in live if e.get("of_part") == x["part"]]
+        return bool(mine) or not any(e.get("of_part") == x["part"] for e in (state or {}).get("effects", []) if e.get("thread") == th["id"])
+    kind, _, place = str(x.get("effect") or "").partition("@")
+    return any(e.get("kind") == kind and e.get("place", "") == place for e in live)
+
+
+def _person_part(th: dict, who: str) -> dict:
+    return next((a for a in th.get("parts") or [] if a.get("kind") == "person" and a.get("who") == who), {})
+
+
+def _stood_down(store, th: dict, who: str) -> bool:
+    """One who could impose or block no longer can or will: gone, fled, surrendered, joined, or won over (open to anyone who acted)."""
+    if not who or not store.npc_exists(who) or store.load_npc(who).gone:
+        return True
+    a = _person_part(th, who)
+    return a.get("now") in ("fled", "surrendered", "joined") or "open" in (a.get("willing") or {}).values()
+
+
+def _beaten(state: dict, th: dict, t: int) -> bool:
+    """Its creatures beaten back: none of its spawns abroad now (each defeated, or its time run out), or a way of killing them met."""
+    spawns = [s_ for s_ in (state or {}).get("spawns", []) if s_.get("thread") == th["id"]]
+    abroad = [s_ for s_ in spawns if not s_.get("defeated") and int(s_.get("from", 0)) <= t < int(s_.get("until", 0))]
+    way = any(p.get("done") for p in th.get("paths") or [] if p.get("kind") in ("kill", "horde"))
+    return (bool(spawns) and not abroad) or way
+
+
+def _free(store, th: dict, who: str) -> bool:
+    """Still at large in the world: alive, and neither surrendered nor joined (one who fled is free, and may come back to it)."""
+    return bool(who) and store.npc_exists(who) and not store.load_npc(who).gone and _person_part(th, who).get("now") not in ("surrendered", "joined")
+
+
+def reading(store, world, state: dict, th: dict, t: int, at_limit: bool = False) -> Reading:
+    """(f598; docs/design/16, the owner's answers of 2026-11-11) The situation read from the world, against its heart, never its parts as
+    they now stand. A condition is resolved when it is no longer in force and nobody able is set on imposing it again; one who blocks,
+    when they stand down; a creature, when its way is met or its spawn beaten. Every threat resolved: achieved, or partly with a stake
+    lost, or transformed with one who imposed a condition still free and set against one who acted. Every stake lost: lost. At its time
+    limit, touched: partly when anything was resolved or secured, else lost. Reads only."""
+    from engine import events
+    H = th.get("heart") or {}
+    r = Reading(contributors=contributors(th))
+    if not H:
+        return r                                     # an old save's situation with no heart: its ways and its time end it
+    spawns = [s for s in (state or {}).get("spawns", []) if s.get("thread") == th["id"]]
+    for x in _threats(H):
+        if x["kind"] == "condition":
+            if x.get("by_kind") == "creature":       # what a creature imposes goes with the creature
+                done = _beaten(state, th, t)
+            else:
+                controller = x.get("by", "") if x.get("by_kind") == "person" else ""
+                done = not _in_force(state, th, x, t) and not (controller and not _stood_down(store, th, controller))
+        elif x["kind"] == "person":
+            done = _stood_down(store, th, x.get("who", ""))
+        else:                                        # a creature its ways must defeat
+            way = [p for p in th.get("paths") or [] if p.get("kind") in ("kill", "horde")
+                   and (p.get("target") or "") == (x.get("target") or "") and (p.get("spawn") or "") == (x.get("spawn") or "")]
+            done = any(p.get("done") for p in way) or (bool(spawns) and all(s.get("defeated") for s in spawns) and not x.get("target"))
+        r.threats.append((x, done))
+    for x in H.get("stakes") or []:
+        if x["kind"] == "place":
+            continue
+        a = (th.get("parts") or [])[x["part"]] if isinstance(x.get("part"), int) and x["part"] < len(th.get("parts") or []) else {}
+        if x["kind"] == "person":
+            gone = not store.npc_exists(x.get("who", "")) or bool(store.load_npc(x["who"]).gone)
+            r.stakes.append((x, "lost" if gone else "secured" if a.get("now") == "safe" else "at_risk"))
+        else:
+            now = a.get("now")
+            secured = now in ("moved", "given_up") or bool(a.get("done"))      # its request handed in (part_done) secures it too
+            r.stakes.append((x, "secured" if secured else "lost" if now in ("lost", "destroyed") else "at_risk"))
+    standings = [s for _, s in r.stakes]
+    resolved = [d for _, d in r.threats]
+    if standings and all(s == "lost" for s in standings):
+        r.over, r.ending = True, "lost"
+    elif resolved and all(resolved):
+        hostile = any(x["kind"] == "condition" and x.get("by_kind") == "person" and _free(store, th, x.get("by", ""))
+                      and set((_person_part(th, x["by"]).get("willing") or {}).get(c, "") for c in r.contributors)
+                      & {"hostile", "refusing", "committed"} for x, _ in r.threats)
+        r.over = True
+        r.ending = "partly" if "lost" in standings else "transformed" if hostile else "achieved"
+    elif not resolved and standings and all(s == "secured" for s in standings):
+        r.over, r.ending = True, "achieved"           # no threat named: its objective is its stakes
+    elif at_limit:                                   # read by its stakes (the owner); with none at stake, by its threats
+        r.over = True
+        r.ending = ("partly" if "secured" in standings else "lost") if standings else ("partly" if any(resolved) else "lost")
+    return r
+
+
+def _threats(H: dict) -> list:
+    """The threats the reading settles. What the situation's own telling laid that no part holds (an "effect" threat) is its harm, not
+    a threat anyone can be ruled against: it lifts with the end (pulse.lift), so it never holds a situation open."""
+    return [x for x in H.get("threats") or [] if not (x.get("kind") == "condition" and "effect" in x and "part" not in x)]
+
+
+def nothing_to_read(th: dict) -> bool:
+    """(f598) A heart naming no threat and nothing at stake beyond its place: the reading has nothing to settle, so its ways end it."""
+    H = th.get("heart") or {}
+    return not H or (not _threats(H) and not [x for x in H.get("stakes") or [] if x.get("kind") != "place"])
+
+
+def contributors(th: dict) -> list[str]:
+    """(f598) The characters whose change counted: one that moved a threat or a stake of its heart the better way (a person won over, a
+    condition lifted, someone made safe, goods moved), as its record keeps them."""
+    H = th.get("heart") or {}
+    counted = {x["part"] for x in list(H.get("threats") or []) + list(H.get("stakes") or []) if isinstance(x.get("part"), int)}
+    better = {w for w, row in S["rulings"]["changes"].items() if row.get("better")}
+    return sorted({c["by"] for c in th.get("changes") or [] if c.get("by") and c.get("becomes") in better
+                   and int(c.get("part") or 0) - 1 in counted})
+
+
+def touched(th: dict) -> bool:
+    """(f598) Whether any character ever did anything that moved it: a change on its record, or a ruling made on a deed of theirs."""
+    return any(c.get("by") for c in th.get("changes") or []) or bool(th.get("ruled"))
+
+
 def _laid_by(state: dict, th: dict, e: dict, t: int) -> tuple[str, str]:
     """(f546) Who or what imposes a condition the engine laid for a situation: the creature it set loose, for a closure or a danger;
     nature, for a natural situation's; else unknown."""
@@ -530,27 +664,50 @@ def _unparted(x: dict) -> bool:
 
 
 def adoptable(state: dict) -> list[dict]:
-    """(f546) The live situations of the adopting tiers with no parts and no birth still due, oldest first."""
+    """(f546) The live situations of the adopting tiers with no parts and no birth still due, oldest first. (f599) One of a reach tier
+    is adopted only past its tries: one never met keeps no parts, and ends as it always did."""
     B = S.get("births") or {}
-    tries, tiers, born = int(B.get("tries", 3)), set(B.get("adopt_tiers") or ()), set(B.get("tiers") or ())
+    tries, tiers, born, reach = int(B.get("tries", 3)), set(B.get("adopt_tiers") or ()), set(B.get("tiers") or ()), set(B.get("reach_tiers") or ())
     return sorted((x for x in (state or {}).get("threads", []) if _unparted(x) and x.get("tier") in tiers
-                   and (not isinstance(x.get("parts_due"), int) or x["parts_due"] >= tries or x.get("tier") not in born)),
+                   and (isinstance(x.get("parts_due"), int) and x["parts_due"] >= tries if x.get("tier") in reach
+                        else (not isinstance(x.get("parts_due"), int) or x["parts_due"] >= tries or x.get("tier") not in born))),
                   key=lambda x: (int(x.get("made", 0)), x["id"]))      # (f546's second review) a tier no longer born: adopted, whatever its due
 
 
-def due(state: dict) -> dict | None:
-    """(f546) The oldest birth still due its parts, if any."""
+def met(world, th: dict, place: str) -> bool:
+    """(f599) Whether a character standing at `place` can meet a situation: it is in the situation's town or where its trouble is; or
+    they have heard of it from someone of it, been asked about it, or done something it reached."""
+    from engine import pulse
+    if th.get("touched") or th.get("answered") or th.get("summons") == "met" or th.get("ruled"):
+        return True
+    if not place or place not in world.places:
+        return False
+    near, _ = trouble_near(world, th, [])
+    return place in near or (th.get("place") in world.places and pulse.town_of(world, place) == pulse.town_of(world, th["place"]))
+
+
+def due(state: dict, world=None, places=()) -> dict | None:
+    """(f546) The oldest birth still due its parts, if any. (f599) One of a reach tier comes due once a character can meet it (`places`:
+    where the characters stand), the nearest first; one never met never asks."""
     B = S.get("births") or {}
-    tries, tiers = int(B.get("tries", 3)), set(B.get("tiers") or ())
-    return next(iter(sorted((x for x in (state or {}).get("threads", []) if _unparted(x) and x.get("tier") in tiers
-                             and isinstance(x.get("parts_due"), int) and x["parts_due"] < tries),
-                            key=lambda x: (int(x.get("made", 0)), x["id"]))), None)
+    tries, tiers, reach = int(B.get("tries", 3)), set(B.get("tiers") or ()), set(B.get("reach_tiers") or ())
+
+    def waiting_one(x) -> bool:
+        if not (_unparted(x) and x.get("tier") in tiers):
+            return False
+        if isinstance(x.get("parts_due"), int):
+            return x["parts_due"] < tries
+        return x.get("tier") in reach and world is not None and any(met(world, x, p) for p in places)
+
+    here = lambda x: 0 if world is not None and any(p == x.get("place") or p in trouble_near(world, x, [])[0] for p in places) else 1
+    return next(iter(sorted((x for x in (state or {}).get("threads", []) if waiting_one(x)),
+                            key=lambda x: (here(x), int(x.get("made", 0)), x["id"]))), None)
 
 
-def waiting(state: dict) -> bool:
+def waiting(state: dict, world=None, places=()) -> bool:
     """(f546) Whether there is anything for the parts operations to do; none is opened otherwise, so an input with nothing born commits
     what it always did."""
-    return bool(adoptable(state)) or due(state) is not None
+    return bool(adoptable(state)) or due(state, world, places) is not None
 
 
 def adopt_all(ws) -> bool:
@@ -565,6 +722,16 @@ def adopt_all(ws) -> bool:
     return bool(rows)
 
 
+def wait_for_room(ws, tid: str) -> None:
+    """(f599) A birth the turn's budget had no room for: it waits, and once met it stays due (parts_due 0) wherever the character goes."""
+    from engine import pulse
+    state = ws.store.load_world_state() or {}
+    th = pulse.thread_of(state, tid)
+    if th is not None and _unparted(th) and not isinstance(th.get("parts_due"), int):
+        th["parts_due"] = 0
+        ws.store.save_world_state(state)
+
+
 def missed(ws, tid: str, why: str = "its operation did not stand") -> None:
     """(f546's reviews) A birth that did not stand - its call failed, it kept or made no part, or its operation failed for any reason -
     counts as one of its tries, here, in an operation of its own, so no birth is asked for more than births.tries times. Past them it
@@ -572,9 +739,11 @@ def missed(ws, tid: str, why: str = "its operation did not stand") -> None:
     from engine import pulse, pulselog
     state = ws.store.load_world_state() or {}
     th = pulse.thread_of(state, tid)
-    if th is None or not _unparted(th) or not isinstance(th.get("parts_due"), int):
+    if th is None or not _unparted(th):
         return
-    th["parts_due"] = int(th["parts_due"]) + 1
+    if not isinstance(th.get("parts_due"), int) and th.get("tier") not in ((S.get("births") or {}).get("reach_tiers") or ()):
+        return
+    th["parts_due"] = int(th.get("parts_due") or 0) + 1                # (f599) a reach tier's first try counts from its meeting
     pulselog.note("miss", f"{th.get('title', '')}: no parts this time ({why})", thread=tid)
     ws.store.save_world_state(state)
 
@@ -789,6 +958,9 @@ def ruled(store, th: dict, act: dict, changes: list[dict], world=None) -> tuple[
                 out.add("force" if act.get("kind") in violence else "deed")    # refuses, never one committed)
         if not words and act.get("kind") in violence and me in heard:
             out.add("force")                                   # violence they saw done
+        if not words and me in heard and act.get("force_by_change") and any(x.get("part") == k and x.get("because") == "force"
+                                                                          for x in kept + [c]):
+            out.add("force")                                   # (f600) force done to them, there: its own target only
         if me in heard and c.get("because") == "evidence" and shown(c):
             out.add("evidence")                                # (f547's fourth review) shown to them: they were there to see it
         if me in heard and any(x["part"] == k and x.get("because") == "evidence" for x in kept):
@@ -816,9 +988,12 @@ def ruled(store, th: dict, act: dict, changes: list[dict], world=None) -> tuple[
             return "" if how & {"evidence", "force"} else why["still_committed"]
         return "" if how else why["still_refusing"]
 
-    def where_trouble() -> bool:                               # (f547's second review) an act of violence where the trouble is
-        place = act.get("place") or ""
-        if words or act.get("kind") not in violence:
+    def freeing(c: dict, because: str) -> bool:               # (f604) what frees one held away: force, or a hand's work rolled for
+        return because == "force" or (because == "work" and bool(c.get("hand")))
+
+    def where_trouble(c: dict) -> bool:                        # (f547's second review) an act of violence where the trouble is
+        place = act.get("place") or ""                         # (f600) or this change's own force, (f604) or a hand's work there
+        if words or not (act.get("kind") in violence or (act.get("force_by_change") and c.get("because") in ("force", "work"))):
             return False
         if place and place == th.get("place"):
             return True
@@ -847,6 +1022,8 @@ def ruled(store, th: dict, act: dict, changes: list[dict], world=None) -> tuple[
             return why["not_actor"]
         layer = row.get("layer")
         because = c.get("because") or "words"
+        if because not in RU["because"] and because not in RU["engine_because"]:
+            because = "words"                                      # (f600) nothing undeclared counts for more than words
         if layer in ("belief", "feeling", "willingness") and a["who"] not in reached:
             return why["not_heard"]
         if who and part(who)["who"] not in reached:
@@ -858,9 +1035,10 @@ def ruled(store, th: dict, act: dict, changes: list[dict], world=None) -> tuple[
         if not who and layer in ("world", "action"):
             if words or because in ("words", "coin"):            # (f547's review) the player's own hand changes the world, never
                 return why["words_only"]                          # a word or a coin by itself
-            if a["kind"] == "person" and a["who"] not in heard and not (because == "force" and where_trouble()):
+            if a["kind"] == "person" and a["who"] not in heard and not (freeing(c, because) and where_trouble(c)):
                 return why["not_heard"]                          # one freed by the player's own hand: where the act was, or freed by
-            hand = by_hand(a, k, w)                                 # force where the trouble is (their captor beaten); (f547's third
+            hand = by_hand(a, k, w, c)                              # force where the trouble is (their captor beaten), (f604) or by a
+                                                                 # hand's work there on a roll of the hand; (f547's third
             if hand:                                             # review) anything else, by a hand that was there and could
                 return hand
         if failed and row.get("better"):
@@ -913,13 +1091,15 @@ def ruled(store, th: dict, act: dict, changes: list[dict], world=None) -> tuple[
                 return stuck                                   # they are moved, never by words that soften them first
         return ""
 
-    def by_hand(a: dict, k: int, w: str) -> str:                       # (f547's third review) what the player's own hand may change: only
-        kind = a.get("kind")                                   # where it is, and as the one who holds it allows
+    def by_hand(a: dict, k: int, w: str, c: dict | None = None) -> str:   # (f547's third review) what the player's own hand may change:
+        kind = a.get("kind")                                   # only where it is, and as the one who holds it allows
         if kind == "condition":
-            how = "force" if act.get("kind") in violence else "work"           # one held by someone is broken only by force; a flood
+            how = "force" if act.get("kind") in violence or (act.get("force_by_change") and (c or {}).get("because") == "force") \
+                else "work"                                    # one held by someone is broken only by force; a flood
             if a.get("what") == "prices" and how == "work" and (here(a.get("on", "")) or in_town(a)):   # is not beaten. (f547's fourth
                 return ""                                      # and fifth reviews) goods brought ease a town's price rise anywhere in it,
-            if not here(a.get("on", "")):                      # whoever raised it; force breaks it only where it is
+            if not here(a.get("on", "")):                      # whoever raised it; force breaks it only where it is. (f600) An act's
+                                                               # force is its change's own, never the whole act's
                 return why["not_there"]
             return "" if how in RU["hand_lifts"].get(a.get("by_kind") or "world", ()) else why["no_means"]
         if kind == "evidence":
@@ -1096,7 +1276,7 @@ def act_of(ws, deed: dict) -> dict:
     how it went, and whether it was words alone. Read from the deed and the scene, as they stand."""
     RU = S["rulings"]
     from engine import deeds
-    here = sorted({n.id for n in (getattr(ws, "present", None) or []) if getattr(n, "id", "")})
+    here = deed.get("witnesses_at") or sorted({n.id for n in (getattr(ws, "present", None) or []) if getattr(n, "id", "")})   # (f597)
     place = deed.get("place", "")
     shown = ws.world.places[place].name if place in getattr(ws.world, "places", {}) else place    # (f547's second review) its name
     beaten = deed.get("kind") == "offense" and deed.get("offense") == "assault"                   # (f547's second review) one beaten is
@@ -1126,7 +1306,8 @@ def parts_lines(store, world, th: dict, by: str = "") -> list[str]:
             elif a.get("by"):
                 extra.append(f"imposed by {a['by']} ({a.get('by_kind')})")
         if a.get("kind") == "evidence" and not a.get("label") and isinstance(a.get("clue"), int) and a["clue"] < len(clues):
-            one = f"{store_name_s(store, a['holder']) if a.get('held') == 'person' else 'At ' + a['holder']} knows: {clues[a['clue']].get('text', '')}"
+            at = world.places[a["holder"]].name if a.get("holder") in world.places else "this place"   # (f593) a place's name, never its id
+            one = f"{store_name_s(store, a['holder']) if a.get('held') == 'person' else 'At ' + at} knows: {clues[a['clue']].get('text', '')}"
         notes = [a["now"]] if a.get("now") else []
         if by and (a.get("willing") or {}).get(by):
             notes.append(f"{a['willing'][by]} toward the player")
@@ -1179,6 +1360,10 @@ def met_way(ws, state: dict, th: dict, path: dict, by: str) -> None:
         for j, c in enumerate(parts):
             if c.get("kind") == "condition" and c.get("by_kind") == "person" and c.get("by") == a["who"] and c.get("now") != "lifted":
                 kept.append({"n": len(kept) + 1, "part": j + 1, "who": i + 1, "becomes": "lifted", "because": "earlier", "needs": [1]})
+    if path.get("need") == "given" and path.get("good"):   # (f598) the good they wanted is theirs now: no longer at stake
+        for j, c in enumerate(parts):
+            if c.get("kind") == "resource" and c.get("good") == path["good"] and c.get("wanted_by") == a["who"] and c.get("now") != "given_up":
+                kept.append({"n": len(kept) + 1, "part": j + 1, "who": i + 1, "becomes": "given_up", "because": "goods", "needs": [1]})
     keep_changes(ws, state, th, {"kind": "way", "by": by, "npc": a["who"]}, kept[1:])
     th["changes"] = (list(th.get("changes") or []) + [{"n": 1, "part": i + 1, "who": 0, "becomes": "open", "by": by, "act": "way",
                                                        "minute": int(ws.minutes)}])[-int(S["rulings"]["window"]):]
