@@ -97,17 +97,18 @@ if by_kind.get("part"):
           and shape_of("access")["properties"]["state"]["enum"] == list(targets.CH["changes"]["access"]["args"]), shape_of("access"))
 fields = lambda model: set(model.model_fields)
 from llm.contracts import ActChange, Need, Stakes
-check("the grammar asks for no field the contract lacks, and every field the contract has (a new field is never unwritable)",
-      set(props) == fields(ActRuling) and all(set(v["properties"]) == fields(ActChange) for v in changes)
+check("the grammar asks for no field the contract lacks, and every field the contract has (a new field is never unwritable): a yes's "
+      "or a cost's success and a no's answer each on its own branch (f609)",
+      set(props) | set(no["properties"]) == fields(ActRuling) and set(props) ^ set(no["properties"]) == {"works", "answer"} and all(set(v["properties"]) == fields(ActChange) for v in changes)
       and set(props["needs"]["items"]["properties"]) == fields(Need) and set(props["stakes"]["properties"]) == fields(Stakes),
-      (set(props) ^ fields(ActRuling), [set(v["properties"]) ^ fields(ActChange) for v in changes][:1]))
+      (set(props) ^ fields(ActRuling), set(no["properties"]), [set(v["properties"]) ^ fields(ActChange) for v in changes][:1]))
 check("...as many changes as act.yaml allows", props["changes"].get("maxItems") == int(act.A["most_changes"]), props["changes"])
 check("free text is short: why, the answer, what to try instead, a change's label",
       props["why"].get("maxLength") and no["properties"]["answer"].get("maxLength") and props["instead"]["items"].get("maxLength")
       and all(v["properties"]["label"].get("maxLength") for v in changes), props["why"])
 
 ctx = act.context(ws, T)
-good = {"sense": "cost", "why": "a show of steel", "stakes": {"check": "intimidation", "hard": "fair"}, "fail": "hurt",
+good = {"sense": "cost", "why": "a show of steel", "works": "The looters back off.", "stakes": {"check": "intimidation", "hard": "fair"}, "fail": "hurt",
         "changes": [{"n": 1, "target": cond, "becomes": "lifted", "because": "force"}]}
 a, b = ActRuling.model_validate(good, context=ctx), Shaped.model_validate(good, context=ctx)
 check("a ruling validates through the shaped contract exactly as through the act ruling's own", a.model_dump() == b.model_dump()
@@ -141,15 +142,15 @@ def fits(x, sch) -> bool:
 who = person_codes[-1]
 part = (by_kind.get("part") or [None])[0]
 fair = [good,
-        {"sense": "cost", "why": "steel", "stakes": {"check": "strength", "hard": "fair"}, "fail": "hurt",
+        {"sense": "cost", "why": "steel", "works": "They give up.", "stakes": {"check": "strength", "hard": "fair"}, "fail": "hurt",
          "changes": [{"n": 1, "target": who, "becomes": "surrenders", "who": who, "because": "force"}]},
         {"sense": "no", "why": "no power for it", "answer": "The looters laugh as nothing happens.", "fail": "hurt"},
-        {"sense": "yes", "why": "simply done", "uses": [obj], "fail": "noticed", "changes": [{"n": 1, "target": obj, "becomes": "moved",
+        {"sense": "yes", "why": "simply done", "works": "It is moved.", "uses": [obj], "fail": "noticed", "changes": [{"n": 1, "target": obj, "becomes": "moved",
                                                                                            "because": "skill"}]}]
 if part:
-    fair.append({"sense": "cost", "why": "a bar", "fail": "hurt", "changes": [{"n": 1, "target": part, "becomes": "state",
+    fair.append({"sense": "cost", "why": "a bar", "works": "It is barred.", "fail": "hurt", "changes": [{"n": 1, "target": part, "becomes": "state",
                                                                              "state": features.F["becomes"][0], "because": "skill"}]})
-climb = {"sense": "cost", "why": "wet rock", "requires": ["dexterity"], "fail": "hurt"}
+climb = {"sense": "cost", "why": "wet rock", "works": "You reach the ledge.", "requires": ["dexterity"], "fail": "hurt"}
 moved = Shaped.model_validate(climb, context=ctx)
 check("a climb that names its check under requires fits the grammar, and the check moves to the stakes with nothing required",
       fits(climb, s) and moved.requires == [] and moved.stakes.check == "dexterity", (fits(climb, s), moved.requires, moved.stakes))

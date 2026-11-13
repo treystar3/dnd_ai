@@ -1687,10 +1687,11 @@ class ActRuling(BaseModel):
     """(f594) The dungeon master's ruling on one act, and the changes it makes if it works, in one answer (docs/design/02 section 3;
     engine/act.py). sense, why, needs, requires, stakes, answer and instead as a Ruling. uses: the TARGETS the act relies on ("o1",
     "f2: the brazier"); a thing to hide behind, a rope to climb. changes: what it makes different if it works. fail: what a failure costs
-    (FAIL)."""
+    (FAIL). works: a yes's or a cost's success, as it would be seen; the narrator is told no more (f609)."""
     sense: Literal["yes", "cost", "no"]
     why: str = ""
     answer: str = ""
+    works: str = ""
     instead: list[str] = []
     uses: list[str] = []
     needs: list[Need] = []

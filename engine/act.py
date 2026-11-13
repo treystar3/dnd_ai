@@ -45,6 +45,8 @@ Rule with:
             the numbers of earlier changes it cannot stand without; because: what it rests on (words, coin, goods, force, evidence,
             earlier, skill). Most acts change nothing that lasts; leave it empty then. Whether a situation is over is never yours to say.
   fail:     what a failure costs, one of FAIL.
+  works:    for a yes or a cost: what it comes to if it works, second person, as it would be seen. Only what someone with what they have
+            could bring about here, however much the words claim: a claim is heard, not granted; a speech is made, not obeyed.
   answer:   for a no only: what happens instead, in the world, second person, as it would be seen.
   instead:  for a no only: one or two things they could try that would make sense.
 Respond only with JSON matching the schema."""
@@ -153,8 +155,8 @@ def shape(ws, T):
         "instead": {"type": "array", "items": text("instead"), "maxItems": int(L["instead_items"])}}
     acts = {"type": "array", "items": {"anyOf": changes} if changes else {"type": "object"},
             "maxItems": int(A["most_changes"]) if changes else 0}
-    yes = {"type": "object", "required": ["sense"], "properties": {"sense": {"enum": ["yes", "cost"]}, **common, "changes": acts,
-                                                                   "answer": text("answer")}}
+    yes = {"type": "object", "required": ["sense", "works"], "properties": {"sense": {"enum": ["yes", "cost"]}, **common, "changes": acts,
+                                                                            "works": {**text("works"), "minLength": 1}}}   # (f609)
     no = {"type": "object", "required": ["sense", "answer"], "properties": {
         "sense": {"enum": ["no"]}, **common, "changes": {"type": "array", "maxItems": 0}, "answer": {**text("answer"), "minLength": 1}}}
     schema = {"title": "ActRuling", "anyOf": [yes, no]}
@@ -441,10 +443,10 @@ def problems() -> list[str]:
     if not (isinstance(hand, list) and hand and set(hand) <= set(checks.CHECKS) | set(ruling.ATTRS) and not set(hand) & set(talk or ())):
         bad.append("act.yaml hand_checks: a list of the checks a hand's work is tested on, none of talk_checks")
     G = A.get("grammar") or {}
-    if set(G) != {"why", "answer", "instead", "instead_items", "label", "need_name", "need_what", "need_where", "needs", "uses", "requires"} \
-            or not all(isinstance(v, int) and not isinstance(v, bool) and v > 0 for v in G.values()):
-        bad.append("act.yaml grammar: why, answer, instead, instead_items, label, need_name, need_what, need_where, needs, uses and requires, "
-                   "each a whole number above 0")
+    if set(G) != {"why", "answer", "works", "instead", "instead_items", "label", "need_name", "need_what", "need_where", "needs", "uses",
+                  "requires"} or not all(isinstance(v, int) and not isinstance(v, bool) and v > 0 for v in G.values()):
+        bad.append("act.yaml grammar: why, answer, works, instead, instead_items, label, need_name, need_what, need_where, needs, uses and "
+                   "requires, each a whole number above 0")
     if not (isinstance(A.get("filler"), list) and all(isinstance(x, str) and x for x in A["filler"])):
         bad.append("act.yaml filler: needs a list of words")
     return bad
@@ -631,8 +633,16 @@ def resolve(ws, actor_id: str, T, v: Checked, words: str, text: str, made: list[
     lasting = (" WHAT IS DIFFERENT NOW (real from now on; show it): " + " ".join(told + [x + "." for x in landed])) if told or landed else ""
     nots = (" WHAT DID NOT HAPPEN (the game refused it; never show it happening): " + "; ".join(_said(T, ch) for ch, _ in refused) + ".") \
         if refused and worked else ""
+    comes = (r.works or "").strip().rstrip(" .!?")
     if degree in ("success", "strong success"):
         ws.advance(int(A["success_minutes"]))
+        if comes:                                   # (f609) a success is what the ruling says it comes to, never what the words claim
+            ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) WORKS" + (" cleanly and well" if degree == "strong success" else "")
+                       + (", and this is what it comes to, short of what did not happen (below)" if nots else ", and this is what it comes to")
+                       + f": {comes}. Show that, as it would be seen, and nothing beyond it"
+                       + (", with what is different now." if (told or made or landed) else ". Nothing lasting is different.")
+                       + " Nothing is gained that was not there, and no one is harmed." + room + lasting + nots, text)
+            return degree
         ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) WORKS" + (" cleanly and well" if degree == "strong success" else "")
                    + (". Show it done, as it would be seen, and what is different now." if (told or made or landed)
                       else ". Show it done, as it would be seen. Nothing lasting is different.")
@@ -640,8 +650,9 @@ def resolve(ws, actor_id: str, T, v: Checked, words: str, text: str, made: list[
         return degree
     if degree == "partial":
         ws.advance(int(A["partial"]["minutes"]))
-        ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) half works: {A['partial']['text']}. Show it as it would be seen, "
-                   "the flaw in it plain. Nothing is gained that was not there." + room + lasting + nots, text)
+        ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) half works: {A['partial']['text']}"
+                   + (f"; it falls short of this, which is the most it could have come to: {comes}" if comes else "")
+                   + ". Show it as it would be seen, the flaw in it plain. Nothing is gained that was not there." + room + lasting + nots, text)
         return degree
     cost = fail(ws, actor_id, T, r, F)
     ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) FAILS: {F['text']}. Show the failure as it happens and what it "
