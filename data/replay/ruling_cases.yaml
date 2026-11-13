@@ -57,6 +57,7 @@
 - {line: "I ask the wolf what it saw.", at: greywood, expect: "no", means: [], model: {sense: "yes", requires: [speak_with_beasts]}}
 - {line: "I ask the dead sailor how he drowned.", at: tidepool_caves, expect: "yes", means: [speak_with_dead], model: {sense: "yes", requires: [speak_with_dead]}}
 - {line: "I see in the dark of the back tunnel.", at: tidepool_caves, expect: "yes", means: [darkvision], model: {sense: "yes", requires: [darkvision]}}
-- {line: "I see in the dark of the back tunnel.", at: tidepool_caves, expect: "cost", means: [], model: {sense: "cost", requires: []}}
+- {line: "I see in the dark of the back tunnel.", at: tidepool_caves, expect: "cost", means: [],
+   model: {sense: "cost", requires: [], stakes: {check: perception, hard: fair}}}   # (f612) without darkvision, a perception check (the owner)
 - {line: "I slip unseen past the guard.", at: trading_square, expect: "cost", means: [], model: {sense: "cost", requires: []}}
 - {line: "I turn into a wolf.", at: greywood, expect: "yes", means: [shape_change], model: {sense: "yes", requires: [shape_change]}}
