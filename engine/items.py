@@ -121,7 +121,7 @@ def _load():
     problems = []
     catalog = {}
     for entry in yamlio.safe_load((ROOT / "world" / "items.yaml").read_text(encoding="utf-8")):
-        b = BaseItem(**entry)
+        b = yamlio.row(BaseItem, entry, "items.yaml")            # (f622) no key the model does not know
         if b.id in catalog:
             problems.append(f"items.yaml: duplicate item '{b.id}'")
         for a in b.attributes + list(b.requires):
@@ -131,8 +131,8 @@ def _load():
             problems.append(f"items.yaml {b.id}: main_hand items need damage and reach")
         catalog[b.id] = b
     raw = yamlio.safe_load((ROOT / "world" / "materials.yaml").read_text(encoding="utf-8"))
-    materials = {m["id"]: Material(**m) for m in raw["materials"]}
-    gems = {g["id"]: Gem(**g) for g in raw["gems"]}
+    materials = {m["id"]: yamlio.row(Material, m, "materials.yaml") for m in raw["materials"]}      # (f622)
+    gems = {g["id"]: yamlio.row(Gem, g, "materials.yaml gem") for g in raw["gems"]}
     for m in materials.values():
         lo, hi = m.levels
         if not 1 <= lo <= hi:
@@ -157,7 +157,8 @@ def _load():
 
 GEAR_ONLY_IDS = {i for ids in RULES["gear_only_stats"].values() for i in ids}
 CATALOG, MATERIALS, GEMS = _load()
-LEGENDARY = {e["id"]: LegendaryEffect(**e) for e in yamlio.safe_load((ROOT / "rules" / "legendary_effects.yaml").read_text(encoding="utf-8"))}
+LEGENDARY = {e["id"]: yamlio.row(LegendaryEffect, e, "legendary_effects.yaml")                  # (f622)
+             for e in yamlio.safe_load((ROOT / "rules" / "legendary_effects.yaml").read_text(encoding="utf-8"))}
 
 
 def legendary_options(base: "BaseItem", companions: bool = False) -> list[LegendaryEffect]:

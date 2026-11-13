@@ -34,7 +34,7 @@
    sells: [{id: trail_ration, name: a trail ration, price: 15, kind: item, item: trail_ration},
            {id: flour, name: a sack of flour, price: 8, kind: item, item: flour}],
    buys: [food, herb]}
-- {id: chandler, hours: [8, 17],      description: Sells candles, rope, oil and sundries.,              knowledge_groups: [merchants],
+- {id: chandler, hours: [8, 17],      description: "Sells candles, rope, oil and sundries.",              knowledge_groups: [merchants],
    sells: [{id: bandage, name: a bandage, price: 20, kind: item, item: bandage},
            {id: torch, name: a torch, price: 8, kind: item, item: torch},
            {id: trail_ration, name: a trail ration, price: 15, kind: item, item: trail_ration},
@@ -43,7 +43,7 @@
            {id: candles, name: a bundle of candles, price: 6, kind: item, item: candles}],
    buys: [cloth, wood]}
 - {id: hermit, hours: [0, 24], description: Lives alone in the wild and knows it better than anyone; wary of company and glad of it., knowledge_groups: [hunters]}   # (f395) made only when the world makes room for one (engine/ruling.py); no place lists them
-- {id: wanderer, hours: [0, 24], description: Someone on their way through, with a story of where from., knowledge_groups: [merchants]}   # (f395) the same
+- {id: wanderer, hours: [0, 24], description: "Someone on their way through, with a story of where from.", knowledge_groups: [merchants]}   # (f395) the same
 - {id: traveling_player, hours: [0, 24], description: A travelling player who sings for a room and a meal and carries the news of three regions., knowledge_groups: [merchants]}   # (f348) made only by a moment (data/rules/moments.yaml); no place lists them
 - {id: tinker, hours: [8, 17],        description: Mends pots and small goods; travels the road between towns., knowledge_groups: [merchants],
    buys: [any], buy_rate: 0.25,
@@ -51,7 +51,7 @@
    craft_skill: 30, commissions: [wood]}
 - {id: watch_captain, hours: [7, 19], description: Commands the village watch.,                         knowledge_groups: [guards]}
 - {id: guard, hours: [0, 24],         description: Serves in the village watch.,                        knowledge_groups: [guards]}
-- {id: guild_clerk, hours: [8, 18],   description: Keeps the guild's contract board, records and coin box., knowledge_groups: [guild]}
+- {id: guild_clerk, hours: [8, 18],   description: "Keeps the guild's contract board, records and coin box.", knowledge_groups: [guild]}
 - {id: innkeeper, hours: [6, 25],     description: Runs the inn and hears everyone's news.,             knowledge_groups: [merchants],
    sells: [{id: room, name: a room for the night, price: 50, kind: room},
            {id: meal, name: a hot meal, price: 15, kind: meal},
@@ -92,10 +92,10 @@
 - {id: carpenter, hours: [7, 18],     description: "Builds and mends in wood: roofs, carts, doors and bridges.",  knowledge_groups: []}   # (f545, the owner) the same
 - {id: stonemason, hours: [7, 18],    description: Cuts and dresses stone for building.,                  knowledge_groups: []}
 - {id: elven_warden, hours: [0, 24],  description: Guards the paths of the forest and the city within it., knowledge_groups: [guards, hunters]}
-- {id: loremaster, hours: [8, 20],    description: Keeps the old songs, records and histories.,           knowledge_groups: [scholars, mages],
+- {id: loremaster, hours: [8, 20],    description: "Keeps the old songs, records and histories.",           knowledge_groups: [scholars, mages],
    sells: [{id: tome_second_circle, name: a tome of the second circle, price: 600, kind: item, item: tome_second_circle},       # (f397) spell books
            {id: tome_third_circle, name: a tome of the third circle, price: 3000, kind: item, item: tome_third_circle}]}
-- {id: engineer, hours: [7, 19],      description: Designs the works, lifts and machines that keep the city running., knowledge_groups: [scholars]}
+- {id: engineer, hours: [7, 19],      description: "Designs the works, lifts and machines that keep the city running.", knowledge_groups: [scholars]}
 - {id: trapper, hours: [5, 17],       description: Traps and hunts the frozen country for fur and meat.,  knowledge_groups: [hunters],
    buys: [hide, food]}
 - {id: elder, hours: [8, 20],         description: A respected elder whose word carries weight in hard times., knowledge_groups: [scholars]}
@@ -114,12 +114,12 @@
    stock: {families: [metal, hide, cloth, wood], count: 8, restock_days: 4}}
 - {id: caravan_master, hours: [6, 20], description: Leads caravans along the long roads east.,            knowledge_groups: [merchants]}
 - {id: scout, hours: [0, 24],         description: Rides ahead of caravans and watches the frontier for trouble., knowledge_groups: [hunters, guards]}
-- {id: water_priest, hours: [5, 20],  description: Keeps the waters of the city, the hearth and the rites of Dahlira bound up with them., knowledge_groups: [temple, mages]}
-- {id: noble, hours: [10, 23],        description: A member of a noble house, at home in the court.,      knowledge_groups: [nobility]}
+- {id: water_priest, hours: [5, 20],  description: "Keeps the waters of the city, the hearth and the rites of Dahlira bound up with them.", knowledge_groups: [temple, mages]}
+- {id: noble, hours: [10, 23],        description: "A member of a noble house, at home in the court.",      knowledge_groups: [nobility]}
 - {id: courtier, hours: [9, 22],      description: Serves and schemes within the royal court.,            knowledge_groups: [nobility]}
 - {id: royal_guard, hours: [0, 24],   description: Guards the capital and its great houses in the crown's colors., knowledge_groups: [guards, nobility]}
 - {id: monarch, hours: [9, 21],       description: "Rules the kingdom from Lethoria, seen by few, and never without the court around them.", knowledge_groups: [nobility, scholars]}
 - {id: chamberlain, hours: [7, 22],   description: "Keeps the palace: who is admitted, who is fed, who waits, and for how long.", knowledge_groups: [nobility, merchants]}
 - {id: relic_dealer, hours: [9, 18], description: "Deals in a handful of famous, one-of-a-kind arms and armor, kept under lock and key for buyers with deep purses.", knowledge_groups: [merchants], relics: true}
-- {id: land_agent, hours: [9, 18], description: Sells houses and lots in the city, and knows who is leaving and who is moving in., knowledge_groups: [merchants]}
+- {id: land_agent, hours: [9, 18], description: "Sells houses and lots in the city, and knows who is leaving and who is moving in.", knowledge_groups: [merchants]}
 - {id: prisoner, hours: [0, 24], description: "A captive taken in a fight and held by the player. Frightened, defiant or calculating: how they behave depends on their nature.", knowledge_groups: [outlaws]}

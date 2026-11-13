@@ -30,7 +30,7 @@ class PoolRules(BaseModel):
 
 
 def _load() -> PoolRules:
-    rules = PoolRules(**yamlio.safe_load(RULES_PATH.read_text(encoding="utf-8")))
+    rules = yamlio.row(PoolRules, yamlio.safe_load(RULES_PATH.read_text(encoding="utf-8")), "pools.yaml")    # (f622)
     problems = []
     for name in POOLS:
         if name not in rules.pools or name not in rules.regen_per_hour:

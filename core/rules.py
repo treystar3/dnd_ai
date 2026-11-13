@@ -61,7 +61,7 @@ def _load(path: Path, model) -> dict:
     items, problems = {}, []
     for i, entry in enumerate(raw, 1):
         try:
-            item = model(**entry)
+            item = yamlio.row(model, entry)                    # (f622) a key the model does not know is a problem
         except ValidationError as e:
             for err in e.errors():
                 problems.append(f"{path.name} entry {i}: {'.'.join(map(str, err['loc']))}: {err['msg']}")
@@ -184,7 +184,7 @@ def _load_families() -> dict[str, Family]:
     raw = yamlio.safe_load((RULES_DIR / "passive_families.yaml").read_text(encoding="utf-8"))["families"]
     families, problems = {}, []
     for fid, data in raw.items():
-        fam = Family(**data)
+        fam = yamlio.row(Family, data, f"passive_families.yaml {fid}")    # (f622)
         for o in fam.options:
             if o.mechanic not in MECHANICS:
                 problems.append(f"passive_families.yaml {fid}: unknown mechanic '{o.mechanic}'")

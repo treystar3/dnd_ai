@@ -412,3 +412,59 @@ authored prose now and then, and at load nobody reads the result; and the file w
   state differs at inputs 3 to 19, in kv: the boss's lines are kept in the fight while it lasts.
 - **Not done:** rules written for a model (48 strings) keep their dashes, as planned; whether a model copies a dash from its own
   instructions is not measured here.
+
+## 12. Part H: a row of data holds no key its model does not know (f622; built)
+
+Found while f621 was checked (2026-11-13): eight roles in data/world/roles.yaml were written as a table on one line with a comma in
+the description and no quotes. YAML ended the description at the comma and made keys of the rest ("Sells candles", then `rope` and
+`oil and sundries.`); the model dropped those keys in silence, so every prompt that named the role was told half of it. f621 had
+quoted five such roles because they needed a colon. The owner approved the plan below the same day ("Approve, build it").
+
+### What the survey found
+
+Every typed model built while the game's data loads was watched: 40 models, 4,687 rows. 39 of the 40 ignore a key they do not know.
+From data, only the eight roles dropped any (chandler, wanderer, guild clerk, loremaster, engineer, water priest, noble, land agent;
+nine stray keys).
+
+### The class and the mechanism
+
+**Class:** every row of an authored file that is built into a typed model, at any depth of the row.
+
+- core/yamlio.py `row(model, raw, where="")` builds the model and refuses a key it does not know (pydantic's per-call
+  `extra="forbid"`, which holds for the rows inside a row too; requirements.txt asks for 2.12, the first version with it).
+- The seven loaders of authored files go through it: world/loader.py (the world's lists, a town's profile), core/rules.py (stats,
+  triggers, mechanics, the passive families), engine/items.py (items, materials, gems, legendary effects), engine/inventory.py
+  (goods, recipes), engine/enchanting.py (the general enchantments), engine/pools.py and npc/traits.py. A loader that collects
+  problems keeps collecting them; one that does not is told the file, the row and the key.
+- The models are not made strict. A place, an item and others are also read back from a save, and an older save's retired key must
+  not stop it loading.
+- A field that is the author's own table (a place's stations, a role's stock) takes any key, as before.
+
+### Where the build differs from the plan
+
+- **Seven loaders, not six.** npc/traits.py loads when a session starts, not when its module does, so the survey did not see it.
+  The test's watch did.
+- **The ratchet watches roads, not dropped keys.** The plan watched for a key dropped at load. The test instead keeps every
+  mapping core/yamlio.py hands out and fails if one is handed whole to a model by any road but `row`: at import, at the startup
+  check, at a session's start and through a short played script. So a loader that unpacks a row into its model is caught while its
+  data is still clean. What it cannot see is under "Not covered".
+- **A general enchantment's row is handed whole (the goals review).** It was built field by field, so a misspelt
+  `fee_multiplier` on it was dropped and the watch above did not see it. The line that turns a material's effect into an
+  enchantment's (engine/enchanting.py, the `flat` flag below) is as it was.
+- **The recordings:** all three re-blessed on the new data. stub_short: one request differs (call 2, ResidentSet: "land_agent
+  (Sells houses and lots in the city, and knows who is leaving and who is moving in.)"); no state, outcome or shown word differs.
+  stub_party and stub_fight: no request differs.
+
+### Not covered, said plainly
+
+- **A mapping the code reads key by key, whether or not a model comes of it.** A stray key there is ignored unless a hand-written
+  check holds it (the fight's tables are held both ways since f504 and f509). Known today: the top keys of world.yaml
+  (world/loader.py load_world), Orenna's coin (scenes/orenna_actions.py), a battlefield's zones (engine/battlefield_builder.py),
+  and every table that never becomes a model. That is a larger class of its own: it needs each table's keys written down.
+- **What the test's watch cannot see:** a row read key by key (above); data read by another reader than core/yamlio.py (the
+  startup check's own loader, JSON); a loader on a path the short played script does not walk.
+- **A key dropped in code, not from data.** engine/enchanting.py turns a material's effect into an enchantment's and loses its
+  `flat` flag (112 rows). No data sets that flag, so nothing is wrong today; a material effect given `flat: true` would become a
+  percentage as an enchantment.
+- **A model with an `__init__` of its own** is not held inside by the per-call check (tried: a stray key in one is taken). No
+  model a row becomes has one, and the test fails if one gains it.
