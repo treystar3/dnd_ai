@@ -786,19 +786,29 @@ def _situation(ws, actor_id: str, T, scode: str, chs, degree: str = "success", s
     th = next((x for x in state.get("threads", []) if x["id"] == T.get(scode).ref), None)
     if th is None:
         return []
-    idx = lambda code: int(code.split(".")[1]) if code.startswith(scode + ".") else 0
-    rows = [{"n": ch.n, "part": idx(ch.target), "who": idx(ch.who), "becomes": ch.becomes,
-             "because": _because(ch, check), "hand": check in A["hand_checks"], "about": idx(ch.about),
-             "needs": [m for m in ch.needs if m in {c.n for c in chs}]} for ch in chs]
-    act_ = {"kind": "acted", "by": actor_id, "npc": "", "witnesses": sorted(n.id for n in ws.present), "place": ws.player.location,
-            "coin": 0, "item": "", "count": 1, "degree": degree, "words_only": False, "seq": seq or None, "force_by_change": True}
+    rows, act_ = part_rows(scode, chs, check), acted(ws, actor_id, degree, seq)
     situation_parts.keep_changes(ws, state, th, act_, rows)
+    after = situation_parts.follow(ws.store, state, th, ws.minutes)   # (f619) what follows from it, the narrator told with the rest
     from engine import events
     events.read_end(ws, state, th, "by what was done")      # (f598) whether it is over is the world's to say
     ws.store.save_world_state(state)
     out = []
-    for r_ in rows:
-        t = T.get(f"{scode}.{r_['part']}")
+    for part, word in [(r_["part"], r_["becomes"]) for r_ in rows] + [(i + 1, w) for i, w in after if w]:
+        t = T.get(f"{scode}.{part}")
         if t is not None:
-            out.append(f"{t.line.split(' (p')[0]} ({r_['becomes']})")
+            out.append(f"{t.line.split(' (p')[0]} ({word})")
     return out
+
+
+def part_rows(scode: str, chs, check: str = "") -> list[dict]:
+    """An act's changes to one situation as its own writer takes them (situation_parts.keep_changes), each part by its number."""
+    idx = lambda code: int(code.split(".")[1]) if code.startswith(scode + ".") else 0
+    return [{"n": ch.n, "part": idx(ch.target), "who": idx(ch.who), "becomes": ch.becomes,
+             "because": _because(ch, check), "hand": check in A["hand_checks"], "about": idx(ch.about),
+             "needs": [m for m in ch.needs if m in {c.n for c in chs}]} for ch in chs]
+
+
+def acted(ws, actor_id: str, degree: str = "success", seq: int = 0) -> dict:
+    """The act an attempt was, to a situation's rules."""
+    return {"kind": "acted", "by": actor_id, "npc": "", "witnesses": sorted(n.id for n in ws.present), "place": ws.player.location,
+            "coin": 0, "item": "", "count": 1, "degree": degree, "words_only": False, "seq": seq or None, "force_by_change": True}

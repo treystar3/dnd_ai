@@ -22,7 +22,8 @@ class FakeT:
         return NS(code=code)
 
 
-fake = NS(resolve=lambda name, T: name)
+fake = NS(resolve=lambda name, T: name, follows=lambda T, v: dict(after))   # (f619) what follows from the kept changes, by target
+after = {}
 moved = lambda moves, *words: R.Bench.moved(fake, {"moves": {"s1.1": moves}}, FakeT(),
                                             NS(ok=True, ruling=NS(changes=[NS(target="s1.1", becomes=w) for w in words])))
 check("one word: exactly that change", moved("terrified", "terrified") and not moved("terrified", "terrified", "warmer")
@@ -33,6 +34,10 @@ check("a list: one or more of them and nothing else", moved(["terrified", "surre
 check("not: anything but these, untouched included", moved({"not": ["open"]}, "warmer") and moved({"not": ["open"]})
       and not moved({"not": ["open"]}, "warmer", "open"))
 check("false: untouched", moved(False) and not moved(False, "warmer"))
+after["s1.1"] = {"safe"}
+check("(f619) what follows from a kept change counts with it, on the target it lands on", moved(["lifted", "safe"], "lifted")
+      and not moved("lifted", "lifted") and not moved("safe"))
+after.clear()
 try:
     moved({"only": ["open"]}, "warmer")
     loud = False

@@ -292,6 +292,13 @@ heart:
   threat_kinds: [closed, danger, prices]     # the conditions that harm (a mark is a sign of what happened, not a harm)
   stake_states: [scarce, stranded, wanted]   # the goods a situation puts at stake
 
+# (f619) What follows from the world as it stands, said by the engine and by no ruling (the owner, 2026-11-13: infrastructure, never a
+# ruling asked to remember a consequence). Each word is given to every stake of its kind in a situation's heart when its test holds, and
+# taken back when it no longer does; a word a ruling or a way gave is never touched. threats_resolved: the heart names a threat and
+# every one is resolved (engine/situation_parts.py WHEN holds the tests).
+follows:
+  safe: {stake: person, when: threats_resolved}
+
 # (f547) The ruling: what an act the player took changes in a situation, part by part, proposed by the model and checked by the engine
 # as a chain (the owner, 2026-11-08: "The model interprets consequential actions and proposes causally linked changes. The engine
 # validates prerequisites, presence, knowledge, authority, resources, and established world facts before committing them"). Each word

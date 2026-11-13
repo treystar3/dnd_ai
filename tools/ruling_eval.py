@@ -124,6 +124,28 @@ def taught(cases: list[dict], under: dict[str, str] | None = None) -> list[tuple
     return out
 
 
+class Dry:
+    """(f619) The scene as the engine's writers may read it, for a dry run: its people the store's own copies (never the scene's), and
+    nothing saved. A store call it does not know stops the run, so a write added to a writer cannot slip into the measure's world."""
+    READS = frozenset({"npc_exists", "load_npc", "meta"})
+    WRITES = frozenset({"save_npc", "set_memory_state"})
+
+    class Store:
+        def __init__(self, store):
+            self._store = store
+
+        def __getattr__(self, name):
+            if name in Dry.WRITES:
+                return lambda *a, **k: None
+            if name in Dry.READS:
+                return getattr(self._store, name)
+            raise AttributeError(f"the dry run met a store call it does not know ({name}): say in tools/ruling_eval.py Dry whether it reads or writes")
+
+    def __init__(self, ws):
+        self.minutes, self.world, self.player, self.acting, self.present = ws.minutes, ws.world, ws.player, ws.acting, list(ws.present)
+        self.store = Dry.Store(ws.store)
+
+
 class Bench:
     def __init__(self, live: bool = False, save: str = "ruling_eval", source=None):
         import simlib
@@ -295,17 +317,42 @@ class Bench:
         return ActRuling.model_validate({"answer": "x", **m}, context=act.context(self.ws, T))
 
     def moved(self, case: dict, T, v) -> bool | None:
-        """(f601) Whether what the act's kept changes leave each named target as is what the case says (by target, never by the ruling's
-        own numbering, so a live ruling is measured too); None when the case says nothing of it."""
+        """(f601) Whether what the act leaves each named target as is what the case says (by target, never by the ruling's own numbering,
+        so a live ruling is measured too): (f619) its kept changes and what follows from them, which is the engine's to say and no
+        ruling's. None when the case says nothing of it."""
         if "moves" not in case:
             return None
         kept = v.ruling.changes if v.ok else []
+        after = self.follows(T, v) if kept else {}
         for name, want in case["moves"].items():
             code = self.resolve(name, T)
-            got = {ch.becomes for ch in kept if (T.get(ch.target) and T.get(ch.target).code) == code}
+            got = {ch.becomes for ch in kept if (T.get(ch.target) and T.get(ch.target).code) == code} | after.get(code, set())
             if not fair(want, got):
                 return False
         return True
+
+    def follows(self, T, v) -> dict[str, set]:
+        """(f619) What would follow from the act's kept changes were it to succeed, by target: the engine's own writers
+        (situation_parts.keep_changes, follow) run on a copy of each situation with a scene that never writes (Dry)."""
+        import copy
+        from engine import act, situation_parts
+        state = copy.deepcopy(self.store.load_world_state() or {})
+        dry = Dry(self.ws)
+        sits: dict[str, list] = {}
+        for ch in v.ruling.changes:
+            t = T.get(ch.target)
+            if t is not None and t.code.startswith("s") and "." in t.code:
+                sits.setdefault(t.code.split(".")[0], []).append(ch)
+        out: dict[str, set] = {}
+        for scode, chs in sits.items():
+            th = next((x for x in state.get("threads", []) if x["id"] == T.get(scode).ref), None)
+            if th is None:
+                continue
+            situation_parts.keep_changes(dry, state, th, act.acted(self.ws, self.ws.acting), act.part_rows(scode, chs, v.ruling.stakes.check))
+            for i, word in situation_parts.follow(dry.store, state, th, self.ws.minutes):
+                if word:
+                    out.setdefault(f"{scode}.{i + 1}", set()).add(word)
+        return out
 
     def offline(self, case: dict, path: str = "old"):
         """What the engine makes of the case's own ruling: 'yes' or 'no', and on the new path whether its changes do what the case says

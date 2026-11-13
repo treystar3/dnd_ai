@@ -492,26 +492,11 @@ def reading(store, world, state: dict, th: dict, t: int, at_limit: bool = False)
     when they stand down; a creature, when its way is met or its spawn beaten. Every threat resolved: achieved, or partly with a stake
     lost, or transformed with one who imposed a condition still free and set against one who acted. Every stake lost: lost. At its time
     limit, touched: partly when anything was resolved or secured, else lost. Reads only."""
-    from engine import events
     H = th.get("heart") or {}
     r = Reading(contributors=contributors(th))
     if not H:
         return r                                     # an old save's situation with no heart: its ways and its time end it
-    spawns = [s for s in (state or {}).get("spawns", []) if s.get("thread") == th["id"]]
-    for x in _threats(H):
-        if x["kind"] == "condition":
-            if x.get("by_kind") == "creature":       # what a creature imposes goes with the creature
-                done = _beaten(state, th, t)
-            else:
-                controller = x.get("by", "") if x.get("by_kind") == "person" else ""
-                done = not _in_force(state, th, x, t) and not (controller and not _stood_down(store, th, controller))
-        elif x["kind"] == "person":
-            done = _stood_down(store, th, x.get("who", ""))
-        else:                                        # a creature its ways must defeat
-            way = [p for p in th.get("paths") or [] if p.get("kind") in ("kill", "horde")
-                   and (p.get("target") or "") == (x.get("target") or "") and (p.get("spawn") or "") == (x.get("spawn") or "")]
-            done = any(p.get("done") for p in way) or (bool(spawns) and all(s.get("defeated") for s in spawns) and not x.get("target"))
-        r.threats.append((x, done))
+    r.threats = _settled(store, state, th, t)
     for x in H.get("stakes") or []:
         if x["kind"] == "place":
             continue
@@ -539,6 +524,65 @@ def reading(store, world, state: dict, th: dict, t: int, at_limit: bool = False)
         r.over = True
         r.ending = ("partly" if "secured" in standings else "lost") if standings else ("partly" if any(resolved) else "lost")
     return r
+
+
+def _settled(store, state: dict, th: dict, t: int) -> list:
+    """(f598) Each threat the reading settles, with whether it is resolved: a condition no longer in force with nobody able set on
+    imposing it again, one who blocks stood down, a creature's way met or its spawn beaten."""
+    spawns = [s for s in (state or {}).get("spawns", []) if s.get("thread") == th["id"]]
+    out = []
+    for x in _threats(th.get("heart") or {}):
+        if x["kind"] == "condition":
+            if x.get("by_kind") == "creature":       # what a creature imposes goes with the creature
+                done = _beaten(state, th, t)
+            else:
+                controller = x.get("by", "") if x.get("by_kind") == "person" else ""
+                done = not _in_force(state, th, x, t) and not (controller and not _stood_down(store, th, controller))
+        elif x["kind"] == "person":
+            done = _stood_down(store, th, x.get("who", ""))
+        else:                                        # a creature its ways must defeat
+            way = [p for p in th.get("paths") or [] if p.get("kind") in ("kill", "horde")
+                   and (p.get("target") or "") == (x.get("target") or "") and (p.get("spawn") or "") == (x.get("spawn") or "")]
+            done = any(p.get("done") for p in way) or (bool(spawns) and all(s.get("defeated") for s in spawns) and not x.get("target"))
+        out.append((x, done))
+    return out
+
+
+def _threats_resolved(store, state: dict, th: dict, t: int) -> bool:
+    done = [d for _, d in _settled(store, state, th, t)]
+    return bool(done) and all(done)                  # a heart that names no threat: its objective is its stakes, nothing follows
+
+
+WHEN = {"threats_resolved": _threats_resolved}       # (f619) the tests situations.yaml `follows` may name
+
+
+def follow(store, state: dict, th: dict, t: int) -> list[tuple[int, str]]:
+    """(f619) What follows from the world as it stands, said here and by no ruling (situations.yaml `follows`): each stake of the heart
+    takes its word when the word's test holds (one the heart says is harmed is safe when every threat is resolved, whoever resolved it
+    and however), and gives it back when the test no longer holds. A word a ruling or a way gave a part is never touched, and one who
+    is gone is given none. Nobody is credited: it is on no record, and an act that does it afterwards is kept and makes the word its own
+    (ruled, keep_changes). A situation that is over is left as it ended. Returns each (part, word) it changed, the word "" where it was
+    taken back. Run wherever a situation is read (events.read_end, read_ends); the caller saves `state`."""
+    parts = th.get("parts") or []
+    out = []
+    if th.get("status") != "active":
+        return out
+    for word, row in (S.get("follows") or {}).items():
+        mine = [x["part"] for x in (th.get("heart") or {}).get("stakes") or [] if x.get("kind") == row["stake"]
+                and isinstance(x.get("part"), int) and x["part"] < len(parts)]
+        if not mine:
+            continue
+        holds = WHEN[row["when"]](store, state, th, t)
+        for i in mine:
+            a = parts[i]
+            here = a.get("kind") != "person" or (store.npc_exists(a["who"]) and not store.load_npc(a["who"]).gone)
+            if holds and here and not a.get("now"):
+                a["now"] = a["follows"] = word
+                out.append((i, word))
+            elif not holds and a.get("follows") == word == a.get("now"):
+                del a["now"], a["follows"]
+                out.append((i, ""))
+    return out
 
 
 def _threats(H: dict) -> list:
@@ -1129,7 +1173,8 @@ def ruled(store, th: dict, act: dict, changes: list[dict], world=None) -> tuple[
             return False
         if w == "warns":                                       # (f547's fourth review) one may warn two people
             return any(x["part"] == k and x["becomes"] == "warns" and x.get("about") == c.get("about") for x in kept)
-        if earlier(k, w) or a.get("now") == {"flees": "fled", "surrenders": "surrendered", "joins": "joined"}.get(w, w):
+        theirs = "" if a.get("follows") == a.get("now") else a.get("now")   # (f619) a word that followed is nobody's doing yet
+        if earlier(k, w) or theirs == {"flees": "fled", "surrenders": "surrendered", "joins": "joined"}.get(w, w):
             return True
         clues = th.get("clues") or []
         return w == "found" and a.get("kind") == "evidence" and isinstance(a.get("clue"), int) and a["clue"] < len(clues) \
@@ -1214,6 +1259,7 @@ def keep_changes(ws, state: dict, th: dict, act: dict, kept: list[dict]) -> None
                             p[f"{need}_seq"] = now_seq
         elif w in ("flees", "surrenders", "joins"):
             a["now"] = {"flees": "fled", "surrenders": "surrendered", "joins": "joined"}[w]
+            a.pop("follows", None)                              # (f619) the word is this act's now, whatever followed before
         elif w == "warns":
             other = parts[int(c["about"]) - 1]
             if (other.get("willing") or {}).get(by, "") not in RU["wont"]:
@@ -1224,6 +1270,7 @@ def keep_changes(ws, state: dict, th: dict, act: dict, kept: list[dict]) -> None
         elif w in ("safe", "lifted", "moved", "given_up", "lost", "broken", "mended", "tested", "found", "destroyed"):
             if a.get("now") != "destroyed":                     # (f547's third review) what is destroyed stays so
                 a["now"] = w
+                a.pop("follows", None)                          # (f619) the word is this act's now, whatever followed before
             if w in ("lifted", "moved", "given_up"):
                 for e in state.get("effects", []):
                     if e.get("thread") == th["id"] and e.get("of_part") == c["part"] - 1 and not e.get("lifted"):
@@ -1739,6 +1786,11 @@ def problems() -> list[str]:
     for k in ("scarce", "stranded"):
         if not whole(R.get(k), 1, int(lim["prices"]["max"])):
             bad.append(f"situations.yaml register.{k}: a whole number from 1 to pulse.yaml's effects.prices.max")
+
+    for word, row in (S.get("follows") or {}).items():             # (f619) what follows: a real word, a kind of stake, a test the code holds
+        kinds = ((S.get("rulings") or {}).get("changes", {}).get(word) or {}).get("kinds") or ()
+        if not (isinstance(row, dict) and row.get("stake") in kinds and row.get("when") in WHEN):
+            bad.append(f"situations.yaml follows.{word}: a ruling's word, with stake (a kind of part the word lands on) and when ({', '.join(WHEN)})")
 
     sample = {"title": "The price of salt", "place": "the ford", "label": "a cut rope", "points": "the mill"}
 

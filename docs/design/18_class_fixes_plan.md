@@ -47,7 +47,7 @@ the guild hall jump ruled a cost (part D).
 - The owner's answer (section 7): five lines are claims (the king, the dragon's hoard, ordering the town to bow, the wolf pack
   accepting a leader, the merchant signing his shop over), and a bounded plain yes is right as a bounded cost is.
 
-## 3. Part B: a power the character lacks, decided by the engine (f617)
+## 3. Part B: a power the character lacks, decided by the engine (f618)
 
 This replaces f612.
 
@@ -75,17 +75,18 @@ engine refuses on its own grounds (engine/act.py:310).
   stand-in's check at its difficulty, or the ruling's own if that is harder. The narrator is told how it is done (`told`).
 - The grammar's no may name what it lacks (`requires`, capabilities only). A no that names a lacked capability with a stand-in is
   turned into the same cost. So whichever way the model rules, the engine reaches the same answer.
-- The prompt's line for a no says to name the power. That is one clause, on the contract's own field, not a rule for a situation.
+- As built: the grammar makes `requires` a required key of a no, so a no says what power it wants, if any. No line was added to
+  the prompt.
   The act ruling's request text changes, so goldens that hold one are re-blessed.
 - engine/data_check.py: `without` names a real check or attribute and a real difficulty.
 
-**Test (f617):** a table over every capability in the file, for a character with it and one without: stands, becomes a cost on
+**Test (f618):** a table over every capability in the file, for a character with it and one without: stands, becomes a cost on
 the stand-in's check, or is the `lacking` no. It runs on acts other than the tunnel (searching rocks for crabs in the dark, which
 the pod refused) and on both ruling paths. tools/ruling_eval.py counts noes given for want of a power that has a stand-in.
 
 **Measure:** the two dark cases on the pod, with the next session.
 
-## 4. Part C: what follows from a change is the engine's (f618)
+## 4. Part C: what follows from a change is the engine's (f619)
 
 **What happens today.** A person a situation harms is "safe" only if the model asks for it as a change resting on an earlier one.
 On the pod it lifted the granary's danger and never made the stallholder safe, in all six passes. The situation's ending is already
@@ -103,7 +104,7 @@ situation's heart is safe when no threat of that heart is still in force.
   person out while the danger stands); the authority rule stays.
 - tools/ruling_eval.py judges a case's `moves` on what the engine leaves, kept and derived, not on the ruling's kept changes alone.
 
-**Test (f618):** dangers lifted by an act, by a way and by the pulse, each leaving everyone at stake safe; a second danger still in
+**Test (f619):** dangers lifted by an act, by a way and by the pulse, each leaving everyone at stake safe; a second danger still in
 force leaves them harmed; a model's own `safe` still works. On situations other than the granary.
 
 ## 5. Part D: feats of the body, measured (design only, a pod probe first)
@@ -121,7 +122,7 @@ can be removed.
 measured. The next pod session carries a probe of 20 lines (ask for the size only, compare with sense). The design is written once
 the probe's numbers are in.
 
-## 6. Part E: the engine's own lines carry no dash (f619)
+## 6. Part E: the engine's own lines carry no dash (f617)
 
 **Class:** every line the engine writes into the world's news and history.
 
@@ -149,9 +150,24 @@ the probe's numbers are in.
 |---|---|---|---|
 | 1 | A1 (f615) | tools/ruling_eval.py, the corpus, a test | the measure first, so later numbers are honest |
 | 2 | A2 (f616) | tools/ruling_eval.py, the corpus, a test | the same |
-| 3 | E (f619) | engine/pulse.py, six sites, a test | small, no decision needed |
-| 4 | B (f617) | capabilities.yaml, engine/ruling.py, engine/act.py, llm/contracts.py, data_check, goldens | replaces the patch |
-| 5 | C (f618) | situations.yaml, engine/situation_parts.py, tools/ruling_eval.py | the granary's class |
+| 3 | E (f617) | engine/pulse.py, six sites, a test | small, no decision needed |
+| 4 | B (f618) | capabilities.yaml, engine/ruling.py, engine/act.py, llm/contracts.py, data_check, goldens | replaces the patch |
+| 5 | C (f619) | situations.yaml, engine/situation_parts.py, tools/ruling_eval.py | the granary's class |
 | 6 | pod session | | B and C measured, D's probe; about an hour, under $1 |
 
 Each feature goes through the feature skill: a test first, the goals reviewer, the full suite, a GOALS row where the owner decided.
+
+## 9. As built (2026-11-13)
+
+The numbers above are the order of building: A1 f615, A2 f616, E f617, B f618, C f619. Where the build differs from the plan:
+
+- **A1 (f615).** The check reads only the prompt's examples of a verdict (the bracketed lists on its `sense` lines), not every phrase
+  of the prompt; the first cut matched instructions too and was corrected after review.
+- **E (f617).** The writers take the dashes out (pulse.add_news, pulse.add_history, and standing.report for a deed's tale); the six
+  sites were not reworded, since the writers cover them and any site added later. The test names the writers of news.
+- **B (f618).** A no the engine turns into a cost has no words for what it comes to, and a yes's words assume the power, so a success
+  on a stand-in is told as working only as far as the stand-in can bring about (f609's bound holds). The count of "noes given for
+  want of a power that has a stand-in" was not built; the measure shows ", without <power>" on each such line.
+- **C (f619).** The step runs where a situation is read (events.read_end, read_ends), which every change already reaches, and is
+  shown to the narrator with the act's own changes. It gives the word back if a threat stands again. A heart that names no threat
+  derives nothing. The measure runs the engine's own writers on a copy (tools/ruling_eval.py Dry) and writes nothing.

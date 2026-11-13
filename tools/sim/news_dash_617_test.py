@@ -66,7 +66,9 @@ for seed in range(12):                                   # some told true, some 
 check("a deed's tale, told true or twisted, carries no dash whatever its names hold", len(tales) == 24 and len(set(tales)) >= 2
       and not any(dashed(x) for x in tales) and all("Asha" in x for x in tales), sorted(set(tales)))
 ROOT = Path(__file__).resolve().parent.parent.parent
-writers = sorted(f.name for d in ("engine", "scenes") for f in (ROOT / d).glob("*.py") if "news.append(" in f.read_text(encoding="utf-8"))
+import re
+adds = re.compile(r"""news(?:"\])?(?:\.append|\.extend|\.insert|\s*\+=)""")      # the list grown, by whatever name it is reached
+writers = sorted(f.name for d in ("engine", "scenes") for f in (ROOT / d).glob("*.py") if adds.search(f.read_text(encoding="utf-8")))
 check("...and news has the two writers that take the dashes out, no third (a new one is added here with its filter)",
       writers == ["pulse.py", "standing.py"], writers)
 
