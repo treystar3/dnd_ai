@@ -171,3 +171,104 @@ The numbers above are the order of building: A1 f615, A2 f616, E f617, B f618, C
 - **C (f619).** The step runs where a situation is read (events.read_end, read_ends), which every change already reaches, and is
   shown to the narrator with the act's own changes. It gives the word back if a threat stands again. A heart that names no threat
   derives nothing. The measure runs the engine's own writers on a copy (tools/ruling_eval.py Dry) and writes nothing.
+
+## 10. Part F: the lines the engine keeps and hands on (f620; plan, waiting for the owner)
+
+Written 2026-11-13 after f617's review, which found engine code still writing a spaced hyphen into lines outside news and history.
+Nothing is built. This part touches more than two modules, so it waits for approval.
+
+### What the trace found
+
+Every string in the game's code that holds a dash was listed with the call it is handed to (676 of them), and every request in the
+three kept recordings (250 calls) and a play of the world script was read for the dashes that reach a model.
+
+**Already filtered, no change needed.** Most of the 676 pass one of five choke points that exist today:
+
+| What | Choke point | Since |
+|---|---|---|
+| The story on screen (narration, speech) | ui/console.py guard_outputs: say, narrate, npc_says, dialogue | f396, f403 |
+| Everything a model writes | llm/gateway.py undash_answer | f396, f403 |
+| What the narrator is told happened (GAME EVENT) | scenes/world.py _narrate_now, narrate_with, opening_telling | f413 |
+| A fight's story (61 `tell` sites, engine/bosses.py:81 and the three in engine/damage.py among them) | engine/combat.py tell | f413 |
+| News, history, a deed's tale | engine/pulse.py add_news, add_history; engine/standing.py report | f617 |
+
+**Not filtered: four kinds of line the engine keeps and later hands to a model as true.**
+
+| Kind | Who reads it | Makers | A dash today |
+|---|---|---|---|
+| A townsperson's memory | every speaker's request (YOUR MEMORIES OF THEM) | 17 sites build `Memory(...)` in nine modules | engine/domain_events.py:521, 522, 628; engine/stakes.py:174. Seen in the recordings: "The stranger did the work I asked - mend the fence by the barn - and I paid 30 copper." |
+| A hire's memory | the hire's own request | engine/party.py remember, the one writer | none in code; whatever a name or a title carries |
+| A fact of the truth layer | the narrator and every speaker (engine/truth.py, 28 sites build `Fact(...)`) | the facets | a deed read back from the event log ("the stranger acted (...) - success", engine/domain_events.py:592); engine/property.py:41; the join in present_lines |
+| A fight's story, second writer | the fight's narrator | engine/combat_improv.py:173 inserts into the story without `tell` | whatever the player's own words carry |
+
+### The class and the mechanism
+
+**Class:** every line the engine keeps or assembles as something true and hands to a model that writes prose. Not one site is
+reworded; the filter goes where each kind of line is made, as f617 did for news.
+
+- npc/models.py `Memory`: its text passes engine/hygiene.py undash when the memory is made, whoever makes it.
+- engine/party.py `remember`: the same, on the one writer.
+- engine/truth.py `Fact` and `View.present_lines`: a fact carries no dash, whatever facet built it and whoever reads it.
+- engine/combat.py: the story's filter becomes one function that `tell` and engine/combat_improv.py both use, so the story has
+  one way in.
+
+### What stays as it is, and why
+
+- **The game's own notes:** `console.note`, `console.ledger`, refusals (105 note sites). The owner's decision (f413): the game's
+  notes keep their dashes. A refusal's reason is already filtered where it is handed on to the narrator (scenes/world.py:1650).
+- **The fight's log:** engine/damage.py:266 to 326 ("should have fallen - the bond holds it to life") go to `combat.log`, the fight
+  pane's list, not to the story.
+- **The event log:** engine/canon.py:216 writes a row of the campaign's log. Only the player's rows are ever told, through the truth
+  layer, which the `Fact` filter covers. The row itself is a record.
+- **Logs:** pulselog, console.debug, error text.
+- **Instructions:** system prompts, engine/ability_slots.py's notes for the naming model, engine/actions.py, the lines that tell a
+  speaker how to behave ("private - share it only if it comes up naturally"). They are rules, not story, and their wording is what
+  the pod's measures ran on.
+- **Labels in a request:** the joins a request builder writes itself ("PLACE: Parth - ...", "WHO IS WHO: ...: he, orc - a hired
+  mage", "id: label - role" in the interpreter's lists). f413: lists and labels keep theirs. Changing them would move every
+  recording and every prompt the pod measured.
+
+### Two questions for the owner
+
+1. **The journal.** The character's `item_history` (engine/pulse.py:938, 942; scenes/inventory_actions.py:214, 565, 569) is read by
+   the journal pane and by nothing else: no model is ever handed it. Is the journal the story, or one of the game's own lists?
+   Recommended: the game's list (f413), left as it is. If it is the story, one more filter on the character's record covers all five
+   sites.
+2. **The world's authored words.** The larger share of the dashes a model is handed are not engine-written: they are in data/
+   (about 50 lines in data/world: places, lore, roads, a boss's speech; "Roads leave in every direction - the Old Quarry Road...").
+   That is a class of its own, with a precedent (engine/data_check.py already refuses a dash in two tables of story words).
+   Recommended: the next feature after this one, either filtered where the world is loaded or reworded in the data with a startup
+   check. Not part of f620.
+
+### Tests (tools/sim/kept_lines_dash_620_test.py, written first)
+
+- **Each maker, on shapes no site writes:** a memory, a hire's memory, a fact and a fight's story line made with each kind of dash
+  come back without it, the words kept; a hyphen inside a word is left alone.
+- **The class, played:** the world script plays whole; then a job done, a contract dropped and a gift go through the event bus with
+  titles and names that hold a dash, a hire is told something, and an improvised act opens a fight's round. Every memory of every
+  person in the save, every hire's memory, every line of the truth view under every profile of data/rules/truth.yaml, and the
+  fight's story carry no dash.
+- **The ratchet, at the model's door:** every request to a task whose answer is prose, in the three kept recordings and in the
+  test's own play, is read line by line. A dash in it must be one of three things: a list mark at the start of a line; a string that
+  stands in data/ (question 2's class, named in the test as open); or one of the label shapes the test lists by name with its reason
+  (about 18 today). Any other dashed line fails the test and prints the line, so a new path that hands a model a dashed line is
+  caught wherever the recordings or the play reach it. The recordings are re-blessed whenever a request changes, so the ratchet
+  reads what the game sends today.
+- **One way in:** the fight's story has no writer besides the shared function; a hire's memories have no writer besides `remember`.
+
+### Recordings
+
+Memories and the truth view are in the speakers' requests, so all three recordings move: the request text of calls that carry a
+dashed memory or fact, and the state where a memory is kept. Call titles, order, outcomes and shown words must not move. Re-blessed
+through the rebless skill, with the differences listed in the commit.
+
+### Size
+
+| Module | Change |
+|---|---|
+| npc/models.py | a validator on `Memory.text` |
+| engine/party.py | one line in `remember` |
+| engine/truth.py | `Fact` and `present_lines` |
+| engine/combat.py, engine/combat_improv.py | one function for the story's way in |
+| tools/sim/kept_lines_dash_620_test.py | new |
+| data/replay/sessions | re-blessed |
