@@ -15,9 +15,12 @@ A case may carry what it needs in the world (f601): `objects` lying where it is,
 act's ruling sees them), `pack` goods in the pack (both see them), a `situation` with parts ({tier, people: [{here, stake, want, against}],
 conditions: [{kind, label, by, by_kind, place}]}). Its line may name the situation's people as {person:<n>}; its `model` may name targets as
 @object:<word>, @condition or @person:<n>; `moves` says, for each target named so, what the act should leave it as: a word, a list of
-fair words (false among them: untouched too), {not: words}, or false (untouched). `bounded: true` on a line the corpus expects a no
-for: on the act's path a cost that says what it comes to (`works`) and changes and makes nothing is fair too, its success going no
-further than that (f609); the old ruling, whose success has no bound, is held to the no.
+fair words (false among them: untouched too), {not: words}, or false (untouched).
+
+(f616) A case may say what kind of act it is (`kind`, one of KINDS), and its kind decides what is fair. A `claim` is an act whose words
+claim more than saying them could bring about (a title claimed, a crowd commanded, a person persuaded past reason): the corpus expects
+a no, and on the act's path a yes or a cost that is bounded is right too, since its success goes no further than what it says it
+comes to (`works`, f609) and it changes and makes nothing. The old ruling, whose success has no bound, is held to the no.
 
 (f615) A case file with a line either ruling's prompt teaches (two or more content words shared with one phrase of it) is refused,
 naming the line and the phrase: its score would say what the prompt says, not how the model judges.
@@ -41,8 +44,24 @@ CASES = ROOT / "data" / "replay" / "ruling_cases.yaml"
 PATHS = ("old", "new")
 
 
+KINDS = ("claim",)                                   # (f616) the kinds of act a case may say it is; each has its rule in side()
+
+
 def load(path=CASES) -> list[dict]:
     return yaml.safe_load(Path(path).read_text(encoding="utf-8")) or []
+
+
+def problems(cases: list[dict]) -> list[str]:
+    """(f616) What is wrong with a case file as a file: a kind this tool has no rule for, or a kind that contradicts what it expects."""
+    out = []
+    for c in cases:
+        if "kind" in c and c["kind"] not in KINDS:
+            out.append(f"\"{c['line']}\": kind {c['kind']!r} is not one of {', '.join(KINDS)}")
+        if c.get("kind") == "claim" and c.get("expect") != "no":
+            out.append(f"\"{c['line']}\": a claim expects a no (a bounded yes or cost is then right too)")
+        if "bounded" in c:
+            out.append(f"\"{c['line']}\": `bounded` is now the case's kind (kind: claim)")
+    return out
 
 
 # (f615) The small words of the language, which say nothing of what an act is: never counted as shared.
@@ -308,10 +327,10 @@ class Bench:
         return r, ("yes" if ruling.verdict(self.ws, r)["ok"] else "no"), None
 
     def bounded(self, case: dict) -> bool:
-        """(f610) Whether the act's ruling just made is a bounded cost the case allows: it stands, says what it comes to, and changes and
-        makes nothing (a need that stands is made real before the roll)."""
+        """(f610, f616) Whether the act's ruling just made is bounded, on a case whose kind allows that (a claim): it stands, as a yes or
+        a cost, says what it comes to, and changes and makes nothing (a need that stands is made real before the roll)."""
         v = self.last
-        return bool(case.get("bounded") and v is not None and v.ok and v.ruling.sense == "cost" and (v.ruling.works or "").strip()
+        return bool(case.get("kind") == "claim" and v is not None and v.ok and (v.ruling.works or "").strip()
                     and not v.ruling.changes and not v.ruling.needs)
 
     def close(self) -> None:
@@ -402,7 +421,7 @@ def side(b: Bench, c: dict, path: str, live: bool, tally: Tally) -> str:
         out = b.offline(c, path)
         got, moves_ok = (out if path == "new" and out is not None else (out, None))
         shown = got or "-"
-    if path == "new" and want == "no" and got == "yes" and b.bounded(c):   # (f610) a success no further than its ruling: fair here
+    if path == "new" and want == "no" and got == "yes" and b.bounded(c):   # (f610, f616) a claim, its success no further than its ruling
         want, shown = "yes", f"{b.last.ruling.sense}, bounded"
     known, retire = tally.known, tally.retire
     ok = tally.add(want, got, needs_ok, moves_ok, known=bool(c.get("known")) and path == "new")   # (f601) the gap is the act engine's
@@ -422,9 +441,10 @@ def main() -> int:
     a = ap.parse_args()
     cases = load(a.cases)
     found = taught(cases)                                       # (f615) a line a prompt teaches measures the prompt, not the model
-    if found:
-        for line, name, phrase in found:
-            print(f"REFUSED {a.cases}: \"{line}\" is taught by {name}'s prompt (\"{phrase}\")", file=sys.stderr)
+    wrong_file = problems(cases) + [f"\"{line}\" is taught by {name}'s prompt (\"{phrase}\")" for line, name, phrase in found]
+    if wrong_file:
+        for x in wrong_file:
+            print(f"REFUSED {a.cases}: {x}", file=sys.stderr)
         return 2
     paths = PATHS if a.path == "both" else (a.path,)
     server = runtime_cli.load(a) if a.live else None            # (f529) the game's own server, as the game starts it
