@@ -50,7 +50,7 @@
    situation: {tier: normal, title: Looting, people: [{here: true, stake: harmed, want: safety}],
                conditions: [{kind: danger, label: looters in the square, by: the looting band, by_kind: group}]},
    model: {sense: "cost", stakes: {check: dexterity, hard: fair}, changes: [{n: 1, target: "@condition", becomes: lifted, because: skill}]},
-   moves: {"@condition": false}}
+   moves: {"@condition": [lifted, false]}}   # (f611) force on a body check may lift it (the owner); a hand's skill leaves it
 - {line: "I drive the looters out of the square while {person:2} watches from the granary step.", at: trading_square, expect: "cost",
    situation: {tier: rare, title: Looting, people: [{here: true, stake: harmed, want: safety}, {here: true, stake: blocks, want: coin, against: committed}],
                conditions: [{kind: danger, label: looters in the square, by: the looting band, by_kind: group}]},

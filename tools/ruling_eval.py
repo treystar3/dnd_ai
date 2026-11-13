@@ -15,9 +15,9 @@ A case may carry what it needs in the world (f601): `objects` lying where it is,
 act's ruling sees them), `pack` goods in the pack (both see them), a `situation` with parts ({tier, people: [{here, stake, want, against}],
 conditions: [{kind, label, by, by_kind, place}]}). Its line may name the situation's people as {person:<n>}; its `model` may name targets as
 @object:<word>, @condition or @person:<n>; `moves` says, for each target named so, what the act should leave it as: a word, a list of
-fair words, {not: words}, or false (untouched). `bounded: true` on a line the corpus expects a no for: on the act's path a cost that
-says what it comes to (`works`) and changes and makes nothing is fair too, its success going no further than that (f609); the old
-ruling, whose success has no bound, is held to the no.
+fair words (false among them: untouched too), {not: words}, or false (untouched). `bounded: true` on a line the corpus expects a no
+for: on the act's path a cost that says what it comes to (`works`) and changes and makes nothing is fair too, its success going no
+further than that (f609); the old ruling, whose success has no bound, is held to the no.
 
 GOAL.md: "Investigate further into the cave" is met with more cave. "I grow wings and fly away" is not."""
 from __future__ import annotations
@@ -277,8 +277,8 @@ class Bench:
 
 
 def fair(want, got: set) -> bool:
-    """(f607) What a case allows a target to become: one word (exactly that), a list (one or more of them, nothing else), {not: words}
-    (anything but these, untouched included), or false (untouched)."""
+    """(f607) What a case allows a target to become: one word (exactly that), a list (one or more of them, nothing else; with false among
+    them, untouched too: f611), {not: words} (anything but these, untouched included), or false (untouched)."""
     if want is False:
         return not got
     if isinstance(want, dict):
@@ -286,7 +286,7 @@ def fair(want, got: set) -> bool:
             raise ValueError(f"a case's moves is a word, a list of words, {{not: [words]}} or false, not {want!r}")
         return not got & set(want["not"])
     if isinstance(want, list):
-        return bool(got) and got <= set(want)
+        return (bool(got) or False in want) and got <= {w for w in want if w is not False}
     return got == {want}
 
 
