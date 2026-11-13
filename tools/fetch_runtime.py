@@ -109,7 +109,7 @@ def build_from_source(cfg: dict, into: Path) -> str | None:
                   # (f522) the libraries found beside the program wherever it is copied, as llama.cpp's own release builds do; the
                   # default build path points into the folder deleted below, and the program would not start
                   "-DCMAKE_INSTALL_RPATH=$ORIGIN", "-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON"],
-                 ["cmake", "--build", str(src / "build"), "--target", "llama-server", "-j", str(os.cpu_count() or 4)]]
+                 ["cmake", "--build", str(src / "build"), "--target", "llama-server", "-j", str(build_jobs())]]
         for step in steps:
             print("  $ " + " ".join(step))
             if subprocess.run(step).returncode != 0:
@@ -126,6 +126,20 @@ def build_from_source(cfg: dict, into: Path) -> str | None:
         last = ((ran.stderr or "") + (ran.stdout or "")).strip().splitlines()[-1:] or ["no output"]
         return f"the built llama-server does not start: {last[0]}"
     return None
+
+
+def build_jobs(cpu_max: Path = Path("/sys/fs/cgroup/cpu.max"), seen: int | None = None) -> int:
+    """The source build's job count: the container's CPU quota rounded up (as tools/runpod_night.sh reads it), never more than the
+    cores seen. (f614) a pod saw 96 cores with a quota of ten, and 96 jobs throttled each other."""
+    if seen is None:
+        seen = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else (os.cpu_count() or 4)
+    try:
+        q, period = cpu_max.read_text().split()[:2]
+        if q != "max":
+            return max(1, min(seen, -(-int(q) // int(period))))
+    except (OSError, ValueError):
+        pass
+    return seen
 
 
 def cuda_archs() -> str:

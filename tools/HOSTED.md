@@ -115,7 +115,7 @@ What the first hosted nights taught, so the next one is one command.
   segment size; downloads then run at hundreds of MB/s. The game's own calls to its server stay local.
 - **The threads.** A container may show every core of the host while its quota is a dozen; the script reads the quota, pins the night
   to those cores and gives each run's server its share (`DND_NUM_THREAD`, the quota's cores divided by PARALLEL). Without that a 5090
-  ran at a tenth of its speed.
+  ran at a tenth of its speed. The source build of the server takes the same quota for its job count (f614).
 - **Check the server saw the card** before trusting the night: each run's `llama-server.log` (in its run folder) must say
   `offloaded 49/49 layers to GPU`, and its `run.json` server section `class: minimum` with no warnings. A build that cannot see the
   card falls to the processor and says so there (`class: below`, the reason beside it).
