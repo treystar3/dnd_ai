@@ -523,6 +523,11 @@ class Stakes(BaseModel):
     hard: Literal["", "easy", "fair", "hard"] = ""
 
 
+class ActStakes(Stakes):
+    """(f613) The act's ruling may say an attempt is beyond anyone with what they have; the engine makes that a no."""
+    hard: Literal["", "easy", "fair", "hard", "beyond"] = ""
+
+
 class Change(BaseModel):
     """(f395) What an attempt, if it works, makes different about a part of the place: its name (empty: where the player stands), and
     what it becomes (features.yaml becomes)."""
@@ -1696,7 +1701,7 @@ class ActRuling(BaseModel):
     uses: list[str] = []
     needs: list[Need] = []
     requires: list[str] = []
-    stakes: Stakes = Stakes()
+    stakes: ActStakes = ActStakes()
     changes: list[ActChange] = []
     fail: str = ""
 

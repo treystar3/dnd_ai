@@ -38,7 +38,8 @@ Rule with:
             onward). Only what it cannot happen without; at most two; never treasure, magic items or creatures to fight. Each: name
             (short), what (one sentence of what it is), where (where it is from the player).
   requires: the names from CAPABILITIES the attempt needs, whether or not the character has them. Most attempts need none.
-  stakes:   check - one of CHECKS, or an attribute, when chance decides it; hard - easy, fair or hard. Leave empty for a plain yes.
+  stakes:   check - one of CHECKS, or an attribute, when chance decides it; hard - easy, fair, hard, or beyond: past anything someone
+            with what they have could do, however they try (it then does not happen). Leave empty for a plain yes.
   changes:  what the act, if it works, makes lastingly different, each on one target by its code from TARGETS, named from CHANGES and
             only on the kinds that change lands on: a door barred (state, on a part), a road closed (access), a rope broken (on a
             thing), a frightened clerk (afraid, on a person), a situation's guard won over (open, on its part). n: its number; needs:
@@ -116,7 +117,7 @@ def shape(ws, T):
 
     def variant(cs: list[str], group: list[str], how: str) -> dict:
         """One shape of change: these targets, these words, and what the words need (who acts; the state given)."""
-        need = ["n", "target", "becomes"]
+        need = ["n", "target", "becomes", "because"]           # (f613) what it rests on, never left to a default
         props = {"n": {"type": "integer"}, "target": {"enum": cs}, "becomes": {"enum": group}, "to": enum(kinds.get("part", [])),
                  "about": enum(beside), "because": {"enum": defs["ActChange"]["properties"]["because"]["enum"]},
                  "needs": {"type": "array", "items": {"type": "integer"}, "maxItems": int(A["most_changes"])}, "label": text("label")}
@@ -150,7 +151,7 @@ def shape(ws, T):
         "requires": {"type": "array", "items": {"enum": list(ruling.C) + sorted(checks.CHECKS) + list(ruling.ATTRS)},   # a check named
                      "maxItems": int(L["requires"])},                                        # here moves to the stakes, as the contract has it
         "stakes": {"type": "object", "properties": {"check": {"enum": [""] + sorted(checks.CHECKS) + list(ruling.ATTRS)},
-                                                    "hard": {"enum": defs["Stakes"]["properties"]["hard"]["enum"]}}},
+                                                    "hard": {"enum": defs["ActStakes"]["properties"]["hard"]["enum"]}}},
         "fail": {"enum": list(A["fails"])},
         "instead": {"type": "array", "items": text("instead"), "maxItems": int(L["instead_items"])}}
     acts = {"type": "array", "items": {"anyOf": changes} if changes else {"type": "object"},
@@ -303,6 +304,9 @@ def validate(ws, actor_id: str, T, r) -> Checked:
     from engine import ruling
     if r.sense == "no":
         return Checked(False, r, r.answer, list(r.instead), r.why or "it does not make sense here")
+    if r.stakes.hard == "beyond":                    # (f613) the ruling's own word: past anyone with what they have
+        why = (r.why or "").strip().rstrip(".")
+        return Checked(False, r, A["beyond"]["answer"] + (f" ({why})" if why else "") + ".", list(r.instead), A["beyond"]["why"])
     lacking = [cap for cap in r.requires if cap in ruling.C and cap not in means(ws, actor_id)]
     if lacking:
         return Checked(False, r, ruling.C[lacking[0]]["lacking"], list(r.instead), f"needs {lacking[0]}, which they do not have")
@@ -325,6 +329,9 @@ def _chain(ws, actor_id: str, T, r) -> tuple[list, list]:
     now: dict[str, str] = {}                                      # a thing's state as the changes before leave it
     moves = entities.L["object"].get("moves") or {}
     after = {"broken": "broken", "mended": "here", "found": "here", "hidden_here": "hidden", "destroyed": "destroyed", "moved": "here"}
+    layer = {w: x.get("layer") for w, x in situation_parts.S["rulings"]["changes"].items()}
+    group = {l: i for i, g in enumerate(A["one_a_person"]) for l in g}
+    taken: dict[tuple, str] = {}                                  # (f613) (a person, a group of layers): the change that took it
     for ch in r.changes:
         t = T.get(ch.target)
         if t is not None and t.kind == "person" and t.ref in part_of and ch.becomes in situation_parts.S["rulings"]["changes"]:
@@ -395,6 +402,14 @@ def _chain(ws, actor_id: str, T, r) -> tuple[list, list]:
             dropped.append((ch, "it needs a change that did not hold"))
             gone.add(ch.n)
             continue
+        t = T.get(ch.target)
+        key = (t.ref, group.get(layer.get(ch.becomes))) if t is not None and t.kind == "person" and layer.get(ch.becomes) in group else None
+        if key in taken:                               # (f613) over what held only: a refused change takes no one's stance
+            dropped.append((ch, f"they cannot be {ch.becomes} as well as {taken[key]}"))
+            gone.add(ch.n)
+            continue
+        if key is not None:
+            taken[key] = ch.becomes
         out.append(ch)
     return out, dropped
 
@@ -442,6 +457,15 @@ def problems() -> list[str]:
     hand = A.get("hand_checks")
     if not (isinstance(hand, list) and hand and set(hand) <= set(checks.CHECKS) | set(ruling.ATTRS) and not set(hand) & set(talk or ())):
         bad.append("act.yaml hand_checks: a list of the checks a hand's work is tested on, none of talk_checks")
+    from engine import situation_parts
+    B = A.get("beyond") or {}
+    if not (isinstance(B, dict) and str(B.get("answer") or "").strip() and str(B.get("why") or "").strip()):
+        bad.append("act.yaml beyond: needs an answer and a why")
+    layers = {x.get("layer") for x in situation_parts.S["rulings"]["changes"].values()}
+    O = A.get("one_a_person")
+    if not (isinstance(O, list) and O and all(isinstance(g, list) and g and set(g) <= layers for g in O)
+            and len([l for g in O for l in g]) == len({l for g in O for l in g})):
+        bad.append(f"act.yaml one_a_person: groups of layers from situation_parts.yaml rulings ({', '.join(sorted(layers))}), none twice")
     G = A.get("grammar") or {}
     if set(G) != {"why", "answer", "works", "instead", "instead_items", "label", "need_name", "need_what", "need_where", "needs", "uses",
                   "requires"} or not all(isinstance(v, int) and not isinstance(v, bool) and v > 0 for v in G.values()):

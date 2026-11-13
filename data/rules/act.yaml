@@ -21,6 +21,14 @@ talk_checks: [persuasion, deception, performance]
 # (f604) a hand's work frees one held away only on a roll of the hand (the owner, 2026-11-12): no plain yes, no other roll
 hand_checks: [strength, dexterity, constitution, stealth]
 
+# (f613) An attempt the ruling calls beyond anyone with what they have is a no, told so (what could be tried instead is the ruling's own).
+beyond:
+  answer: "they try, and it is past anything they could do with what they have: it does not come close"
+  why: "beyond anyone with what they have"
+# (f613) A person takes at most one change from each group of these layers (data/rules/situation_parts.yaml rulings): how they stand and
+# what they do about it, how they feel, what they believe. A later change in a group already taken is dropped.
+one_a_person: [[willingness, action], [feeling], [belief]]
+
 # Words the reuse rule leaves out when it compares two acts ("I try to hide behind the crates" is "hide behind crates").
 filler: [i, the, a, an, my, to, and, then, try, trying, tries, attempt, attempts]
 
