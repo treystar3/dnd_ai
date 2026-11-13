@@ -297,3 +297,91 @@ through the rebless skill, with the differences listed in the commit.
 - **Old saves.** A townsperson's memory is filtered whenever it is read, so an old save's are too. A hire's memory kept before f620
   keeps its dash until it is told anew; no engine line ever wrote one, so only a name or a title could have put it there.
 - **The test's deeds:** a job done, work done unasked, a contract walked away from and a gift, each with a dash in its words.
+
+## 11. Part G: the words that stand in data/ (f621; plan, waiting for the owner)
+
+Written 2026-11-13, after f620 left the world's authored words as a class of its own. Nothing is built. It touches more than two
+modules and rewords authored lines, so it waits for approval.
+
+### What the survey found
+
+Every string in data/ was read (data/measured and data/replay left out): 240 hold a dash, in 35 files. By what the string is for:
+
+| Kind | Strings | Where | What happens to them today |
+|---|---|---|---|
+| Told as true | 85 | data/world: places (5), lore (14), regions (3), roads (2), world.yaml (2), goods (1), relics (1), arcs' truths (4), roles' descriptions (8), creature families' lines (42); data/rules: a boss's lines (2), a motive's outcome (1) | handed to the narrator and the speakers, dash and all, where a request reads the data directly |
+| Structure the engine reads | 55 | world/pressures.yaml descriptions (53), rules/brief.yaml clause_ends (2) | engine/threads.py `clause` splits a pressure's description at its " - "; brief.yaml lists the dash characters themselves |
+| A rule for a model | 48 | what a naming model is to depict (ability_slots, healing, summons), a moment's brief, the frame and register rules (party, severity, speech, mentor), and the like | sent as instructions |
+| A label in a pane | 48 | rules/field.yaml blurbs (30), ability and passive texts, effect descriptions | shown in the game's own panes |
+| An author's note | 4 | world/bestiary.yaml notes | read by nobody |
+
+Only 9 of the 240 appear in the kept recordings' requests to prose tasks, so the recordings cannot be the ratchet for this class.
+
+### The class and the mechanism
+
+**Class:** every string in data/ that the game tells as true.
+
+**The words are cleaned in the data, and a check at startup keeps them clean.** That is how the project already handles the three
+tables of story words it checks (engine/data_check.py: the words for how long ago, the battlefield's words, the improvised act's
+lines), and it is GOALS.md's rule that data is the source of truth.
+
+- data/rules/hygiene.yaml gets one table of what is **not** told: by file and key, with its kind (label, rule, structure, note)
+  and a reason. About 25 entries cover the 155 strings of the last four rows above.
+- engine/data_check.py gets one rule: every string under data/ whose file and key are not in that table carries no dash. The
+  default is told, so a new file or a new key is checked without anyone having to add it anywhere, and the game does not start with
+  a dashed line of the world in it. The rule also refuses a table entry that names a file or key that is not there.
+- The 85 told strings are reworded once: the dash becomes the punctuation it stands for, the words stay. The mender
+  (engine/hygiene.py undash) proposes each and every line is read. The proposal for all 85 is in the shared notes
+  (`f621-data-words-preview.md`), for example:
+  - "Roads leave in every direction - the Old Quarry Road north, ..." becomes "Roads leave in every direction: the Old Quarry Road north, ..."
+  - "Greyhollow grew up around what lies under its hills - mining, timber and stonework - and sends ..." becomes "... its hills, mining, timber and stonework, and sends ..."
+  - One line the mender gets wrong and is set by hand: "... something that only looks like one - no two tellings agree" must not
+    become "one... no two tellings agree" (its rule for broken speech); it takes a colon.
+
+**Why not filter where the world is loaded.** It would need no edit of the data, but: a dash in data is sometimes structure (it
+would break `clause` on all 53 pressures unless told which keys to skip, which is the same table again); the mender misjudges
+authored prose now and then, and at load nobody reads the result; and the file would no longer say what the game tells.
+
+### What follows from it
+
+- **The data hash moves,** so all three recordings are re-blessed on the new data. The requests that carry a reworded line change
+  (a place's lines, lore, a role's description, a road). Call titles, order, outcomes and shown words must not move.
+- **f620's ratchet tightens.** Today it lets any string of data/ through. After f621 it lets through only strings under the keys
+  the table declares, so a told line of data can no longer pass it either.
+- A place's line reads the same in the truth view and where a request reads the place directly (f620 left those apart).
+
+### Tests (tools/sim/data_words_621_test.py, written first)
+
+- The rule on trees it is handed, not on the game's files: a dashed string under a key nobody declared is refused, of each kind of
+  dash, in a list, a nested table, a table written on one line and a key; a hyphen inside a word passes; a declared key passes; a
+  new file is checked by default; an entry for a key that is not there is refused.
+- The game's data passes the rule, and the table declares nothing that holds no dash.
+- A pressure's description still gives its clauses (engine/threads.py), and brief.yaml's clause ends still read.
+- The world loads, and no told string of a played script's requests holds a dash (f620's ratchet, with the tightened allowance).
+
+### Questions for the owner
+
+1. **Reword the 85 lines in the data, or filter at load?** Recommended: reword, with the check. The lines are in the preview.
+2. **Is the sorting right?** Two calls are mine: creature families' lines are counted as told (their file says "one line the
+   narrator is told"; 42 lines), and pane labels keep their dashes (f413).
+
+### Found in passing, not part of this
+
+- **Thirteen of the 52 roles load with their description cut short.** data/world/roles.yaml writes each role as a table on one line
+  without quotes, so YAML ends the description at its first comma: the smith's is "Works the forge - tools", and "hinges",
+  "horseshoes", "the odd blade." become keys nobody reads. Its class is a row of data holding keys its model does not know. It
+  wants its own feature (the models refuse unknown keys, the thirteen lines get quotes); best done right after f621, since both
+  edit roles.yaml.
+- No reader of a creature family's line was found (engine/behaviors.py `text_for` has no caller): the file says the narrator is
+  told it. To check when the families are next touched.
+
+### Size
+
+| Module | Change |
+|---|---|
+| data/rules/hygiene.yaml | the table of what is not told |
+| engine/data_check.py | the rule |
+| 12 files under data/ | 85 strings reworded |
+| tools/sim/kept_lines_dash_620_test.py | the allowance reads the table |
+| tools/sim/data_words_621_test.py | new |
+| data/replay/sessions | re-blessed on the new data |
