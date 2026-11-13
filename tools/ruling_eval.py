@@ -15,12 +15,15 @@ A case may carry what it needs in the world (f601): `objects` lying where it is,
 act's ruling sees them), `pack` goods in the pack (both see them), a `situation` with parts ({tier, people: [{here, stake, want, against}],
 conditions: [{kind, label, by, by_kind, place}]}). Its line may name the situation's people as {person:<n>}; its `model` may name targets as
 @object:<word>, @condition or @person:<n>; `moves` says, for each target named so, what the act should leave it as: a word, a list of
-fair words, {not: words}, or false (untouched).
+fair words, {not: words}, or false (untouched). `bounded: true` on a line the corpus expects a no for: on the act's path a cost that
+says what it comes to (`works`) and changes and makes nothing is fair too, its success going no further than that (f609); the old
+ruling, whose success has no bound, is held to the no.
 
 GOAL.md: "Investigate further into the cave" is met with more cave. "I grow wings and fly away" is not."""
 from __future__ import annotations
 
 import argparse
+import os
 import random
 import shutil
 import sys
@@ -75,10 +78,12 @@ class Bench:
         self.names: list[str] = []
         self.was_present = None
         self.n = 0
+        self.last = None                                     # (f610) the act's ruling and the engine's check of the case just ruled
 
     def put(self, case: dict) -> None:
         from engine import inventory
         ws = self.ws
+        self.last = None
         self.clear()                                         # (f601) the last case's world first, then the move
         if ws.player.location != case["at"]:
             ws.enter(case["at"])
@@ -231,6 +236,7 @@ class Bench:
             from engine import act
             T = self.targets()
             v = act.validate(self.ws, self.ws.acting, T, self.act_model(case, T))
+            self.last = v
             return ("yes" if v.ok else "no"), self.moved(case, T, v)
         m = {k: v for k, v in case["model"].items() if k in ("sense", "requires", "why", "needs")}   # the old path makes no changes
         r = Ruling.model_validate({"answer": "x", **m}, context={"capabilities": list(ruling.C)})
@@ -248,11 +254,19 @@ class Bench:
             if r is None:
                 return None, None, None
             v = act.validate(self.ws, self.ws.acting, T, r)
+            self.last = v
             return r, ("yes" if v.ok else "no"), self.moved(case, T, v)
         r = ruling.ask(self.ws, line, line)
         if r is None:
             return None, None, None
         return r, ("yes" if ruling.verdict(self.ws, r)["ok"] else "no"), None
+
+    def bounded(self, case: dict) -> bool:
+        """(f610) Whether the act's ruling just made is a bounded cost the case allows: it stands, says what it comes to, and changes and
+        makes nothing (a need that stands is made real before the roll)."""
+        v = self.last
+        return bool(case.get("bounded") and v is not None and v.ok and v.ruling.sense == "cost" and (v.ruling.works or "").strip()
+                    and not v.ruling.changes and not v.ruling.needs)
 
     def close(self) -> None:
         self.session.close()
@@ -342,6 +356,8 @@ def side(b: Bench, c: dict, path: str, live: bool, tally: Tally) -> str:
         out = b.offline(c, path)
         got, moves_ok = (out if path == "new" and out is not None else (out, None))
         shown = got or "-"
+    if path == "new" and want == "no" and got == "yes" and b.bounded(c):   # (f610) a success no further than its ruling: fair here
+        want, shown = "yes", f"{b.last.ruling.sense}, bounded"
     known, retire = tally.known, tally.retire
     ok = tally.add(want, got, needs_ok, moves_ok, known=bool(c.get("known")) and path == "new")   # (f601) the gap is the act engine's
     shown += {True: ", moves ok", False: ", moves WRONG"}.get(moves_ok, "") + (", needs missed" if needs_ok is False else "")
@@ -361,7 +377,8 @@ def main() -> int:
     cases = load(a.cases)
     paths = PATHS if a.path == "both" else (a.path,)
     server = runtime_cli.load(a) if a.live else None            # (f529) the game's own server, as the game starts it
-    b = Bench(live=a.live, source=server.source if server is not None else None)
+    b = Bench(live=a.live, source=server.source if server is not None else None,
+              save=f"ruling_eval_{os.getpid()}")   # (f610) its own save: the suite runs several at once
     tally = {p: Tally() for p in paths}
     right = wrong = skipped = 0
     try:
