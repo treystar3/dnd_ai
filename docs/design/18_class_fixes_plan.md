@@ -172,10 +172,11 @@ The numbers above are the order of building: A1 f615, A2 f616, E f617, B f618, C
   shown to the narrator with the act's own changes. It gives the word back if a threat stands again. A heart that names no threat
   derives nothing. The measure runs the engine's own writers on a copy (tools/ruling_eval.py Dry) and writes nothing.
 
-## 10. Part F: the lines the engine keeps and hands on (f620; plan, waiting for the owner)
+## 10. Part F: the lines the engine keeps and hands on (f620)
 
 Written 2026-11-13 after f617's review, which found engine code still writing a spaced hyphen into lines outside news and history.
-Nothing is built. This part touches more than two modules, so it waits for approval.
+The owner approved it the same day as written ("Approve, build it": the journal left alone, the world's authored words as the next
+feature). Built as f620; where the build differs from the plan is at the end of this part.
 
 ### What the trace found
 
@@ -272,3 +273,27 @@ through the rebless skill, with the differences listed in the commit.
 | engine/combat.py, engine/combat_improv.py | one function for the story's way in |
 | tools/sim/kept_lines_dash_620_test.py | new |
 | data/replay/sessions | re-blessed |
+
+### As built (2026-11-13)
+
+- **The fight's story.** No new function: `tell` takes where in the story a line goes (`at`), and the improvised act's own line goes
+  through it. The story grows in engine/combat.py alone.
+- **A fact covers the place's own words too.** `Fact` filters every fact, so a line of a place that stands in data/ with a dash
+  ("Roads leave in every direction - ...") is handed over without it where the truth layer hands it over. The same line still has
+  its dash where a request reads the place directly (YOUR PLACE in a speaker's request, VISIBLE in the narrator's). Question 2's
+  class is open as before; this is the part of it the truth layer already answers.
+- **Not counted as a repair.** engine/hygiene.py `undash` takes `count=False` for a line the engine wrote, so the night's count of
+  dashes mended (REPAIRS) stays a measure of what the models wrote. The four makers and `tell` use it. The older engine callers
+  (news, history, a deed's tale, the narrator's event) still count; a small follow-up.
+- **Recordings.** Two moved, not three: stub_fight sends no request that carries a dashed memory or fact and replays as it was.
+  stub_short: two requests (the place's line in the truth view). stub_party: thirteen requests (the same line, the strangers beside
+  the player, two memories) and the two memories' rows.
+- **The ratchet.** It lets through a label's own dash and the words that make it that label, never the rest of its line, and a
+  string of data/ only as the dash with two words either side of it as the data holds them (the goals review found the first cut
+  let whole lines and common word pairs through). Sixteen labels are named. One line is named as known and open: "How people
+  around here regard the stranger: unknown - just a stranger." It is one of the lines a speaker also knows right now
+  (scenes/world.py npc_context), which mix rules and facts and which the plan left as written; the regard is the game's own label,
+  handed over inside a fact. For the owner to rule on.
+- **Old saves.** A townsperson's memory is filtered whenever it is read, so an old save's are too. A hire's memory kept before f620
+  keeps its dash until it is told anew; no engine line ever wrote one, so only a name or a title could have put it there.
+- **The test's deeds:** a job done, work done unasked, a contract walked away from and a gift, each with a dash in its words.

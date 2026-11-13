@@ -504,13 +504,18 @@ def weapon_phrase(f: Fighter) -> str:
     return f"with {possessive(f)} {f.weapon_name}"
 
 
-def tell(combat: Combat, text: str, rec: dict | None = None) -> None:
-    """Add an event to this round's story. A blow's event carries its tag ([h2]) so the narrator can place the figure."""
+def tell(combat: Combat, text: str, rec: dict | None = None, at: int | None = None) -> None:
+    """Add an event to this round's story. A blow's event carries its tag ([h2]) so the narrator can place the figure. (f620) at: where
+    in the story it goes when not at the end (what was tried, before what came of it): the story's one way in."""
     from engine import hygiene
-    text = hygiene.undash(text)                     # (f413) the story the narrator is handed has no dashes to copy (f403)
+    text = hygiene.undash(text, count=False)        # (f413) the story the narrator is handed has no dashes to copy (f403)
     if rec is not None:
         text += f" [{rec['tag']}]"
-    combat.story.append(text[0].upper() + text[1:])
+    text = text[0].upper() + text[1:]
+    if at is None:
+        combat.story.append(text)
+    else:
+        combat.story.insert(at, text)
 
 
 def new_hit(combat: Combat, att: Fighter, dfn: Fighter, label: str) -> dict | None:
