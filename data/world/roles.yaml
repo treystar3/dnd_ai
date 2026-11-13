@@ -23,7 +23,7 @@
            {id: mana_tonic, name: a mana tonic, price: 150, kind: item, item: mana_tonic},
            {id: bandage, name: a bandage, price: 20, kind: item, item: bandage}],
    buys: [herb, consumable]}
-- {id: smith, hours: [7, 18],         description: Works the forge - tools, hinges, horseshoes, the odd blade., knowledge_groups: [],
+- {id: smith, hours: [7, 18],         description: "Works the forge: tools, hinges, horseshoes, the odd blade.", knowledge_groups: [],
    buys: [metal, weapon, armor],
    sells: [{id: bronze, name: a bronze bar, price: 40, kind: material, item: bronze},
            {id: iron, name: an iron bar, price: 90, kind: material, item: iron}],
@@ -65,13 +65,13 @@
 - {id: priest, hours: [5, 20],        description: Keeps the temple and its rites in the name of the god the local faith serves.,                     knowledge_groups: [temple, scholars]}
 - {id: acolyte, hours: [5, 20],       description: Assists the priest and tends the temple and its tithe box.,            knowledge_groups: [temple]}
 - {id: enchanter, hours: [9, 19],     description: Binds magic into arms and armor for a fee. Rare outside places that accept magic., knowledge_groups: [mages, scholars]}
-- {id: guild_master, hours: [9, 19],  description: Leads the adventurers' guild - its reputation, its bounties and its members' promotions., knowledge_groups: [guild, merchants]}
+- {id: guild_master, hours: [9, 19],  description: "Leads the adventurers' guild: its reputation, its bounties and its members' promotions.", knowledge_groups: [guild, merchants]}
 - {id: guild_instructor, hours: [7, 18], description: A retired adventurer who drills members and teaches skills and techniques for coin., knowledge_groups: [guild]}
-- {id: guild_contractor, hours: [8, 22], description: "An adventurer who takes the guild's contracts - between jobs, swapping rumors and sizing up newcomers.", knowledge_groups: [guild]}
+- {id: guild_contractor, hours: [8, 22], description: "An adventurer who takes the guild's contracts: between jobs, swapping rumors and sizing up newcomers.", knowledge_groups: [guild]}
 - {id: butcher, hours: [6, 16],       description: Dresses the game and beasts adventurers bring in.,  knowledge_groups: [hunters],
    buys: [hide, bone, food],
    sells: [{id: trail_ration, name: a trail ration, price: 15, kind: item, item: trail_ration}]}
-- {id: quartermaster, hours: [8, 18], description: Keeps the guild's store - buys almost anything adventurers drag back and sells supplies., knowledge_groups: [guild, merchants],
+- {id: quartermaster, hours: [8, 18], description: "Keeps the guild's store: buys almost anything adventurers drag back and sells supplies.", knowledge_groups: [guild, merchants],
    buys: [any], buy_rate: 0.3,
    sells: [{id: healing_draught, name: a healing draught, price: 150, kind: item, item: healing_draught},
            {id: bandage, name: a bandage, price: 20, kind: item, item: bandage},
@@ -89,7 +89,7 @@
 - {id: lumberjack, hours: [6, 18],    description: Fells and hauls timber from the woods.,                knowledge_groups: [hunters], buys: [wood],
    sells: [{id: sawn_planks, name: a bundle of sawn planks, price: 20, kind: item, item: sawn_planks}]}
 - {id: ferryman, hours: [6, 19],      description: Takes people and loads across the water on a flat ferry for a fare.,  knowledge_groups: [merchants]}   # (f545, the owner) made by a situation that needs one; no place lists them yet
-- {id: carpenter, hours: [7, 18],     description: Builds and mends in wood - roofs, carts, doors and bridges.,  knowledge_groups: []}   # (f545, the owner) the same
+- {id: carpenter, hours: [7, 18],     description: "Builds and mends in wood: roofs, carts, doors and bridges.",  knowledge_groups: []}   # (f545, the owner) the same
 - {id: stonemason, hours: [7, 18],    description: Cuts and dresses stone for building.,                  knowledge_groups: []}
 - {id: elven_warden, hours: [0, 24],  description: Guards the paths of the forest and the city within it., knowledge_groups: [guards, hunters]}
 - {id: loremaster, hours: [8, 20],    description: Keeps the old songs, records and histories.,           knowledge_groups: [scholars, mages],
@@ -118,8 +118,8 @@
 - {id: noble, hours: [10, 23],        description: A member of a noble house, at home in the court.,      knowledge_groups: [nobility]}
 - {id: courtier, hours: [9, 22],      description: Serves and schemes within the royal court.,            knowledge_groups: [nobility]}
 - {id: royal_guard, hours: [0, 24],   description: Guards the capital and its great houses in the crown's colors., knowledge_groups: [guards, nobility]}
-- {id: monarch, hours: [9, 21],       description: Rules the kingdom from Lethoria - seen by few, and never without the court around them., knowledge_groups: [nobility, scholars]}
-- {id: chamberlain, hours: [7, 22],   description: Keeps the palace - who is admitted, who is fed, who waits, and for how long., knowledge_groups: [nobility, merchants]}
+- {id: monarch, hours: [9, 21],       description: "Rules the kingdom from Lethoria, seen by few, and never without the court around them.", knowledge_groups: [nobility, scholars]}
+- {id: chamberlain, hours: [7, 22],   description: "Keeps the palace: who is admitted, who is fed, who waits, and for how long.", knowledge_groups: [nobility, merchants]}
 - {id: relic_dealer, hours: [9, 18], description: "Deals in a handful of famous, one-of-a-kind arms and armor, kept under lock and key for buyers with deep purses.", knowledge_groups: [merchants], relics: true}
 - {id: land_agent, hours: [9, 18], description: Sells houses and lots in the city, and knows who is leaving and who is moving in., knowledge_groups: [merchants]}
-- {id: prisoner, hours: [0, 24], description: "A captive taken in a fight and held by the player. Frightened, defiant or calculating - how they behave depends on their nature.", knowledge_groups: [outlaws]}
+- {id: prisoner, hours: [0, 24], description: "A captive taken in a fight and held by the player. Frightened, defiant or calculating: how they behave depends on their nature.", knowledge_groups: [outlaws]}

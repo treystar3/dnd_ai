@@ -16,7 +16,7 @@
 
 - id: northern_hills
   name: the northern hills
-  description: Rolling hills, mixed woodland and rocky foothills north of Parth - mining and timber country.
+  description: "Rolling hills, mixed woodland and rocky foothills north of Parth: mining and timber country."
   ruled_by: the crown at Lethoria
 
 - id: blackpine
@@ -36,13 +36,13 @@
 
 - id: great_river
   name: the Great River lands
-  description: Fertile plains, wetlands and river valleys along the Great River - the kingdom's busiest country.
+  description: "Fertile plains, wetlands and river valleys along the Great River: the kingdom's busiest country."
   ruled_by: the crown at Lethoria
 
 - id: eastern_frontier
   name: the eastern frontier
   description: Dry grassland giving way to scrub, red hills and badlands at the edge of the settled kingdom.
-  ruled_by: nobody in particular - the crown's reach is thin here
+  ruled_by: "nobody in particular: the crown's reach is thin here"
 
 - id: sunscar
   name: the Sunscar

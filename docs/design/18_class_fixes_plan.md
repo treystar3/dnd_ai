@@ -298,10 +298,10 @@ through the rebless skill, with the differences listed in the commit.
   keeps its dash until it is told anew; no engine line ever wrote one, so only a name or a title could have put it there.
 - **The test's deeds:** a job done, work done unasked, a contract walked away from and a gift, each with a dash in its words.
 
-## 11. Part G: the words that stand in data/ (f621; plan, waiting for the owner)
+## 11. Part G: the words that stand in data/ (f621; built)
 
-Written 2026-11-13, after f620 left the world's authored words as a class of its own. Nothing is built. It touches more than two
-modules and rewords authored lines, so it waits for approval.
+Written 2026-11-13, after f620 left the world's authored words as a class of its own. The owner approved it as written the same
+day (reword in the data, with the check; the sorting stands). What was built, and where it left the plan, is under "As built".
 
 ### What the survey found
 
@@ -385,3 +385,30 @@ authored prose now and then, and at load nobody reads the result; and the file w
 | tools/sim/kept_lines_dash_620_test.py | the allowance reads the table |
 | tools/sim/data_words_621_test.py | new |
 | data/replay/sessions | re-blessed on the new data |
+
+### As built (f621)
+
+- **The rule:** engine/data_check.py `data_words_problems`, in the startup check. It reads every YAML and JSON file under data/
+  (data/measured and data/replay left out), the keys too. The table is data/rules/hygiene.yaml `data_words`: 26 keys in 22 files.
+  A key covers itself and all under it, named alone or as a dotted run (`frame.shows`).
+- **138 strings reworded, not 85.** The plan left the 53 dashed descriptions of world/pressures.yaml alone as structure, because
+  engine/threads.py `clause` cut them at the dash. The test, written first, showed they are also handed whole to three requests
+  (engine/pulse.py `context_for_place`, engine/stakes.py "PRESSURES:", engine/situation_parts.py `trouble`). So they are told like
+  the rest: the head now ends at a colon and `clause` cuts there (one line of code). Declaring them structure would have kept 53
+  told lines with a dash behind a table entry.
+- **How each was reworded:** the dash became a colon in 122. Sixteen went another way: a comma (a boss's last stand, a motive's
+  outcome, the monarch's role, two pressures of the form "this, or that"), a semicolon (Frostholm's lore), parentheses for an
+  aside between two dashes (three arcs' truths, Greyhollow's lore, the guild halls' lore), and one pressure (rimewind_march)
+  made two sentences, its things after the colon. The Hollow's line took its colon by hand.
+- **`clause` gives better clauses for three pressures.** "X - or Y" used to give only "or Y"; with a comma it gives either half.
+  The Rimewind line used to give a broken half ("a winter hag or a frozen host - and Frostholm braces for a long"); it gives its
+  things.
+- **Five roles now load whole.** A colon inside a table written on one line needs quotes, so the smith, the guild master, the
+  carpenter, the monarch and the chamberlain got them, and their descriptions no longer end at the first comma. The other eight
+  cut-short roles, and the check that would refuse a row's unknown keys, are still the follow-up below.
+- **f620's ratchet** lets through only strings under keys the table declares.
+- **The recordings:** all three re-blessed on the new data. Titles, order, outcomes and shown words did not move. Requests that
+  differ: stub_short 10, stub_party 16, stub_fight 1 (the boss's own line, handed to the naming of what it dropped). stub_fight's
+  state differs at inputs 3 to 19, in kv: the boss's lines are kept in the fight while it lasts.
+- **Not done:** rules written for a model (48 strings) keep their dashes, as planned; whether a model copies a dash from its own
+  instructions is not measured here.

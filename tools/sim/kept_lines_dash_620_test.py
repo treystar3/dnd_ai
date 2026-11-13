@@ -159,25 +159,13 @@ def prose_task(title: str) -> bool:
 
 
 def data_words() -> str:
-    """Every string that stands in data/ and holds a dash, each on a line of its own, in small letters: the world's authored words
-    (places, lore, roads, sayings) and the rules' own wording. They are a class of their own, still open (docs/design/18 part F,
-    question 2), and not lines the engine writes."""
-    out = []
-    def walk(v):
-        if isinstance(v, str):
-            if dashed(v):
-                out.append(" ".join(v.lower().split()))
-        elif isinstance(v, dict):
-            for k, x in v.items():
-                walk(k), walk(x)
-        elif isinstance(v, (list, tuple)):
-            for x in v:
-                walk(x)
-    for f in sorted((ROOT / "data").rglob("*.yaml")):
-        if "measured" in f.parts or "replay" in f.parts:
-            continue
-        walk(yamlio.safe_load(f.read_text(encoding="utf-8")))
-    return "\n".join(out)
+    """(f621) Every string of data/ that still holds a dash, each on a line of its own, in small letters: only what hygiene.yaml
+    data_words declares a label, a rule for a model, marks the engine reads or a note. What data/ tells as true holds none
+    (engine/data_check.py data_words_problems), so a dash in a request is the rules' own wording or the engine's."""
+    from engine import data_check
+    T = hygiene.H.get("data_words") or {}
+    return "\n".join(" ".join(s.lower().split()) for rel, path, s in data_check.data_strings(ROOT / "data", tuple(T.get("skip") or ()))
+                     if dashed(s) and data_check.not_told(T.get("not_told") or {}, rel, path))
 
 
 AROUND = re.compile(r"((?:[^\s]+[ \t]+){0,2}[^\s]+)[ \t]*(—|–|--|(?<=[ \t])-(?=[ \t]))[ \t]*([^\s]+(?:[ \t]+[^\s]+){0,2})")

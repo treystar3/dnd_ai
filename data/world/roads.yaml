@@ -12,13 +12,13 @@
 - {id: kings_pass, name: the King's Pass, from: parth, to: ironvein,
    description: "Follows a valley through rolling hills and highlands into the Grey Mountains, narrowing to a pass. A trade route between farmland and the dwarves."}
 - {id: frostpass, name: the Frostpass, from: dunmarrow, to: frostholm,
-   description: "Crosses some of the hardest country there is - mountain valleys, high alpine ground, past the snowline into tundra. Far worse in winter."}
+   description: "Crosses some of the hardest country there is: mountain valleys, high alpine ground, past the snowline into tundra. Far worse in winter."}
 - {id: old_forest_trail, name: the Old Forest Trail, from: eldervale, to: frostholm,
    description: "An ancient path rather than a road, older than the kingdoms, through old woods, highland forest and alpine ground into the frozen north."}
 - {id: red_road, name: the Red Road, from: parth, to: redstone,
    description: "Runs east from fertile grassland into dry grass, scrub, and finally the red hills and badlands around Redstone."}
 - {id: sun_road, name: the Sun Road, from: redstone, to: sunspire,
-   description: "Crosses ever more arid country - badlands, scrub, rocky desert, then the great desert around Sunspire. One of the great long trade routes."}
+   description: "Crosses ever more arid country: badlands, scrub, rocky desert, then the great desert around Sunspire. One of the great long trade routes."}
 - {id: southern_route, name: the southern trade route, from: riverhaven, to: sunspire,
    description: "The long merchant route linking the Great River to the Sunscar, by river, road and caravan."}
 - {id: ember_road, name: the Ember Road, from: sunspire, to: cinderhold,

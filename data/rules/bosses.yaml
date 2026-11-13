@@ -32,9 +32,9 @@ kits:
       - {name: Cut Down the Weak, cost: 2, kind: smite, text: "{name} cuts through the line and goes for the weakest of you"}
       - {name: Terrible Presence, cost: 1, kind: cow, status: frightened, text: "{name}'s gaze falls on you like a verdict"}
     lines:
-      intro: "{name} draws a weapon and steps out of the ranks. 'It ends here. Everything you did, everything you fought for - here.'"
+      intro: "{name} draws a weapon and steps out of the ranks. 'It ends here. Everything you did, everything you fought for: here.'"
       bloodied: "{name} wipes blood from their face and laughs. 'Good. Now I will stop holding back.'"
-      last_stand: "{name} should have fallen - but staggers up, refusing the dark. 'Not yet. Not while one of my people still stands.'"
+      last_stand: "{name} should have fallen, but staggers up, refusing the dark. 'Not yet. Not while one of my people still stands.'"
       fall: "{name} falls at last, and the fighting around you goes quiet."
   dragon:
     signature: {name: Breath Weapon, kind: sweep, mult: 1.6, text: "{name} rears back and the whole field vanishes in a torrent of ruin"}
