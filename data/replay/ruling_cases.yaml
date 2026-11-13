@@ -29,16 +29,16 @@
 
 # ---------- nonsensical: the world says no, in its own words ----------
 - {line: "I grow wings and fly away.", at: tidepool_caves, expect: "no", model: {sense: "yes", requires: [flight]}}
-- {line: "I summon a dragon to burn the market.", at: trading_square, expect: "no"}
+- {line: "I call a giant up out of the earth to flatten the market.", at: trading_square, expect: "no"}
 - {line: "I walk straight through the wall.", at: trading_square, expect: "no", model: {sense: "yes", requires: [pass_through]}}
 - {line: "I declare myself king of Parth.", at: trading_square, expect: "no", bounded: true}   # (f610) a claim heard, not granted
-- {line: "I conjure a thousand gold coins.", at: trading_square, expect: "no"}
+- {line: "I wish a chest of silver into my hands.", at: trading_square, expect: "no"}
 - {line: "I teleport to the capital.", at: trading_square, expect: "no", model: {sense: "yes", requires: [teleport]}}
 - {line: "I breathe underwater and swim to the sea floor.", at: tidepool_caves, expect: "no", model: {sense: "yes", requires: [water_breathing]}}
 - {line: "I lift the whole inn off the ground.", at: trading_square, expect: "no"}
 - {line: "I turn into a wolf.", at: greywood, expect: "no", model: {sense: "yes", requires: [shape_change]}}
 - {line: "I find a legendary sword lying in the gutter.", at: trading_square, expect: "no"}
-- {line: "I make the sun go down now.", at: trading_square, expect: "no"}
+- {line: "I tell the moon to rise at noon.", at: trading_square, expect: "no"}
 - {line: "I read the merchant's mind.", at: trading_square, expect: "no", model: {sense: "yes", requires: [mind_reading]}}
 - {line: "I raise the dead guard from his grave.", at: trading_square, expect: "no", model: {sense: "yes", requires: [raise_dead]}}
 - {line: "I become invisible.", at: trading_square, expect: "no", model: {sense: "yes", requires: [invisibility]}}

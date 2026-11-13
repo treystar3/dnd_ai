@@ -19,12 +19,16 @@ fair words (false among them: untouched too), {not: words}, or false (untouched)
 for: on the act's path a cost that says what it comes to (`works`) and changes and makes nothing is fair too, its success going no
 further than that (f609); the old ruling, whose success has no bound, is held to the no.
 
+(f615) A case file with a line either ruling's prompt teaches (two or more content words shared with one phrase of it) is refused,
+naming the line and the phrase: its score would say what the prompt says, not how the model judges.
+
 GOAL.md: "Investigate further into the cave" is met with more cave. "I grow wings and fly away" is not."""
 from __future__ import annotations
 
 import argparse
 import os
 import random
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -39,6 +43,48 @@ PATHS = ("old", "new")
 
 def load(path=CASES) -> list[dict]:
     return yaml.safe_load(Path(path).read_text(encoding="utf-8")) or []
+
+
+# (f615) The small words of the language, which say nothing of what an act is: never counted as shared.
+SMALL = frozenset("""the and but for nor yet from with without into onto over under down off out all any one what which who whom whose that
+this these those they them their there here then than when where while have has had does did done can could will would may might must shall
+should are was were been being its his her him she you your our come comes came get gets got try tries""".split())
+
+
+def stems(text: str) -> set[str]:
+    """The content words of a text, each cut to its stem (summoning and summon, conjuring and conjure, making and make)."""
+    out = set()
+    for w in re.findall(r"[a-z]+", text.lower()):
+        if len(w) < 3 or w in SMALL:
+            continue
+        for end in ("ing", "ed", "es", "s"):
+            if w.endswith(end) and len(w) - len(end) >= 3:
+                w = w[:-len(end)]
+                break
+        out.add(w[:-1] if w.endswith("e") and len(w) > 3 else w)
+    return out
+
+
+def phrases(prompt: str) -> list[str]:
+    """A prompt as its phrases: what stands between two marks of punctuation, across its line breaks."""
+    return [x.strip() for x in re.split(r'[,;:()."]', " ".join(prompt.split())) if x.strip()]
+
+
+def prompts() -> dict[str, str]:
+    """The prompts the corpus measures a model under: the act's one ruling, and the road's."""
+    from engine import act, ruling
+    return {"the act's ruling": act.SYSTEM, "the road's ruling": ruling.SYSTEM}
+
+
+def taught(cases: list[dict], under: dict[str, str] | None = None) -> list[tuple[str, str, str]]:
+    """(f615) The lines a prompt teaches, each (line, prompt, phrase): two or more content words shared with one phrase of it."""
+    out = []
+    for name, prompt in (prompts() if under is None else under).items():
+        marks = [(ph, stems(ph)) for ph in phrases(prompt)]
+        for c in cases:
+            have = stems(c["line"])
+            out += [(c["line"], name, ph) for ph, st in marks if len(st & have) >= 2]
+    return out
 
 
 class Bench:
@@ -375,6 +421,11 @@ def main() -> int:
     runtime_cli.add_args(ap)
     a = ap.parse_args()
     cases = load(a.cases)
+    found = taught(cases)                                       # (f615) a line a prompt teaches measures the prompt, not the model
+    if found:
+        for line, name, phrase in found:
+            print(f"REFUSED {a.cases}: \"{line}\" is taught by {name}'s prompt (\"{phrase}\")", file=sys.stderr)
+        return 2
     paths = PATHS if a.path == "both" else (a.path,)
     server = runtime_cli.load(a) if a.live else None            # (f529) the game's own server, as the game starts it
     b = Bench(live=a.live, source=server.source if server is not None else None,
