@@ -22,8 +22,12 @@ claim more than saying them could bring about (a title claimed, a crowd commande
 a no, and on the act's path a yes or a cost that is bounded is right too, since its success goes no further than what it says it
 comes to (`works`, f609) and it changes and makes nothing. The old ruling, whose success has no bound, is held to the no.
 
-(f615) A case file with a line either ruling's prompt teaches (two or more content words shared with one phrase of it) is refused,
-naming the line and the phrase: its score would say what the prompt says, not how the model judges.
+(f615) A case file with a line that repeats an example either ruling's prompt gives of a verdict (its `sense` lines: what is a yes,
+a cost, a no) is refused, naming the line and the example: the corpus scores the verdict, so such a line scores the prompt. A line
+repeats an example when it shares two or more content words with it, however the words are bent; an example of one word names a kind
+of act (climbing), which the corpus is free to hold. The check is of words: a line that says the same in other words passes, and the
+prompt's other examples (how to name a thing, what a change looks like) and the lists every request carries (capabilities, changes)
+are the game's vocabulary, not examples of a verdict.
 
 GOAL.md: "Investigate further into the cave" is met with more cave. "I grow wings and fly away" is not."""
 from __future__ import annotations
@@ -68,25 +72,39 @@ def problems(cases: list[dict]) -> list[str]:
 SMALL = frozenset("""the and but for nor yet from with without into onto over under down off out all any one what which who whom whose that
 this these those they them their there here then than when where while have has had does did done can could will would may might must shall
 should are was were been being its his her him she you your our come comes came get gets got try tries""".split())
+# ...and the verbs whose past is another word, each as its plain form.
+BENT = {"made": "make", "broke": "break", "broken": "break", "lit": "light", "won": "win", "sat": "sit", "swam": "swim", "swum": "swim",
+        "dug": "dig", "ran": "run", "went": "go", "gone": "go", "took": "take", "taken": "take", "gave": "give", "given": "give",
+        "said": "say", "told": "tell", "found": "find", "held": "hold", "left": "leave", "lost": "lose", "brought": "bring",
+        "bought": "buy", "sold": "sell", "thought": "think", "caught": "catch", "threw": "throw", "thrown": "throw", "stole": "steal",
+        "stolen": "steal", "hid": "hide", "hidden": "hide", "rose": "rise", "risen": "rise", "fell": "fall", "fallen": "fall",
+        "drew": "draw", "drawn": "draw", "sang": "sing", "sung": "sing", "spoke": "speak", "spoken": "speak", "wrote": "write",
+        "written": "write", "flew": "fly", "flown": "fly", "grew": "grow", "grown": "grow", "knew": "know", "known": "know",
+        "saw": "see", "seen": "see", "ate": "eat", "eaten": "eat", "drank": "drink", "drunk": "drink", "built": "build",
+        "sent": "send", "kept": "keep", "slept": "sleep", "fought": "fight", "stood": "stand", "struck": "strike", "woke": "wake"}
 
 
 def stems(text: str) -> set[str]:
-    """The content words of a text, each cut to its stem (summoning and summon, conjuring and conjure, making and make)."""
+    """The content words of a text, each cut to its stem: summoning and summon, conjuring and conjure, digging and dig, made and make."""
     out = set()
     for w in re.findall(r"[a-z]+", text.lower()):
+        w = BENT.get(w, w)
         if len(w) < 3 or w in SMALL:
             continue
         for end in ("ing", "ed", "es", "s"):
             if w.endswith(end) and len(w) - len(end) >= 3:
                 w = w[:-len(end)]
+                if len(w) > 3 and w[-1] == w[-2] and w[-1] not in "aeiouls":    # digging, barred, sitting: the doubled letter
+                    w = w[:-1]
                 break
         out.add(w[:-1] if w.endswith("e") and len(w) > 3 else w)
     return out
 
 
-def phrases(prompt: str) -> list[str]:
-    """A prompt as its phrases: what stands between two marks of punctuation, across its line breaks."""
-    return [x.strip() for x in re.split(r'[,;:()."]', " ".join(prompt.split())) if x.strip()]
+def examples(prompt: str) -> list[str]:
+    """The examples a prompt gives of a verdict: what stands in brackets in its `sense` lines, each item of each list."""
+    m = re.search(r"\n\s*sense:(.*?)\n\s*why:", prompt, re.S)
+    return [x.strip() for group in re.findall(r"\(([^()]*)\)", " ".join(m.group(1).split()) if m else "") for x in group.split(",") if x.strip()]
 
 
 def prompts() -> dict[str, str]:
@@ -96,13 +114,13 @@ def prompts() -> dict[str, str]:
 
 
 def taught(cases: list[dict], under: dict[str, str] | None = None) -> list[tuple[str, str, str]]:
-    """(f615) The lines a prompt teaches, each (line, prompt, phrase): two or more content words shared with one phrase of it."""
+    """(f615) The lines that repeat a prompt's example of a verdict, each (line, prompt, example): two or more content words shared."""
     out = []
     for name, prompt in (prompts() if under is None else under).items():
-        marks = [(ph, stems(ph)) for ph in phrases(prompt)]
+        marks = [(ex, stems(ex)) for ex in examples(prompt)]
         for c in cases:
             have = stems(c["line"])
-            out += [(c["line"], name, ph) for ph, st in marks if len(st & have) >= 2]
+            out += [(c["line"], name, ex) for ex, st in marks if len(st & have) >= 2]
     return out
 
 
@@ -440,8 +458,8 @@ def main() -> int:
     runtime_cli.add_args(ap)
     a = ap.parse_args()
     cases = load(a.cases)
-    found = taught(cases)                                       # (f615) a line a prompt teaches measures the prompt, not the model
-    wrong_file = problems(cases) + [f"\"{line}\" is taught by {name}'s prompt (\"{phrase}\")" for line, name, phrase in found]
+    found = taught(cases)                                       # (f615) a line that repeats a prompt's example scores the prompt
+    wrong_file = problems(cases) + [f"\"{line}\" repeats an example of {name}'s prompt (\"{ex}\")" for line, name, ex in found]
     if wrong_file:
         for x in wrong_file:
             print(f"REFUSED {a.cases}: {x}", file=sys.stderr)

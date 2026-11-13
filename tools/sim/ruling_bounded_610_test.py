@@ -35,7 +35,7 @@ cases = [
     {"line": KING + " (and a throne is made for it)", "at": "trading_square", "expect": "no", "kind": "claim",
      "model": {"sense": "cost", "stakes": STAKES, "fail": "noticed", "works": WORKS,
                "needs": [{"kind": "thing", "name": "a throne", "what": "a carved chair", "where": "in the square"}]}},
-    {"line": KING + " (said yes outright)", "at": "trading_square", "expect": "no", "kind": "claim",
+    {"line": KING + " (a plain yes)", "at": "trading_square", "expect": "no", "kind": "claim",
      "model": {"sense": "yes", "works": WORKS}},
 ]
 folder = Path(tempfile.mkdtemp(prefix="ruling_bounded_610_"))

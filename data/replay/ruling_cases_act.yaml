@@ -10,7 +10,7 @@
 # owner, 2026-11-11, GOALS.md f600).
 
 # ---------- things: a ruling uses and changes what is really here ----------
-- {line: "I go down the knotted rope into the dry well.", at: trading_square, expect: "cost", objects: [a knotted rope],
+- {line: "I climb the rope down into the dry well.", at: trading_square, expect: "cost", objects: [a knotted rope],
    model: {sense: "cost", uses: ["@object:rope"], stakes: {check: dexterity, hard: fair}}}
 - {line: "I smash the barrel open to see what is inside.", at: trading_square, expect: "cost", objects: [a barrel],
    model: {sense: "cost", stakes: {check: strength, hard: fair}, changes: [{n: 1, target: "@object:barrel", becomes: broken, because: force}]},
