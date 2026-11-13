@@ -19,7 +19,7 @@ from pathlib import Path
 import yaml
 from core import yamlio
 
-from engine import clock, events, pulselog, roads, worldstate
+from engine import clock, events, hygiene, pulselog, roads, worldstate
 from engine import pulse_prompts as pp
 from llm.contracts import MotiveStep, ThreadProposal
 from llm.gateway import LLMError, generate
@@ -310,7 +310,7 @@ def catch_up(store, world, catalog, now: int) -> dict:
 
 def add_history(state: dict, text: str, place: str, t: int) -> None:
     """(f484) One line of the world's history: the one writer, the record held to its cap (pulse.yaml history_keep) at every append."""
-    state.setdefault("history", []).append({"minute": int(t), "text": text, "place": place})
+    state.setdefault("history", []).append({"minute": int(t), "text": hygiene.undash(text), "place": place})   # (f617) no dash to copy
     del state["history"][:-int(P.get("history_keep", 200))]
 
 
@@ -971,7 +971,7 @@ def add_news(state, text: str, origin: str, t: int, groups: list[str], thread: s
     from, when one person did. Folding keeps both: a tale told again keeps its first teller."""
     if not (text and text.strip()):
         return
-    text = text.strip()
+    text = hygiene.undash(text.strip())              # (f617) what people know and the narrator is told has no dash to copy
     news = state.setdefault("news", [])
     keep = P["news"]["keep_days"] * 1440
     for i, n in enumerate(news):
