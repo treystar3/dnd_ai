@@ -121,6 +121,20 @@ said = attempt("I slip past the stallholders unseen.", {"sense": "cost", "why": 
                                                          "stakes": {"check": "dexterity", "hard": "easy"}, "fail": "noticed"})
 check("...another of the four: unseen without the power is stealth at hard, told as cover and shadow", rolled == [{"check": "stealth", "hard": "hard"}]
       and C["invisibility"]["without"]["told"] in said, (rolled, said[-300:]))
+said = attempt("I turn invisible, walk into the vault and take the crown.", {"sense": "no", "answer": "No one can vanish.", "requires": ["invisibility"]})
+check("...a no the engine turned into a cost, when it succeeds, comes to what the stand-in alone can bring about: never 'show it done' (f609)",
+      rolled == [{"check": "stealth", "hard": "hard"}] and "WORKS" in said and "Show it done" not in said and "nothing beyond it" in said
+      and C["invisibility"]["without"]["told"] in said and "Nothing is gained that was not there" in said, (rolled, said[-500:]))
+said = attempt("I read the stallholder's mind.", {"sense": "yes", "why": "x", "works": "You hear every thought he has.", "requires": ["mind_reading"]})
+check("...and a ruling's own words for it, written as if they had the power, are the most it could come to, not what it comes to",
+      "at the most" in said and "and this is what it comes to" not in said and C["mind_reading"]["without"]["told"] in said, said[-500:])
+lines = []
+for cap in STOOD:
+    lines.append(attempt(f"I try the {cap} of it.", {"sense": "yes", "why": "x", "works": "It is done.", "requires": [cap]}))
+    lines.append(attempt(f"I try the {cap} of it once more.", {"sense": "yes", "why": "x", "works": "It is done.", "requires": [cap]}, "partial"))
+check("...the narrator is told the power by what it is, in words that read for every one of them (no 'without not being seen')",
+      len(lines) == 8 and all("THEY DO NOT HAVE THIS POWER: " + C[cap]["about"] in x for cap in STOOD for x in lines[2 * list(STOOD).index(cap):][:2])
+      and not any("WITHOUT" in x for x in lines), [x[-300:] for x in lines])
 said = attempt("I grow wings and fly over the square.", {"sense": "yes", "why": "x", "works": "You fly.", "requires": ["flight"]})
 check("...and a power with nothing to stand in for it is still a no, never rolled", not rolled and "does not happen" in said, (rolled, said[-300:]))
 ws.narrate, checks.roll, ruling.odds = real_narrate, real_roll, real_odds

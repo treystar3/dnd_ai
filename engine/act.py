@@ -664,9 +664,16 @@ def resolve(ws, actor_id: str, T, v: Checked, words: str, text: str, made: list[
     lack = ""
     if v.without:                                    # (f618) how it is done by one who lacks the power it would take
         W = ruling.C[v.without]
-        lack = f" THEY DO IT WITHOUT {W['about'].upper()}: {W['without']['told']}. Show it done that way, never by that power."
+        lack = f" THEY DO NOT HAVE THIS POWER: {W['about']}. They do it {W['without']['told']}. Tell it that way, never as that power."
     if degree in ("success", "strong success"):
         ws.advance(int(A["success_minutes"]))
+        if v.without:                               # (f618) bound by what stands in: a ruling's own words for it assumed the power
+            ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) WORKS only as far as it can for one without the power "
+                       f"it would take.{lack} It comes to what that way alone can bring about"
+                       + (f", at the most this: {comes}" if comes else "") + ". Show that, as it would be seen, and nothing beyond it"
+                       + (", with what is different now." if (told or made or landed) else ". Nothing lasting is different.")
+                       + " Nothing is gained that was not there, and no one is harmed." + room + lasting + nots, text)
+            return degree
         if comes:                                   # (f609) a success is what the ruling says it comes to, never what the words claim
             ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) WORKS" + (" cleanly and well" if degree == "strong success" else "")
                        + (", and this is what it comes to, short of what did not happen (below)" if nots else ", and this is what it comes to")
