@@ -11,7 +11,7 @@ from pathlib import Path
 import yaml
 from core import yamlio
 
-from engine import pulse
+from engine import hygiene, pulse
 
 S = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "standing.yaml").read_text(encoding="utf-8"))
 GROUPS, SP, DEEDS, FX = S["groups"], S["spread"], S["deeds"], S["effects"]
@@ -110,7 +110,7 @@ def report(store, world, player, kind: str, town: str, place_name: str, who: str
     nid = f"{kind}-{minute}-{len(news)}"
     twisted = random.Random(f"{seed}:twist:{nid}").uniform(0, 100) < SP["twist_chance"]
     fmt = dict(who=who, place=place_name, item=item or "something")
-    true_text, told = rule["text"].format(**fmt), rule["twisted"].format(**fmt)
+    true_text, told = hygiene.undash(rule["text"].format(**fmt)), hygiene.undash(rule["twisted"].format(**fmt))   # (f617) news carries no dash
     entry = {"text": told if twisted else true_text, "origin": town, "minute": minute, "groups": carriers(world, witnesses or [], kind),
              "certainty": "rumour" if twisted else "they say", "source": f"town:{town}",      # (f482) a tale, with who carries it
              "deed": {"id": nid, "kind": kind, "weight": weight, "twisted": twisted, "true": true_text, "who": who}}

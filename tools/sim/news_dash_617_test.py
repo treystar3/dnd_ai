@@ -53,5 +53,22 @@ check("the world script plays whole, and no line of news or history on any state
       (len(states), len(rows), sorted({x for x in rows if dashed(x)})[:3]))
 check("...among them the ends of situations, which were the lines that carried one", any(": " in x for x in rows), rows[:6])
 
+# ---- (f617's review) a deed's tale is news too, written by engine/standing.py: the same filter, and no writer besides
+from pathlib import Path
+from engine import standing
+ws = run.game.scene
+kind = next(k for k, v in standing.DEEDS.items() if v.get("public") and "{item}" in v["text"] and "{item}" in v["twisted"])
+town = next(p for p, v in ws.world.places.items() if not v.danger)
+tales = []
+for seed in range(12):                                   # some told true, some twisted
+    e = standing.report(run.game.store, ws.world, ws.player, kind, town, "Parth - the old town", "Asha", ws.minutes + seed, 1, item="the Sun — Blade", seed=seed)
+    tales += [e["text"], e["deed"]["true"]]
+check("a deed's tale, told true or twisted, carries no dash whatever its names hold", len(tales) == 24 and len(set(tales)) >= 2
+      and not any(dashed(x) for x in tales) and all("Asha" in x for x in tales), sorted(set(tales)))
+ROOT = Path(__file__).resolve().parent.parent.parent
+writers = sorted(f.name for d in ("engine", "scenes") for f in (ROOT / d).glob("*.py") if "news.append(" in f.read_text(encoding="utf-8"))
+check("...and news has the two writers that take the dashes out, no third (a new one is added here with its filter)",
+      writers == ["pulse.py", "standing.py"], writers)
+
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)
