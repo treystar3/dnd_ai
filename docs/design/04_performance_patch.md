@@ -40,6 +40,9 @@ because the model dominates it.
 - **Shipping:** PyInstaller has to bundle PyYAML's `_yaml` C extension (it does by default when it's installed). Without it, `yamlio`
   falls back to the pure-Python loader and still works.
 - **The data hash is unchanged,** because it hashes file bytes.
+- **Later finding (f560, f572):** when this patch was applied the goldens did fail on their data hash, but neither the patch nor line
+  endings were the cause. They had been recorded on VERSION 0.0.4.1, and the hash then included the version. f560 re-blessed them
+  (only the hash moved); f572 took the version out of the hash.
 
 ## Not done (low value or needs a decision)
 - **The route cache's validity check walks every place on each lookup** (`world/loader.py:271`). It costs milliseconds per turn now. A
