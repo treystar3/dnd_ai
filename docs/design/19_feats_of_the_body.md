@@ -6,6 +6,9 @@ probe of whether the model gives honest sizes. The probe ran the same day; its n
 questions the same day (section 10); one answer widened the design to falling harm for any being (section 6). Nothing is open;
 the pod session of section 8 comes next.
 
+Where it stands (2026-11-14): the reading was measured three times (sections 14, 15 and 17) and did not meet the gate of
+section 16, so the table is built and called by nothing. The owner: "We will leave it for now" (section 17).
+
 ## 1. What is wrong today
 
 The act's ruling (engine/act.py) asks the model whether an attempt makes sense and how hard it is: easy, fair or hard. The engine
@@ -502,7 +505,7 @@ in one call (`thing+self`), and the size asked of that thing alone, only when a 
 Not measured: the reading with the scene given; the size asked of a named thing on these 40 cases (the earlier probe asked 20
 lines); either on a 3060. The results are kept outside the repo with the session's files (pod7/out).
 
-## 16. Step 4: the plan (approved 2026-11-14; f627 built, the gate not met: section 17)
+## 16. Step 4: the plan (approved 2026-11-14; f627 built, the gate not met, left for now: section 17)
 
 What section 15 found decides the shape: the model classifies best when no size is asked, and sizes best when it is told the
 thing and the unit. So the reading is two small calls, each asked only when it is needed, and neither is part of the ruling.
@@ -657,13 +660,15 @@ line the corpus rules a cost.
    forms, and it moves between passes of the same form. A number from the model is a fair guess of the size of a thing; the
    table as built turns a yes into a no on which side of one number that guess falls.
 
-### Waiting for the owner
+### The owner's answer: left for now
 
-Step 4 stops here unless the owner says otherwise. In play nothing changes: an attempt stands as ruled, the table is not asked,
-no fall is paid for. What could come next, none of it planned or built:
+The owner, 2026-11-14, with this section read: "We will leave it for now". Step 4 stops here. In play nothing changes: an
+attempt stands as ruled, the table is not asked, no fall is paid for. f628 and f629 are not built, and what waited on them
+waits still ("beyond" removed, the shove off a height in a fight, the townsperson's shove). The three ways on that were put
+to the owner, the first of them taken:
 
-- **Leave it.** The ruling alone decides what a body can do, as it has since f624. The table, the falls and the two calls stay
-  in the code, called by nothing.
+- **Leave it (taken).** The ruling alone decides what a body can do, as it has since f624. The table, the falls and the two
+  calls stay in the code, called by nothing.
 - **A table that does not turn on a guess.** Near a body's limit the answer becomes a check with a cost, and only a size far
   past the limit is a no. This changes what f623 decides, so it needs its own plan, and its own measure on lines other than
   these (the rows of this session have now been read too closely to test it).
