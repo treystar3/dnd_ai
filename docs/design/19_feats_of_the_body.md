@@ -415,7 +415,11 @@ The reader put them in that order, and found the order of work that beats any on
    reading of its own (engine/body.py `reading`), the one place either ruling path gets it, and no call makes it yet: an attempt
    stands as ruled. The table, the bands, falling and the warned death are as built and answer whoever hands them a reading; in
    play nothing does, so today no feat is refused by the table and no fall is paid for.
-2. **The engine numbers a ruling's changes,** its own feature: a number the engine can count is not asked of the model.
+2. **The engine numbers a ruling's changes (f625).** A number the engine can count is not asked of the model. In both rulings
+   that list changes (the act's and a situation's) a change's number is its place in the list, the first 1; `needs` names earlier
+   changes by their place; neither grammar has a number to write. Before the field (pod5) the model numbered in order on 10 of 10
+   rulings with two or more changes and used `needs` in none of 198; with the field every such ruling was numbered all 1. Whether
+   the model points `needs` at the right place with no number written beside each change is for step 3 to show.
 3. **One session on the real model:** the restored ruling against the run before f623; the reading asked alone on all 139 lines,
    as a kind with a size and as a kind with a thing and no size, each with and without a kind for the body moving itself. The
    probe told the model what to measure, so whether it can tell a feat from none, asked alone, has never been measured.

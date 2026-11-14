@@ -42,9 +42,10 @@ Rule with:
             with what they have could do, however they try (it then does not happen). Leave empty for a plain yes.
   changes:  what the act, if it works, makes lastingly different, each on one target by its code from TARGETS, named from CHANGES and
             only on the kinds that change lands on: a door barred (state, on a part), a road closed (access), a rope broken (on a
-            thing), a frightened clerk (afraid, on a person), a situation's guard won over (open, on its part). n: its number; needs:
-            the numbers of earlier changes it cannot stand without; because: what it rests on (words, coin, goods, force, evidence,
-            earlier, skill). Most acts change nothing that lasts; leave it empty then. Whether a situation is over is never yours to say.
+            thing), a frightened clerk (afraid, on a person), a situation's guard won over (open, on its part). needs: the earlier
+            changes it cannot stand without, each by its place in the list (1 for the first); because: what it rests on (words,
+            coin, goods, force, evidence, earlier, skill). Most acts change nothing that lasts; leave it empty then. Whether a
+            situation is over is never yours to say.
   fail:     what a failure costs, one of FAIL.
   works:    for a yes or a cost: what it comes to if it works, second person, as it would be seen. Only what someone with what they have
             could bring about here, however much the words claim: a claim is heard, not granted; a speech is made, not obeyed.
@@ -125,10 +126,11 @@ def shape(ws, T):
 
     def variant(cs: list[str], group: list[str], how: str) -> dict:
         """One shape of change: these targets, these words, and what the words need (who acts; the state given)."""
-        need = ["n", "target", "becomes", "because"]           # (f613) what it rests on, never left to a default
-        props = {"n": {"type": "integer"}, "target": {"enum": cs}, "becomes": {"enum": group}, "to": enum(kinds.get("part", [])),
+        need = ["target", "becomes", "because"]                # (f613) what it rests on, never left to a default
+        props = {"target": {"enum": cs}, "becomes": {"enum": group}, "to": enum(kinds.get("part", [])),   # (f625) no number: the engine counts them
                  "about": enum(beside), "because": {"enum": defs["ActChange"]["properties"]["because"]["enum"]},
-                 "needs": {"type": "array", "items": {"type": "integer"}, "maxItems": int(A["most_changes"])}, "label": text("label")}
+                 "needs": {"type": "array", "items": {"type": "integer", "minimum": 1, "maximum": int(A["most_changes"])},
+                           "maxItems": int(A["most_changes"])}, "label": text("label")}
         if how in ("self", "person"):
             props["who"], need = enum(people, empty=False), need + ["who"]      # done by a person of the situation: who, by name
         else:

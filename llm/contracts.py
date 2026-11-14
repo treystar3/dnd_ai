@@ -1669,14 +1669,27 @@ class CataclysmProposal(BaseModel):
         return self
 
 
+def _numbered(changes: list) -> None:
+    """(f625) A ruling's changes numbered by the engine, each by its place in the list (the first is 1): a number the engine can
+    count is not the model's to write, and `needs` names earlier changes by their place. A list in which every change was written
+    a number of its own, no two alike (a ruling kept in a save from before, a recorded or a test's ruling), has each need carried
+    over to the new places; a need naming no number there is becomes 0, which is no place."""
+    given = [ch.n for ch in changes]
+    own = all("n" in ch.model_fields_set for ch in changes) and len(set(given)) == len(given)
+    place = {n: i for i, n in enumerate(given, 1)} if own else {}
+    for i, ch in enumerate(changes, 1):
+        ch.needs = [place.get(m, 0) for m in ch.needs] if place else list(ch.needs)
+        ch.n = i
+
+
 class ActChange(BaseModel):
     """(f594) One change an act makes if it works (docs/design/02 section 3, outside combat): to the target coded `target` in TARGETS
     ("o1", "f2", "p1", "s1.2"), a change named from CHANGES. `state`: for a change of state, what the part becomes (BECOMES); for
     access, open, closed or hidden. `to`: for a thing moved, the code of the part of this place it goes to. `who`: for a situation's
     person moved by their own doing, their code (else empty: the act itself). `about`: for believes or doubts, the code of the
-    evidence it is about; for warns, the code of the one warned. `because`: what it rests on; `needs`: the numbers of earlier changes
-    it cannot stand without. `label`: a few words for it, for the telling only."""
-    n: int
+    evidence it is about; for warns, the code of the one warned. `because`: what it rests on; `needs`: the earlier changes it
+    cannot stand without, each by its place in the list. `label`: a few words for it, for the telling only."""
+    n: SkipJsonSchema[int] = 0                     # (f625) its place in the list, the first 1: the engine's to count
     target: str
     becomes: str
     state: str = ""
@@ -1748,11 +1761,9 @@ class ActRuling(BaseModel):
         missing = [x for ch in self.changes for x in (ch.target, ch.who, ch.about, ch.to) if codes and x and x not in codes]
         if missing or any(not ch.target for ch in self.changes):
             raise ValueError(f"changes: target, who, about and to are codes from TARGETS, not {', '.join(missing) or 'nothing'}")
-        nums = [ch.n for ch in self.changes]
-        if len(set(nums)) != len(nums):
-            raise ValueError("changes: each change has its own number n")
-        if any(m not in nums[:i] for i, ch in enumerate(self.changes) for m in ch.needs):
-            raise ValueError("changes: needs names only the numbers of earlier changes")
+        _numbered(self.changes)
+        if any(not 0 < m < ch.n for ch in self.changes for m in ch.needs):
+            raise ValueError("changes: needs names only earlier changes, each by its place in the list (1 for the first)")
         most = int(ctx["most"])
         if len(self.changes) > most:
             raise ValueError(f"at most {most} changes: only what the act makes lastingly different")
@@ -1764,13 +1775,16 @@ class ActRuling(BaseModel):
         return self
 
 
+_MOST_RULED = 12                                   # shape only: the data's rulings.most is the engine's
+
+
 class RulingChange(BaseModel):
     """(f547) One change an act made in a situation: to the part numbered `part` in PARTS, done by `who` (0: the act itself; else the
     number of a person in PARTS, by their own doing), resting on `because` (what was said, coin handed over, goods given, force, a
-    found piece of evidence shown, or an earlier change) and on the earlier changes numbered in `needs`. `about`: for believes or
+    found piece of evidence shown, or an earlier change) and on the earlier changes `needs` names by their place. `about`: for believes or
     doubts, the piece of evidence it is about (0: what the act claimed); for warns, the person warned. The engine checks each against
     the world and drops one that does not hold, with every change that needs it (data/rules/situations.yaml rulings)."""
-    n: int
+    n: SkipJsonSchema[int] = 0                     # (f625) its place in the list, the first 1: the engine's to count
     part: int
     who: int = 0
     becomes: Literal["believes", "doubts", "warmer", "colder", "afraid", "angry", "grateful", "open", "wary", "hostile", "refusing",
@@ -1778,7 +1792,7 @@ class RulingChange(BaseModel):
                      "broken", "mended", "tested", "found", "destroyed"]
     because: Literal["words", "coin", "goods", "force", "evidence", "earlier"] = "words"
     about: int = 0
-    needs: list[int] = []
+    needs: list[int] = Field([], json_schema_extra={"items": {"type": "integer", "minimum": 1, "maximum": _MOST_RULED}})   # (f625) a place
 
 
 class JudgeVerdict(BaseModel):
@@ -1791,7 +1805,8 @@ class JudgeVerdict(BaseModel):
 
     @model_validator(mode="after")
     def capped(self):
-        self.changes = self.changes[:12]                     # shape only: the data's rulings.most is the engine's
+        self.changes = self.changes[:_MOST_RULED]
+        _numbered(self.changes)
         return self
 
 
