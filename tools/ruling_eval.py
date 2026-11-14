@@ -211,15 +211,14 @@ class Dry:
 
 
 class Bench:
-    def __init__(self, live: bool = False, save: str = "ruling_eval", source=None):
+    def __init__(self, live: bool = False, save: str = "ruling_eval", source=None, ruled=("Ruling", "ActRuling")):
         import simlib
         from llm import backend
         self.stub = simlib.Stub("warrior", 4)
         self.unstub = simlib.install(self.stub)              # (f518) the stub as the model's source; its Held takes it away again
         self.unlive = None
-        if live:                                             # (f518) the ruling is passed on to the real model (f529: the server `source`); the rest stays stubbed
+        if live:                                             # (f518) the titles in `ruled` are passed on to the real model (f529: the server `source`); the rest stays stubbed
             stub_chat = self.stub.chat
-            ruled = ("Ruling", "ActRuling")                  # (f601) the act's ruling too
             self.unlive = simlib.stand_in(chat=lambda **k: backend.PASS if (k.get("format") or {}).get("title") in ruled else stub_chat(**k),
                                           name="ruling_eval live", below=source)
         import config

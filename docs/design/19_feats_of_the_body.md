@@ -423,6 +423,13 @@ The reader put them in that order, and found the order of work that beats any on
 3. **One session on the real model:** the restored ruling against the run before f623; the reading asked alone on all 139 lines,
    as a kind with a size and as a kind with a thing and no size, each with and without a kind for the body moving itself. The
    probe told the model what to measure, so whether it can tell a feat from none, asked alone, has never been measured.
+   The tool for it is tools/reading_eval.py (f626): four arms (`size`, `size+self`, `thing`, `thing+self`). It scores each
+   reading against its case, says what the table answers with it, lists every feat named on a line whose case says nothing, and
+   counts the cases read as another kind when asked again. It wires nothing into play. What differs from f623's ruling besides
+   the call, so that the two are not compared as like with like: the opening sentence is new (the kind's clause and the size's
+   are f623's words); the model is handed the place's name and the line, where the ruling was handed the whole scene, so this is
+   a reading at its barest and one wired into play needs its own measure; the kind for the body itself is named as a class with
+   no example; the words a `thing` arm gives are kept and judged by no one, so that arm is evidence on the kind only.
 4. **By that result:** the reading wired as a call of its own, kept as a ruling is kept (a feat refused must be the same feat
    asked again), then sizes kept on the thing. If the model names feats where there are none when asked alone too, the game does
    without the reading.
