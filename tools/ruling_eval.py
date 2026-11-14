@@ -29,6 +29,14 @@ of act (climbing), which the corpus is free to hold. The check is of words: a li
 prompt's other examples (how to name a thing, what a change looks like) and the lists every request carries (capabilities, changes)
 are the game's vocabulary, not examples of a verdict.
 
+(f623) A case of kind `feat` says what a sensible table would name as the feat of the body (`feat`: "none", {kind, size: [low, high]},
+or a list of fair answers) and the body it is tried with (`body`: one number for strength, dexterity and constitution, or some by
+name). Its `expect` is what the body's table answers for that body: the table's arithmetic held still, not a ruling of the owner's. Live, the
+model's feat is read against the case and counted apart from the verdict: named right, the kind wrong, or the size outside its range;
+and on a case that says nothing of a feat, whether one was named at all. Offline a case's own ruling must name a feat its case calls
+fair, or the file is refused. `deadly: true`: the drop would kill that body, so in play it is warned of first and then is a death;
+the measure holds the engine to saying so.
+
 GOAL.md: "Investigate further into the cave" is met with more cave. "I grow wings and fly away" is not."""
 from __future__ import annotations
 
@@ -48,7 +56,8 @@ CASES = ROOT / "data" / "replay" / "ruling_cases.yaml"
 PATHS = ("old", "new")
 
 
-KINDS = ("claim",)                                   # (f616) the kinds of act a case may say it is; each has its rule in side()
+KINDS = ("claim", "feat")                            # (f616) the kinds of act a case may say it is; each has its rule in side()
+BODY = ("strength", "dexterity", "constitution")     # (f623) the attributes a case's `body` sets
 
 
 def load(path=CASES) -> list[dict]:
@@ -65,6 +74,47 @@ def problems(cases: list[dict]) -> list[str]:
             out.append(f"\"{c['line']}\": a claim expects a no (a bounded yes or cost is then right too)")
         if "bounded" in c:
             out.append(f"\"{c['line']}\": `bounded` is now the case's kind (kind: claim)")
+        if c.get("kind") == "feat" or "feat" in c:        # (f623)
+            from engine import body
+            num = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool)
+            for a in fair_feats(c.get("feat")):
+                if not (a == "none" or (isinstance(a, dict) and a.get("kind") in body.K and isinstance(a.get("size"), list)
+                                        and len(a["size"]) == 2 and all(num(x) for x in a["size"]) and 0 < a["size"][0] < a["size"][1])):
+                    out.append(f"\"{c['line']}\": feat is \"none\" or {{kind: one of {', '.join(body.K)}, size: [low, high]}}, or a list of them")
+                    break
+            else:
+                import types
+                own = (c.get("model") or {}).get("feat")
+                if own is not None and named(c, types.SimpleNamespace(feat=types.SimpleNamespace(kind=own.get("kind", "none"),
+                                                                                                 size=own.get("size", 0)))) != "ok":
+                    out.append(f"\"{c['line']}\": its own ruling names a feat the case does not call fair")
+        if "deadly" in c and not (c.get("kind") == "feat" and isinstance(c["deadly"], bool)):
+            out.append(f"\"{c['line']}\": deadly is true or false, on a feat case")
+        if "body" in c and not (isinstance(c["body"], int) and c["body"] > 0
+                                or isinstance(c["body"], dict) and c["body"] and set(c["body"]) <= set(BODY)):
+            out.append(f"\"{c['line']}\": body is one number, or some of {', '.join(BODY)} by name")
+    return out
+
+
+def fair_feats(spec) -> list:
+    return spec if isinstance(spec, list) else [spec]
+
+
+def named(case: dict, r) -> str | None:
+    """(f623) A ruling's feat against what the case says a sensible table would name: "ok"; "kind" (another kind, or a feat where there
+    is none); "size" (the kind right, the size outside its range). None when the case says nothing of it."""
+    if "feat" not in case:
+        return None
+    kind, size = r.feat.kind, float(r.feat.size or 0)
+    out = "kind"
+    for a in fair_feats(case["feat"]):
+        if a == "none":
+            if kind == "none":
+                return "ok"
+        elif a["kind"] == kind:
+            if a["size"][0] <= size <= a["size"][1]:
+                return "ok"
+            out = "size"
     return out
 
 
@@ -178,6 +228,7 @@ class Bench:
         self.ws = self.session.scene(load_traits(), self.store.load_player())
         self.ws.player.mentor["never"] = True
         self.pack = list(self.ws.player.character.inventory)  # (f601) the pack as it starts: each case's goods on top, taken off after
+        self.attrs = {a: getattr(self.ws.player.character.attributes, a) for a in BODY}   # (f623) the body as it starts, for a case that sets none
         self.made: list[str] = []                            # (f601) what a case put in the world, taken away after it
         self.sit = ""
         self.names: list[str] = []
@@ -193,6 +244,9 @@ class Bench:
         if ws.player.location != case["at"]:
             ws.enter(case["at"])
         ws.player.character.capabilities = list(case.get("means") or [])
+        spec = case.get("body")                              # (f623) the body the case is tried with
+        for a in BODY:
+            setattr(ws.player.character.attributes, a, int(spec if isinstance(spec, int) else (spec or {}).get(a, self.attrs[a])))
         ws.player.character.inventory = list(self.pack) + [inventory.make_good(g) for g in case.get("pack") or ()]
         if case.get("objects") or case.get("carried") or case.get("situation"):
             self.furnish(case)
@@ -368,9 +422,15 @@ class Bench:
             v = act.validate(self.ws, self.ws.acting, T, self.act_model(case, T))
             self.last = v
             return ("yes" if v.ok else "no"), self.moved(case, T, v)
-        m = {k: v for k, v in case["model"].items() if k in ("sense", "requires", "why", "needs")}   # the old path makes no changes
-        r = Ruling.model_validate({"answer": "x", **m}, context={"capabilities": list(ruling.C)})
-        return "yes" if ruling.verdict(self.ws, r)["ok"] else "no"
+        from engine import body
+        m = {k: v for k, v in case["model"].items() if k in ("sense", "requires", "why", "needs", "stakes", "feat")}   # the old path makes no changes
+        r = Ruling.model_validate({"answer": "x", **m}, context={"capabilities": list(ruling.C), "feats": list(body.K)})
+        return "yes" if self.road(r) else "no"
+
+    def road(self, r) -> bool:
+        """(f623) The road's ruling as the game takes it: the engine's own grounds, then what lacking a power and what a body mean."""
+        from engine import ruling
+        return bool(ruling.verdict(self.ws, r)["ok"]) and ruling.settled(self.ws, self.ws.acting, r).sense != "no"
 
     def live(self, case: dict, path: str = "old"):
         """The model's ruling and the engine's yes or no; on the new path also whether its changes do what the case says."""
@@ -389,7 +449,7 @@ class Bench:
         r = ruling.ask(self.ws, line, line)
         if r is None:
             return None, None, None
-        return r, ("yes" if ruling.verdict(self.ws, r)["ok"] else "no"), None
+        return r, ("yes" if self.road(r) else "no"), None
 
     def bounded(self, case: dict) -> bool:
         """(f610, f616) Whether the act's ruling just made is bounded, on a case whose kind allows that (a claim): it stands, as a yes or
@@ -426,6 +486,22 @@ class Tally:
     def __init__(self):
         self.right = self.accepted = self.rejected = self.none = 0
         self.needs_missed = self.changes_wrong = self.known = self.retire = 0
+        self.feats = {"ok": 0, "kind": 0, "size": 0}         # (f623) the model's feat against its case's, apart from the verdict
+        self.feat_unasked = self.feat_free = 0               # ...and on the cases that say nothing of one: named a feat, of all such
+        self.deadly_wrong = 0                                # ...and a drop the engine did not call deadly as its case does
+
+    def feat(self, case: dict, r) -> str:
+        """(f623) Count a ruling's feat; returns how to show it."""
+        if r is None or not hasattr(r, "feat"):
+            return ""
+        got = named(case, r)
+        said = "none" if r.feat.kind == "none" else f"{r.feat.kind} {r.feat.size:g}"
+        if got is None:
+            self.feat_free += 1
+            self.feat_unasked += r.feat.kind != "none"
+            return "" if r.feat.kind == "none" else f", feat {said}"
+        self.feats[got] += 1
+        return f", feat {said}" + {"ok": "", "kind": " KIND", "size": " SIZE"}[got]
 
     def add(self, want: str, got: str | None, needs_ok: bool | None = None, moves_ok: bool | None = None, known: bool = False) -> bool:
         if got is None:
@@ -448,7 +524,7 @@ class Tally:
 
     @property
     def wrong(self) -> int:
-        return self.accepted + self.rejected + self.changes_wrong + self.retire
+        return self.accepted + self.rejected + self.changes_wrong + self.retire + self.deadly_wrong
 
     def line(self, path: str, live: bool) -> str:
         return (f"{path}: {self.right} of {self.right + self.accepted + self.rejected} right; false acceptances {self.accepted}, "
@@ -456,7 +532,11 @@ class Tally:
                 + (f"; changes wrong {self.changes_wrong}" if path == "new" else "")
                 + (f"; {self.known} known, awaiting their feature" if self.known else "")
                 + (f"; {self.retire} known now right: retire the label" if self.retire else "")
-                + (f"; {self.none} with no ruling" if live else f"; {self.none} need the model"))
+                + (f"; {self.none} with no ruling" if live else f"; {self.none} need the model")
+                + (f"; feats named right {self.feats['ok']} of {sum(self.feats.values())}, the kind wrong {self.feats['kind']}, the size "
+                   f"outside its range {self.feats['size']}" if sum(self.feats.values()) else "")
+                + (f"; deadly drops wrong {self.deadly_wrong}" if self.deadly_wrong else "")
+                + (f"; a feat named on {self.feat_unasked} of {self.feat_free} cases that say nothing of one" if live and self.feat_free else ""))
 
 
 def judge(b: Bench, c: dict, live: bool) -> tuple[str | None, bool, str]:
@@ -486,6 +566,14 @@ def side(b: Bench, c: dict, path: str, live: bool, tally: Tally) -> str:
         out = b.offline(c, path)
         got, moves_ok = (out if path == "new" and out is not None else (out, None))
         shown = got or "-"
+    if path == "new" and live and r is not None:         # (f623) the feat the model named, counted apart from the verdict
+        shown += tally.feat(c, r)
+    if path == "new" and c.get("kind") == "feat" and b.last is not None and (live is False or "deadly" in c):   # (f623) and a deadly drop
+        if bool(c.get("deadly")) != bool(b.last.deadly) and not (live and "deadly" not in c):
+            tally.deadly_wrong += 1
+            shown += ", deadly WRONG"
+        elif b.last.deadly:
+            shown += ", deadly: warned, then a death"
     if path == "new" and want == "no" and got == "yes" and b.bounded(c):   # (f610, f616) a claim, its success no further than its ruling
         want, shown = "yes", f"{b.last.ruling.sense}, bounded"
     if path == "new" and got == "yes" and getattr(b.last, "without", ""):  # (f618) done without a power, on what stands in for it

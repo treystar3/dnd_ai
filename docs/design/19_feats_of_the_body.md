@@ -1,9 +1,10 @@
 # Feats of the body: the model says how big, the engine says whether a body can
 
-Written 2026-11-13. Design only: nothing here is built. It is part D of docs/design/18_class_fixes_plan.md, which waited on a
+Written 2026-11-13. Steps 1 to 4 of section 12 are built as f623 (the owner, 2026-11-13: "Approve, build it"); section 13 says where
+the build left this plan. The rest is not built. It is part D of docs/design/18_class_fixes_plan.md, which waited on a
 probe of whether the model gives honest sizes. The probe ran the same day; its numbers are in section 2. The owner answered six
 questions the same day (section 10); one answer widened the design to falling harm for any being (section 6). Nothing is open;
-it waits for the owner's word to build.
+the pod session of section 8 comes next.
 
 ## 1. What is wrong today
 
@@ -290,6 +291,56 @@ owner's answer, and only after a warning.
 | 6 | "beyond" removed (the owner: once the measure shows the field works) | llm/contracts.py, engine/act.py, data/rules/act.yaml |
 | 7 | A shove off a height in a fight | data/rules/battlefields.yaml, engine/combat_improv.py, engine/body.py |
 
+The feat cases are a file of their own, data/replay/ruling_cases_feat.yaml, so the three older corpora are the same before and after.
+
 Steps 1 to 4 are one feature (more than two modules: this note is its plan), with a test written first on feats the probe did not
 hold and on falls for every kind of body. Step 7 is a feature of its own. Every recording that holds an act's ruling will be
 re-blessed with steps 2 and 3, since the request and the grammar change for all of them.
+
+## 13. As built (f623), and where it left the plan
+
+Built: steps 1 to 4. The table and its reader (data/rules/body.yaml, engine/body.py), the `feat` field in both rulings and both
+grammars, the engine's decision on both paths, the character's own drop, the warning and the death, forty feat cases and the
+measure's reading of them. Tested by tools/sim/body_feats_623_test.py on feats the probe did not hold.
+
+Where the build differs from the sections above:
+
+- **Which power does which feat is in the table.** Section 4 said a capability the character has wins. Built narrower: each kind
+  names the capabilities that do it in the body's place (`powers`: flight for the jumps and the drop, breathing water for a held
+  breath). Seeing in the dark does not lift a portcullis.
+- **A fall that takes everything takes it however it is landed.** Section 6 said landed well, half the share. Read alone that
+  let a character at full health walk away from any height on a good roll. Built: at four times the unhurt height the roll
+  decides nothing; below it, a good landing takes half the share, a rough one three quarters, a bad one all of it.
+- **The warning is of that drop, not of the place alone.** Section 11 kept the warning by place. A character warned of the bell
+  tower, then wounded, would have died of a low roof with no word. Built: the warning holds the height. A deadly drop at that
+  place of at least half that height is the same drop, however worded; a much shorter one is warned of in its turn. A drop made
+  and survived spends the warning. What is left: two deadly drops of like height in one place are one drop to the engine.
+- **The fatal fall is told in the engine's own words,** one of several lines (body.yaml `died`), then the Threshold as after any
+  death. A narrator's passage is written after its operation stands, by which time the character has woken elsewhere, three
+  days on.
+- **How a landing went is told from the table:** well, roughly or badly, with the part of the share each takes (`landing`).
+- **The death's flow moved, engine/death.py did not change.** What follows a death (the goddess, the days, waking at the last
+  rest) lived in the fight's scene. It is now the world scene's (scenes/world.py `threshold`), which the fight calls, and a death
+  outside a fight goes through the same lines (`dies`).
+- **On the road a drop that would hurt is gone around,** as a feat past the limit is. Pressing on past a hazard is not the
+  character's own jump; the road's ruling has no warning and no death. One function settles the road's ruling now
+  (engine/ruling.py `settled`), for a lacked power and for the body.
+- **Below the table's first mark** a limit falls away in proportion to the attribute. The plan did not say; a creature may have
+  less than 10.
+- **The refusals are keyed `past` and `nearly`.** YAML reads a key `no` as false.
+- **The feat cases are their own file,** not part of ruling_cases_act.yaml. Their `expect` is the table's arithmetic held still,
+  not a ruling of the owner's, and the file says so: when the owner rules a feat fair or not, the table changes and the case
+  with it. Live, the model's feat is counted apart from the verdict. A case may say a drop is `deadly`.
+
+Measured when built: the list of feats adds 513 characters to each ruling's request and its instruction 300, about 130 and 75
+tokens; the answer about 12. The three recordings were re-blessed: one request differs in one of them (the act's ruling, with its
+list of feats), and the kept ruling carries its feat from that input on.
+
+Not built, said plainly:
+
+- **Where the share goes for anyone but the character.** Every kind of body gives its view and falls by the one table, and the
+  test holds that for a creature of each size, a hire, a companion and the character in a fight. Nothing yet takes health from
+  any of them for a fall: that is step 7 (a shove off a height in a fight), and the townsperson's with phase 4.
+- **A Phoenix item** turns a killing blow aside in a fight. It does not turn a fall aside.
+- **The size inside the ruling is still unmeasured** on the real model. That is step 5, the pod session.
+- **"beyond"** is still in the ruling (step 6, after the measure).

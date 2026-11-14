@@ -38,6 +38,9 @@ Rule with:
             onward). Only what it cannot happen without; at most two; never treasure, magic items or creatures to fight. Each: name
             (short), what (one sentence of what it is), where (where it is from the player).
   requires: the names from CAPABILITIES the attempt needs, whether or not the character has them. Most attempts need none.
+  feat:     when the attempt is done by the body's own strength or reach, its kind from FEATS and how big it is, as the world plainly
+            is: one number in that kind's unit. Only what their own body must do: with a lever, a winch or help, their share. "none"
+            for everything else.
   stakes:   check - one of CHECKS, or an attribute, when chance decides it; hard - easy, fair, hard, or beyond: past anything someone
             with what they have could do, however they try (it then does not happen). Leave empty for a plain yes.
   changes:  what the act, if it works, makes lastingly different, each on one target by its code from TARGETS, named from CHANGES and
@@ -56,7 +59,7 @@ Respond only with JSON matching the schema."""
 # ---------- the request
 
 def request(ws, actor_id: str, T, words: str, text: str) -> str:
-    from engine import checks, features, inventory, ruling, targets
+    from engine import body, checks, features, inventory, ruling, targets
     if actor_id != ws.acting:                        # (f594) one character a scene until multiplayer M1: never another's sheet
         raise ValueError(f"an act is ruled for the scene's own character, not {actor_id}")
     c = ws.player.character
@@ -73,6 +76,7 @@ def request(ws, actor_id: str, T, words: str, text: str) -> str:
             f"THE CHARACTER: level {c.level} {c.custom_class or c.archetype.value}; carries {gear}; in the pack {pack}; abilities {abilities}\n"
             f"WHAT THEY CAN DO BEYOND THE ORDINARY: {have}\n"
             f"CAPABILITIES:\n{caps}\n"
+            f"FEATS (a kind: what its size measures):\n{body.lines()}\n"
             f"CHECKS: {', '.join(sorted(checks.CHECKS))}, or an attribute ({', '.join(ruling.ATTRS)})\n"
             f"CHANGES:\n{changes}\n"
             f"BECOMES (a part's state): {', '.join(features.F['becomes'])}\n"
@@ -88,19 +92,29 @@ def means(ws, actor_id: str) -> set[str]:
     return ruling.means_of(ws) if actor_id == ws.acting else set()
 
 
+def own_body(ws, actor_id: str):
+    """(f623) The acting character's body, as the body's table reads it: today the scene's one character."""
+    from engine import body
+    if actor_id != ws.acting:
+        raise ValueError(f"an act is judged for the scene's own character, not {actor_id}")
+    return body.of_character(ws.player.character)
+
+
 def context(ws, T) -> dict:
-    from engine import checks, ruling, targets
+    from engine import body, checks, ruling, targets
     return {"capabilities": list(ruling.C), "checks": sorted(checks.CHECKS) + list(ruling.ATTRS), "roles": sorted(ws.world.roles),
-            "changes": list(targets.CH["changes"]), "codes": T.codes(), "most": int(A["most_changes"]), "fails": list(A["fails"])}
+            "changes": list(targets.CH["changes"]), "codes": T.codes(), "most": int(A["most_changes"]), "fails": list(A["fails"]),
+            "feats": list(body.K)}
 
 
 def shape(ws, T):
     """(f606) The act ruling's contract for this call: it validates as ActRuling does, and the grammar the model writes against is made
     for the scene, so a ruling can only be written in words the engine takes: targets by code, each with only the change words that land
     on its kind (never a situation itself), who acts where a change needs it, the state a change of state or of access gives, the fail,
-    the check and the capabilities from their lists, a no that says what happens instead, and short free text."""
+    the check and the capabilities from their lists, a no that says what happens instead, and short free text. (f623) Every ruling says
+    its feat, from the body's table."""
     import copy
-    from engine import checks, features, ruling, situation_parts, targets
+    from engine import body, checks, features, ruling, situation_parts, targets
     from llm.contracts import ActRuling
     L = A["grammar"]
     defs = ActRuling.model_json_schema()["$defs"]
@@ -150,15 +164,16 @@ def shape(ws, T):
         "needs": {"type": "array", "items": need, "maxItems": int(L["needs"])},
         "requires": {"type": "array", "items": {"enum": list(ruling.C) + sorted(checks.CHECKS) + list(ruling.ATTRS)},   # a check named
                      "maxItems": int(L["requires"])},                                        # here moves to the stakes, as the contract has it
+        "feat": body.schema(),
         "stakes": {"type": "object", "properties": {"check": {"enum": [""] + sorted(checks.CHECKS) + list(ruling.ATTRS)},
                                                     "hard": {"enum": defs["ActStakes"]["properties"]["hard"]["enum"]}}},
         "fail": {"enum": list(A["fails"])},
         "instead": {"type": "array", "items": text("instead"), "maxItems": int(L["instead_items"])}}
     acts = {"type": "array", "items": {"anyOf": changes} if changes else {"type": "object"},
             "maxItems": int(A["most_changes"]) if changes else 0}
-    yes = {"type": "object", "required": ["sense", "works"], "properties": {"sense": {"enum": ["yes", "cost"]}, **common, "changes": acts,
+    yes = {"type": "object", "required": ["sense", "works", "feat"], "properties": {"sense": {"enum": ["yes", "cost"]}, **common, "changes": acts,
                                                                             "works": {**text("works"), "minLength": 1}}}   # (f609)
-    no = {"type": "object", "required": ["sense", "answer", "requires"], "properties": {       # (f618) a no says what power it wants, if any
+    no = {"type": "object", "required": ["sense", "answer", "requires", "feat"], "properties": {   # (f618) a no says what power it wants, if any
         "sense": {"enum": ["no"]}, **common, "changes": {"type": "array", "maxItems": 0}, "answer": {**text("answer"), "minLength": 1}}}
     schema = {"title": "ActRuling", "anyOf": [yes, no]}
 
@@ -295,6 +310,8 @@ class Checked:
     dropped: list = field(default_factory=list)      # (change, why)
     enabled: bool = False      # a real thing it relies on (a tagged thing, the ground of a part): a strong success may match an ability's
     without: str = ""          # (f618) the capability it is done without, on what stands in for it
+    body: object = None        # (f623) the ruling's feat as the body's table takes it (engine/body.py Judged)
+    deadly: bool = False       # (f623) a drop that would take all the character has left, however it is landed
 
 
 def validate(ws, actor_id: str, T, r) -> Checked:
@@ -313,6 +330,13 @@ def validate(ws, actor_id: str, T, r) -> Checked:
         return Checked(False, r, ruling.C[cap]["lacking"], list(r.instead), f"needs {cap}, which they do not have")
     if how == "stand_in":                            # done without it: a cost on what stands in, whichever way the model ruled
         r = r.model_copy(update={"sense": "cost", "stakes": type(r.stakes)(**stakes)})
+    from engine import body
+    j = body.judge(own_body(ws, actor_id), means(ws, actor_id), r)   # (f623) the size is the ruling's; whether a body can is the engine's
+    if j.how in ("nearly", "past"):
+        return Checked(False, r, j.answer, list(r.instead),
+                       f"{j.kind} of {j.size:g} {body.K[j.kind]['unit']}: past what their body can do ({j.limit:g})", body=j)
+    if j.how in ("effort", "fall"):
+        r = body.with_effort(r, j)
     v = ruling.verdict(ws, SimpleNamespace(sense=r.sense, requires=[], needs=r.needs, changes=[], answer=r.answer, instead=r.instead,
                                            why=r.why))
     if not v["ok"]:
@@ -320,7 +344,76 @@ def validate(ws, actor_id: str, T, r) -> Checked:
     kept_changes, dropped = _chain(ws, actor_id, T, r)
     out = r.model_copy(update={"changes": kept_changes})
     enabled = any((t := T.get(u)) is not None and (t.kind == "part" or (t.kind == "object" and t.tags)) for u in r.uses)
-    return Checked(True, out, "", [], r.why, dropped, enabled, cap if how == "stand_in" else "")
+    return Checked(True, out, "", [], r.why, dropped, enabled, cap if how == "stand_in" else "", j, _deadly(ws, actor_id, j))
+
+
+def _deadly(ws, actor_id: str, j) -> bool:
+    """(f623) Whether a drop would take all the character has left even landed as well as it can be."""
+    if j.how != "fall":
+        return False
+    from engine import body, pools
+    c = ws.player.character
+    best = min(body.landed(j.share, degree) for degree in body.F["landing"])
+    return best * pools.maximum(c, "health") >= pools.current(c, "health")
+
+
+# ---------- (f623) a drop that would kill: warned first, then made
+
+def warned(ws, actor_id: str, feet: float | None = None) -> bool:
+    """Whether this character was warned of a deadly drop at the place they stand; with `feet`, of a drop that one is the same as."""
+    from engine import body
+    mark = ws.store.load_fall_warned().get(actor_id) or {}
+    return mark.get("place") == ws.player.location and (feet is None or feet >= float(mark.get("feet", 0)) * float(body.F["same_drop"]))
+
+
+def left(ws, actor_id: str) -> None:
+    """The character leaves a place, or the drop was made: the warning goes."""
+    data = ws.store.load_fall_warned()
+    if actor_id in data:
+        del data[actor_id]
+        ws.store.save_fall_warned(data)
+
+
+def warn(ws, actor_id: str, v: Checked, words: str, text: str) -> None:
+    """The drop is not made: the character is told at the edge that it would kill, and the warning kept, one for the character."""
+    from engine import body, world_improv
+    from ui import console
+    feet = f"{v.body.size:g}"
+    data = ws.store.load_fall_warned()
+    data[actor_id] = {"place": ws.player.location, "feet": v.body.size}
+    ws.store.save_fall_warned(data)
+    console.ledger(body.F["warned_line"].format(feet=feet))
+    ws.narrate(f"THE GAME HAS DECIDED: the player goes to do what they attempt ({world_improv.what_of(words or text)}) and stops at the "
+               f"edge. {body.F['warned'].format(feet=feet)} The player has not jumped: nothing has happened and no time has passed. "
+               "Show them at the edge, seeing it, and stop there.", text)
+
+
+def died(ws, actor_id: str, v: Checked) -> None:
+    """Warned, they jump: told in the engine's own words (the narrator's passage would be written after they wake elsewhere), then
+    the game's one death."""
+    from engine import body
+    from ui import console
+    left(ws, actor_id)
+    console.narrate(ws.rng.choice(body.F["died"]).format(feet=f"{v.body.size:g}"))
+    ws.dies(actor_id)
+
+
+def fell(ws, actor_id: str, j, degree: str) -> str:
+    """A drop past what the character lands unhurt, made: what it takes of their health as it was landed, never the last of it (a
+    drop that would is warned of and never reaches here). Returns what the narrator is told of it."""
+    from engine import body, ledger, pools
+    from ui import console
+    c = ws.player.character
+    top = pools.maximum(c, "health")
+    took = body.landed(j.share, degree)
+    lost = max(1, round(top * took))
+    c.health = max(1.0, pools.current(c, "health") - top * took)
+    ws.store.save_player(ws.player)
+    left(ws, actor_id)                               # a drop made: an older warning here was of another state of things
+    console.ledger(f"The fall: -{lost} health.")
+    ledger.add("hurt", amount=lost, say=f"The player dropped {j.size:g} feet and was hurt by the landing ({lost} health).")
+    return (f" THE FALL: they did drop, {j.size:g} feet, more than they can land unhurt. They land {body.F['landing'][degree][1]} "
+            f"and come away {body.word(took)}. Show the landing as that hard, never softer.")
 
 
 def _chain(ws, actor_id: str, T, r) -> tuple[list, list]:
@@ -514,6 +607,12 @@ def decide(ws, actor_id: str, T, r, fresh: bool, words: str, text: str, continui
     if not v.ok:
         ruling.refuse(ws, {"answer": v.answer, "instead": v.instead, "why": v.why}, words, text)
         return
+    if v.deadly:                                     # (f623) warned first; tried again at this place, it is made
+        if warned(ws, actor_id, v.body.size):
+            died(ws, actor_id, v)
+        else:
+            warn(ws, actor_id, v, words, text)
+        return
     made = make_needs(ws, v.ruling)
     resolve(ws, actor_id, T, v, words, text, made, own)
 
@@ -639,6 +738,9 @@ def resolve(ws, actor_id: str, T, v: Checked, words: str, text: str, made: list[
         degree, _ = checks.roll(odds, ws.rng, c=c)
     if degree == "strong success" and not v.enabled:
         degree = "success"
+    falls = v.body is not None and v.body.how == "fall"
+    drop = fell(ws, actor_id, v.body, degree) if falls else ""      # (f623) made however it goes, and paid for
+    safe = "" if falls else ", and no one is harmed"
     worked = degree in ("success", "strong success", "partial")
     changes = list(r.changes) if worked else []
     refused = [(ch, why) for ch, why in v.dropped]
@@ -672,40 +774,42 @@ def resolve(ws, actor_id: str, T, v: Checked, words: str, text: str, made: list[
                        f"it would take.{lack} It comes to what that way alone can bring about"
                        + (f", at the most this: {comes}" if comes else "") + ". Show that, as it would be seen, and nothing beyond it"
                        + (", with what is different now." if (told or made or landed) else ". Nothing lasting is different.")
-                       + " Nothing is gained that was not there, and no one is harmed." + room + lasting + nots, text)
+                       + f" Nothing is gained that was not there{safe}." + room + lasting + nots + drop, text)
             return degree
         if comes:                                   # (f609) a success is what the ruling says it comes to, never what the words claim
             ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) WORKS" + (" cleanly and well" if degree == "strong success" else "")
                        + (", and this is what it comes to, short of what did not happen (below)" if nots else ", and this is what it comes to")
                        + f": {comes}. Show that, as it would be seen, and nothing beyond it"
                        + (", with what is different now." if (told or made or landed) else ". Nothing lasting is different.")
-                       + " Nothing is gained that was not there, and no one is harmed." + lack + room + lasting + nots, text)
+                       + f" Nothing is gained that was not there{safe}." + lack + room + lasting + nots + drop, text)
             return degree
         ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) WORKS" + (" cleanly and well" if degree == "strong success" else "")
                    + (". Show it done, as it would be seen, and what is different now." if (told or made or landed)
                       else ". Show it done, as it would be seen. Nothing lasting is different.")
-                   + " Nothing is gained that was not there, and no one is harmed." + lack + room + lasting + nots, text)
+                   + f" Nothing is gained that was not there{safe}." + lack + room + lasting + nots + drop, text)
         return degree
     if degree == "partial":
         ws.advance(int(A["partial"]["minutes"]))
         ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) half works: {A['partial']['text']}"
                    + (f"; it falls short of this, which is the most it could have come to: {comes}" if comes else "")
-                   + ". Show it as it would be seen, the flaw in it plain. Nothing is gained that was not there." + lack + room + lasting + nots, text)
+                   + ". Show it as it would be seen, the flaw in it plain. Nothing is gained that was not there." + lack + room + lasting + nots
+                   + drop, text)
         return degree
-    cost = fail(ws, actor_id, T, r, F)
+    cost = fail(ws, actor_id, T, r, F, health=not falls)
     ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) FAILS: {F['text']}. Show the failure as it happens and what it "
                "costs them, and stop there; nothing it was meant to change has changed, no one gives them anything, and nobody speaks "
-               "beyond a look or a word." + room + cost, text)
+               "beyond a look or a word." + room + cost + drop, text)
     return degree
 
 
-def fail(ws, actor_id: str, T, r, F: dict) -> str:
-    """What a failure costs (act.yaml fails): time, health, the thing relied on broken. Returns what the narrator is told of it."""
+def fail(ws, actor_id: str, T, r, F: dict, health: bool = True) -> str:
+    """What a failure costs (act.yaml fails): time, health, the thing relied on broken. Returns what the narrator is told of it.
+    (f623) `health` False: a fall has already taken what the landing cost."""
     from engine import objects, pools
     c = ws.player.character
     ws.advance(int(F.get("minutes", 0) or 0))
     out = ""
-    if F.get("health_pct"):
+    if health and F.get("health_pct"):
         top = pools.maximum(c, "health")
         c.health = max(1.0, pools.current(c, "health") - top * float(F["health_pct"]) / 100)
         ws.store.save_player(ws.player)

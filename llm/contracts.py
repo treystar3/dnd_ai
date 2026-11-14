@@ -528,6 +528,26 @@ class ActStakes(Stakes):
     hard: Literal["", "easy", "fair", "hard", "beyond"] = ""
 
 
+class Feat(BaseModel):
+    """(f623) What an attempt asks of the body that tries it: a kind from FEATS (data/rules/body.yaml) and its size in that kind's unit,
+    or none. The size is the model's to say; whether a body can is the engine's (engine/body.py)."""
+    kind: str = "none"
+    size: float = 0
+
+
+def _feat(feat: Feat, ctx: dict) -> None:
+    """(f623) A ruling's feat held to the table's kinds: one it does not hold, or a feat with no size, is sent back."""
+    kinds = ctx.get("feats") or []
+    feat.kind = (feat.kind or "").strip().lower() or "none"
+    if feat.kind == "none":
+        feat.size = 0
+        return
+    if kinds and feat.kind not in kinds:
+        raise ValueError(f"feat: kind is one of FEATS ({', '.join(kinds)}) or none, not {feat.kind}")
+    if feat.size <= 0:
+        raise ValueError("feat: a feat of the body needs its size, one number above 0 in that kind's unit")
+
+
 class Change(BaseModel):
     """(f395) What an attempt, if it works, makes different about a part of the place: its name (empty: where the player stands), and
     what it becomes (features.yaml becomes)."""
@@ -544,6 +564,7 @@ class Ruling(BaseModel):
     why: str = ""
     needs: list[Need] = []
     requires: list[str] = []
+    feat: Feat = Feat()                            # (f623) what it asks of the body, if anything
     stakes: Stakes = Stakes()
     changes: list[Change] = []
     answer: str = ""
@@ -562,6 +583,7 @@ class Ruling(BaseModel):
         wrong = [r for r in self.requires if caps and r not in caps]
         if wrong:
             raise ValueError(f"requires lists only names from CAPABILITIES ({', '.join(caps)}), not {', '.join(wrong)}")
+        _feat(self.feat, ctx)
         if self.sense == "no" and not self.answer.strip():
             raise ValueError("a no needs `answer`: what happens instead, in the world, as the player would see it")     # (f421) no length
         if len(self.needs) > 2:
@@ -1701,6 +1723,7 @@ class ActRuling(BaseModel):
     uses: list[str] = []
     needs: list[Need] = []
     requires: list[str] = []
+    feat: Feat = Feat()                            # (f623) what it asks of the body, if anything
     stakes: ActStakes = ActStakes()
     changes: list[ActChange] = []
     fail: str = ""
@@ -1718,6 +1741,7 @@ class ActRuling(BaseModel):
         wrong = [r for r in self.requires if caps and r not in caps]
         if wrong:
             raise ValueError(f"requires lists only names from CAPABILITIES ({', '.join(caps)}), not {', '.join(wrong)}")
+        _feat(self.feat, ctx)
         if self.sense == "no" and not self.answer.strip():
             raise ValueError("a no needs `answer`: what happens instead, in the world, as the player would see it")
         if len(self.needs) > 2:
