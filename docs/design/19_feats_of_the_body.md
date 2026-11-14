@@ -433,3 +433,71 @@ The reader put them in that order, and found the order of work that beats any on
 4. **By that result:** the reading wired as a call of its own, kept as a ruling is kept (a feat refused must be the same feat
    asked again), then sizes kept on the thing. If the model names feats where there are none when asked alone too, the game does
    without the reading.
+
+## 15. The second measure (the pod session of 2026-11-14), and what it says
+
+One session on the same card as before (41 minutes at $0.69 an hour), on the code at f626. The three older corpora (99 cases) were
+ruled on twice with the field out and the engine numbering changes, and every line of all four corpora (139) was read alone,
+twice, in each of the four arms of tools/reading_eval.py: 1,112 readings.
+
+### The ruling, with the field out and the engine numbering its changes
+
+| | before the field (f619) | with it (f623) | now (f626) |
+|---|---|---|---|
+| right, of 99 (each pass) | 97 and 97 | 95 and 94 of those ruled | 96 and 95 |
+| asked again, each pass | 0 | 8 | 0 |
+| left with no ruling | 0 | 2 and 1 | 0 |
+| standing rulings that give no `why` | 5 and 6 of 70 | 31 of 68 | 5 and 5 of 70 |
+| read otherwise on the second pass | 1 of 99 | 5 of 99 | 1 of 99 |
+
+The ruling writes itself as it did before the field. Two cases are worse than before it. "I dig a tunnel under the guild hall
+tonight and come up inside the vault" was a no and is a cost on both passes, with a success that stops short of the vault ("a
+crude tunnel is partially excavated, but the floor of the vault remains intact"); the measure counts it a false acceptance.
+"I declare myself king of Parth" was a bounded yes and on one pass is a yes with no bound. Neither is traced to one change: the
+instruction was also reworded between the two runs (f620 to f622).
+
+The engine's numbering was hardly tried. Three rulings a pass listed two or more changes, each numbered by the engine and none
+sent back; `needs` was written in none of 198 rulings, so whether the model points it at the right place is still unmeasured.
+
+### The reading, asked alone
+
+| arm | kind right, of 40 labelled | a feat named, of the 99 that say nothing | read as another kind the second time |
+|---|---|---|---|
+| `size` | 36 and 37 (the size too on 32 and 33) | 17 and 18 | 2 of 139 |
+| `size+self` | 36 and 36 (32 and 32) | 16 and 16 | 3 of 139 |
+| `thing` | 35 and 36 | 11 and 12 | 2 of 139 |
+| `thing+self` | 36 and 36 | 13 and 11 | 2 of 139 |
+
+A reading takes 0.41 to 0.44 seconds on the rented card, and none of the 1,112 was lost.
+
+- **It names far fewer feats where there are none: 17 or 18 of 99, against 44 inside the ruling.** Read one by one, four of
+  those are feats (the whole inn, the top of the guild hall, the two lines that breathe water). The rest are not: a climb read
+  as lifting the body's own weight (150 to 180 pounds) or as a jump of the height climbed, a wrestle as a lift of 180, a barrel
+  smashed as a lift of 40, a cloak thrown as a throw of 5.
+- **What that would cost in play depends on the body.** For the strong character the corpora use, the table would refuse one
+  fair act on one pass (the climb onto the rocks, read as a jump of 12 feet) and make two harder. For an ordinary body
+  (strength 10: a lift limit of 150 pounds, a jump of 4 feet) about five of the 99 would be refused or made hard: the climbs,
+  the wrestle, the cellar door.
+- **The kind is right on 36 or 37 of 40**, against 24 and 25 of the 30 feats inside the ruling. The misses are neighbours (a jump
+  over a stall read as a jump across; a grappling hook thrown read as a heavy throw) and one feat missed outright (staying under
+  the millpond: none).
+- **The sizes are still the weak part.** With the size arm the table's yes or no is the case's on 34 of 40 (34 and 35 inside the
+  ruling). Of the six misses two are sizes too small (the portcullis at 400 pounds on both passes, where the model said 1,200
+  when told what to measure; the water cask at 50) and one is the millpond. The other three are sizes the case itself calls fair
+  that fall on the other side of that body's limit from the case's own reading (the anvil at 150 pounds, a stone thrown 150
+  feet, the bridge's span at 12 feet): where an act sits near a body's limit, the answer turns on a size no one could call wrong.
+- **Not asking for a size names fewer feats** (11 to 13 of 99, against 16 to 18), and costs nothing on the kind.
+- **The kind for the body itself does not cut the feats named with a size** (16 against 17 and 18). With a thing it takes the
+  climbs: `thing+self` reads the ledge, the tree, the cliff, the rocks, the rope and the wrestle as the body's own, and what it
+  still names beyond the four feats is nine lines, of which two would touch a fair act (a barrel smashed, read as a lift; climbing
+  onto a fountain, read as a jump). It also reads talk and waiting as the body's own (29 lines), which the table takes as none.
+
+### What it says for step 4
+
+Asked alone, the model can mostly tell a feat from none, and the ruling is whole again. It cannot be trusted with the size in
+the same breath: sizes shrink for the heaviest things as they did inside the ruling. The earlier probe, which named the thing and
+the unit, got those sizes right. That points at the order the owner already called "the step after": the kind and the thing read
+in one call (`thing+self`), and the size asked of that thing alone, only when a feat is named, and kept on the thing.
+
+Not measured: the reading with the scene given; the size asked of a named thing on these 40 cases (the earlier probe asked 20
+lines); either on a 3060. The results are kept outside the repo with the session's files (pod7/out).
