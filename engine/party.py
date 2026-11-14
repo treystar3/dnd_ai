@@ -353,7 +353,8 @@ MOOD_MINUTES = 1440
 def remember(member: dict, day: int, text: str, weight: int = 1, key: str = "", kind: str = "event") -> None:
     """One short thing worth keeping, in their own words. A memory with the same key is the same memory, updated; one that means the same as
     a memory they already hold makes that one stronger instead of sitting beside it. The newest are kept, and the heaviest survive."""
-    text = " ".join(str(text).split())[:180]
+    from engine import hygiene
+    text = hygiene.undash(" ".join(str(text).split()), count=False)[:180]      # (f620) a hire speaks from it: no dash to copy
     if not text:
         return
     mem = member.setdefault("memories", [])

@@ -778,6 +778,7 @@ def check() -> list[str]:
     need(isinstance(ek, int) and not isinstance(ek, bool) and ek > 0, "combat.yaml effects_keep: needs a whole number above 0")
     bad += improv_problems()                                           # (f567) the fight's improvisations, held to the resolver
     bad += ground_word_problems()                                      # (f571) what the narrator is told of each zone's ground
+    bad += data_words_problems()                                       # (f621) no dash in any word of data/ that is told as true
     bad += tables_problems()                                           # (f504) the fight's tables, both ways
     bad += trigger_problems()                                          # (f507) the triggers held to the code that evaluates them
     bad += allowlist_problems()                                        # (f509) every table the fight reads, held to the code, both ways
@@ -855,6 +856,80 @@ def ground_word_problems(G: dict | None = None) -> list[str]:
                 out.append(f"battlefields.yaml {where}.{k}: needs words")
             elif "—" in v or "–" in v or " - " in v:
                 out.append(f"battlefields.yaml {where}.{k}: a dash in words the narrator reads (owner's rule): {v!r}")
+    return out
+
+
+DASHED = re.compile(r"—|–|--|\S[ \t]+-[ \t]+\S")            # (f621) a dash as the owner's rule means it: not the hyphen in a word, not a list's mark
+NOT_TOLD = ("label", "rule", "structure", "note")                     # (f621) what a string in data/ can be other than told as true
+
+
+def data_strings(root: Path, skip: tuple = ()):
+    """(f621) Every string that stands in a data file under root, the keys too: (file, the keys down to it, the string). A list adds no
+    key, so a line in a list stands under the list's own."""
+    import json
+    from core import yamlio
+
+    def walk(x, path):
+        if isinstance(x, str):
+            yield path, x
+        elif isinstance(x, dict):
+            for k, v in x.items():
+                if isinstance(k, str):
+                    yield path + (k,), k
+                yield from walk(v, path + (str(k),))
+        elif isinstance(x, (list, tuple)):
+            for v in x:
+                yield from walk(v, path)
+
+    for f in sorted(root.rglob("*")):
+        rel = f.relative_to(root).as_posix()
+        if not f.is_file() or rel.split("/")[0] in skip or f.suffix not in DATA_KINDS:
+            continue
+        text = f.read_text(encoding="utf-8")
+        for path, s in walk(json.loads(text) if f.suffix == ".json" else yamlio.safe_load(text), ()):
+            yield rel, path, s
+
+
+DATA_KINDS = (".yaml", ".yml", ".json")                               # (f621) the kinds of file data/ holds; data_words_621_test holds the folder to them
+
+
+def not_told(table: dict, rel: str, path: tuple) -> str:
+    """(f621) What a string is declared as when it is not told as true ("" when it is told). A declared key covers itself and all that
+    stands under it, named alone or as a dotted run of the keys down to it (`frame.shows`)."""
+    for key, kind in (table.get(rel) or {}).items():
+        want = tuple(str(key).split("."))
+        if any(path[i:i + len(want)] == want for i in range(len(path) - len(want) + 1)):
+            return str(kind)
+    return ""
+
+
+def data_words_problems(root: Path | None = None, table: dict | None = None) -> list[str]:
+    """(f621) The words that stand in data/ carry no dash (the owner's rule). Every string there is told as true unless hygiene.yaml
+    data_words.not_told declares its file and key a label, a rule for a model, structure the engine reads, or a note: told is the
+    default, so a new file or a new key is held without being added anywhere. The table is held too: each entry names a file and a key
+    that are there, and one of the four kinds."""
+    T = (_load("data/rules/hygiene.yaml").get("data_words") or {}) if table is None else table
+    D = T.get("not_told") or {}
+    if not isinstance(D, dict) or not all(isinstance(v, dict) for v in D.values()) or not isinstance(T.get("skip") or [], list):
+        return ["hygiene.yaml data_words: needs skip (a list of folders) and not_told (file: {key: kind})"]
+    rows = list(data_strings(ROOT / "data" if root is None else root, tuple(T.get("skip") or ())))
+    files = {rel for rel, _, _ in rows}
+    out = []
+    for rel, keys in D.items():
+        if rel not in files:
+            out.append(f"hygiene.yaml data_words.not_told: {rel} is no file in data/")
+            continue
+        for key, kind in keys.items():
+            if kind not in NOT_TOLD:
+                out.append(f"hygiene.yaml data_words.not_told {rel} {key}: '{kind}' is none of {', '.join(NOT_TOLD)}")
+            if not any(r == rel and not_told({rel: {key: kind}}, r, p) for r, p, _ in rows):
+                out.append(f"hygiene.yaml data_words.not_told {rel}: no key '{key}' in that file")
+    for rel, path, s in rows:
+        m = DASHED.search(s)
+        if m and not not_told(D, rel, path):
+            shown = s if len(s) <= 140 else "..." + s[max(0, m.start() - 60):m.end() + 60] + "..."
+            out.append(f"data/{rel} {'.'.join(path)}: a dash in words the game tells (owner's rule). Reword it; a label, a rule for a model, "
+                       f"structure or a note is declared in hygiene.yaml data_words.not_told: {' '.join(shown.split())!r}")
     return out
 
 

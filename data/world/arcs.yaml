@@ -14,7 +14,7 @@
   board: "Missing: {subject}, last seen near {place}"
   subjects: ["a miller's daughter", "a courier", "a merchant's apprentice", "a young scholar", "a herder's son", "a ferryman's wife"]
   truth: >
-    The missing person saw something they should not have - a shipment, a ledger, a face - and was taken by a smuggling ring
+    The missing person saw something they should not have (a shipment, a ledger, a face) and was taken by a smuggling ring
     that moves contraband along the roads between the great cities, paying off a few officials. The ring is run by one
     person who is not at the first camp. Every camp and contact on the trail knows only the next link.
   contacts: [merchant, innkeeper, dockhand, caravan_master, courtier, guard, bargeman]
@@ -88,7 +88,7 @@
   subjects: ["three villagers from a border hamlet", "a shepherd and her brothers", "a family of river folk", "a travelling troupe's youngest"]
   truth: >
     People are being taken from lonely places and sold on a chain of buyers that stretches from the border to the great cities.
-    Each stage - the takers, the carters, the dealers - knows only the next. The chain ends at a fortress where the captives are held.
+    Each stage (the takers, the carters, the dealers) knows only the next. The chain ends at a fortress where the captives are held.
   contacts: [dockhand, caravan_master, merchant, bargeman, guard, innkeeper]
   mix: {contact: 3, lair: 2}
   leaders: [bandit_captain]
@@ -311,8 +311,8 @@
   subjects: ["a besieged town needs relief", "a border town under siege", "a hold cut off by a besieging host"]
   subject_kind: matter
   truth: >
-    A town is besieged and its lord's calls for help were intercepted. The player must win allies in several towns - a
-    caravan master's grain, a captain's riders, a priest's blessing - and bring them to break the siege, ending with a battle at the siege lines.
+    A town is besieged and its lord's calls for help were intercepted. The player must win allies in several towns (a
+    caravan master's grain, a captain's riders, a priest's blessing) and bring them to break the siege, ending with a battle at the siege lines.
   contacts: [noble, elder, watch_captain, caravan_master, priest, merchant, quartermaster]
   mix: {contact: 5, lair: 1}
   leaders: [bugbear, ogre, ettin, hill_giant, stone_giant, frost_giant]
@@ -401,7 +401,7 @@
   subjects: ["freak storms ruining the harvest", "hail in high summer", "lightning that follows a road"]
   subject_kind: matter
   truth: >
-    A hermit with a stolen artifact is calling storms - at first by accident, now to punish those who wronged him.
+    A hermit with a stolen artifact is calling storms: at first by accident, now to punish those who wronged him.
     Farmers, fishers and priests see the pattern; the hermit's tower lies at its centre.
   contacts: [fisher, farmer, elder, water_priest, bargeman, priest]
   mix: {contact: 3, site: 1, lair: 1}

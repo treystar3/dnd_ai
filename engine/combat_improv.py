@@ -170,4 +170,4 @@ def resolve(fight, p, target, words: str, rng: random.Random, effect: str = "") 
             apply_damage(fight, p, t, RULES.get("improv", {}).get("damage_mult", 0.8) * (0.5 if partial else 1.0),
                          "brings the surroundings down on", rng, can_cleave=False, can_riposte=False)
     if len(fight.story) > told:                                          # what was tried comes first, then what came of it
-        fight.story.insert(told, tried[0].upper() + tried[1:])
+        tell(fight, tried, at=told)                                     # (f620) through tell, as every line of the story

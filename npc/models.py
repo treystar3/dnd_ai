@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 
 class TraitChange(BaseModel):
@@ -29,6 +29,12 @@ class Memory(BaseModel):
     times: int = 1
     state: str = ""             # (f483) a knows row's: held, or told:<character ids> once they have said it
     id: int | None = None
+
+    @field_validator("text")
+    @classmethod
+    def _no_dash(cls, text: str) -> str:
+        from engine import hygiene
+        return hygiene.undash(text, count=False)                       # (f620) what a person remembers is told to a speaker: no dash to copy, whoever made it
 
 
 class Regard(BaseModel):

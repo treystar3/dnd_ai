@@ -10,7 +10,7 @@
 # found_at: places where the player can discover it in the world (a notice, a record, a carving).
 
 - id: magic_rare_daily
-  text: In Parth, magic is known but almost never part of ordinary life - the gifted are taken young, so folk light fires with flint and heal with herbs.
+  text: "In Parth, magic is known but almost never part of ordinary life: the gifted are taken young, so folk light fires with flint and heal with herbs."
   known_by: [parth_locals]
 
 - id: the_taking
@@ -26,7 +26,7 @@
   known_by: [parth_locals, willowmead_locals, greyhollow_locals, kelpmoor_locals, riverhaven_locals, amaranth_locals]
 
 - id: taking_is_southern
-  text: The Taking is the south's custom - it is Riverhaven and Amaranth that send the Seekers. The crown at Lethoria has never sent one and takes no child.
+  text: "The Taking is the south's custom: it is Riverhaven and Amaranth that send the Seekers. The crown at Lethoria has never sent one and takes no child."
   known_by: [lethoria_locals, nobility, scholars, merchants, riverhaven_locals, amaranth_locals, parth_locals, willowmead_locals, greyhollow_locals, kelpmoor_locals]
 
 - id: crown_tolerates_taking
@@ -38,7 +38,7 @@
   known_by: [lethoria_locals, nobility, merchants]
 
 - id: north_scorns_taking
-  text: The further north one goes, the less patience there is for the Taking - spoken of with disgust in Greyhollow, barely believed in Ironvein and Frostholm, where a Seeker would not be made welcome.
+  text: "The further north one goes, the less patience there is for the Taking: spoken of with disgust in Greyhollow, barely believed in Ironvein and Frostholm, where a Seeker would not be made welcome."
   known_by: [greyhollow_locals, ironvein_locals, frostholm_locals, eldervale_locals, hrimgard_locals, skarnhelm_locals, merchants]
 
 - id: taken_rarely_return
@@ -55,7 +55,7 @@
   known_by: [parth_locals, willowmead_locals, greyhollow_locals, redstone_locals]
 
 - id: mages_serve_nobles
-  text: In noble houses, mages do daily work - keeping fires, preserving food, lighting halls.
+  text: "In noble houses, mages do daily work: keeping fires, preserving food, lighting halls."
   known_by: [nobility, mages, merchants]
 
 - id: parth_on_trade_road
@@ -84,7 +84,7 @@
 # --- the wider world (from the world writeup) ---
 
 - id: parth_crossroads
-  text: Parth sits where the roads of the south meet - north to Greyhollow, northeast to Ironvein, east to Redstone, south to Willowmead and southwest to Kelpmoor and the sea.
+  text: "Parth sits where the roads of the south meet: north to Greyhollow, northeast to Ironvein, east to Redstone, south to Willowmead and southwest to Kelpmoor and the sea."
   known_by: [everyone]
 
 - id: taking_seen_from_outside
@@ -96,7 +96,7 @@
   known_by: [willowmead_locals, parth_locals, merchants]
 
 - id: greyhollow_trades
-  text: Greyhollow grew up around what lies under its hills - mining, timber and stonework - and sends its ore and wood south to Parth.
+  text: Greyhollow grew up around what lies under its hills (mining, timber and stonework) and sends its ore and wood south to Parth.
   known_by: [greyhollow_locals, parth_locals, merchants]
 
 - id: greyhollow_magic
@@ -108,7 +108,7 @@
   known_by: [eldervale_locals, scholars]
 
 - id: eldervale_magic
-  text: In Eldervale, magic is simply part of existence, as natural as the forest - it belongs to no class of people.
+  text: "In Eldervale, magic is simply part of existence, as natural as the forest: it belongs to no class of people."
   known_by: [eldervale_locals, mages]
 
 - id: ironvein_craft
@@ -116,7 +116,7 @@
   known_by: [ironvein_locals, merchants]
 
 - id: ironvein_magic
-  text: In Ironvein, magic is a craft like any other - something to be studied, refined and built into the works of civilization.
+  text: "In Ironvein, magic is a craft like any other: something to be studied, refined and built into the works of civilization."
   known_by: [ironvein_locals, mages]
 
 - id: frostholm_endurance
@@ -124,7 +124,7 @@
   known_by: [frostholm_locals]
 
 - id: frostholm_magic
-  text: In Frostholm, powerful magic is rare and treated with suspicion and caution - long hardship taught them to.
+  text: "In Frostholm, powerful magic is rare and treated with suspicion and caution; long hardship taught them to."
   known_by: [frostholm_locals]
 
 - id: frostpass_winter
@@ -140,7 +140,7 @@
   known_by: [riverhaven_locals]
 
 - id: redstone_frontier
-  text: Redstone is the last real stop before the desert - caravans heading east refit and hire guards there.
+  text: "Redstone is the last real stop before the desert: caravans heading east refit and hire guards there."
   known_by: [redstone_locals, merchants, parth_locals]
 
 - id: redstone_magic
@@ -152,11 +152,11 @@
   known_by: [sunspire_locals, merchants]
 
 - id: sunspire_magic
-  text: In Sunspire, magic is common and bound up with faith - seen as a gift of the natural and divine forces of the world, not a privilege of rank.
+  text: "In Sunspire, magic is common and bound up with faith: seen as a gift of the natural and divine forces of the world, not a privilege of rank."
   known_by: [sunspire_locals, mages]
 
 - id: lethoria_court
-  text: Lethoria is the political heart of the kingdom - noble families, courts and institutions competing for influence.
+  text: "Lethoria is the political heart of the kingdom: noble families, courts and institutions competing for influence."
   known_by: [lethoria_locals, nobility, merchants]
 
 - id: lethoria_magic
@@ -164,7 +164,7 @@
   known_by: [lethoria_locals, nobility, mages]
 
 - id: hollow_tales
-  text: Travelers' tales speak of a place called the Hollow, somewhere beyond the known lands. A city, the remains of one, or something that only looks like one - no two tellings agree, and no road leads there.
+  text: "Travelers' tales speak of a place called the Hollow, somewhere beyond the known lands. A city, the remains of one, or something that only looks like one: no two tellings agree, and no road leads there."
   known_by: [everyone]
 
 - id: hollow_no_magic
@@ -179,8 +179,8 @@
   text: >
     The guild's halls are not equal. Those in the hard-edged cities (Frostholm and Sunspire above all, and Ironvein and
     Lethoria after them) post the biggest contracts, with expeditions to far, dangerous country, and pay a good deal
-    more for the same work than the smaller halls do. The greatest halls of all are in the far lands - Cinderhold,
-    Hrimgard and Dunmarrow - and they pay nearly double. Members who have outgrown the work at their home hall go there.
+    more for the same work than the smaller halls do. The greatest halls of all are in the far lands (Cinderhold,
+    Hrimgard and Dunmarrow), and they pay nearly double. Members who have outgrown the work at their home hall go there.
   known_by: [guild, merchants]
 
 # --- the far lands ---

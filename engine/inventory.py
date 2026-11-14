@@ -49,8 +49,10 @@ class Recipe(BaseModel):
     ingredients: list[Ingredient]
 
 
-GOODS = {g["id"]: Good(**g) for g in yamlio.safe_load((ROOT / "data" / "world" / "goods.yaml").read_text(encoding="utf-8"))}
-RECIPES = {r["id"]: Recipe(**r) for r in yamlio.safe_load((ROOT / "data" / "rules" / "recipes.yaml").read_text(encoding="utf-8"))}
+GOODS = {g["id"]: yamlio.row(Good, g, "goods.yaml")           # (f622) no key the model does not know
+         for g in yamlio.safe_load((ROOT / "data" / "world" / "goods.yaml").read_text(encoding="utf-8"))}
+RECIPES = {r["id"]: yamlio.row(Recipe, r, "recipes.yaml")
+           for r in yamlio.safe_load((ROOT / "data" / "rules" / "recipes.yaml").read_text(encoding="utf-8"))}
 for _r in RECIPES.values():
     for _g in list(_r.makes) + [i.good for i in _r.ingredients if i.good]:
         if _g not in GOODS:

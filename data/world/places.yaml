@@ -24,8 +24,8 @@
     - Grain fields and low sheep hills on every side but the north.
     - To the northwest, the dark edge of the Greywood.         # (f385) where the map and the roads out put it
     - Hearths and ovens are lit by flint and tinder; nothing here is kindled by magic.
-    - Roads leave in every direction - the Old Quarry Road north, the King's Pass northeast, the Red Road east,
-      the King's Road south and the Salt Road southwest to the sea.
+    - "Roads leave in every direction: the Old Quarry Road north, the King's Pass northeast, the Red Road east,
+      the King's Road south and the Salt Road southwest to the sea."
   peoples: {human: 85, halfling: 6, dwarf: 5, half_elf: 4}
   biome: urban
   locals_group: parth_locals
@@ -192,7 +192,7 @@
   type: city
   region: blackpine
   visible:
-    - An ancient elven city woven into the Blackpine - homes, halls and walkways grown into the living forest.
+    - "An ancient elven city woven into the Blackpine: homes, halls and walkways grown into the living forest."
     - Lights that are plainly magic hang among the branches, and no one remarks on them.
     - Blackpine Road leads southeast to Greyhollow; the Old Forest Trail leads north toward Frostholm.
     - Within the Eldervale streets you can find the Eldervale guild hall, the Silverleaf Rest, the Greenleaf apothecary, the Moonthread workshop, the Elder Keep curios and the heartwood shrine.
@@ -261,7 +261,7 @@
   type: city
   region: great_river
   visible:
-    - A great trading city on the Great River - wharves, warehouses, barges and a crowd from everywhere.
+    - "A great trading city on the Great River: wharves, warehouses, barges and a crowd from everywhere."
     - Fine houses on the rise above the docks, where the wealthy keep magic close; the docks below rarely see it.
     - The River Road runs north to Willowmead; the southern trade routes run on toward the Sunscar.
     - Within the Riverhaven streets you can find the Riverhaven guild hall, the Drowned Lantern, the Riverhaven chandlery, the wharfside trading house, the tide-glass workshop, the Riverhaven curio shop and the river temple.
@@ -340,7 +340,7 @@
   scale: capital                   # the royal capital: the truth layer's crowds and the town profile's quarters are the capital's (f318)
   region: royal_vales
   visible:
-    - The royal capital - towers, palaces and great houses over rolling valleys of vineyards and estates.
+    - "The royal capital: towers, palaces and great houses over rolling valleys of vineyards and estates."
     - Everything is grander, cleaner and better kept than in the countryside; the gap is plain to see.
     - Magic is everywhere in the great houses and nearly nowhere in the streets below them.
     - The Valley Road runs south to Riverhaven, the North Road to Frostholm, the Marrow Road to Dunmarrow and the Sunken Road west to Brinewatch.
@@ -439,7 +439,7 @@
   region: royal_vales
   parent: lethoria
   visible:
-    - The crown's house - pale stone, a great gate with the royal guard on it, and courts within courts beyond.
+    - "The crown's house: pale stone, a great gate with the royal guard on it, and courts within courts beyond."
     - A hall where petitioners wait on benches under the eye of the chamberlain's clerks; the throne room lies past doors that do not open for everyone.
   residents: {monarch: 1, chamberlain: 1, courtier: 2, royal_guard: 2}
   audience: {keeper: chamberlain, sees: [monarch]}      # (f320) the crown is seen only when admitted; the chamberlain keeps the door

@@ -228,11 +228,12 @@ GO_ON = {"and", "but", "or", "nor", "then", "yet", "so", "not", "until", "before
 BREAK_OFF = {"no", "wait", "never", "listen", "look", "forget", "nevermind"}     # (f403) a thought broken off: "I was going to... no"
 
 
-def undash(text: str) -> str:
+def undash(text: str, count: bool = True) -> str:
     """The same passage without dashes: a dash that breaks off speech is an ellipsis, one that opens a line is dropped, a pair around an
     aside are commas, one before 'and', 'but', 'then' and the like is a comma, and one before the rest of a thought is a colon (or a
     comma, when the sentence has a colon already). (f403) In speech: a stammer ("I-I") and a thought broken off ("I was going to- no")
-    are an ellipsis."""
+    are an ellipsis. (f620) count=False: a line the engine wrote, which is no repair of what a model wrote (REPAIRS is the night's
+    measure of that)."""
     if not isinstance(text, str) or not text or not ("\u2014" in text or "\u2013" in text or "--" in text or " - " in text or "\t-" in text):
         return text
     t = RANGE.sub(r"\1 to \2", text)
@@ -270,7 +271,7 @@ def undash(text: str) -> str:
     s = re.sub(r"([,;:])\s*([,;:.!?])", r"\2", s)
     s = re.sub(r"\.\.\.\s*([.,])", "...", s)
     s = re.sub(r"[ \t]{2,}", " ", s)
-    if s != text:
+    if s != text and count:
         REPAIRS["dash"] += 1
     return s
 

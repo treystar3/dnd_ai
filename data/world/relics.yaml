@@ -44,7 +44,7 @@
   level: 70
   effect: rending
   properties: [{modifies: accuracy, magnitude: 14}, {modifies: stealth, magnitude: 12}, {modifies: perception, magnitude: 10}, {modifies: evasion, trigger: in_wilderness, magnitude: 8}]
-  description: Grown, not carved - a single ironwood limb coaxed into a bow by three generations of Eldervale's bowyers. Its string makes no sound at all.
+  description: "Grown, not carved: a single ironwood limb coaxed into a bow by three generations of Eldervale's bowyers. Its string makes no sound at all."
   price: 5500000
 
 - id: frostwolf_mantle

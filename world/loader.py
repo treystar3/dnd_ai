@@ -369,7 +369,7 @@ def _load_list(path: Path, model, problems: list[str]) -> dict:
     for i, raw in enumerate(data, 1):
         label = f"{path.name} entry {i} ({raw.get('id', 'no id') if isinstance(raw, dict) else '?'})"
         try:
-            item = model(**raw)
+            item = yamlio.row(model, raw)                      # (f622) a key the model does not know is a problem
         except (ValidationError, TypeError) as e:
             details = e.errors() if isinstance(e, ValidationError) else [{"loc": (), "msg": str(e)}]
             for err in details:
@@ -548,7 +548,7 @@ def _load_towns(folder: Path, problems: list[str]) -> dict:
             problems.append(f"towns/{path.name}: should be one town's profile (a mapping starting with 'id:')")
             continue
         try:
-            t = Town(**raw)
+            t = yamlio.row(Town, raw)                           # (f622)
         except (ValidationError, TypeError) as e:
             details = e.errors() if isinstance(e, ValidationError) else [{"loc": (), "msg": str(e)}]
             for err in details:
