@@ -519,10 +519,11 @@ def _lately(scene: Scene):
     here = {pid for pid in world.places if mapview.top_of(world, pid) == top}
     public = set(L.get("public", []))
     keep = int(L.get("days", 10)) * 1440
+    played = {c.id for c in ws.characters()}                 # (f630) the scene's characters by their ids
     out = []
     for row in ws.store.journal_tail(int(L.get("rows", 150))):
         data = row.get("data") or {}
-        if row["actor"] != "player" or data.get("place") not in here or ws.minutes - row["minute"] > keep or not row["text"]:
+        if row["actor"] not in played or data.get("place") not in here or ws.minutes - row["minute"] > keep or not row["text"]:
             continue
         witnesses = [w for w in (data.get("witnesses") or []) if w]
         if row["kind"] in public:

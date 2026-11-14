@@ -34,7 +34,7 @@ told = []
 ws.narrate = lambda event, text="": told.append(event)
 with ws.operation("test", "make room"):
     ledger.begin()
-    made = ruling.make_room(ws, rule(sense="yes", needs=[{"kind": "thing", "name": "a rope ladder", "what": "left by a carter, frayed at one end"}]))
+    made = ruling.make_room(ws, ws.acting, rule(sense="yes", needs=[{"kind": "thing", "name": "a rope ladder", "what": "left by a carter, frayed at one end"}]))
 rope = objects.find(objects.here(store, here), "the rope ladder")
 check("a ruled thing is an object lying where it was made", rope is not None and rope.state == "here" and rope.place == here
       and rope.ref.startswith(f"object:{here}:"), rope)

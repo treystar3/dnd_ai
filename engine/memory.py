@@ -1,5 +1,5 @@
 """(f478) What a person remembers, typed. Every memory is one of KINDS (data/rules/memory.yaml says what each is), says whom it is about
-(subject: a character's id, "player" today; "" for no one), who it came from (source: "self" for what they saw or lived, a person's id,
+(subject: a character's id; "" for no one), who it came from (source: "self" for what they saw or lived, a person's id,
 "town", "guild"), what it is about (about: the same thing again counts up on its row instead of filling the rows) and when. keep() is the
 one way a memory is made; the store writes it and keeps every kind within its cap (storage/campaign.py _keep_row and _trim) in the same
 transaction, so nothing a person remembers grows without bound on a long campaign.
@@ -64,12 +64,12 @@ def records(store, holder: str) -> list[dict]:
 HIRE_WINDOW = 8                       # the window a hire's record carries, as the party's eight always were (engine/party.py MEMORY_KEEP)
 
 
-def hire_row(m: dict) -> dict:
-    """A hire's memory as a row: a fact the player told them is told, by the player; anything else they lived, experienced, about the
-    player. weight is importance, key is about, count is times."""
+def hire_row(m: dict, owner: str) -> dict:
+    """A hire's memory as a row, for the character who hired them (`owner`, their id): a fact that character told them is told, by
+    them; anything else they lived, experienced, about them. weight is importance, key is about, count is times."""
     told = m.get("kind") == "fact"
     return {"day": int(m.get("day", 0)), "turn": -1, "kind": "told" if told else "experienced", "importance": int(m.get("weight", 1)),
-            "text": str(m.get("text", "")), "subject": "player", "source": "player" if told else "self", "about": str(m.get("key", "")),
+            "text": str(m.get("text", "")), "subject": owner, "source": owner if told else "self", "about": str(m.get("key", "")),
             "minute": -1, "times": int(m.get("count", 1))}
 
 
@@ -91,9 +91,10 @@ def hire_window(rows: list[dict]) -> list[dict]:
     return mem
 
 
-def keep(npc, text: str, *, day: int, turn: int, kind: str = "experienced", subject: str = "player", importance: int = 1,
+def keep(npc, text: str, *, day: int, turn: int, subject: str, kind: str = "experienced", importance: int = 1,
          source: str = "", about: str = "", minute: int = -1, state: str = ""):
-    """A memory made: appended to the person's window, written as a row when they are saved (and trimmed to its kind's cap there)."""
+    """A memory made: appended to the person's window, written as a row when they are saved (and trimmed to its kind's cap there).
+    `subject`: the id of the character it is about, a person's, or "" for no one; there is no default."""
     from npc.models import Memory
     if kind not in KINDS:
         raise ValueError(f"no such kind of memory: {kind}")

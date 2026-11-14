@@ -349,9 +349,9 @@ def need_stance(member: dict, deed: str) -> str:
     return ""
 
 
-def react(member: dict, deed: str, how: str, day: int, spoke: bool = True) -> int:
+def react(member: dict, deed: str, how: str, day: int, spoke: bool = True, *, by: str) -> int:
     """Apply a reaction: bond moves, a memory is kept, the day is noted. Returns the bond change. Whether they said so is part of the memory:
-    one who kept it to themselves remembers that, not a word they never said."""
+    one who kept it to themselves remembers that, not a word they never said. `by`: the id of the character whose deed it was."""
     q = member.setdefault("quirks", {})
     q.setdefault("reacted", {})[deed] = day
     seen = q.setdefault("deeds_seen", {})
@@ -359,7 +359,7 @@ def react(member: dict, deed: str, how: str, day: int, spoke: bool = True) -> in
     delta = int(round(base * _worn(Q["habituation"]["bond_share"], seen.get(deed, 0))))      # less each time: they come to terms with it
     member["bond"] = member.get("bond", 0) + delta
     from engine import canon
-    canon.journal("deed_reaction", "player", member.get("id", ""), f"{member.get('name', '')} {'approved of' if how == 'approve' else 'minded'} {deed_text(deed)}",
+    canon.journal("deed_reaction", by, member.get("id", ""), f"{member.get('name', '')} {'approved of' if how == 'approve' else 'minded'} {deed_text(deed)}",
                   deed=deed, how=how, bond=delta, spoke=spoke)
     seen[deed] = seen.get(deed, 0) + 1
     n = seen[deed]

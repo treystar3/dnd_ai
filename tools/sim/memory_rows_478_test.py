@@ -45,7 +45,7 @@ check("...and the window still carries every defining memory first", sum(m.impor
 simlib.reset_person(store, "m478")
 n = store.load_npc("m478")
 for _ in range(3):
-    memory.keep(n, "Sold {them} a sack of seed.", day=2, turn=5, kind="experienced", about="deed:sold:seed", minute=3000)
+    memory.keep(n, "Sold {them} a sack of seed.", day=2, turn=5, kind="experienced", subject="player", about="deed:sold:seed", minute=3000)
 store.save_npc(n)
 rows = simlib.remembered(store, "m478", about="seed")
 check("the same deed three times is one row, counted three times", len(rows) == 1, rows)
@@ -55,7 +55,7 @@ check("...its count and its source (seen first hand)", times == [(3, "self")], t
 check("a deed's line keeps a slot for the one who did it, read as the stranger", store.load_npc("m478").memories[-1].text == "Sold the stranger a sack of seed."
       and memory.render("{them} laid hands on me.") == "The stranger laid hands on me.", store.load_npc("m478").memories[-1].text)
 try:
-    memory.keep(n, "x", day=1, turn=1, kind="gossip")
+    memory.keep(n, "x", day=1, turn=1, kind="gossip", subject="player")
     refused = False
 except ValueError:
     refused = True

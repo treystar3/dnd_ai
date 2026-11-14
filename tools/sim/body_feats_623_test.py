@@ -142,7 +142,7 @@ check("the table lists every kind with what its size measures, and its grammar i
 told, rolled, shown = [], [], []
 real_narrate, real_roll, real_odds = ws.narrate, checks.roll, ruling.odds
 ws.narrate = lambda event, text="": told.append(event)
-ruling.odds = lambda ws_, effect, r: rolled.append(dict(r)) or real_odds(ws_, effect, r)
+ruling.odds = lambda ws_, who, effect, r: rolled.append(dict(r)) or real_odds(ws_, who, effect, r)
 import ui.console as uc
 uc.ledger = lambda *a, **k: shown.append(str(a[0]) if a else "")
 real_reading = body.reading
@@ -284,7 +284,7 @@ def road_past(d, roll="success"):
     stub.ruling = hand(d)
     noted.clear(); rolled.clear()
     checks.roll = lambda odds, rng=None, c=None: (roll, 1)
-    ruling.odds = lambda ws_, effect, r: rolled.append(dict(r)) or real_odds(ws_, effect, r)
+    ruling.odds = lambda ws_, who, effect, r: rolled.append(dict(r)) or real_odds(ws_, who, effect, r)
     ws.get_past(dict(hz), "I keep going")
     checks.roll, ruling.odds = real_roll, real_odds
 road_past({"sense": "cost", "why": "x", "stakes": {"check": "dexterity", "hard": "fair"}, "feat": {"kind": "jump_across", "size": 30}})

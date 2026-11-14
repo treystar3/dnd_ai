@@ -470,13 +470,13 @@ class CampaignStore:
             if self._memory_typed():                 # (f479) a hire's memories are rows; the player's record carries none of them
                 for m, out in zip(player.party, body.get("party") or []):
                     if m.get("id"):
-                        self._save_hire_memories(m)
+                        self._save_hire_memories(m, player.character.id)
                     out.pop("memories", None)
                     out.pop("memories_unsaved", None)
             self._put("player", json.dumps(body, ensure_ascii=False))
             self.save_meta()
 
-    def _save_hire_memories(self, member: dict) -> None:
+    def _save_hire_memories(self, member: dict, owner: str) -> None:
         """(f479) A hire's new memories become rows under hire:<id> (the ones culled from the window before they were written too), the
         updated ones are updated in place, and every kind is held to the hire's cap."""
         from engine import memory
@@ -484,7 +484,7 @@ class CampaignStore:
         holder = f"hire:{member['id']}"
         kinds = set()
         for x in list(member.get("memories_unsaved") or []) + list(member.get("memories") or []):
-            r = memory.hire_row(x)
+            r = memory.hire_row(x, owner)
             if "id" not in x:
                 m = Memory(**{k: r[k] for k in ("day", "turn", "kind", "importance", "text", "subject", "source", "minute", "times")})
                 cur = self._db.execute("INSERT INTO npc_memory (npc_id, day, turn, kind, importance, text, subject, source, about, minute, times) "

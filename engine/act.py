@@ -58,10 +58,8 @@ Respond only with JSON matching the schema."""
 
 def request(ws, actor_id: str, T, words: str, text: str) -> str:
     from engine import checks, features, inventory, ruling, targets
-    if actor_id != ws.acting:                        # (f594) one character a scene until multiplayer M1: never another's sheet
-        raise ValueError(f"an act is ruled for the scene's own character, not {actor_id}")
-    c = ws.player.character
-    place = ws.place
+    mine = ws.player_of(actor_id)
+    c, place = mine.character, ws.world.places[mine.location]
     gear = ", ".join(i.name for i in c.equipment.values())[:200] or "nothing"
     pack = ", ".join(inventory.label(i) for i in c.inventory[:12]) or "nothing"
     abilities = ", ".join(a.name for a in c.actives[:12]) or "none"
@@ -84,17 +82,15 @@ def request(ws, actor_id: str, T, words: str, text: str) -> str:
 
 
 def means(ws, actor_id: str) -> set[str]:
-    """What the acting character can do beyond the ordinary (engine/ruling.py means_of): today the scene's one character."""
+    """What this character can do beyond the ordinary (engine/ruling.py means_of)."""
     from engine import ruling
-    return ruling.means_of(ws) if actor_id == ws.acting else set()
+    return ruling.means_of(ws, actor_id)
 
 
 def own_body(ws, actor_id: str):
-    """(f623) The acting character's body, as the body's table reads it: today the scene's one character."""
+    """(f623) This character's body, as the body's table reads it."""
     from engine import body
-    if actor_id != ws.acting:
-        raise ValueError(f"an act is judged for the scene's own character, not {actor_id}")
-    return body.of_character(ws.player.character)
+    return body.of_character(ws.player_of(actor_id).character)
 
 
 def context(ws, T) -> dict:
@@ -256,7 +252,7 @@ def kept(ws, actor_id: str, T, text: str):
     """The ruling this character was given for the same act here, if all it read is as it was; else None. Reads only: the act that
     stands on it marks it used (use)."""
     rows = ws.store.load_act_rulings().get(actor_id) or []
-    key, place, m, scene = words_key(text), ws.player.location, _means_key(ws, actor_id), _scene_key(ws, actor_id, T)
+    key, place, m, scene = words_key(text), ws.player_of(actor_id).location, _means_key(ws, actor_id), _scene_key(ws, actor_id, T)
     states = {t.ref: t.state for t in T.rows}
     for row in reversed(rows):
         if (row["key"], row["place"], row["means"], row["scene"]) != (key, place, m, scene):
@@ -272,7 +268,7 @@ def kept(ws, actor_id: str, T, text: str):
 def use(ws, actor_id: str, text: str) -> None:
     """A kept ruling stood for an act again: its days unused start over (within the act's operation)."""
     data = ws.store.load_act_rulings()
-    key, place = words_key(text), ws.player.location
+    key, place = words_key(text), ws.player_of(actor_id).location
     for row in data.get(actor_id) or []:
         if row["key"] == key and row["place"] == place:
             row["used"] = int(ws.minutes)
@@ -283,7 +279,7 @@ def keep(ws, actor_id: str, T, text: str, r) -> None:
     """Keep a ruling for this character with all it read, in place of an older one for the same act here; past per_character, or
     after days unused, the oldest go."""
     data = ws.store.load_act_rulings()
-    key, place, now = words_key(text), ws.player.location, int(ws.minutes)
+    key, place, now = words_key(text), ws.player_of(actor_id).location, int(ws.minutes)
     read = {T.get(c).ref: T.get(c).state for c in _named(r) if T.get(c)}
     rows = [x for x in data.get(actor_id) or [] if not (x["key"] == key and x["place"] == place)
             and now - int(x.get("used", x["minute"])) < int(A["kept"]["days"]) * 1440]
@@ -332,7 +328,7 @@ def validate(ws, actor_id: str, T, r, feat=None) -> Checked:
                        f"{j.kind} of {j.size:g} {body.K[j.kind]['unit']}: past what their body can do ({j.limit:g})", body=j)
     if j.how in ("effort", "fall"):
         r = body.with_effort(r, j)
-    v = ruling.verdict(ws, SimpleNamespace(sense=r.sense, requires=[], needs=r.needs, changes=[], answer=r.answer, instead=r.instead,
+    v = ruling.verdict(ws, actor_id, SimpleNamespace(sense=r.sense, requires=[], needs=r.needs, changes=[], answer=r.answer, instead=r.instead,
                                            why=r.why))
     if not v["ok"]:
         return Checked(False, r, v["answer"], v["instead"], v["why"])
@@ -347,7 +343,7 @@ def _deadly(ws, actor_id: str, j) -> bool:
     if j.how != "fall":
         return False
     from engine import body, pools
-    c = ws.player.character
+    c = ws.player_of(actor_id).character
     best = min(body.landed(j.share, degree) for degree in body.F["landing"])
     return best * pools.maximum(c, "health") >= pools.current(c, "health")
 
@@ -358,7 +354,7 @@ def warned(ws, actor_id: str, feet: float | None = None) -> bool:
     """Whether this character was warned of a deadly drop at the place they stand; with `feet`, of a drop that one is the same as."""
     from engine import body
     mark = ws.store.load_fall_warned().get(actor_id) or {}
-    return mark.get("place") == ws.player.location and (feet is None or feet >= float(mark.get("feet", 0)) * float(body.F["same_drop"]))
+    return mark.get("place") == ws.player_of(actor_id).location and (feet is None or feet >= float(mark.get("feet", 0)) * float(body.F["same_drop"]))
 
 
 def left(ws, actor_id: str) -> None:
@@ -375,7 +371,7 @@ def warn(ws, actor_id: str, v: Checked, words: str, text: str) -> None:
     from ui import console
     feet = f"{v.body.size:g}"
     data = ws.store.load_fall_warned()
-    data[actor_id] = {"place": ws.player.location, "feet": v.body.size}
+    data[actor_id] = {"place": ws.player_of(actor_id).location, "feet": v.body.size}
     ws.store.save_fall_warned(data)
     console.ledger(body.F["warned_line"].format(feet=feet))
     ws.narrate(f"THE GAME HAS DECIDED: the player goes to do what they attempt ({world_improv.what_of(words or text)}) and stops at the "
@@ -398,12 +394,12 @@ def fell(ws, actor_id: str, j, degree: str) -> str:
     drop that would is warned of and never reaches here). Returns what the narrator is told of it."""
     from engine import body, ledger, pools
     from ui import console
-    c = ws.player.character
+    c = ws.player_of(actor_id).character
     top = pools.maximum(c, "health")
     took = body.landed(j.share, degree)
     lost = max(1, round(top * took))
     c.health = max(1.0, pools.current(c, "health") - top * took)
-    ws.store.save_player(ws.player)
+    ws.store.save_player(ws.player_of(actor_id))
     left(ws, actor_id)                               # a drop made: an older warning here was of another state of things
     console.ledger(f"The fall: -{lost} health.")
     ledger.add("hurt", amount=lost, say=f"The player dropped {j.size:g} feet and was hurt by the landing ({lost} health).")
@@ -476,7 +472,7 @@ def _chain(ws, actor_id: str, T, r) -> tuple[list, list]:
             rows = [{"n": ch.n, "part": idx(ch.target), "who": idx(ch.who), "becomes": ch.becomes,
                      "because": _because(ch, r.stakes.check), "hand": r.stakes.check in A["hand_checks"], "about": idx(ch.about),
                      "needs": [n for n in ch.needs if n in {c.n for c in chs}]} for ch in chs]
-            act = {"kind": "acted", "by": actor_id, "npc": "", "witnesses": sorted(n.id for n in ws.present), "place": ws.player.location,
+            act = {"kind": "acted", "by": actor_id, "npc": "", "witnesses": sorted(n.id for n in ws.present), "place": ws.player_of(actor_id).location,
                    "coin": 0, "item": "", "count": 1, "degree": "", "words_only": False, "force_by_change": True}   # (f600) never a violent act
             ok, bad = situation_parts.ruled(store, th, act, rows, world)
             held = {c["n"] for c in ok}
@@ -574,8 +570,6 @@ def act(ws, actor_id: str, words: str, text: str) -> None:
     the world must hold made, the roll, what changed written through the game's own writers, the deed, and the telling. A no is told in
     the world's words; with no ruling, the act waits for one (never rolled unruled)."""
     from engine import targets
-    if actor_id != ws.acting:                        # (f595) one character a scene until multiplayer M1
-        raise ValueError(f"an act is played for the scene's own character, not {actor_id}")
     T = targets.targets_for(ws, actor_id)
     r = kept(ws, actor_id, T, text)
     fresh = r is None
@@ -600,7 +594,7 @@ def decide(ws, actor_id: str, T, r, fresh: bool, words: str, text: str, continui
     else:
         use(ws, actor_id, text)
     if not v.ok:
-        ruling.refuse(ws, {"answer": v.answer, "instead": v.instead, "why": v.why}, words, text)
+        ruling.refuse(ws, actor_id, {"answer": v.answer, "instead": v.instead, "why": v.why}, words, text)
         return
     if v.deadly:                                     # (f623) warned first; tried again at this place, it is made
         if warned(ws, actor_id, v.body.size):
@@ -608,7 +602,7 @@ def decide(ws, actor_id: str, T, r, fresh: bool, words: str, text: str, continui
         else:
             warn(ws, actor_id, v, words, text)
         return
-    made = make_needs(ws, v.ruling)
+    made = make_needs(ws, actor_id, v.ruling)
     resolve(ws, actor_id, T, v, words, text, made, own)
 
 
@@ -620,7 +614,7 @@ def wait(ws, actor_id: str, words: str, text: str) -> None:
     from engine import refusals, world_improv
     P_ = A["pending"]
     data = ws.store.load_act_pending()
-    key, place = words_key(text), ws.player.location
+    key, place = words_key(text), ws.player_of(actor_id).location
     rows = [x for x in data.get(actor_id) or [] if not (words_key(x["text"]) == key and x["place"] == place)]   # typed again: one act
     rows.append({"words": words, "text": text, "place": place, "minute": int(ws.minutes), "tries": 0})
     for old in rows[:-int(P_["most"])]:
@@ -641,8 +635,6 @@ def take_up(ws, actor_id: str, text: str) -> None:
     left the place, or it has waited past lapse_hours), or after its tries is told as come to nothing and counted as a ruling that
     failed. One a line. `text` is the new line, never handed the narrator for the waiting act: the act's own words are."""
     from engine import targets, world_improv
-    if actor_id != ws.acting:                        # one character a scene until multiplayer M1
-        raise ValueError(f"an act is played for the scene's own character, not {actor_id}")
     P_ = A["pending"]
     data = ws.store.load_act_pending()
     rows = data.get(actor_id) or []
@@ -651,8 +643,8 @@ def take_up(ws, actor_id: str, text: str) -> None:
     row = rows[0]
     what = world_improv.what_of(row["words"] or row["text"])
     since = int(ws.minutes) - int(row.get("minute", ws.minutes))
-    if row["place"] != ws.player.location or since > int(P_["lapse_hours"]) * 60:
-        _end(ws, actor_id, data, row, "lapsed: " + ("the character left the place" if row["place"] != ws.player.location else "it waited too long"),
+    if row["place"] != ws.player_of(actor_id).location or since > int(P_["lapse_hours"]) * 60:
+        _end(ws, actor_id, data, row, "lapsed: " + ("the character left the place" if row["place"] != ws.player_of(actor_id).location else "it waited too long"),
              f"THE GAME HAS DECIDED: what the player began earlier ({what}) was left unfinished; it came to nothing. Tell how it was left.")
         return
     T = targets.targets_for(ws, actor_id)
@@ -694,18 +686,18 @@ def _end(ws, actor_id: str, data: dict, row: dict, why: str, telling: str) -> No
     ws.narrate(telling, row["text"])
 
 
-def make_needs(ws, r) -> list[str]:
+def make_needs(ws, actor_id: str, r) -> list[str]:
     """What the world must hold for the act and does not yet (engine/ruling.py make_room), never made twice: a thing already lying
     here, or someone of that kind already here, is what was called for."""
     from engine import objects, ruling
     fresh = []
     for n in r.needs:
-        if n.kind == "thing" and objects.find(objects.here(ws.store, ws.player.location, ws.minutes), n.name) is not None:
+        if n.kind == "thing" and objects.find(objects.here(ws.store, ws.player_of(actor_id).location, ws.minutes), n.name) is not None:
             continue
         if n.kind == "person" and any(getattr(p, "epithet", "") == objects.name_of(n.name) for p in ws.present):
             continue
         fresh.append(n)
-    return ruling.make_room(ws, r.model_copy(update={"needs": fresh})) if fresh else []
+    return ruling.make_room(ws, actor_id, r.model_copy(update={"needs": fresh})) if fresh else []
 
 
 def _said(T, ch) -> str:
@@ -723,13 +715,13 @@ def resolve(ws, actor_id: str, T, v: Checked, words: str, text: str, made: list[
     from engine.domain_events import Acted
     from ui import console
     r = v.ruling
-    c = ws.player.character
+    c = ws.player_of(actor_id).character
     what = world_improv.what_of(words or text)
     rolled = not (r.sense == "yes" and not r.stakes.check)
     if not rolled:
         degree = "success"
     else:
-        odds = ruling.odds(ws, "attempt", {"check": r.stakes.check, "hard": r.stakes.hard})
+        odds = ruling.odds(ws, actor_id, "attempt", {"check": r.stakes.check, "hard": r.stakes.hard})
         degree, _ = checks.roll(odds, ws.rng, c=c)
     if degree == "strong success" and not v.enabled:
         degree = "success"
@@ -748,7 +740,7 @@ def resolve(ws, actor_id: str, T, v: Checked, words: str, text: str, made: list[
     landed = world_improv.land(ws, own or words or text, degree, no)   # (f603) what the retired path made true besides, kept
     if rolled or changes or made or landed:
         console.ledger(f"Attempt: {degree.replace('_', ' ')}")
-        ws.notice(Acted(minute=ws.minutes, place=ws.player.location, what=world_improv.what_of(own or words or text), degree=degree, by=actor_id,
+        ws.notice(Acted(minute=ws.minutes, place=ws.player_of(actor_id).location, what=world_improv.what_of(own or words or text), degree=degree, by=actor_id,
                         changes=tuple(ch.becomes for ch in changes), heat=0.0 if worked else float(F.get("heat", 0) or 0),
                         considered=tuple(t.ref for t in T.rows if t.kind == "situation")))
     seq = int((ws.store.load_world_state() or {}).get("seq") or 0)
@@ -801,13 +793,13 @@ def fail(ws, actor_id: str, T, r, F: dict, health: bool = True) -> str:
     """What a failure costs (act.yaml fails): time, health, the thing relied on broken. Returns what the narrator is told of it.
     (f623) `health` False: a fall has already taken what the landing cost."""
     from engine import objects, pools
-    c = ws.player.character
+    c = ws.player_of(actor_id).character
     ws.advance(int(F.get("minutes", 0) or 0))
     out = ""
     if health and F.get("health_pct"):
         top = pools.maximum(c, "health")
         c.health = max(1.0, pools.current(c, "health") - top * float(F["health_pct"]) / 100)
-        ws.store.save_player(ws.player)
+        ws.store.save_player(ws.player_of(actor_id))
     if F.get("breaks"):
         for u in r.uses:
             t = T.get(u)
@@ -909,5 +901,5 @@ def part_rows(scode: str, chs, check: str = "") -> list[dict]:
 
 def acted(ws, actor_id: str, degree: str = "success", seq: int = 0) -> dict:
     """The act an attempt was, to a situation's rules."""
-    return {"kind": "acted", "by": actor_id, "npc": "", "witnesses": sorted(n.id for n in ws.present), "place": ws.player.location,
+    return {"kind": "acted", "by": actor_id, "npc": "", "witnesses": sorted(n.id for n in ws.present), "place": ws.player_of(actor_id).location,
             "coin": 0, "item": "", "count": 1, "degree": degree, "words_only": False, "seq": seq or None, "force_by_change": True}

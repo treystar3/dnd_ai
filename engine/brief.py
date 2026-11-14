@@ -96,10 +96,10 @@ def promise_kept(text: str) -> str:
 def pronoun(ws, char_id: str) -> str:
     """The character's pronoun, as the one in front of a speaker: theirs, by id."""
     from engine import truth
-    for c in getattr(ws, "characters", lambda: [ws.player.character])():
+    for c in ws.characters():
         if c.id == char_id:
             return truth.player_pronoun(c)
-    return truth.player_pronoun(ws.player.character)
+    raise ValueError(f"this scene holds no character {char_id!r}")   # (f630) refused, never answered with another's
 
 
 def page(log: list, profile: str = "hire") -> None:

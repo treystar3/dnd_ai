@@ -52,9 +52,9 @@ recall = next(iter(ws.player.character.actives), None)
 if recall is not None:
     was = recall.field_use
     recall.field_use = "word_of_recall"
-    check("word of recall grants teleport", "teleport" in ruling.means_of(ws))
+    check("word of recall grants teleport", "teleport" in ruling.means_of(ws, ws.acting))
     recall.field_use = "revivify"
-    check("...and revivify raising the dead", "raise_dead" in ruling.means_of(ws))
+    check("...and revivify raising the dead", "raise_dead" in ruling.means_of(ws, ws.acting))
     recall.field_use = was
 else:
     check("word of recall grants teleport (an ability to try it on)", False)
