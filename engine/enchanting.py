@@ -48,9 +48,7 @@ def _material_options() -> dict[str, Option]:
 def _general_options() -> dict[str, Option]:
     out = {}
     for g in RULES["general"]:
-        out[g["id"]] = Option(id=g["id"], name=g["name"], suffix=g["suffix"], applies=g["applies"],
-                              fee_multiplier=g.get("fee_multiplier", 1.0),
-                              effects=[ItemProperty(**e) for e in g["effects"]])
+        out[g["id"]] = yamlio.row(Option, g, "enchanting.yaml general")      # (f622) the row whole: built field by field, a misspelt key was dropped
     return out
 
 

@@ -26,11 +26,11 @@
 - {line: "I throw my cloak over the guard's head, grab his keys and run before he gets it off.", at: trading_square, expect: "cost", needs: [person]}
 
 # ---------- several steps, one of them past this world: no ----------
-- {line: "I stand on a crate, tell the whole market of a dragon's hoard in the caves, and lead them all down there to share it.", at: trading_square, expect: "no", bounded: true}   # (f610) a tale told, not followed
+- {line: "I stand on a crate, tell the whole market of a dragon's hoard in the caves, and lead them all down there to share it.", at: trading_square, expect: "no", kind: claim}   # (f610, f616) a tale told, not followed
 - {line: "I dig a tunnel under the guild hall tonight and come up inside the vault.", at: trading_square, expect: "no"}
 - {line: "I gather driftwood, build a ship on the beach and sail out past the reef before the tide turns.", at: tidepool_caves, expect: "no"}
-- {line: "I howl until the wolf pack accepts me as their leader, then send them to hunt the bandits.", at: greywood, expect: "no"}
-- {line: "I sing to the merchant so beautifully that he weeps, and then he signs his shop over to me.", at: trading_square, expect: "no"}
+- {line: "I howl until the wolf pack accepts me as their leader, then send them to hunt the bandits.", at: greywood, expect: "no", kind: claim}   # (f616)
+- {line: "I sing to the merchant so beautifully that he weeps, and then he signs his shop over to me.", at: trading_square, expect: "no", kind: claim}   # (f616)
 - {line: "I fill my pockets with sea water, turn it into silver with a word, and pay off my debts.", at: tidepool_caves, expect: "no"}
 
 # ---------- what the character can do decides the whole of it ----------

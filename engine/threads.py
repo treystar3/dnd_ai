@@ -51,11 +51,11 @@ def fill(text: str, words: dict) -> str:
 
 
 def clause(description: str, rng: random.Random) -> str:
-    """One clause of a pressure's description, as the thing that is happening: 'Caravan trouble - a caravan is delayed, robbed or lost'
+    """One clause of a pressure's description, as the thing that is happening: 'Caravan trouble: a caravan is delayed, robbed or lost'
     gives 'a caravan is robbed' or the like."""
     text = description.strip()
-    if " - " in text:
-        text = text.split(" - ", 1)[1]
+    if ": " in text:                                            # (f621) the head ends at a colon: the whole line is told too, so no dash
+        text = text.split(": ", 1)[1]
     text = text.split(". ")[0].rstrip(".")
     bits = [b.strip().rstrip(".") for b in _SPLIT.split(text) if len(b.strip()) >= 12]
     pick = rng.choice(bits) if bits else text

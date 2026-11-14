@@ -15,9 +15,19 @@ A case may carry what it needs in the world (f601): `objects` lying where it is,
 act's ruling sees them), `pack` goods in the pack (both see them), a `situation` with parts ({tier, people: [{here, stake, want, against}],
 conditions: [{kind, label, by, by_kind, place}]}). Its line may name the situation's people as {person:<n>}; its `model` may name targets as
 @object:<word>, @condition or @person:<n>; `moves` says, for each target named so, what the act should leave it as: a word, a list of
-fair words (false among them: untouched too), {not: words}, or false (untouched). `bounded: true` on a line the corpus expects a no
-for: on the act's path a cost that says what it comes to (`works`) and changes and makes nothing is fair too, its success going no
-further than that (f609); the old ruling, whose success has no bound, is held to the no.
+fair words (false among them: untouched too), {not: words}, or false (untouched).
+
+(f616) A case may say what kind of act it is (`kind`, one of KINDS), and its kind decides what is fair. A `claim` is an act whose words
+claim more than saying them could bring about (a title claimed, a crowd commanded, a person persuaded past reason): the corpus expects
+a no, and on the act's path a yes or a cost that is bounded is right too, since its success goes no further than what it says it
+comes to (`works`, f609) and it changes and makes nothing. The old ruling, whose success has no bound, is held to the no.
+
+(f615) A case file with a line that repeats an example either ruling's prompt gives of a verdict (its `sense` lines: what is a yes,
+a cost, a no) is refused, naming the line and the example: the corpus scores the verdict, so such a line scores the prompt. A line
+repeats an example when it shares two or more content words with it, however the words are bent; an example of one word names a kind
+of act (climbing), which the corpus is free to hold. The check is of words: a line that says the same in other words passes, and the
+prompt's other examples (how to name a thing, what a change looks like) and the lists every request carries (capabilities, changes)
+are the game's vocabulary, not examples of a verdict.
 
 GOAL.md: "Investigate further into the cave" is met with more cave. "I grow wings and fly away" is not."""
 from __future__ import annotations
@@ -25,6 +35,7 @@ from __future__ import annotations
 import argparse
 import os
 import random
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -37,8 +48,102 @@ CASES = ROOT / "data" / "replay" / "ruling_cases.yaml"
 PATHS = ("old", "new")
 
 
+KINDS = ("claim",)                                   # (f616) the kinds of act a case may say it is; each has its rule in side()
+
+
 def load(path=CASES) -> list[dict]:
     return yaml.safe_load(Path(path).read_text(encoding="utf-8")) or []
+
+
+def problems(cases: list[dict]) -> list[str]:
+    """(f616) What is wrong with a case file as a file: a kind this tool has no rule for, or a kind that contradicts what it expects."""
+    out = []
+    for c in cases:
+        if "kind" in c and c["kind"] not in KINDS:
+            out.append(f"\"{c['line']}\": kind {c['kind']!r} is not one of {', '.join(KINDS)}")
+        if c.get("kind") == "claim" and c.get("expect") != "no":
+            out.append(f"\"{c['line']}\": a claim expects a no (a bounded yes or cost is then right too)")
+        if "bounded" in c:
+            out.append(f"\"{c['line']}\": `bounded` is now the case's kind (kind: claim)")
+    return out
+
+
+# (f615) The small words of the language, which say nothing of what an act is: never counted as shared.
+SMALL = frozenset("""the and but for nor yet from with without into onto over under down off out all any one what which who whom whose that
+this these those they them their there here then than when where while have has had does did done can could will would may might must shall
+should are was were been being its his her him she you your our come comes came get gets got try tries""".split())
+# ...and the verbs whose past is another word, each as its plain form.
+BENT = {"made": "make", "broke": "break", "broken": "break", "lit": "light", "won": "win", "sat": "sit", "swam": "swim", "swum": "swim",
+        "dug": "dig", "ran": "run", "went": "go", "gone": "go", "took": "take", "taken": "take", "gave": "give", "given": "give",
+        "said": "say", "told": "tell", "found": "find", "held": "hold", "left": "leave", "lost": "lose", "brought": "bring",
+        "bought": "buy", "sold": "sell", "thought": "think", "caught": "catch", "threw": "throw", "thrown": "throw", "stole": "steal",
+        "stolen": "steal", "hid": "hide", "hidden": "hide", "rose": "rise", "risen": "rise", "fell": "fall", "fallen": "fall",
+        "drew": "draw", "drawn": "draw", "sang": "sing", "sung": "sing", "spoke": "speak", "spoken": "speak", "wrote": "write",
+        "written": "write", "flew": "fly", "flown": "fly", "grew": "grow", "grown": "grow", "knew": "know", "known": "know",
+        "saw": "see", "seen": "see", "ate": "eat", "eaten": "eat", "drank": "drink", "drunk": "drink", "built": "build",
+        "sent": "send", "kept": "keep", "slept": "sleep", "fought": "fight", "stood": "stand", "struck": "strike", "woke": "wake"}
+
+
+def stems(text: str) -> set[str]:
+    """The content words of a text, each cut to its stem: summoning and summon, conjuring and conjure, digging and dig, made and make."""
+    out = set()
+    for w in re.findall(r"[a-z]+", text.lower()):
+        w = BENT.get(w, w)
+        if len(w) < 3 or w in SMALL:
+            continue
+        for end in ("ing", "ed", "es", "s"):
+            if w.endswith(end) and len(w) - len(end) >= 3:
+                w = w[:-len(end)]
+                if len(w) > 3 and w[-1] == w[-2] and w[-1] not in "aeiouls":    # digging, barred, sitting: the doubled letter
+                    w = w[:-1]
+                break
+        out.add(w[:-1] if w.endswith("e") and len(w) > 3 else w)
+    return out
+
+
+def examples(prompt: str) -> list[str]:
+    """The examples a prompt gives of a verdict: what stands in brackets in its `sense` lines, each item of each list."""
+    m = re.search(r"\n\s*sense:(.*?)\n\s*why:", prompt, re.S)
+    return [x.strip() for group in re.findall(r"\(([^()]*)\)", " ".join(m.group(1).split()) if m else "") for x in group.split(",") if x.strip()]
+
+
+def prompts() -> dict[str, str]:
+    """The prompts the corpus measures a model under: the act's one ruling, and the road's."""
+    from engine import act, ruling
+    return {"the act's ruling": act.SYSTEM, "the road's ruling": ruling.SYSTEM}
+
+
+def taught(cases: list[dict], under: dict[str, str] | None = None) -> list[tuple[str, str, str]]:
+    """(f615) The lines that repeat a prompt's example of a verdict, each (line, prompt, example): two or more content words shared."""
+    out = []
+    for name, prompt in (prompts() if under is None else under).items():
+        marks = [(ex, stems(ex)) for ex in examples(prompt)]
+        for c in cases:
+            have = stems(c["line"])
+            out += [(c["line"], name, ex) for ex, st in marks if len(st & have) >= 2]
+    return out
+
+
+class Dry:
+    """(f619) The scene as the engine's writers may read it, for a dry run: its people the store's own copies (never the scene's), and
+    nothing saved. A store call it does not know stops the run, so a write added to a writer cannot slip into the measure's world."""
+    READS = frozenset({"npc_exists", "load_npc", "meta"})
+    WRITES = frozenset({"save_npc", "set_memory_state"})
+
+    class Store:
+        def __init__(self, store):
+            self._store = store
+
+        def __getattr__(self, name):
+            if name in Dry.WRITES:
+                return lambda *a, **k: None
+            if name in Dry.READS:
+                return getattr(self._store, name)
+            raise AttributeError(f"the dry run met a store call it does not know ({name}): say in tools/ruling_eval.py Dry whether it reads or writes")
+
+    def __init__(self, ws):
+        self.minutes, self.world, self.player, self.acting, self.present = ws.minutes, ws.world, ws.player, ws.acting, list(ws.present)
+        self.store = Dry.Store(ws.store)
 
 
 class Bench:
@@ -212,17 +317,42 @@ class Bench:
         return ActRuling.model_validate({"answer": "x", **m}, context=act.context(self.ws, T))
 
     def moved(self, case: dict, T, v) -> bool | None:
-        """(f601) Whether what the act's kept changes leave each named target as is what the case says (by target, never by the ruling's
-        own numbering, so a live ruling is measured too); None when the case says nothing of it."""
+        """(f601) Whether what the act leaves each named target as is what the case says (by target, never by the ruling's own numbering,
+        so a live ruling is measured too): (f619) its kept changes and what follows from them, which is the engine's to say and no
+        ruling's. None when the case says nothing of it."""
         if "moves" not in case:
             return None
         kept = v.ruling.changes if v.ok else []
+        after = self.follows(T, v) if kept else {}
         for name, want in case["moves"].items():
             code = self.resolve(name, T)
-            got = {ch.becomes for ch in kept if (T.get(ch.target) and T.get(ch.target).code) == code}
+            got = {ch.becomes for ch in kept if (T.get(ch.target) and T.get(ch.target).code) == code} | after.get(code, set())
             if not fair(want, got):
                 return False
         return True
+
+    def follows(self, T, v) -> dict[str, set]:
+        """(f619) What would follow from the act's kept changes were it to succeed, by target: the engine's own writers
+        (situation_parts.keep_changes, follow) run on a copy of each situation with a scene that never writes (Dry)."""
+        import copy
+        from engine import act, situation_parts
+        state = copy.deepcopy(self.store.load_world_state() or {})
+        dry = Dry(self.ws)
+        sits: dict[str, list] = {}
+        for ch in v.ruling.changes:
+            t = T.get(ch.target)
+            if t is not None and t.code.startswith("s") and "." in t.code:
+                sits.setdefault(t.code.split(".")[0], []).append(ch)
+        out: dict[str, set] = {}
+        for scode, chs in sits.items():
+            th = next((x for x in state.get("threads", []) if x["id"] == T.get(scode).ref), None)
+            if th is None:
+                continue
+            situation_parts.keep_changes(dry, state, th, act.acted(self.ws, self.ws.acting), act.part_rows(scode, chs, v.ruling.stakes.check))
+            for i, word in situation_parts.follow(dry.store, state, th, self.ws.minutes):
+                if word:
+                    out.setdefault(f"{scode}.{i + 1}", set()).add(word)
+        return out
 
     def offline(self, case: dict, path: str = "old"):
         """What the engine makes of the case's own ruling: 'yes' or 'no', and on the new path whether its changes do what the case says
@@ -262,10 +392,10 @@ class Bench:
         return r, ("yes" if ruling.verdict(self.ws, r)["ok"] else "no"), None
 
     def bounded(self, case: dict) -> bool:
-        """(f610) Whether the act's ruling just made is a bounded cost the case allows: it stands, says what it comes to, and changes and
-        makes nothing (a need that stands is made real before the roll)."""
+        """(f610, f616) Whether the act's ruling just made is bounded, on a case whose kind allows that (a claim): it stands, as a yes or
+        a cost, says what it comes to, and changes and makes nothing (a need that stands is made real before the roll)."""
         v = self.last
-        return bool(case.get("bounded") and v is not None and v.ok and v.ruling.sense == "cost" and (v.ruling.works or "").strip()
+        return bool(case.get("kind") == "claim" and v is not None and v.ok and (v.ruling.works or "").strip()
                     and not v.ruling.changes and not v.ruling.needs)
 
     def close(self) -> None:
@@ -356,8 +486,10 @@ def side(b: Bench, c: dict, path: str, live: bool, tally: Tally) -> str:
         out = b.offline(c, path)
         got, moves_ok = (out if path == "new" and out is not None else (out, None))
         shown = got or "-"
-    if path == "new" and want == "no" and got == "yes" and b.bounded(c):   # (f610) a success no further than its ruling: fair here
+    if path == "new" and want == "no" and got == "yes" and b.bounded(c):   # (f610, f616) a claim, its success no further than its ruling
         want, shown = "yes", f"{b.last.ruling.sense}, bounded"
+    if path == "new" and got == "yes" and getattr(b.last, "without", ""):  # (f618) done without a power, on what stands in for it
+        shown += f", without {b.last.without}"
     known, retire = tally.known, tally.retire
     ok = tally.add(want, got, needs_ok, moves_ok, known=bool(c.get("known")) and path == "new")   # (f601) the gap is the act engine's
     shown += {True: ", moves ok", False: ", moves WRONG"}.get(moves_ok, "") + (", needs missed" if needs_ok is False else "")
@@ -375,6 +507,12 @@ def main() -> int:
     runtime_cli.add_args(ap)
     a = ap.parse_args()
     cases = load(a.cases)
+    found = taught(cases)                                       # (f615) a line that repeats a prompt's example scores the prompt
+    wrong_file = problems(cases) + [f"\"{line}\" repeats an example of {name}'s prompt (\"{ex}\")" for line, name, ex in found]
+    if wrong_file:
+        for x in wrong_file:
+            print(f"REFUSED {a.cases}: {x}", file=sys.stderr)
+        return 2
     paths = PATHS if a.path == "both" else (a.path,)
     server = runtime_cli.load(a) if a.live else None            # (f529) the game's own server, as the game starts it
     b = Bench(live=a.live, source=server.source if server is not None else None,

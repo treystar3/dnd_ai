@@ -28,7 +28,7 @@
 - {id: wolf_meat,    name: wolf meat,    kind: food, mass: true, price: 12, stack: 10, drops_from: [wolf, dire_wolf, worg, winter_wolf],
    feeds: 35, restores: {health: 6, stamina: 8}, description: "Tough, gamey meat; better stewed than roasted."}
 - {id: hearty_meal,  name: hearty meal,  kind: food, price: 30, stack: 5, feeds: 60, restores: {stamina: 20, health: 10},
-   description: "Meat seared over a fire with whatever the pack had to spare - a proper meal, hot and filling."}
+   description: "Meat seared over a fire with whatever the pack had to spare: a proper meal, hot and filling."}
 
 - {id: healing_draught, name: healing draught, kind: consumable, price: 150, stack: 5, combat: true,
    restores: {health: 30}, description: "A bitter green draught that knits wounds closed."}

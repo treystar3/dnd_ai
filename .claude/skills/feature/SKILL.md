@@ -7,7 +7,8 @@ description: Use when building or changing anything in Meravia (a numbered fNNN 
 1. **Number it.** The next number after the highest fNNN in `git log` (the session start prints it).
 2. **Pillar.** Name the GOALS.md pillar(s) it serves, in one line. If it pulls against a goal or an owner's decision, stop and ask.
 3. **Read before writing.** Read the modules you will touch and their tests in `tools/sim` (search the test names for the module).
-   Prefer infrastructure over a narrator rule (GOALS.md "How it is built").
+   Prefer infrastructure over a narrator rule (GOALS.md "How it is built"). Name the class of cases the change covers, never one
+   scene: if the only fix you can see is a special case, a prompt line or a corpus edit, stop and find the system underneath, or ask.
 4. **Plan.** For anything over ~50 lines or touching more than two modules: write the plan (files, data, tests) and wait for approval.
 5. **Test first.** Add `tools/sim/<name>_<NNN>_test.py` in the house style (plain script, simlib stub, `check(...)`, exit 1 on failure).
    Run it and see it fail for the right reason.

@@ -21,6 +21,8 @@ touch the systems you change (search the table). If a request pulls against a go
 - Never put the dash character in story text; no length limits on narrator or speakers (owner's rules).
 
 ## Don't
+- Don't patch one scenario (a special case, a prompt line, a corpus entry so a measure passes): build what covers every case of its
+  kind, and test it on a case other than the one that found it (GOALS.md "Infrastructure over patches", checklist item 4).
 - Don't re-record a golden to make a test pass. Don't edit data/measured by hand. Don't add rules to narrator prompts where engine
   infrastructure would do (GOALS.md "Infrastructure over patches").
 - Comments: one short `(fNNN)` line of why. The history belongs in the commit, not the code.

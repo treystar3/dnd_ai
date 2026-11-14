@@ -23,3 +23,40 @@ reasons:
   broken: "a character came out broken: write the passage again in plain letters"
   template: "a tag of the chat template or of your own thinking (<start_of_turn>, <think>, <|channel|>) is machinery, not the story: write the plain words"   # (f527) llama-server's template and thinking tokens, should one ever leak past the parser
   stage: "a stage direction in round brackets is a script's, not a line: what they do is the gesture, what they say is the speech"   # (f449) mended on the way to the screen, never sent back
+
+# THE WORDS THAT STAND IN data/ (f621, engine/data_check.py data_words_problems). The owner's rule is no dash in the story, and a
+# model copies the dashes it is handed: most of what it was handed with one stood here (a place's lines, lore, a road, a role). So
+# every string in data/ is TOLD AS TRUE and holds no dash, unless its file and key are declared below as one of four other things:
+#   label      a line of the game's own panes and lists (f413: the game's notes keep their dashes)
+#   rule       a rule or a brief written for a model, not words of the world
+#   structure  marks the engine reads
+#   note       an author's note; no model and no player sees it
+# Told is the default: a new file or a new key is held at startup without being added here. A key covers itself and all under it,
+# named alone or as a dotted run of the keys down to it. An entry whose file or key is gone is refused; one that no longer holds a
+# dash is taken off (tools/sim/data_words_621_test.py).
+data_words:
+  skip: [measured, replay]            # what a tool measured; recordings of what was once sent
+  not_told:
+    rules/brief.yaml:
+      townsfolk.promise.clause_ends: structure   # the marks a promise's clause is cut at: the dashes themselves
+    rules/ability_slots.yaml: {depict: rule, effects: rule}     # what an ability's maker must show
+    rules/healing.yaml: {depict: rule}
+    rules/summons.yaml: {depict: rule}
+    rules/moments.yaml: {brief: rule}                           # a moment's brief to the narrator
+    rules/party.yaml: {frame: rule}                             # what a hire's gesture may be
+    rules/severity.yaml: {register: rule, silent_rule: rule, in_fight: rule}
+    rules/speech.yaml: {tells: rule}
+    rules/triggers.yaml: {condition: rule}                      # what a reading is matched against
+    rules/accessories.yaml: {flavor: rule, power.text: label}
+    world/mentor.yaml: {frame.shows: rule}
+    world/banter.yaml: {director.read_words: rule}
+    world/peoples.yaml: {naming_style: rule}                    # how a people's names are made
+    rules/stats.yaml: {covers: label}
+    rules/field.yaml: {blurb: label}
+    rules/ability_traits.yaml: {text: label}
+    rules/legendary_effects.yaml: {description: label}
+    rules/movement.yaml: {does: label}
+    rules/passive_mechanics.yaml: {text: label}
+    rules/spellcraft.yaml: {text: label}
+    rules/property.yaml: {text: label}
+    world/bestiary.yaml: {notes: note}

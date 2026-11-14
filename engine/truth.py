@@ -41,6 +41,10 @@ class Fact:
     known: frozenset = frozenset({"all"})
     id: str = ""
 
+    def __post_init__(self):
+        from engine import hygiene
+        self.text = hygiene.undash(self.text, count=False)             # (f620) every reader is handed it as true: no dash to copy, whatever facet built it
+
 
 @dataclass
 class Present:
@@ -205,7 +209,8 @@ class View:
                 out.append(f"{who}: {p.desc}".strip().rstrip(":"))
             else:
                 out.append(f"{p.label}: {p.desc} {p.doing}".strip())
-        return out
+        from engine import hygiene
+        return [hygiene.undash(x, count=False) for x in out]           # (f620) as a fact is
 
     def streets(self) -> list[str]:
         """The crowd, the watch and the quarters: the lines of WHERE that are not the place's own description."""

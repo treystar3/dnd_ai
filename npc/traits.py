@@ -56,7 +56,7 @@ def load_traits(path: Path = TRAITS_PATH) -> TraitCatalog:
     raw = yamlio.safe_load(path.read_text(encoding="utf-8"))
     traits, problems = {}, []
     for entry in raw:
-        t = Trait(**entry)
+        t = yamlio.row(Trait, entry, path.name)                  # (f622) no key the model does not know
         if t.id in traits:
             problems.append(f"duplicate trait '{t.id}'")
         traits[t.id] = t

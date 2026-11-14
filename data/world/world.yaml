@@ -27,7 +27,7 @@ knowledge_groups:
   merchants: Traveling traders and caravan folk.
   nobility: Noble houses and those who serve inside them.
   mages: Trained mages.
-  scholars: The learned - archivists, sages, some priests.
+  scholars: "The learned: archivists, sages, some priests."
   willowmead_locals: People of Willowmead and its farms.
   greyhollow_locals: People of Greyhollow and the northern hills.
   eldervale_locals: People of Eldervale and the Blackpine.
@@ -68,7 +68,7 @@ biomes:
   urban: Towns and villages.
   primeval: Lost lands where prehistoric beasts survive.
   cracked_plains: A shattered wasteland where fiends are said to wage their wars.
-  volcanic: Ash plains, lava fields, calderas and cinder - land still being made.
+  volcanic: "Ash plains, lava fields, calderas and cinder: land still being made."
   highpeaks: Storm-wracked peaks above the cloud line, where giants keep their halls.
   deep_underground: Lightless caverns and vaults far beneath the dwarven roads, older than any kingdom.
   drowned: A sunken coast of reefs, wrecks and drowned halls, half sea and half land.

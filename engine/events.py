@@ -612,7 +612,10 @@ def read_end(ws, state, th, how: str = "by what was done", at_limit: bool = Fals
     """(f598) Read the situation's end from the world (situation_parts.reading); when it is over, end it the one way, by how it ended.
     Returns whether it ended. The caller saves `state`."""
     from engine import situation_parts
-    if th.get("status") != "active" or not th.get("heart") or not situation_parts.touched(th):
+    if th.get("status") != "active" or not th.get("heart"):
+        return False
+    situation_parts.follow(ws.store, state, th, ws.minutes)   # (f619) what follows from the world is said before it is read
+    if not situation_parts.touched(th):
         return False                                     # one nobody touched keeps the old roll (the owner)
     r = situation_parts.reading(ws.store, ws.world, state, th, ws.minutes, at_limit=at_limit)
     if not r.over:
@@ -630,8 +633,10 @@ def read_ends(ws) -> bool:
     state = ws.store.load_world_state()
     if not state:
         return False
+    from engine import situation_parts
     ended = False
     for th in [x for x in state.get("threads", []) if x.get("status") == "active" and x.get("heart")]:
+        ended |= bool(situation_parts.follow(ws.store, state, th, ws.minutes))   # (f619) what followed is saved, ended or not
         ended |= read_end(ws, state, th, "", at_limit=bool(th.get("read_due")))
     if ended:
         ws.store.save_world_state(state)

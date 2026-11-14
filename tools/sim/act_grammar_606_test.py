@@ -144,7 +144,7 @@ part = (by_kind.get("part") or [None])[0]
 fair = [good,
         {"sense": "cost", "why": "steel", "works": "They give up.", "stakes": {"check": "strength", "hard": "fair"}, "fail": "hurt",
          "changes": [{"n": 1, "target": who, "becomes": "surrenders", "who": who, "because": "force"}]},
-        {"sense": "no", "why": "no power for it", "answer": "The looters laugh as nothing happens.", "fail": "hurt"},
+        {"sense": "no", "why": "no power for it", "answer": "The looters laugh as nothing happens.", "fail": "hurt", "requires": []},
         {"sense": "yes", "why": "simply done", "works": "It is moved.", "uses": [obj], "fail": "noticed", "changes": [{"n": 1, "target": obj, "becomes": "moved",
                                                                                            "because": "skill"}]}]
 if part:
