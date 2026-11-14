@@ -1,0 +1,520 @@
+{
+ "logs": [
+  "base2/live_check_calls.jsonl.gz",
+  "base2/play_hunter/llm_calls.jsonl.gz",
+  "base2/play_talker/llm_calls.jsonl.gz"
+ ],
+ "tasks": {
+  "narrate": {
+   "passages": 47,
+   "words": 5192,
+   "phrases_per_k": 1.733,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.128,
+   "worn_count": 10,
+   "worn_per_k": 12.904,
+   "stock_per_k": 0.193,
+   "top_phrases": [
+    "a few paces away the",
+    "along the perimeter of the",
+    "boar hide gloves as you",
+    "desk near the contract board",
+    "inside the air smells of",
+    "overcast sky casts an even",
+    "the center of the path",
+    "the overcast sky casts an"
+   ],
+   "top_sentences": [],
+   "top_openings": [
+    "the overcast sky",
+    "the birch grove"
+   ],
+   "top_worn": [
+    "heavy",
+    "slight",
+    "steady",
+    "flat",
+    "rhythmic",
+    "sharp",
+    "pale",
+    "small"
+   ]
+  },
+  "combat_opening": {
+   "passages": 12,
+   "words": 1751,
+   "phrases_per_k": 11.422,
+   "sentences_per_k": 0.571,
+   "openings_share": 0.333,
+   "worn_count": 2,
+   "worn_per_k": 5.711,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "through the soles of your",
+    "soles of your iron sabatons",
+    "the soles of your iron",
+    "vibrates through the soles of",
+    "a low hiss cuts through",
+    "a low rumble vibrates through",
+    "dead tree leans at a",
+    "does not charge instead it"
+   ],
+   "top_sentences": [
+    "a low rumble vibrates through the soles of your iron sabatons"
+   ],
+   "top_openings": [
+    "you turn your",
+    "you push deeper"
+   ],
+   "top_worn": [
+    "sharp",
+    "dull"
+   ]
+  },
+  "combat_narrate": {
+   "passages": 24,
+   "words": 3735,
+   "phrases_per_k": 19.813,
+   "sentences_per_k": 0.268,
+   "openings_share": 0.5,
+   "worn_count": 3,
+   "worn_per_k": 3.481,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "alwick thrusts his staff forward",
+    "blade bites deep into the",
+    "bronze longsword in a wide",
+    "the blade bites deep into",
+    "a dull thud that sends",
+    "a lance of pure force",
+    "a surge of heat travels",
+    "and drives both daggers home"
+   ],
+   "top_sentences": [
+    "alwick thrusts his staff forward again"
+   ],
+   "top_openings": [
+    "you move toward",
+    "you swing your",
+    "you pivot your",
+    "you lunge forward",
+    "you swing the"
+   ],
+   "top_worn": [
+    "heavy",
+    "invisible",
+    "simultaneously"
+   ]
+  },
+  "combat_aftermath": {
+   "passages": 17,
+   "words": 2492,
+   "phrases_per_k": 24.077,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.235,
+   "worn_count": 7,
+   "worn_per_k": 16.854,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "a few paces back his",
+    "stands a few paces back",
+    "gran stands a few paces",
+    "few paces back his bow",
+    "as he lowers his staff",
+    "of steam rises from the",
+    "steam rises from the open",
+    "they do not speak the"
+   ],
+   "top_sentences": [],
+   "top_openings": [
+    "alwick leans his",
+    "the drake lies"
+   ],
+   "top_worn": [
+    "heavy",
+    "steady",
+    "dull",
+    "pale",
+    "sharp",
+    "faint",
+    "small"
+   ]
+  },
+  "exchange": {
+   "passages": 74,
+   "words": 3243,
+   "phrases_per_k": 8.942,
+   "sentences_per_k": 0.925,
+   "openings_share": 0.338,
+   "worn_count": 4,
+   "worn_per_k": 9.251,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "it is just a scratch",
+    "odo i brought someone along",
+    "afternoon maren hello again odo",
+    "good afternoon maren hello again",
+    "i must see wound now",
+    "afternoon maren afternoon odo i",
+    "afternoon maren i see you",
+    "afternoon odo i brought someone"
+   ],
+   "top_sentences": [
+    "i must see wound now",
+    "i see you have someone with you today"
+   ],
+   "top_openings": [
+    "good afternoon maren",
+    "it is just",
+    "these stone houses",
+    "these houses look",
+    "the cut on"
+   ],
+   "top_worn": [
+    "heavy",
+    "steady",
+    "properly",
+    "regardless"
+   ]
+  },
+  "dialogue_frame": {
+   "passages": 105,
+   "words": 5613,
+   "phrases_per_k": 14.609,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.305,
+   "worn_count": 14,
+   "worn_per_k": 26.367,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "the dust kicked up by",
+    "his head back against the",
+    "adjusts the strap of his",
+    "against the timber frame of",
+    "back against the timber frame",
+    "closes his eyes for a",
+    "dust kicked up by a",
+    "dust kicked up by the"
+   ],
+   "top_sentences": [],
+   "top_openings": [
+    "bram shifts his",
+    "gorz shifts his",
+    "bram leans back",
+    "you lean your",
+    "bram leans his"
+   ],
+   "top_worn": [
+    "gaze",
+    "slight",
+    "heavy",
+    "steady",
+    "rough",
+    "flat",
+    "slow",
+    "small"
+   ]
+  },
+  "npc_conversation": {
+   "passages": 39,
+   "words": 1321,
+   "phrases_per_k": 0.0,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.128,
+   "worn_count": 1,
+   "worn_per_k": 3.028,
+   "stock_per_k": 0.0,
+   "top_phrases": [],
+   "top_sentences": [],
+   "top_openings": [
+    "you are welcome",
+    "it isn't just"
+   ],
+   "top_worn": [
+    "folk"
+   ]
+  },
+  "hire_chat": {
+   "passages": 80,
+   "words": 1400,
+   "phrases_per_k": 1.429,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.062,
+   "worn_count": 2,
+   "worn_per_k": 9.286,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "for some steady pay that",
+    "looking for some steady pay"
+   ],
+   "top_sentences": [],
+   "top_openings": [
+    "i am from",
+    "he was just"
+   ],
+   "top_worn": [
+    "steady",
+    "folk"
+   ]
+  },
+  "mentor_chat": {
+   "passages": 15,
+   "words": 515,
+   "phrases_per_k": 3.883,
+   "sentences_per_k": 1.942,
+   "openings_share": 0.467,
+   "worn_count": 0,
+   "worn_per_k": 0.0,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "about three quarters of the",
+    "three quarters of the time"
+   ],
+   "top_sentences": [
+    "i'm at rank a"
+   ],
+   "top_openings": [
+    "it's mostly about",
+    "i've seen enough",
+    "i'm at rank"
+   ],
+   "top_worn": []
+  }
+ },
+ "steady": {
+  "narrate": {
+   "size": 40,
+   "unit": "passages",
+   "short": false,
+   "drawn_from": 47,
+   "phrases_per_k": {
+    "mean": 1.512,
+    "low": 1.106,
+    "high": 2.009
+   },
+   "sentences_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "openings_share": {
+    "mean": 0.119,
+    "low": 0.075,
+    "high": 0.15
+   },
+   "worn_per_k": {
+    "mean": 12.246,
+    "low": 10.545,
+    "high": 13.601
+   }
+  },
+  "combat_opening": {
+   "size": 12,
+   "unit": "fights",
+   "short": true,
+   "drawn_from": 12,
+   "phrases_per_k": {
+    "mean": 11.422,
+    "low": 11.422,
+    "high": 11.422
+   },
+   "sentences_per_k": {
+    "mean": 0.571,
+    "low": 0.571,
+    "high": 0.571
+   },
+   "openings_share": {
+    "mean": 0.333,
+    "low": 0.333,
+    "high": 0.333
+   },
+   "worn_per_k": {
+    "mean": 5.711,
+    "low": 5.711,
+    "high": 5.711
+   }
+  },
+  "combat_narrate": {
+   "size": 12,
+   "unit": "fights",
+   "short": true,
+   "drawn_from": 12,
+   "phrases_per_k": {
+    "mean": 19.813,
+    "low": 19.813,
+    "high": 19.813
+   },
+   "sentences_per_k": {
+    "mean": 0.268,
+    "low": 0.268,
+    "high": 0.268
+   },
+   "openings_share": {
+    "mean": 0.5,
+    "low": 0.5,
+    "high": 0.5
+   },
+   "worn_per_k": {
+    "mean": 3.481,
+    "low": 3.481,
+    "high": 3.481
+   }
+  },
+  "combat_aftermath": {
+   "size": 12,
+   "unit": "fights",
+   "short": true,
+   "drawn_from": 12,
+   "phrases_per_k": {
+    "mean": 24.077,
+    "low": 24.077,
+    "high": 24.077
+   },
+   "sentences_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "openings_share": {
+    "mean": 0.235,
+    "low": 0.235,
+    "high": 0.235
+   },
+   "worn_per_k": {
+    "mean": 16.854,
+    "low": 16.854,
+    "high": 16.854
+   }
+  },
+  "exchange": {
+   "size": 60,
+   "unit": "passages",
+   "short": false,
+   "drawn_from": 74,
+   "phrases_per_k": {
+    "mean": 7.884,
+    "low": 4.344,
+    "high": 10.469
+   },
+   "sentences_per_k": {
+    "mean": 0.805,
+    "low": 0.379,
+    "high": 1.147
+   },
+   "openings_share": {
+    "mean": 0.317,
+    "low": 0.267,
+    "high": 0.367
+   },
+   "worn_per_k": {
+    "mean": 8.797,
+    "low": 6.646,
+    "high": 10.245
+   }
+  },
+  "dialogue_frame": {
+   "size": 90,
+   "unit": "passages",
+   "short": false,
+   "drawn_from": 105,
+   "phrases_per_k": {
+    "mean": 13.013,
+    "low": 11.685,
+    "high": 14.371
+   },
+   "sentences_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "openings_share": {
+    "mean": 0.288,
+    "low": 0.256,
+    "high": 0.322
+   },
+   "worn_per_k": {
+    "mean": 25.293,
+    "low": 23.922,
+    "high": 26.618
+   }
+  },
+  "npc_conversation": {
+   "size": 30,
+   "unit": "passages",
+   "short": false,
+   "drawn_from": 39,
+   "phrases_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "sentences_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "openings_share": {
+    "mean": 0.106,
+    "low": 0.067,
+    "high": 0.167
+   },
+   "worn_per_k": {
+    "mean": 1.29,
+    "low": 0.0,
+    "high": 4.016
+   }
+  },
+  "hire_chat": {
+   "size": 60,
+   "unit": "passages",
+   "short": false,
+   "drawn_from": 80,
+   "phrases_per_k": {
+    "mean": 1.211,
+    "low": 0.0,
+    "high": 1.963
+   },
+   "sentences_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   },
+   "openings_share": {
+    "mean": 0.053,
+    "low": 0.033,
+    "high": 0.083
+   },
+   "worn_per_k": {
+    "mean": 7.593,
+    "low": 4.803,
+    "high": 11.111
+   }
+  },
+  "mentor_chat": {
+   "size": 20,
+   "unit": "passages",
+   "short": true,
+   "drawn_from": 15,
+   "phrases_per_k": {
+    "mean": 3.883,
+    "low": 3.883,
+    "high": 3.883
+   },
+   "sentences_per_k": {
+    "mean": 1.942,
+    "low": 1.942,
+    "high": 1.942
+   },
+   "openings_share": {
+    "mean": 0.467,
+    "low": 0.467,
+    "high": 0.467
+   },
+   "worn_per_k": {
+    "mean": 0.0,
+    "low": 0.0,
+    "high": 0.0
+   }
+  }
+ }
+}

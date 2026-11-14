@@ -758,7 +758,8 @@ class CombatScene:
                                           p.weapon_name, you, foes, f.round - 1, self.ws.gear_line(),
                                           self.ws.recent_narration, ground=bfm.narrative_snapshot(f, changed_only=True),
                                           shown=self.fight_shown, worn=self.ws.worn_words("prose"),                         # (f349)
-                                          looks=self.ability_looks(), allies=self.ally_looks(), gone=gone),                     # (f373, f385, f415)
+                                          looks=self.ability_looks(), allies=self.ally_looks(), gone=gone,                      # (f373, f385, f415)
+                                          exemplars=self.ws.exemplars("fight")),
                        Narration, self.ws.recent_narration, max_tokens=config.PROSE_MAX_TOKENS, worn=self.ws.worn_words("prose"), said=text)
         text_out = place_figures(result.text, f.hits, console.damage_tags, f.story)
         console.narrate(text_out)
@@ -1093,7 +1094,8 @@ class CombatScene:
                f"{'; '.join(lying)}\n" if lying else "")
             + (f"{wp.HABITS_HEAD}: {' '.join(end_habits)}\n" if end_habits else "")
             + self.aftermath_facts(dead, skinnable) +
-            "RECENT NARRATION:\n" + "\n".join(f"  - {r}" for r in self.ws.recent_narration[-3:]),
+            "RECENT NARRATION:\n" + "\n".join(f"  - {r}" for r in self.ws.recent_narration[-3:])
+            + "\n\n" + self.ws.exemplars("fight"),                              # (f583) drawn for this call, last
             Narration, self.ws.recent_narration, max_tokens=config.PROSE_MAX_TOKENS, worn=self.ws.worn_words("prose"))
         self.ws.__dict__.setdefault("_after_starts", []).append(" ".join(aftermath.text.split()[:5]))
         del self.ws._after_starts[:-4]

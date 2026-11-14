@@ -3,11 +3,13 @@
 Why: a fixed ban list ages (the model finds the next "steady") and a quota ("fewer than N") is not writing. Instead the engine keeps the
 last few dozen passages and counts, per passage, the words of the kind that wear out - manner words and the suffixed adjectives, adverbs
 and abstractions ("unreadable", "steadily", "weariness") - and hands the narrator the handful it has used most, as WORDS YOU HAVE WORN
-OUT. Nouns of the scene (the smith, the gate) are never on the list: they are facts, not habits. Two watches run, one for prose and one
+OUT, and holds every draft to them (f584: shown and checked, as measured). Nouns of the scene (the smith, the gate) are never on the
+list: they are facts, not habits. Two watches run, one for prose and one
 for what people say, because "folk" wears out in mouths and "expression" wears out in frames.
 
 The rules live in data/rules/voice.yaml under `worn`: the seed words, the suffixes, how many passages are kept, how many passages a word
-must appear in and how many words are handed over. scenes/voice.fresh asks for one rewrite when a draft leans on two or more of them."""
+must appear in and how many words are held to. scenes/voice.fresh asks for one rewrite when a draft leans on two or more of them, and a
+reply that does is sent back (llm/contracts.py)."""
 from __future__ import annotations
 
 import re

@@ -17,8 +17,21 @@ base:
   presence_penalty: 0.0
   frequency_penalty: 0.0
   dry_multiplier: 0.0
+  dry_base: 1.75                  # (f587) DRY and XTC whole; neutral while their strengths are 0 (the server's own defaults)
+  dry_allowed_length: 2
+  dry_penalty_last_n: 0         # llama-server refuses -1 ("0 <= value"); any value is neutral while dry_multiplier is 0
   xtc_probability: 0.0
+  xtc_threshold: 0.1
 retry_temperature_step: 0.15      # each retry of a call goes out this much warmer, up to the task's ceiling (llm/sampling.py)
+
+# (f587) A1's arms (docs/design/09, the owner's design of 2026-11-11): laid over arm_tasks' own values when a run names one
+# (DND_SAMPLING_ARM); none named, the game's sampling is as above. Measured each against a control on the same play seeds.
+arms:
+  dry:   {dry_multiplier: 0.8, dry_base: 1.75, dry_allowed_length: 2, dry_penalty_last_n: 512}
+  xtc:   {xtc_probability: 0.5, xtc_threshold: 0.1}
+  both:  {dry_multiplier: 0.8, dry_base: 1.75, dry_allowed_length: 2, dry_penalty_last_n: 512, xtc_probability: 0.5, xtc_threshold: 0.1}
+  min_p: {min_p: 0.05}
+arm_tasks: [narrate, combat_narrate, npc_conversation, hire_chat, exchange, dialogue_frame]
 
 # (f347) The guard against worn words: a token already used within the last repeat_last_n tokens is made less likely by repeat_penalty.
 # An hour's transcript leaned on the same few words passage after passage ("steady" 258 times, "rhythmic" 178), so prose gets a firmer

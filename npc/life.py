@@ -330,7 +330,7 @@ def _offered(store, npc, who: str) -> dict | None:
     return offer_open(store, npc, who)
 
 
-def _request(npc, store, world, catalog, convo, player_text, extra, truth_text, stance, rng, worn, wares, who, pronoun, promised=False):
+def _request(npc, store, world, catalog, convo, player_text, extra, truth_text, stance, rng, worn, wares, who, pronoun, promised=False, exemplars=""):
     """(f487) A townsperson's request for one reply, whichever contract it goes under: the lore for the line, how they talk, what they
     sell, the request itself; promised (f493): what was said may promise them something, so the reply asks what. Returns (prompt,
     facts, recent)."""
@@ -360,7 +360,7 @@ def _request(npc, store, world, catalog, convo, player_text, extra, truth_text, 
             extra, land.land_lines(world, npc.location) if brief.asked("land", player_text, npc.role) else [], truth_text=truth_text,   # (f486) when asked
             stance=stance, voice_fact=voice_fact, voice_lines=voice_lines, material=material,
             unsaid=banter.unsaid_rule(list(npc.said), player_text), worn=list(worn), now=store.meta.minutes, who=who,
-            work=_offered(store, npc, who), pronoun=pronoun, promised=promised,
+            work=_offered(store, npc, who), pronoun=pronoun, promised=promised, exemplars=exemplars,
         )
     return prompt, facts, recent
 
@@ -384,6 +384,7 @@ def converse(
     who: str,
     pronoun: str = "",
     given_also: list[str] = (),
+    exemplars: str = "",
 ) -> tuple[NPCReply, list[str]]:
     """One conversation turn. Returns the reply and the ids of facts the player learned. truth_text is this person's view of the moment
     from the truth layer (engine/truth.py, f313): who is here, what the town has, the board, happenings, news; known is the words of the
@@ -393,7 +394,7 @@ def converse(
     from engine import brief
     promised = brief.promised(player_text)                  # (f493) the promise field only when the line may make one
     prompt, facts, recent = _request(npc, store, world, catalog, convo, player_text, extra, truth_text, stance, rng, worn, wares, who, pronoun,
-                                     promised)
+                                     promised, exemplars)
     from engine import voices
     from llm.contracts import NPCReplyPromised
     reply = generate(
@@ -473,7 +474,8 @@ def apply_answer(npc: NPC, store: CampaignStore, ans, who: str, words: str, inte
 
 def converse_many(npc: NPC, store: CampaignStore, world: World, catalog: TraitCatalog, convo: list[tuple[str, str]], speakers: list,
                   extra: list[str] = (), truth_text: str = "", known=frozenset(), stance: str = "", rng: random.Random | None = None,
-                  worn: list[str] = (), house=(), wares: list[str] | None = None, pronouns: dict | None = None, given_also: list[str] = ()):
+                  worn: list[str] = (), house=(), wares: list[str] | None = None, pronouns: dict | None = None, given_also: list[str] = (),
+                  exemplars: str = ""):
     """(f487) Two or more characters to one townsperson in one line: `speakers` is [(character id, how they are known, their words)].
     What is said aloud comes once; each character has a block of what it means for them (NPCReplyMany), committed through the one path
     (apply_answer) against each one's own view. One speaker is converse() as ever. With brief.yaml many_addressees: flat_each, one
@@ -483,10 +485,10 @@ def converse_many(npc: NPC, store: CampaignStore, world: World, catalog: TraitCa
     if len(speakers) < 2:
         cid, _label, words = speakers[0]
         return converse(npc, store, world, catalog, convo, words, extra, truth_text, known, stance, rng, worn, house, wares, who=cid,
-                        pronoun=(pronouns or {}).get(cid, ""), given_also=given_also)
+                        pronoun=(pronouns or {}).get(cid, ""), given_also=given_also, exemplars=exemplars)
     if brief.rules().get("many_addressees", "one_call") == "flat_each":
         return [converse(npc, store, world, catalog, convo, words, extra, truth_text, known, stance, rng, worn, house, wares, who=cid,
-                         pronoun=(pronouns or {}).get(cid, ""), given_also=given_also) for cid, _label, words in speakers]
+                         pronoun=(pronouns or {}).get(cid, ""), given_also=given_also, exemplars=exemplars) for cid, _label, words in speakers]
     ids = [cid for cid, _, _ in speakers]
     words = {cid: w for cid, _, w in speakers}
     said = " ".join(f'{label} ({cid}): "{w}"' for cid, label, w in speakers)
@@ -495,7 +497,7 @@ def converse_many(npc: NPC, store: CampaignStore, world: World, catalog: TraitCa
                          + (f", speak of them as {(pronouns or {}).get(cid)}" if (pronouns or {}).get(cid) else "") for cid, label, _ in speakers))
     promised = brief.promised(*words.values())               # (f493) the blocks' promise field only when a line may make one
     prompt, facts, recent = _request(npc, store, world, catalog, convo, said, list(extra) + [block], truth_text, stance, rng, worn, wares,
-                                     ids[0], (pronouns or {}).get(ids[0], ""), promised)
+                                     ids[0], (pronouns or {}).get(ids[0], ""), promised, exemplars)
     from engine import voices
     from llm import contracts
     reply = generate(

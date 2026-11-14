@@ -1,0 +1,346 @@
+"""(f575) The prose measures, per task, from any model call log (logs/llm_calls.jsonl, a night run's, live_check's): how much the writing
+repeats itself. Used to hold a prose change against a baseline (docs/design/09, section A).
+
+    python tools/prose_measure.py LOG [LOG...]                       the table, and sample passages
+    python tools/prose_measure.py LOG... --json out.json             the numbers, kept to compare against
+    python tools/prose_measure.py LOG... --against b1.json b2.json   the table beside kept baselines: the change, and a verdict a task
+    python tools/prose_measure.py LOG... --samples 4 --seed 1        how many sample passages a task (0: none), picked by a seed
+
+Per task (narrate, combat_narrate, combat_opening, combat_aftermath, exchange, dialogue_frame, npc_conversation, hire_chat, and any other
+whose answer carries prose), over the answers the game accepted (a row with no error):
+    passages, words
+    repeated phrases   distinct five-word runs found in two or more passages, per 1,000 words (scenes/voice.py stale_phrases' unit)
+    repeated sentences sentences of four or more words said again in another passage, per 1,000 words
+    shared openings    the share of passages whose first three words open another passage too
+    worn words         words of the kind that wear (engine/worn.py: the seed words and the suffixed ones) found in 4 or more passages, the
+                       count of such words, their uses per 1,000 words, and the most used
+    stock phrases      scenes/voice.py STALE's phrases, per 1,000 words
+Lower is better for every measure. No model is needed: it reads what was written.
+
+(f577) Each task is also measured over draws of a fixed size (SIZE; fights drawn whole, split at each opening), so runs of any length
+compare: the mean and the 10th to 90th draw. A verdict (better, holds, worse) needs two or more kept baselines drawn the same way; a task
+with SIZE or fewer is measured whole, marked short, and gets none."""
+from __future__ import annotations
+
+import argparse
+import json
+import random
+import re
+import sys
+from collections import Counter, defaultdict
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+PROSE = {"narrate": ("text",), "combat_narrate": ("text",), "combat_opening": ("text",), "combat_aftermath": ("text",),
+         "npc_conversation": ("speech",), "hire_chat": ("speech",), "mentor_chat": ("speech",), "dialogue_frame": ("before", "after")}
+ORDER = ["narrate", "combat_opening", "combat_narrate", "combat_aftermath", "exchange", "dialogue_frame", "npc_conversation", "hire_chat",
+         "mentor_chat"]
+MEASURES = [("passages", "passages", "d"), ("words", "words", "d"), ("phrases_per_k", "repeated phrases /1k", ".2f"),
+            ("sentences_per_k", "repeated sentences /1k", ".2f"), ("openings_share", "shared openings", ".0%"),
+            ("worn_count", "worn words", "d"), ("worn_per_k", "worn uses /1k", ".2f"), ("stock_per_k", "stock phrases /1k", ".2f")]
+_WORDS = re.compile(r"[a-z']+")
+FIGHT = ("combat_opening", "combat_narrate", "combat_aftermath")
+SIZE = {"narrate": 40, "exchange": 60, "dialogue_frame": 90, "npc_conversation": 30, "hire_chat": 60, "mentor_chat": 20, "fights": 12}
+DRAWS = 200
+STEADY = [("phrases_per_k", "repeated phrases /1k", ".2f"), ("sentences_per_k", "repeated sentences /1k", ".2f"),
+          ("openings_share", "shared openings", ".0%"), ("worn_per_k", "worn uses /1k", ".2f")]
+
+
+def prose_of(task: str, answer) -> str:
+    """The prose a task's answer carries: the narration's text, a reply's speech, a frame's before and after, an exchange's lines."""
+    if isinstance(answer, str):
+        try:
+            answer = json.loads(answer)
+        except ValueError:
+            return ""
+    if not isinstance(answer, dict):
+        return ""
+    if task == "exchange":
+        return " ".join(str(l.get("text", "")) for l in answer.get("lines") or [] if isinstance(l, dict)).strip()
+    keys = PROSE.get(task) or next(((k,) for k in ("speech", "text") if isinstance(answer.get(k), str)), ())
+    return " ".join(str(answer.get(k, "")) for k in keys).strip()
+
+
+def _passages(path: str):
+    """One log's accepted passages, as (task, prose), in the order written."""
+    if str(path).endswith(".gz"):                                # a kept log, compressed
+        import gzip
+        text = gzip.open(path, "rt", encoding="utf-8", errors="replace").read()
+    else:
+        text = Path(path).read_text(encoding="utf-8", errors="replace")
+    for line in text.splitlines():
+        try:
+            r = json.loads(line)
+        except ValueError:
+            continue
+        if r.get("error") or not r.get("task"):
+            continue
+        prose = prose_of(r["task"], r.get("raw", r.get("answer")))
+        if prose:
+            yield r["task"], prose
+
+
+def load(paths: list[str]) -> dict[str, list[str]]:
+    """Every accepted passage, by task, in the order written."""
+    out: dict[str, list[str]] = defaultdict(list)
+    for p in paths:
+        for task, prose in _passages(p):
+            out[task].append(prose)
+    return dict(out)
+
+
+def load_fights(paths: list[str]) -> list[dict[str, list[str]]]:
+    """(f577) Each fight's prose by task, split at each opening, log by log; what comes before a log's first opening is no fight's."""
+    out: list[dict[str, list[str]]] = []
+    for p in paths:
+        cur = None
+        for task, prose in _passages(p):
+            if task == "combat_opening":
+                cur = {t: [] for t in FIGHT}
+                out.append(cur)
+            if cur is not None and task in FIGHT:
+                cur[task].append(prose)
+    return out
+
+
+def _shingles(text: str, n: int = 5) -> set[str]:
+    w = _WORDS.findall(text.lower())
+    return {" ".join(w[i:i + n]) for i in range(len(w) - n + 1)}
+
+
+def _sentences(text: str) -> list[str]:
+    out = []
+    for s in re.split(r"(?<=[.!?])\s+", text):
+        norm = " ".join(_WORDS.findall(s.lower()))
+        if len(norm.split()) >= 4:
+            out.append(norm)
+    return out
+
+
+def _opening(text: str) -> str:
+    return " ".join(_WORDS.findall(text.lower())[:3])
+
+
+def measure(passages: list[str]) -> dict:
+    """The measures of one task's passages."""
+    from engine import worn as worn_mod
+    from scenes.voice import STALE
+    words = sum(len(_WORDS.findall(p.lower())) for p in passages)
+    per_k = 1000.0 / max(1, words)
+    runs = Counter(s for p in passages for s in _shingles(p))
+    repeated = {s: n for s, n in runs.items() if n >= 2}
+    sent = Counter(s for p in passages for s in set(_sentences(p)))
+    again = {s: n for s, n in sent.items() if n >= 2}
+    opens = Counter(_opening(p) for p in passages if _opening(p))
+    shared = sum(n for o, n in opens.items() if n >= 2)
+    watch = worn_mod.Watch(keep=max(1, len(passages)))
+    for p in passages:
+        watch.add(p)
+    counts = watch.counts()
+    least = int(worn_mod.W.get("least", 4))
+    worn = sorted(((w, n) for w, n in counts.items() if n >= least), key=lambda kv: (-kv[1], kv[0]))
+    stock = sum(p.lower().count(s) for p in passages for s in STALE)
+    return {"passages": len(passages), "words": words,
+            "phrases_per_k": round(len(repeated) * per_k, 3), "sentences_per_k": round(sum(n - 1 for n in again.values()) * per_k, 3),
+            "openings_share": round(shared / max(1, len(passages)), 3),
+            "worn_count": len(worn), "worn_per_k": round(sum(n for _, n in worn) * per_k, 3), "stock_per_k": round(stock * per_k, 3),
+            "top_phrases": [s for s, _ in sorted(repeated.items(), key=lambda kv: (-kv[1], kv[0]))[:8]],
+            "top_sentences": [s for s, _ in sorted(again.items(), key=lambda kv: (-kv[1], kv[0]))[:5]],
+            "top_openings": [o for o, n in opens.most_common(5) if n >= 2], "top_worn": [w for w, _ in worn[:8]]}
+
+
+def measure_all(by_task: dict[str, list[str]]) -> dict[str, dict]:
+    tasks = [t for t in ORDER if t in by_task] + sorted(t for t in by_task if t not in ORDER)
+    return {t: measure(by_task[t]) for t in tasks}
+
+
+def steady(by_task: dict[str, list[str]], fights: list[dict[str, list[str]]], sizes: dict | None = None, draws: int = DRAWS,
+           seed: int = 1) -> dict[str, dict]:
+    """(f577) Each task over draws of a fixed size (fights whole for the fight tasks): per measure the mean and the 10th to 90th band."""
+    sizes = {**SIZE, **(sizes or {})}
+    out = {}
+    for task in [t for t in ORDER if t in by_task] + sorted(t for t in by_task if t not in ORDER):
+        if task in FIGHT and fights:
+            units, size, unit = [f[task] for f in fights], sizes["fights"], "fights"
+        else:
+            units, size, unit = [[p] for p in by_task[task]], sizes.get(task, 40), "passages"
+        rng = random.Random(f"{seed}:{task}")
+        picks = [units] if len(units) <= size else [rng.sample(units, size) for _ in range(draws)]
+        got = [measure([p for u in pick for p in u]) for pick in picks]
+        row = {"size": size, "unit": unit, "short": len(units) <= size, "drawn_from": len(units)}
+        for key, _label, _f in STEADY:
+            v = sorted(g[key] for g in got)
+            row[key] = {"mean": round(sum(v) / len(v), 3), "low": v[int(0.1 * (len(v) - 1))], "high": v[int(0.9 * (len(v) - 1))]}
+        out[task] = row
+    return out
+
+
+def verdict(m: dict, bases: list[dict], key: str) -> str:
+    """(f577) Better only below every baseline's band, worse above every one; anywhere the baselines span, it holds."""
+    same = all(not x.get("short") and x.get("size") == m.get("size") and x.get("unit") == m.get("unit") for x in [m, *bases])
+    have = [b[key] for b in bases if key in b]
+    if key not in m or not have or not same:                    # (f577) a short or differently drawn side is the size effect again
+        return "-"
+    if m[key]["mean"] < min(b["low"] for b in have):
+        return "better"
+    if m[key]["mean"] > max(b["high"] for b in have):
+        return "worse"
+    return "holds"
+
+
+def steady_table(result: dict[str, dict], bases: list[dict[str, dict]] | None = None) -> list[str]:
+    head = ["task", "drawn"] + [label for _, label, _ in STEADY]
+    lines = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
+    for task, m in result.items():
+        drawn = f"{m['size']} {m['unit']}" + (f" (short: {m['drawn_from']})" if m["short"] else f" of {m['drawn_from']}")
+        cells = [task, drawn]
+        have = [x[task] for x in bases or [] if task in x]
+        have = have if len(have) >= 2 else []                     # (f577) one run's band is no measure of two runs' difference
+        for key, _label, f in STEADY:
+            b = m[key]
+            cell = f"{_fmt(b['mean'], f)} [{_fmt(b['low'], f)}, {_fmt(b['high'], f)}]"
+            if have:
+                cell += f" {verdict(m, have, key)}"
+            cells.append(cell)
+        lines.append("| " + " | ".join(cells) + " |")
+    return lines
+
+
+NAME_ERRORS = (("no one and nowhere", "is no one and nowhere you were (?:told of|given)"),     # (f587) refusals for a name (A1)
+               ("someone else here", r"is someone else here\. Do not call the player"),
+               ("not a speaker", "speaker must be one of: "),
+               ("a dead one named", r"who died: someone says"),
+               ("line opens on its speaker", "do not begin a line with the speaker's name"),
+               ("frame on the wrong one", r"the frame is about .+, but it opens on"),
+               ("a name never given", r"a name is learned only from the one who gave it"),
+               ("the wrong addressee", r"a block for .+, who did not speak to you|two blocks for |no block for "),
+               ("the cast left out", r"everyone named must speak|must say something|speaks first"))
+
+
+def _rows(path: str):
+    if str(path).endswith(".gz"):
+        import gzip
+        text = gzip.open(path, "rt", encoding="utf-8", errors="replace").read()
+    else:
+        text = Path(path).read_text(encoding="utf-8", errors="replace")
+    for line in text.splitlines():
+        try:
+            r = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(r, dict) and r.get("task"):
+            yield r
+
+
+def acceptance(paths: list[str]) -> dict[str, dict]:
+    """(f587) Per task: calls (first tries), those taken at the first try, rewrites (a call made to replace a draft), the name errors
+    answers were sent back for by kind, and the names mended silently in answers taken (the run.json beside each log)."""
+    out: dict[str, dict] = {}
+    for p in paths:
+        counted = (Path(p).parent / "run.json").exists()                # a log with no run beside it never counted its mends
+        for r in _rows(p):
+            t = out.setdefault(r["task"], {"calls": 0, "first_try": 0, "rewrites": 0, "name_errors": {}, "mended": 0, "mends_counted": False})
+            t["mends_counted"] |= counted
+            if r.get("attempt", 0) == 0 and not r.get("relaxed"):      # a relaxed last try is the same call, not a new one
+                t["calls"] += 1
+                t["first_try"] += 0 if r.get("error") else 1
+                t["rewrites"] += 1 if r.get("rewrite_of_draft") else 0
+            err = str(r.get("error") or "")
+            for kind, pattern in NAME_ERRORS:
+                if err and re.search(pattern, err):
+                    t["name_errors"][kind] = t["name_errors"].get(kind, 0) + 1
+        run = Path(p).parent / "run.json"
+        if run.exists():
+            try:
+                for task, n in (json.loads(run.read_text(encoding="utf-8")).get("name_repairs") or {}).items():
+                    out.setdefault(task, {"calls": 0, "first_try": 0, "rewrites": 0, "name_errors": {}, "mended": 0,
+                                          "mends_counted": True})["mended"] += int(n)
+            except ValueError:
+                pass
+    for t in out.values():
+        t["first_try_share"] = round(t["first_try"] / t["calls"], 3) if t["calls"] else None
+    return out
+
+
+def acceptance_table(acc: dict[str, dict]) -> list[str]:
+    lines = ["| task | calls | taken at first try | rewrites | name errors | names mended |", "|---|---|---|---|---|---|"]
+    for task in [t for t in ORDER if t in acc] + sorted(t for t in acc if t not in ORDER):
+        a = acc[task]
+        share = f"{a['first_try_share']:.0%}" if a["first_try_share"] is not None else "-"
+        errs = ", ".join(f"{k} {n}" for k, n in sorted(a["name_errors"].items())) or "0"
+        lines.append(f"| {task} | {a['calls']} | {share} | {a['rewrites']} | {errs} | {a['mended'] if a.get('mends_counted') else '-'} |")
+    return lines
+
+
+def _fmt(v, f: str) -> str:
+    return format(v, f) if v is not None else "-"
+
+
+def table(result: dict[str, dict], base: dict[str, dict] | None = None) -> list[str]:
+    head = ["task"] + [label for _, label, _ in MEASURES]
+    lines = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
+    for task, m in result.items():
+        cells = [task]
+        for key, _label, f in MEASURES:
+            cell = _fmt(m.get(key), f)
+            b = (base or {}).get(task, {}).get(key)
+            if base is not None and b is not None and key not in ("passages", "words"):
+                d = m[key] - b
+                cell += f" ({'+' if d >= 0 else ''}{_fmt(d, f)})"
+            cells.append(cell)
+        lines.append("| " + " | ".join(cells) + " |")
+    return lines
+
+
+def details(result: dict[str, dict]) -> list[str]:
+    out = []
+    for task, m in result.items():
+        bits = [f"repeated phrases: {', '.join(m['top_phrases'][:5]) or 'none'}",
+                f"openings: {', '.join(m['top_openings']) or 'none'}", f"worn: {', '.join(m['top_worn']) or 'none'}"]
+        out.append(f"- **{task}**: " + "; ".join(bits))
+    return out
+
+
+def samples(by_task: dict[str, list[str]], n: int, seed: int) -> list[str]:
+    out = []
+    for task in [t for t in ORDER if t in by_task] + sorted(t for t in by_task if t not in ORDER):
+        rng = random.Random(f"{seed}:{task}")
+        picked = rng.sample(by_task[task], min(n, len(by_task[task])))
+        out.append(f"\n### {task}")
+        out += [f"> {p}\n" for p in picked]
+    return out
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("logs", nargs="+")
+    ap.add_argument("--json", default="")
+    ap.add_argument("--against", nargs="*", default=[])
+    ap.add_argument("--samples", type=int, default=3)
+    ap.add_argument("--seed", type=int, default=1)
+    a = ap.parse_args(argv)
+    by_task = load(a.logs)
+    if not by_task:
+        print("no prose in these logs")
+        return 1
+    result = measure_all(by_task)
+    kept = [json.loads(Path(x).read_text(encoding="utf-8")) for x in a.against]
+    base = kept[0]["tasks"] if kept else None
+    held = steady(by_task, load_fights(a.logs), seed=a.seed)
+    print("\n".join(table(result, base) + [""] + details(result)))
+    print("\n## Over draws of a fixed size (mean [10th, 90th])" + (" against " + ", ".join(a.against) if kept else "") + "\n")
+    print("\n".join(steady_table(held, [k["steady"] for k in kept if "steady" in k] or None)))
+    acc = acceptance(a.logs)
+    print("\n## First tries, rewrites and names (f587)\n")
+    print("\n".join(acceptance_table(acc)))
+    if a.samples:
+        print("\n## Sample passages" + "\n".join(samples(by_task, a.samples, a.seed)))
+    if a.json:
+        Path(a.json).write_text(json.dumps({"logs": a.logs, "tasks": result, "steady": held, "acceptance": acc}, indent=1), encoding="utf-8", newline="\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

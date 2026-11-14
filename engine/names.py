@@ -14,6 +14,7 @@ import re
 from pathlib import Path
 
 REPAIRS: collections.Counter = collections.Counter()
+BY_TASK: collections.Counter = collections.Counter()     # (f587) the names mended in answers the game took, by task (A1 counts them)
 CAP = re.compile(r"\b[A-Z][a-z]{3,}\b")
 WORD = re.compile(r"\b[a-z]+\b")
 CAST: dict[str, str] = {}                 # first name -> 'he' | 'she' | 'they': the player's companions, set by the scene each turn

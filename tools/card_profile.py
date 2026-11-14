@@ -202,8 +202,8 @@ def _embed_price() -> float:
     return float(budget.PROFILE.get("embed_seconds_per_text") or budget.DEFAULT_PROFILE["embed_seconds_per_text"])
 
 
-def write(m: dict, card: str, model: str, source: str, scaled_from: str = "", fits: str = "") -> None:
-    PROFILE.write_text(
+def write(m: dict, card: str, model: str, source: str, scaled_from: str = "", fits: str = "", path: Path | None = None) -> None:
+    (path or PROFILE).write_text(
         "# (f443, tools/card_profile.py) Measured on the card the game is built for (GOALS.md: an RTX 3060, no turn over a minute).\n"
         "# Written by the tool from a recording made or re-timed on that card; Stage 3's turn budget reads it. Do not hand-edit numbers.\n"
         "# (f459) A measurement, kept under data/measured, outside the data hash: re-timing it never re-blesses a recording. The budget's\n"

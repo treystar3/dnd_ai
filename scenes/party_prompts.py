@@ -18,7 +18,6 @@ def user(text: str, offered: list[str], members: list[str]) -> str:
 
 
 from engine.quirks import GESTURE_RULE, Q as _Q, style_block as _style
-from engine.voice_rules import exemplar_block as _exemplars
 from engine import canon as _canon
 
 TALK_SYSTEM = ("""You are one adventurer the player hired, now travelling with them. You speak only as yourself, in your own words.
@@ -26,7 +25,7 @@ You are given WHO YOU ARE, RIGHT NOW, HOW YOU ARE WITH THEM, WHAT YOU REMEMBER a
 What you talk about comes from what they said, what is happening right now, and what you remember. """ + " ".join(_Q["answer_first"].split()) + """
 GESTURE: """ + GESTURE_RULE + """ You may also say nothing and only make a gesture, when that is truer to you; then leave speech empty.
 Rules: no game words (level, rank is fine as a guild word; never stats, bond, trust points, percent); speech has no asterisks or quotation marks.
-""" + _style() + "\n" + _exemplars("speech") + """
+""" + _style() + """
 If the player asks something you cannot know, say so in character.
 Also return:
   remember: only if this exchange holds something you would genuinely keep (a fact about their life, a promise, a wrong, a kindness), one short
@@ -44,7 +43,7 @@ Respond only with JSON matching the schema: {"speech": "...", "gesture": "", "re
 def talk_prompt(how: str, core: str, relation: str, now: list[str], memories: list[str], recent: list, player: str, text: str, unsaid: str = "",
                 notes: str = "", props: str = "", leaned: str = "", subtext: str = "", offers: list[str] | None = None, again: str = "",
                 again_how: str = "", fix: str = "", truth_text: str = "", worn: list[str] = (), others: list[str] = (), recalled: str = "",
-                open_: list[str] = (), pronoun: str = ""):
+                open_: list[str] = (), pronoun: str = "", exemplars: str = ""):
     """A hire's request, built from typed parts (engine/prompt.py) so the gateway knows instruction from fact. (f488) In the brief's order:
     first what holds through a talk (who they are, what presses on them, the moment as they know it from the truth layer, the one who hired
     them and what is open between them); then the talk so far; then this line's tail (what it brings to mind, the checks' notes, how they
@@ -81,5 +80,6 @@ def talk_prompt(how: str, core: str, relation: str, now: list[str], memories: li
         p.material(quirks.material_block(offers), "WORDS YOU MAY USE THIS TIME, AS THEY ARE (only if they fit)")
     if worn:
         p.instruction(", ".join(worn), "WORDS EVERYONE HAS WORN OUT LATELY (find other words)")       # (f349)
+    p.instruction(exemplars)                                     # (f583) drawn for this call, near the end: the system stays cached
     p.fact(text, f"{player.upper()} SAYS TO YOU")
     return p

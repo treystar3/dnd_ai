@@ -350,6 +350,7 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
     think_before = (config.THINK_TASKS, config.THINK_ROOM)         # (f533) the replay asks as the recording did: its tasks thought, or none
     config.THINK_TASKS = frozenset(rec["meta"].get("think_tasks") or ())
     config.THINK_ROOM = int(rec["meta"].get("think_room", config.THINK_ROOM))
+    arm_before, config.SAMPLING_ARM = config.SAMPLING_ARM, rec["meta"].get("sampling_arm") or ""     # (f587) the run's arm, or none
     scratch = Path(tempfile.mkdtemp(prefix="rerun_logs_"))         # a replay's own logs never mix with real play's
     config.LOG_PATH, config.TURN_LOG_PATH, config.PULSE_LOG_PATH = (str(scratch / n) for n in ("llm_calls.jsonl", "turns.jsonl", "pulse.jsonl"))
     config.CRASH_LOG_PATH, config.SESSION_STATS_PATH = str(scratch / "crash.log"), str(scratch / "sessions.jsonl")   # (f518) nor its faults
@@ -456,6 +457,7 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
         budget.SLOW = slow_before
         budget.CACHED = cached_before
         config.THINK_TASKS, config.THINK_ROOM = think_before
+        config.SAMPLING_ARM = arm_before
     matched = state["input"] - (1 if state["parted"] else 0)
     return {"matched": max(0, matched), "of": len(inputs_main), "parted": state["parted"], "calls": source.at, "recorded_calls": len(calls),
             "crashed": len(crashlog.SESSION) - crashes0, "logs": str(scratch)}   # (f518) faults the replay hit (its own crash.log)
@@ -634,6 +636,9 @@ def main() -> int:
     if (a.make or a.rebless) and config.THINK_TASKS:              # (f533) a kept recording is made as the game ships: no task thinks
         print(f"note: DND_THINK_TASKS ({', '.join(sorted(config.THINK_TASKS))}) is set; the recording is made with no task thinking")
         config.THINK_TASKS = frozenset()
+    if (a.make or a.rebless) and config.SAMPLING_ARM:             # (f587) ...and with no sampling arm
+        print(f"note: DND_SAMPLING_ARM ({config.SAMPLING_ARM}) is set; the recording is made with none")
+        config.SAMPLING_ARM = ""
     if a.make:
         make_stub_recording(Path(a.make), a.inputs)
         print(f"recorded {a.make}")

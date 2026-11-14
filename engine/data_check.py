@@ -216,6 +216,22 @@ def sampling_problems(S: dict | None = None) -> list[str]:
     step = S.get("retry_temperature_step")
     if isinstance(step, bool) or not isinstance(step, (int, float)) or not 0 < step <= 1:
         bad.append("sampling.yaml retry_temperature_step: needs a number above 0 and at most 1")
+    from llm import llama                                                   # (f587) the arms: real samplers in range, real tasks
+    arms = S.get("arms") or {}
+    if not isinstance(arms, dict) or not all(isinstance(v, dict) for v in arms.values()):
+        return bad + ["sampling.yaml arms: a table of arms, each a table of samplers"]
+    for name, values in arms.items():
+        if "temperature" in values:
+            bad.append(f"sampling.yaml arms.{name}: an arm sets no temperature (a task's own is kept)")
+        bad += [p.replace("sampling.yaml tasks.", "sampling.yaml arms.") for p in llama.sampler_problems({name: values}, base=S.get("base") or {})
+                if "arms." in p.replace("sampling.yaml tasks.", "sampling.yaml arms.")]
+    known = set((_load("data/rules/budget.yaml").get("tasks") or {}))
+    for t in S.get("arm_tasks") or []:
+        if known and t not in known:
+            bad.append(f"sampling.yaml arm_tasks: '{t}' is no task the game asks for")
+    import config as _config
+    if _config.SAMPLING_ARM and _config.SAMPLING_ARM not in arms:
+        bad.append(f"DND_SAMPLING_ARM '{_config.SAMPLING_ARM}' is none of sampling.yaml's arms ({', '.join(arms)})")
     return bad
 
 
@@ -781,6 +797,8 @@ def check() -> list[str]:
     bad += improv_problems()                                           # (f567) the fight's improvisations, held to the resolver
     bad += ground_word_problems()                                      # (f571) what the narrator is told of each zone's ground
     bad += data_words_problems()                                       # (f621) no dash in any word of data/ that is told as true
+    from engine import voice_rules as _vr
+    bad += _vr.pool_problems()                                         # (f583) the exemplar pools: enough lines, none dashed, worn or stock
     bad += tables_problems()                                           # (f504) the fight's tables, both ways
     bad += trigger_problems()                                          # (f507) the triggers held to the code that evaluates them
     bad += allowlist_problems()                                        # (f509) every table the fight reads, held to the code, both ways

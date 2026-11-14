@@ -16,6 +16,7 @@ HOURS="${HOURS:-2}"
 PARALLEL="${PARALLEL:-1}"
 OUT="${OUT:-logs/nightrun}"
 EXTRA="${EXTRA:-}"                              # anything else for tools/nightrun.py: --starts veteran,legend --personas hunter,talker --level 40
+THEN="${THEN:-}"                                # (f576) a command run on the set-up box instead of the night, e.g. bash tools/prose_baseline.sh out/prose/base1
 BUILD="${BUILD:-cuda}"                          # the llama-server build: cuda (built from source here), vulkan or cpu (releases)
 MODEL="$(python3 -c 'import config; print(config.MODEL)')"
 mkdir -p logs out
@@ -97,6 +98,13 @@ if bad:
 print("The server's files are in place, each at its pinned checksum.")
 EOF
 nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv,noheader 2>/dev/null || true
+
+if [ -n "$THEN" ]; then                         # (f576) the box is set up; run this instead of a night, on the same cores and settings
+    echo "Instead of a night: $THEN"
+    $PIN bash -c "$THEN"
+    echo "Done. Download the results, then terminate the pod (a stopped pod still bills for its disk)."
+    exit 0
+fi
 
 echo "A night of $RUNS run(s), $HOURS h each, $PARALLEL at a time: $MODEL on the game's own llama-server ($BUILD)"
 # shellcheck disable=SC2086

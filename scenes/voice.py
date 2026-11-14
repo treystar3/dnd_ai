@@ -30,7 +30,7 @@ great DM does: present tense, second person, vivid and specific.
 - Never contradict the facts you are given, and never add facts that change the situation. The player's gear is exactly what
   you are told they carry: never add a piece, and never name something they lack.
 
-""" + WORLD_RULES + "\n\n" + __import__("engine.voice_rules", fromlist=["exemplar_block"]).exemplar_block("passages") + "\n"
+""" + WORLD_RULES + "\n"
 
 STALE = ["the air hangs heavy", "hangs heavy", "scent of damp earth", "smell of damp earth", "cool morning air",
          "a sense of", "can't help but", "little do you know", "send shivers down", "sends a shiver",

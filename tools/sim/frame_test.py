@@ -22,13 +22,14 @@ V = voice_rules.V
 check("(f375) no length is set: the voice rules hold no room for the narrator or for what people say", "narration" not in V and "npc" not in V and "points" not in V)
 check("the reasons a line gets a frame are declared", {"first", "trust", "reveal", "refuse", "gift", "leave"} <= set(V["frame_when"]))
 ex = V["exemplars"]
-check("exemplars: a few passages and a few replies", len(ex["passages"]) >= 4 and len(ex["speech"]) >= 6)
-check("exemplars name no one and nowhere and carry no numbers", all(not truth.coined(t, "", frozenset()) and not re.search(r"\d", t) for t in ex["passages"] + ex["speech"]),
-      [truth.coined(t, "", frozenset()) for t in ex["passages"] + ex["speech"]])
-check("the narrator, the frames and the fight see the passages; townsfolk and hires see the replies",
-      "HOW NARRATION SOUNDS HERE" in wp.NARRATOR_SYSTEM and "HOW NARRATION SOUNDS HERE" in wp.DIALOGUE_SYSTEM
-      and "HOW PEOPLE SOUND HERE" in __import__("npc.prompts", fromlist=["CONVERSATION_SYSTEM"]).CONVERSATION_SYSTEM
-      and "HOW PEOPLE SOUND HERE" in __import__("scenes.party_prompts", fromlist=["TALK_SYSTEM"]).TALK_SYSTEM)
+every = [l for p in ex["narration"].values() for l in p] + list(ex["fight"]) + [l for p in ex["speech"].values() for l in p]
+check("exemplars: pools of passages and of replies (f583)", len(ex["narration"]["general"]) >= 4 and len(ex["speech"]["small_talk"]) >= 6)
+check("exemplars name no one and nowhere and carry no numbers", all(not truth.coined(t, "", frozenset()) and not re.search(r"\d", t) for t in every),
+      [(t, truth.coined(t, "", frozenset())) for t in every if truth.coined(t, "", frozenset()) or re.search(r"\d", t)])
+check("(f583) the passages and replies are drawn for each request, never in a system prompt (tools/sim/exemplar_pools_583_test.py)",
+      "SOUNDS HERE" not in wp.NARRATOR_SYSTEM and "SOUNDS HERE" not in wp.DIALOGUE_SYSTEM
+      and "SOUND HERE" not in __import__("npc.prompts", fromlist=["CONVERSATION_SYSTEM"]).CONVERSATION_SYSTEM
+      and "SOUND HERE" not in __import__("scenes.party_prompts", fromlist=["TALK_SYSTEM"]).TALK_SYSTEM)
 check("the DM voice asks for sentence music as craft, not a quota", "a short one lands a blow" in voice.DM_VOICE and "under eight words" not in voice.DM_VOICE
       and "two before a noun" in voice.DM_VOICE and "trailing participle" in voice.DM_VOICE)
 check("the narrator is told to say what is new, and that walking in it is given the first people the eye falls on, with no length",

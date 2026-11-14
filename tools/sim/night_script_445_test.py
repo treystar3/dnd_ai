@@ -24,5 +24,14 @@ check("...the 12.8 compiler (the 50-series cards need it: an older nvcc leaves s
       "cuda-nvcc-12-8" in src and "export CUDACXX=/usr/local/cuda-12.8/bin/nvcc" in src
       and src.index("/usr/local/cuda-12.8/bin/nvcc --version") < src.index("cuda-nvcc-12-8"))     # installed only when 12.8's is not here
 check("the night script still parses as shell", subprocess.run([fake_runtime.bash(), "-n", "tools/runpod_night.sh"]).returncode == 0)
+# (f576) THEN runs a command on the set-up box in place of the night: after the fetches, before nightrun, on the same pinned cores
+then_at, fetch_at, night_at = src.find('if [ -n "$THEN" ]'), src.find("fetch --models"), src.find("tools/nightrun.py --runs")
+check("THEN runs after the box is set up and instead of the night, pinned like it", 0 < fetch_at < then_at < night_at
+      and '$PIN bash -c "$THEN"' in src and "exit 0" in src[then_at:night_at], (fetch_at, then_at, night_at))
+pod_src = Path("tools/runpod_jupyter.py").read_text(encoding="utf-8")
+check("the pod tool hands THEN over quoted, and needs no API key when given the pod's Jupyter password",
+      "THEN={then}" in pod_src and "shlex.quote(args.then)" in pod_src and 'os.environ.get("JUPYTER_TOKEN"' in pod_src
+      and '"" if token else key_from(args)' in pod_src)
+
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

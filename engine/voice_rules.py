@@ -72,18 +72,73 @@ PAUSE = re.compile(r"\b(pauses?|pausing|stops?|stopping|halts?|looks? up|glances
                    r"sets? (it|the \w+|down)|straightens?|lowers? the|turns? from)\b")
 
 
-def exemplar_block(kind: str) -> str:
-    """(f347) The voice shown rather than described: a few passages (kind 'passages', for the narrator) or replies (kind 'speech', for
-    everyone who speaks) from data/rules/voice.yaml, as the register of this game. Never lines to reuse."""
-    ex = V.get("exemplars", {}).get(kind, [])
-    if not ex:
+NARRATION_POOLS = ("grief", "arrival", "night", "interior", "general")    # (f583) the engine's order of preference
+SPEECH_POOLS = ("refusal", "gossip", "small_talk")
+
+
+def pool(kind: str, name: str = "") -> list[str]:
+    """(f583) The lines of one pool: kind 'narration' or 'speech' with a pool's name, or 'fight'."""
+    ex = V["exemplars"]
+    return list(ex["fight"]) if kind == "fight" else list(ex[kind][name])
+
+
+def draw(lines: list[str], rng, last=(), n: int | None = None) -> list[str]:
+    """(f583) n lines of a pool (voice.yaml exemplars draw), in the pool's order, never the same set as the last draw."""
+    n = min(n or int(V["exemplars"]["draw"]), len(lines))
+    for _ in range(8):
+        got = sorted(rng.sample(range(len(lines)), n))
+        if {lines[i] for i in got} != set(last) or len(lines) == n:
+            return [lines[i] for i in got]
+    keep = [i for i, l in enumerate(lines) if l not in set(last)][:1]      # dice that keep landing on it: one new line in, at least
+    rest = [i for i in got if i not in keep][:n - len(keep)]
+    return [lines[i] for i in sorted(keep + rest)]
+
+
+def exemplar_block(kind: str, lines: list[str]) -> str:
+    """(f347) The voice shown rather than described, as the register of this game; never lines to reuse. (f583) The lines drawn for one
+    call, for the end of its request: kind 'narration', 'fight' or 'speech'."""
+    if not lines:
         return ""
     head = ("HOW NARRATION SOUNDS HERE (the register of this game; never lines to reuse, and nothing in them is a fact of this moment):"
-            if kind == "passages" else
+            if kind == "narration" else
             "HOW A FIGHT SOUNDS HERE (the register of this game; never lines to reuse, and nothing in them is a fact of this fight):"
             if kind == "fight" else
             "HOW PEOPLE SOUND HERE (the register of this game; never lines to reuse, and nothing in them is about you or this moment):")
-    return head + "\n" + "\n".join(f"  - {e}" for e in ex)
+    return head + "\n" + "\n".join(f"  - {e}" for e in lines)
+
+
+def pool_problems(ex: dict | None = None) -> list[str]:
+    """(f583) The pools, checked at startup: each pool there, with more lines than are drawn (so no two draws in a row are the same),
+    and each line in the draft's rules: no dash, no figure, none of the worn seed words or stock phrases."""
+    ex = ex if ex is not None else V.get("exemplars", {})
+    bad = []
+    n = ex.get("draw")
+    if not isinstance(n, int) or n < 1:
+        return ["voice.yaml exemplars: draw is a whole number of lines, one or more"]
+    if not isinstance(ex.get("refusal_trust"), int):
+        bad.append("voice.yaml exemplars: refusal_trust is a whole number")
+    named = [("narration", p, (ex.get("narration") or {}).get(p)) for p in NARRATION_POOLS] + [("fight", "", ex.get("fight"))] \
+        + [("speech", p, (ex.get("speech") or {}).get(p)) for p in SPEECH_POOLS]
+    from engine import worn
+    from scenes.voice import STALE
+    seeds = set(worn.W.get("seed") or [])
+    for kind, name, lines in named:
+        where = f"voice.yaml exemplars {kind}{(' ' + name) if name else ''}"
+        if not isinstance(lines, list) or not all(isinstance(l, str) and l.strip() for l in lines):
+            bad.append(f"{where}: a list of lines")
+            continue
+        if len(lines) <= n:
+            bad.append(f"{where}: {len(lines)} lines, more than the {n} drawn are needed so no two draws in a row are the same")
+        for l in lines:
+            low = l.lower()
+            if re.search(r"[\u2013\u2014]| - ", l):
+                bad.append(f"{where}: a dash in '{l[:40]}'")
+            if re.search(r"\d", l):
+                bad.append(f"{where}: a figure in '{l[:40]}'")
+            hit = [w for w in re.findall(r"[a-z']+", low) if w in seeds] + [s for s in STALE if s in low]
+            if hit:
+                bad.append(f"{where}: '{hit[0]}' (worn or stock) in '{l[:40]}'")
+    return bad
 
 
 def mention_once(text: str, words: tuple[str, ...]) -> str:

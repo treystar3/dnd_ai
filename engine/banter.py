@@ -88,7 +88,12 @@ def check_exchange(ex, ctx: dict) -> str:
     if not lo <= len(ex.lines) <= hi:
         return f"write {lo} to {hi} lines of dialogue (you wrote {len(ex.lines)})"
     for ln in ex.lines:
-        who = speakers.get(ln.speaker.strip().lower().rstrip(":")) or near_speaker(ln.speaker, speakers)
+        who = speakers.get(ln.speaker.strip().lower().rstrip(":"))
+        if not who:
+            who = near_speaker(ln.speaker, speakers)
+            if who:
+                from engine import names
+                names.REPAIRS["speaker"] += 1                             # (f587) a misspelt speaker mended, counted
         if not who:
             return f"speaker must be one of: {', '.join(speakers.values())}"
         ln.speaker = who

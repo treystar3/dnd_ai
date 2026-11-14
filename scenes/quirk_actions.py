@@ -289,7 +289,7 @@ class QuirkActions:
                                              notes=quirks.voice_notes(m, solo=True), props=quirks.scene_props(m, self.place, where_given="here" in view.facets() and bool(view.lines("here"))),
                                              leaned=quirks.leaned_on(m), offers=self.material_for(m), fix=fix, truth_text=view.text(),
                                              others=self.fellow_names(m), recalled=recalled, open_=self.hire_open(m, held),
-                                             pronoun=brief.pronoun(self, self.acting)),
+                                             pronoun=brief.pronoun(self, self.acting), exemplars=self.exemplars("speech", "small_talk")),
                              CompanionReply, temperature=0.85, max_tokens=config.PROSE_MAX_TOKENS, retries=1, validation_context=ctx, relaxed_context=dict(ctx, recent=lately[-1:]))
             except LLMError:
                 return ""

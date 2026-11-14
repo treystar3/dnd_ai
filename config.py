@@ -43,7 +43,7 @@ BACKEND = (__import__("os").environ.get("DND_BACKEND", "") or "runtime").strip()
 CLOSE_WAIT_SECONDS = 2      # (f453) how long a closing campaign waits for its background work (a creation call, people being written) before leaving it behind
 COMBAT_NUMBERS = True  # show the numbers under each narrated round (#numbers toggles it in game)
 NARRATED_DIALOGUE = True  # wrap conversations in narration (#dialogue toggles it in game)
-LOG_MAX_MB = 5            # when logs/llm_calls.jsonl grows past this, it is trimmed
+LOG_MAX_MB = float(__import__("os").environ.get("DND_LOG_MAX_MB", "5") or 5)   # past this, logs/llm_calls.jsonl is trimmed; (f575) a measuring run raises it
 LOG_KEEP_ENTRIES = 300    # how many of the most recent entries survive a trim
 LOG_FULL_PROMPTS = False  # True stores every system prompt in full (large); False keeps the first part
 
@@ -86,4 +86,8 @@ _SAMPLING_FILE = __import__("yaml").safe_load((__import__("pathlib").Path(__file
 SAMPLING = {t: dict(v or {}) for t, v in (_SAMPLING_FILE.get("tasks") or {}).items()}
 SAMPLING_BASE = dict(_SAMPLING_FILE.get("base") or {})
 RETRY_TEMPERATURE_STEP = float(_SAMPLING_FILE.get("retry_temperature_step") or 0.15)
+# (f587) One of sampling.yaml's arms laid over its arm_tasks for a measuring run (A1); not data, so the hash never moves with it.
+SAMPLING_ARM = __import__("os").environ.get("DND_SAMPLING_ARM", "").strip()
+SAMPLING_ARMS = {k: dict(v or {}) for k, v in (_SAMPLING_FILE.get("arms") or {}).items()}
+ARM_TASKS = frozenset(_SAMPLING_FILE.get("arm_tasks") or ())
 PROFANITY = "strong"        # how a companion who curses may curse: "off" (the world's own curses only), "mild" (damn, hell...), "strong"
