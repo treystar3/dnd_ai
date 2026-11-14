@@ -859,6 +859,19 @@ a1 = situation_parts.ruled(store, copy.deepcopy(th), act("persuade", noble.id, [
 a2 = situation_parts.ruled(store, copy.deepcopy(th), act("persuade", noble.id, [noble.id]), chain)
 check("the same chain on the same situation gives the same answer", a1 == a2)
 
+# ---- (f625) the same chain asked of the model: written with no number, or every change numbered 1, it is kept whole
+for label, n in (("with no number", None), ("with every change numbered 1", 1)):
+    st, th = fresh()
+    th["clues"][th["parts"][EV - 1]["clue"]]["found"] = True
+    stub.changes = [{k: v for k, v in c.items() if k != "n" or n} for c in
+                    (ch(n, N, "believes", because="evidence", about=EV), ch(n, N, "open", because="earlier", needs=[1]),
+                     ch(n, ROAD, "lifted", who=N, because="earlier", needs=[2]), ch(n, P, "safe", who=N, because="earlier", needs=[2]))]
+    _, kept, dropped = situation_parts.rule(ws, st, th, act("persuade", noble.id, [noble.id]))
+    check(f"a ruling written {label} is numbered by the engine, each change by its place, and its chain stands whole",
+          [c["n"] for c in kept] == [1, 2, 3, 4] and not dropped and [x["becomes"] for x in th["changes"]] == ["believes", "open", "lifted", "safe"]
+          and th["parts"][ROAD - 1]["now"] == "lifted", (kept, dropped))
+stub.changes = None
+
 g.close()
 shutil.rmtree("saves/situation_ruling_547", ignore_errors=True)
 print("\nALL PASS" if not bad else f"\n{len(bad)} FAILED: {bad}")

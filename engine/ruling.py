@@ -120,6 +120,26 @@ def standing(have: set[str], r) -> tuple[str, str, dict | None]:
     return "stand_in", lacked[0], {"check": C[lacked[0]]["without"]["check"], "hard": hard}
 
 
+def settled(ws, actor_id: str, r, feat=None):
+    """(f618, f623) The road's ruling as the engine takes it for the one who tries: what lacking a power means, then what their body can
+    do of the feat read for the attempt (f624: a reading of its own, engine/body.py). A no stays a no; a feat past the body's limit,
+    or a drop that would hurt, is no way through."""
+    from engine import body
+    if actor_id != ws.acting:                        # one character a scene until multiplayer M1
+        raise ValueError(f"a ruling is settled for the scene's own character, not {actor_id}")
+    how, _, stakes = standing(means_of(ws), r)
+    if how == "stand_in":
+        r = r.model_copy(update={"sense": "cost", "stakes": type(r.stakes)(**stakes)})
+    elif how == "lacks":
+        r = r.model_copy(update={"sense": "no"})
+    if r.sense == "no":
+        return r
+    j = body.judge(body.of_character(ws.player.character), means_of(ws), r, feat)
+    if j.how in ("nearly", "past", "fall"):
+        return r.model_copy(update={"sense": "no"})
+    return body.with_effort(r, j) if j.how == "effort" else r
+
+
 def ask(ws, words: str, text: str):
     """The model's ruling, or None when it cannot give one (on the road, pressing on past an obstacle: f603)."""
     from engine import checks, features
