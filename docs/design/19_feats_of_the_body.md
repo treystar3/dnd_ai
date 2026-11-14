@@ -501,3 +501,73 @@ in one call (`thing+self`), and the size asked of that thing alone, only when a 
 
 Not measured: the reading with the scene given; the size asked of a named thing on these 40 cases (the earlier probe asked 20
 lines); either on a 3060. The results are kept outside the repo with the session's files (pod7/out).
+
+## 16. Step 4: the plan (waiting for the owner)
+
+What section 15 found decides the shape: the model classifies best when no size is asked, and sizes best when it is told the
+thing and the unit. So the reading is two small calls, each asked only when it is needed, and neither is part of the ruling.
+
+### What is asked, and when
+
+1. **The ruling**, as today. A no ends it there: nothing is read for an act that does not stand.
+2. **The feat** (new call): for a ruling that stands, whether the attempt is a feat of the body, which kind, and the thing it is
+   done to. It is the `thing+self` arm exactly as measured: the same instruction, the place's name and the player's line, the
+   same grammar. Most acts end here with none, or with the body's own kind, which the table reads as none.
+3. **The size** (new call, only when a kind of the table was named, about one in eight of the 99 plain lines): the size of that
+   thing, in that kind's unit, with what the kind measures stated (body.yaml `about` and `unit`). Its instruction is the earlier
+   probe's, which gave honest sizes for the heaviest things; where a tool or other hands help, it is asked for the body's share.
+4. **The table**, as built in f623: free, at least a cost, a no in the table's words, or a fall that is made and paid for.
+
+On the rented card the two new calls took about 0.4 seconds each, against 3.2 to 3.6 for the ruling.
+
+### Three features, in this order
+
+| | What | Where | How it is checked |
+|---|---|---|---|
+| f627 | The two calls, built in the engine and not yet called in play; the measure runs them as play would | engine/body.py (what each is asked, its grammar, the asking), llm/contracts.py (two small contracts), tools/reading_eval.py (an arm `sized`, and each case's answer for an ordinary body as well as its own) | A test on the stub; then one pod session, quoted first |
+| f628 | Wired: `body.reading` makes the two calls on both ruling paths, and the reading is kept beside the kept ruling | engine/body.py, engine/act.py (the kept row), data/rules/budget.yaml (two tasks, asked outside the transaction), tools/ruling_eval.py (feat cases are read live again) | A test first; stub_short re-blessed (its one act gains a call); the full suite |
+| f629 | A size is kept on the thing: once said for a thing at a place, it holds for every character and every wording that names it the same | engine/body.py, storage (one capped store), data/rules/body.yaml (the cap) | A test first, on the road's path too, which keeps no ruling |
+
+f627 is measured before f628 is built. f623 was wired first and measured after, and had to come out.
+
+### The gate between f627 and f628
+
+The session reads all 139 lines twice with the `sized` arm. f628 is built only if, on both passes:
+
+- the table's yes or no is the case's on at least 36 of the 40 labelled cases (it was 34 and 35 inside the ruling, and 34 with
+  the size asked in the same call);
+- of the 99 lines that say nothing of feats, no more than 2 fair acts would be refused for an ordinary body (strength,
+  dexterity and constitution 10), read one by one;
+- the portcullis is refused.
+
+If it does not pass, nothing is wired and the result is written here, as section 15 was.
+
+### What is kept, and how it grows
+
+- **With the kept ruling** (f628): the row a character's ruling is kept in also holds what was read for it: none, or the kind, the
+  thing and the size. The same act by the same character at the same place is the same feat, asked again or not. It is beside
+  the ruling, never inside it. A row kept before f628 holds no reading and is read once when next used.
+- **On the thing** (f629): one store by place, each row a kind, the thing as named, and its size; a size is reused when the kind
+  and the thing's words are the same. Its cap is data (a first number: 24 a place, the oldest going first).
+- Both readings are optional calls in the budget: when the model gives none, or the turn's time is spent, the attempt stands as
+  ruled. Nothing waits on them.
+
+### What the player sees
+
+Nothing new is written for this step. What f623 built becomes live again: the table's own lines for a feat past the body, a
+drop that is made and paid for, and the warning before a drop that would kill (the owner, 2026-11-13: "Yes, warned first").
+
+### Said plainly
+
+- **It will still read some acts as feats that are not.** As measured, nine of 99 plain lines beyond the four real feats, two
+  of which touch a fair act (smashing a barrel read as lifting it; climbing onto a fountain read as a jump). The gate counts
+  these for an ordinary body.
+- **A feat near a body's limit turns on a size no one could call wrong** (section 15: the anvil, the thrown stone, the bridge's
+  span). The table's bands are the engine's; the size is the model's, kept once said.
+- **The reading sees the place's name and the line, not the scene.** That is what was measured. Giving it the scene is its own
+  change with its own measure.
+- **The thing is matched by its words** (f629): the same wall named in other words is sized again. Tying a size to a thing the
+  place already holds (a part, an object) comes after, with the scene.
+- **Neither a 3060 nor the whole turn's time is measured** by these sessions; the night runs are where that shows.
+- **After this:** "beyond" removed (the owner: "Remove it then"), once f628 has been measured in play; the shove off a height
+  in a fight; the townsperson's shove with phase 4.
