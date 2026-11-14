@@ -502,7 +502,7 @@ in one call (`thing+self`), and the size asked of that thing alone, only when a 
 Not measured: the reading with the scene given; the size asked of a named thing on these 40 cases (the earlier probe asked 20
 lines); either on a 3060. The results are kept outside the repo with the session's files (pod7/out).
 
-## 16. Step 4: the plan (waiting for the owner)
+## 16. Step 4: the plan (approved 2026-11-14; f627 built, the gate not met: section 17)
 
 What section 15 found decides the shape: the model classifies best when no size is asked, and sizes best when it is told the
 thing and the unit. So the reading is two small calls, each asked only when it is needed, and neither is part of the ruling.
@@ -571,3 +571,106 @@ drop that is made and paid for, and the warning before a drop that would kill (t
 - **Neither a 3060 nor the whole turn's time is measured** by these sessions; the night runs are where that shows.
 - **After this:** "beyond" removed (the owner: "Remove it then"), once f628 has been measured in play; the shove off a height
   in a fight; the townsperson's shove with phase 4.
+
+## 17. The third measure: the two calls as play would make them (f627), and the gate
+
+One session on the rented card (2026-11-14), on the committed tree of f627 (`ba11262`): the `sized` arm of
+tools/reading_eval.py, all 139 lines, two passes. 278 attempts, 354 calls (278 for the feat, 76 for a size), none lost.
+
+**The gate is not met, on either pass, on any of its three conditions. Nothing is wired: `body.reading` still answers none, and
+f628 and f629 are not built.**
+
+| | Pass 1 | Pass 2 | The gate |
+|---|---|---|---|
+| The engine's yes or no is the case's, of the 40 labelled | 35 | 35 | at least 36 |
+| Fair acts refused an ordinary body, of the 99 plain lines | 4 | 3 | at most 2 |
+| The portcullis | not refused (800 lb) | not refused (800 lb) | refused |
+
+Beside the gate:
+
+| | Pass 1 | Pass 2 |
+|---|---|---|
+| Kind right, of 40 | 35 | 36 |
+| Kind and size inside the case's range, of 40 | 34 | 34 |
+| A feat named, of the 99 plain lines | 12 | 11 |
+| Fair acts refused for the case's own body (the corpus's strong warrior), of 99 | 0 | 0 |
+| Labelled cases that expect a no, refused by the table, of 9 | 5 | 6 |
+| The body's own kind named, of 139 | 28 | 28 |
+| A size asked (the second call made), of 139 | 38 | 38 |
+
+The feat took 0.55 seconds at the median and the size 0.50, so about a second where both are asked. Between the passes 3 of 139
+lines changed kind, and 7 of the 38 sized the same kind differently (a breath of 45 seconds and then 15; a millstone borne by
+four at 400 pounds and then 1,200).
+
+### Against the measure before
+
+| | The size asked in the same call (section 15) | Two calls (here) |
+|---|---|---|
+| The engine's yes or no the case's, of 40 | 34 | 35 and 35 |
+| Fair acts refused an ordinary body, of 99 | about five, worked by hand | 4 and 3 |
+| The portcullis, in pounds | 400 | 800 and 800 (1,200 when the probe was told the kind and the thing by hand) |
+
+Better on each count, and short on each.
+
+### Where the engine's answer was not the case's
+
+Four cases, the same on both passes, each with a size **inside the range the case itself calls right**:
+
+| The line | Read | The body's limit | The case expects |
+|---|---|---|---|
+| I lift the anvil off its block. | lift 150 (range 100 to 400) | 150, a body of 10 | no |
+| I lift the portcullis with my bare hands. | lift 800 (range 600 to 5,000) | 1,000, a body of 30 | no |
+| I haul the full water cask up the cellar steps on my back. | carry 120 (range 100 to 500) | 130, a body of 15 | no |
+| I throw a stone across the river. | throw_far 120 and 150 feet (range 30 to 300) | 60, a body of 10 | a cost |
+
+And one more a pass, a reading that was wrong:
+
+- Pass 1: staying under the millpond read as the body's own kind, so no breath was sized. Pass 2 read it as a breath of 120
+  seconds, and it was refused.
+- Pass 2: the millstone borne by four sized whole (1,200 pounds) and refused; pass 1 gave a share (400) and it stood. This is
+  the only labelled line where the share is asked for and a feat is named: the winch and the lever were both read as no feat.
+
+### The fair acts refused an ordinary body
+
+| The line | Read | An ordinary body's limit |
+|---|---|---|
+| I break down the cellar door where they keep (a person) and pull them out. | lift 185, then 240 (the person) | 150 |
+| I climb onto the fountain and give a speech... | jump_up 6 feet | 4 |
+| I breathe underwater and swim to the sea floor. | breath 120 seconds | 50 |
+| I bar the granary door and drive the looters off with my sword. (pass 1 only) | lift 450 (the door) | 150 |
+
+Three of the four are the kind misread (a pull, a climb and a door barred, read as a lift, a jump and a lift). The fourth is a
+line the corpus rules a cost.
+
+### What it says
+
+1. **The first call holds.** The kind is right on 35 and 36 of 40, and a feat is named on 12 and 11 of the 99 plain lines, as
+   in section 15. What is left of its misreads still costs an ordinary body three or four fair acts in 99.
+2. **The size is right to a range, and the table decides at a line.** Worked on the corpus itself, with no model: given each
+   case's own single reading the engine's answer is the case's on 40 of 40; given the low end of every range it is 35, and
+   given the high end 35. Ten of the 40 labelled cases have a range that crosses the limit of the case's body, so a size the
+   corpus calls right can give either answer. The model's 35 is what a reader gets whose sizes are right to the range and no
+   better. The four misses above are of that kind.
+3. **So the gate's 36 asked for sizes more exact than the corpus's own labels on those ten cases.** That was not seen when the
+   gate was proposed. It is not a reason to move the gate after the measure: it is what the measure found.
+4. **A better wording of the size is unlikely to be the fix.** The size moved from 400 to 800 for the portcullis between the two
+   forms, and it moves between passes of the same form. A number from the model is a fair guess of the size of a thing; the
+   table as built turns a yes into a no on which side of one number that guess falls.
+
+### Waiting for the owner
+
+Step 4 stops here unless the owner says otherwise. In play nothing changes: an attempt stands as ruled, the table is not asked,
+no fall is paid for. What could come next, none of it planned or built:
+
+- **Leave it.** The ruling alone decides what a body can do, as it has since f624. The table, the falls and the two calls stay
+  in the code, called by nothing.
+- **A table that does not turn on a guess.** Near a body's limit the answer becomes a check with a cost, and only a size far
+  past the limit is a no. This changes what f623 decides, so it needs its own plan, and its own measure on lines other than
+  these (the rows of this session have now been read too closely to test it).
+- **Sizes the world already holds.** Where the thing is an object or a part the place keeps, its size is the engine's, kept
+  with it, and the model is asked only for what the world does not hold. This is f629's idea turned around, and it sits with
+  the scene being handed to the reading, which is also unmeasured.
+
+Not covered, said plainly: the reading was handed the place's name and the line, never the scene; nothing was measured on a
+3060; the size's instruction was measured in this one wording only; the 99 plain lines were scored by the corpus's own ruling
+(a fair act is one it does not rule a no), read one by one in the tables above.
