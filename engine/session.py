@@ -103,7 +103,6 @@ class CampaignSession:
         self.recorder = None
         self.closed = False
         self._threads: list[threading.Thread] = []
-        self._turn = None                                  # (f455) what the turn being played may have to give back
 
     @classmethod
     def open(cls, name: str, saves_dir=None) -> "CampaignSession":
@@ -189,14 +188,17 @@ class CampaignSession:
                 held[k] = copy.deepcopy(v)
             except Exception:                          # a cache that cannot be copied is kept by reference: the turn may change it in place
                 held[k] = v
-        rolled = {}                                    # (f465) the scene's declared state (WorldScene.ROLLED), as it stands on the instance
+        from engine import actor
+        turn = actor.turn_of(scene)                    # (f631) the turn's own fields live on its context, the rest on the scene
+        rolled = {}                                    # (f465) the scene's declared state (WorldScene.ROLLED), as it stands
         for k in getattr(scene, "ROLLED", ()):
-            if k in scene.__dict__:
+            home = turn.values if k in actor.FIELDS else scene.__dict__
+            if k in home:
                 try:
-                    rolled[k] = copy.deepcopy(scene.__dict__[k])
+                    rolled[k] = copy.deepcopy(home[k])
                 except Exception:
-                    rolled[k] = scene.__dict__[k]
-        self._turn = (self.world.snapshot(), held, rolled)        # (f499) the fight's marks are its row's: the transaction takes them back
+                    rolled[k] = home[k]
+        turn.snapshot = (self.world.snapshot(), held, rolled)     # (f499) the fight's marks are its row's: the transaction takes them back
 
     def rollback(self, scene, op_id: str = "") -> None:
         """The turn rolled back (scenes/world.py reload_after_rollback, first thing): the map's additions, the scene's private caches,
@@ -207,19 +209,22 @@ class CampaignSession:
             ledger.rollback_op(op_id)
         else:
             ledger.rollback()
-        if self._turn is None:
+        from engine import actor
+        turn = actor.turn_of(scene)
+        if turn.snapshot is None:
             return
-        snap, held, rolled = self._turn
-        self._turn = None
+        snap, held, rolled = turn.snapshot
+        turn.snapshot = None
         self.world.restore(snap)
         for k in [k for k in scene.__dict__ if k.startswith("_")]:
             del scene.__dict__[k]
         scene.__dict__.update(held)
         for k in getattr(scene, "ROLLED", ()):       # (f465) the declared state goes back to the operation's start; what it set anew is unset
+            home = turn.values if k in actor.FIELDS else scene.__dict__
             if k in rolled:
-                scene.__dict__[k] = rolled[k]
+                home[k] = rolled[k]
             else:
-                scene.__dict__.pop(k, None)
+                home.pop(k, None)
 
     def __repr__(self) -> str:
         return f"CampaignSession({self.store.meta.name!r}{', adopted' if self.adopted else ''}{', closed' if self.closed else ''})"

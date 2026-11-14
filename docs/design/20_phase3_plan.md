@@ -3,7 +3,7 @@
 Written 2026-11-14 against `main` at 84fc7cd (f627, with the prose branch merged). Approved by the owner the same day ("Approve as
 recommended"), with the recommendations of section 7 taken.
 
-**Built so far:** f628 and f630. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
+**Built so far:** f628, f630 and f631. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
 "Yes, move it"), because three of its logs are written where there is no scene to ask who acted (see f629 below).
 
 This is not a new design. Two designs the owner has already taken stand behind it:
@@ -42,7 +42,7 @@ Each of these changes what a feature below must do. None overturns the design.
 
 1. **The file name is taken.** engine/context.py is the prompt's scene records, an unrelated module. The contexts go in a new
    module, engine/actor.py.
-2. **The rolled-back names are 36, not 5.** `WorldScene.ROLLED` (scenes/world.py:1130) has grown with the fight, the camp, the
+2. **The rolled-back names are 35, not 5.** `WorldScene.ROLLED` (scenes/world.py:1130) has grown with the fight, the camp, the
    lessons and phase 2. Twenty-two of them are never set in `__init__` and exist only once written; the rollback depends on
    "absent means remove".
 3. **A line resets twelve fields, not nine.** `begin_line` (scenes/world.py:1148) also resets `line_from`, `line_log` and
@@ -78,7 +78,7 @@ Each feature has its test first, replays the three goldens exactly unless it say
 ### A. No turn code (can start at once)
 
 **f628: the pins, widened (tests only).**
-- All 36 rolled-back names, the twelve line fields and the swept caches are read through `getattr` around a failed operation, an
+- All 35 rolled-back names, the twelve line fields and the swept caches are read through `getattr` around a failed operation, an
   asked stand-down and a line whose second operation fails. A name never set stays absent after a rollback.
 - tools/sim/scene_rollback_465_test.py reads `ws.__dict__` and would pass blind for a moved field: it reads through `getattr`.
 - A pin of what every output function sends that is not text (the line asked for, the panes, the status block, the busy light,
@@ -102,7 +102,7 @@ what it did.
 - What f628 found of today's behaviour, which the table has to say: a failed operation puts `pending` back to what it found by
   its own hand (it is not kept as set), writes `halted` and `last_failure` itself, and leaves `last_budget`, `broken`,
   `last_text`, `crash_after_commit` and `recovered_at_load` as they stand.
-- **Every one of the 36 rolled-back names is declared** as the turn's, the actor's view or the scene's, in a table a test holds,
+- **Every one of the 35 rolled-back names is declared** as the turn's, the actor's view or the scene's, in a table a test holds,
   whether or not it moves now. Only the turn's move. This is the list M1's split of the scene starts from.
 - The four scene fields no list holds today (`broken`, `last_text`, `crash_after_commit`, `recovered_at_load`) are declared too.
 - Proof: f628's pins unchanged. Each golden holds a call that fails every try, so the rollback over the moved fields is replayed.
@@ -204,7 +204,7 @@ Where a build finds one of these features wrong in a way that changes its shape,
 ## 5. Risks
 
 1. **A field drops out of the rollback without a sound.** The guard is f628's pins, written on today's code and unchanged through
-   f631, and the table that declares all 36 names.
+   f631, and the table that declares all 35 names.
 2. **A missing bind hides while there is one actor.** Everything shares the process's default, so code outside an entry works
    today and would reach the wrong player in M1. M1 must turn the default into an error for story output; f632 lists where it
    is reached.
@@ -215,7 +215,7 @@ Where a build finds one of these features wrong in a way that changes its shape,
 5. **Two unused implementations drift** if other work lands between f637 and f640. They are built close together.
 6. **f639 clouds the proof of f640** if the two are read together. They are read apart: the storage move on the old recordings
    first, then the dice step.
-7. **The actor's view is not split here.** Thirty of the 36 rolled-back names stay on the scene. That is M1's work; this phase
+7. **The actor's view is not split here.** Twenty-nine of the 35 rolled-back names stay on the scene. That is M1's work; this phase
    only declares which is which.
 
 ## 6. Not in this plan

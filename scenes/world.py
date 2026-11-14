@@ -86,6 +86,7 @@ UNPAID = re.compile(r"\b(without pay(ing)?|for free|no fee|steal|snatch|forge|by
 PAST = re.compile(r"\b(paid|gave|yesterday|last (week|night|time)|already|before)\b")                        # "the 2 silver I paid you" is no offer
 from engine.actions import TIME_COST                 # how long each kind of action takes: declared with the action (engine/actions.py)
 from engine import streams
+from engine import actor                                    # (f631) the turn's context, which holds the line's fields
 SEARCH = encounters.E
 
 
@@ -1153,12 +1154,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def begin_line(self) -> None:
         """(f463) A line begins: nothing of the last one's operations is kept, and the write fence is armed for its life."""
-        self.last_crash = False
-        self.line_ops, self.line_failed, self.line_done, self.line_world_failed = [], [], [], []
-        self.passages, self.line_untold, self.unshown_ops, self.collecting = [], [], {}, False
-        self.line_from, self.line_losses = self.player.location, 0      # (f583) where the line began, and no death yet, for the pools
-        tail = self.store.journal_tail(1)
-        self.line_log = tail[-1]["seq"] if tail else 0
+        tail = self.store.journal_tail(1)                  # (f631) the line's fields start fresh on the turn's context (engine/actor.py)
+        actor.turn_of(self).begin_line(line_from=self.player.location, line_log=tail[-1]["seq"] if tail else 0)
         self.store.arm(True)
 
     @contextmanager
@@ -1754,8 +1751,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         console.note("Nothing comes of that here. Try it another way, or say plainly what you want to happen.")   # (f391) in the world's words
         refusals.note("silent", text, f"the turn showed nothing; actions run: {ran}", self.player.location, self.store.meta.turn)
 
-    step = None                                      # (f416) the plan's step being done, while one is
-
     def refuse(self, say: str, needed_by_rest: bool | None = None) -> None:
         """(f416) The game says no to a step. The player reads why; the turn's record keeps what did not happen, so the passage that tells
         the rest of the line never shows it done (a whetstone the player did not have rasped along their blade, a dungeon they were not
@@ -2238,7 +2233,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 console.debug(f"no such action kind: {intent.kind}")
                 self.halted = True
                 return
-            self.__dict__.setdefault("ran", []).append(intent.kind)
+            actor.turn_of(self).add("ran", intent.kind)
             refused_before = sum(1 for r in ledger.ROWS if r.get("kind") == "refused")
             getattr(self, f"on_{intent.kind}")(intent, text)
             if self.player.road:                       # (f427) a hand for someone in need at a stop, or a way past what blocks it
@@ -3030,7 +3025,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         read = generate("interpret_action", wp.INTERPRET_SYSTEM, req, ActionPlan, temperature=0.2, max_tokens=700)
         actions = read.actions
         self.dropped_steps = [(a.summary or a.kind).strip() for a in read.dropped]        # (f332) a fourth thing and beyond: told to the player, not lost
-        self.__dict__.setdefault("interpret_calls", []).append({          # the call in full, for the turn log and a lossless replay case
+        actor.turn_of(self).add("interpret_calls", {         # the call in full, for the turn log and a lossless replay case
             "hint": hint, "place": self.player.location, "place_name": self.place.name,
             "roles": {p.id: p.role for p in _sc.present_people() if p.kind == "npc"},
             "partner": self.partner.id if self.partner else "", "last_spoken": last or "",
@@ -4171,3 +4166,4 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 from scenes import intercepts as _intercepts                                     # noqa: E402
 WorldScene.INTERCEPT_TABLE = _intercepts.gather(WorldScene)                     # declared by the mixins, run in order by handle()
 WorldScene.REPAIR_TABLE = plan_repairs.gather(WorldScene)                        # the plan repairs, declared the same way, run in order by repair()
+actor.install(WorldScene)                                                        # (f631) its names for the fields of the turn's context
