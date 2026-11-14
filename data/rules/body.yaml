@@ -1,14 +1,15 @@
-# WHAT A BODY CAN DO (f623, engine/body.py; docs/design/19). A ruling says what an attempt asks of the body that tries it: a kind from
-# this table and a size in that kind's unit (the model describes the world). The engine then decides by the share of the body's limit
-# the size is (the engine decides): half or less, as ruled; past `effort`, at least a cost at fair; past `hard`, at least hard; past
-# the limit, a no, told as `nearly` up to `nearly` times the limit and as `past` beyond. The ruling's own check and a harder difficulty of
-# its own stand. Both ruling paths read it (the act's and the road's).
+# WHAT A BODY CAN DO (f623, engine/body.py; docs/design/19). What an attempt asks of the body that tries it is read as a kind from
+# this table and a size in that kind's unit (f624: a reading of its own, not a part of the ruling). The engine then decides by the
+# share of the body's limit the size is: half or less, as ruled; past `effort`, at least a cost at fair; past `hard`, at least hard;
+# past the limit, a no, told as `nearly` up to `nearly` times the limit and as `past` beyond. The ruling's own check and a harder
+# difficulty of its own stand. Both ruling paths hand it their reading (the act's and the road's). No call makes the reading yet
+# (f624), so in play the table is not asked.
 
 bands: {effort: 0.5, hard: 0.8, nearly: 1.25}
 at_least: {effort: fair, hard: hard}       # how hard a feat past each band is, at the least
-most: 100000            # the largest size a ruling's grammar lets it write
+most: 100000            # the largest size a reading's grammar lets it write
 
-# Each kind: `about` and `unit` are what the ruling is told its size measures; `by` the attribute that bounds it (the better, of two);
+# Each kind: `about` and `unit` are what a reading is told its size measures; `by` the attribute that bounds it (the better, of two);
 # `limit` the most a body of that attribute can do, at three marks: 10 an ordinary person, 15 a fit one, 30 the best a person starts
 # as. Between two marks the limit runs straight, past the last it runs straight on with no ceiling (the owner, 2026-11-13), and below
 # the first it falls away in proportion. `powers`: the capabilities (capabilities.yaml) that do the feat in the body's place; a

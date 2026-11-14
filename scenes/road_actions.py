@@ -483,7 +483,8 @@ class RoadActions:
         if not re.search(R["hazard"]["around_words"], (text or "").lower()):
             r = ruling.ask(self, f"pressing straight on past {what}", text or "I keep going")
             if r is not None:                        # (f618, f623) what lacking a power means, and what a body can do, are the engine's
-                r = ruling.settled(self, self.acting, r)
+                from engine import body
+                r = ruling.settled(self, self.acting, r, body.reading(self, self.acting, text or ""))
             if r is None or r.sense != "no":
                 self.push_past(hz, r)
                 return

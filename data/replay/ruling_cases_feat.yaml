@@ -8,8 +8,10 @@
 #           the table's arithmetic held still, NOT rulings of the owner's: when the owner rules a feat fair or not, the table changes
 #           and the case with it, and the case then says it is the owner's.
 #   deadly  true where the drop would kill that body: in play it is warned of first and then is a death.
-#   model   a ruling to try the engine's arithmetic against offline. The first twenty hold the sizes and rulings Gemma 4 12B gave
-#           when asked alone (the probe of 2026-11-13); the rest are written by hand.
+#   model   a ruling to try the engine's arithmetic against offline, and beside it (`feat`) the reading of the attempt the table is
+#           handed (f624: a feat is a reading of its own, never a part of the ruling; live, no call reads one yet and these cases
+#           are left unread). The first twenty hold the sizes and rulings Gemma 4 12B gave when asked alone (the probe of
+#           2026-11-13); the rest are written by hand.
 # The first twenty are the probe's lines. The twenty after are not: seven feats, three done with a tool or with help (the size is the
 # body's own share), and ten that are no feat of the body at all.
 

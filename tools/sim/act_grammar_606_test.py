@@ -151,13 +151,6 @@ if part:
     fair.append({"sense": "cost", "why": "a bar", "works": "It is barred.", "fail": "hurt", "changes": [{"n": 1, "target": part, "becomes": "state",
                                                                              "state": features.F["becomes"][0], "because": "skill"}]})
 climb = {"sense": "cost", "why": "wet rock", "works": "You reach the ledge.", "requires": ["dexterity"], "fail": "hurt"}
-unsaid = [dict(x) for x in fair + [climb]]
-for x in fair + [climb]:                             # (f623) every ruling says its feat: none of these is one of the body
-    x["feat"] = {"kind": "none"}
-check("(f623) a ruling that does not say its feat cannot be written, a yes or a no; one that says it with a kind and a size can",
-      not any(fits(x, s) for x in unsaid) and fits({**climb, "feat": {"kind": "jump_up", "size": 6}}, s)
-      and not fits({**climb, "feat": {"kind": "jump_up"}}, s) and not fits({**climb, "feat": {"kind": "wingspan", "size": 6}}, s),
-      [x for x in unsaid if fits(x, s)])
 moved = Shaped.model_validate(climb, context=ctx)
 check("a climb that names its check under requires fits the grammar, and the check moves to the stakes with nothing required",
       fits(climb, s) and moved.requires == [] and moved.stakes.check == "dexterity", (fits(climb, s), moved.requires, moved.stakes))
@@ -167,8 +160,7 @@ unfair = [{**good, "fail": "time_lost, noise, noticed, hurt"},
           {**good, "changes": [{"n": 1, "target": cond, "becomes": "cleared", "because": "force"}]},
           {**good, "changes": [{"n": 1, "target": by_kind["situation"][0], "becomes": "safe"}]},
           {**good, "changes": [{"n": 1, "target": who, "becomes": "surrenders", "because": "force"}]},
-          {"sense": "no", "why": "no", "fail": "hurt", "feat": {"kind": "none"}}]
-check("(f623) ...each of them saying its feat, so it is refused for its own fault", all("feat" in x for x in unfair))
+          {"sense": "no", "why": "no", "fail": "hurt"}]
 check("...and the pod's failures cannot be written: a listed fail, an invented word, the situation itself, a surrender with no one "
       "surrendering, a no with no answer", not any(fits(x, s) for x in unfair), [x for x in unfair if fits(x, s)])
 

@@ -31,11 +31,12 @@ are the game's vocabulary, not examples of a verdict.
 
 (f623) A case of kind `feat` says what a sensible table would name as the feat of the body (`feat`: "none", {kind, size: [low, high]},
 or a list of fair answers) and the body it is tried with (`body`: one number for strength, dexterity and constitution, or some by
-name). Its `expect` is what the body's table answers for that body: the table's arithmetic held still, not a ruling of the owner's. Live, the
-model's feat is read against the case and counted apart from the verdict: named right, the kind wrong, or the size outside its range;
-and on a case that says nothing of a feat, whether one was named at all. Offline a case's own ruling must name a feat its case calls
-fair, or the file is refused. `deadly: true`: the drop would kill that body, so in play it is warned of first and then is a death;
-the measure holds the engine to saying so.
+name). Its `expect` is what the body's table answers for that body: the table's arithmetic held still, not a ruling of the owner's.
+(f624) A feat is a reading of its own, not a part of the ruling (engine/body.py reading). Offline the reading is the one the case's
+`model` holds beside its ruling (`feat`), which must be one the case calls fair, or the file is refused. Live, no call reads a
+feat yet, so a feat case is left unread and counted so: its `expect` is the table's answer to a reading. `named` scores a reading
+against its case, for whatever measures one. `deadly: true`: the drop would kill that body, so in play it is warned of first and
+then is a death; the measure holds the engine to saying so.
 
 GOAL.md: "Investigate further into the cave" is met with more cave. "I grow wings and fly away" is not."""
 from __future__ import annotations
@@ -83,11 +84,12 @@ def problems(cases: list[dict]) -> list[str]:
                     out.append(f"\"{c['line']}\": feat is \"none\" or {{kind: one of {', '.join(body.K)}, size: [low, high]}}, or a list of them")
                     break
             else:
-                import types
-                own = (c.get("model") or {}).get("feat")
-                if own is not None and named(c, types.SimpleNamespace(feat=types.SimpleNamespace(kind=own.get("kind", "none"),
-                                                                                                 size=own.get("size", 0)))) != "ok":
-                    out.append(f"\"{c['line']}\": its own ruling names a feat the case does not call fair")
+                try:
+                    fair_own = "feat" not in (c.get("model") or {}) or named(c, reading(c)) == "ok"
+                except ValueError:
+                    fair_own = False
+                if not fair_own:
+                    out.append(f"\"{c['line']}\": its own reading names a feat the case does not call fair")
         if "deadly" in c and not (c.get("kind") == "feat" and isinstance(c["deadly"], bool)):
             out.append(f"\"{c['line']}\": deadly is true or false, on a feat case")
         if "body" in c and not (isinstance(c["body"], int) and c["body"] > 0
@@ -100,12 +102,24 @@ def fair_feats(spec) -> list:
     return spec if isinstance(spec, list) else [spec]
 
 
-def named(case: dict, r) -> str | None:
-    """(f623) A ruling's feat against what the case says a sensible table would name: "ok"; "kind" (another kind, or a feat where there
+def reading(case: dict):
+    """(f624) The reading a case's own `model` holds beside its ruling: what the table is handed offline. No feat where it holds none."""
+    from engine import body
+    own = (case.get("model") or {}).get("feat") or {}
+    return body.read(own.get("kind", "none"), own.get("size", 0))
+
+
+def unread(case: dict, live: bool) -> bool:
+    """(f624) Whether a case cannot be scored this way: a feat case live, since no call reads a feat and its `expect` answers a reading."""
+    return bool(live and case.get("kind") == "feat")
+
+
+def named(case: dict, feat) -> str | None:
+    """(f623) A reading against what the case says a sensible table would name: "ok"; "kind" (another kind, or a feat where there
     is none); "size" (the kind right, the size outside its range). None when the case says nothing of it."""
     if "feat" not in case:
         return None
-    kind, size = r.feat.kind, float(r.feat.size or 0)
+    kind, size = feat.kind, float(feat.size or 0)
     out = "kind"
     for a in fair_feats(case["feat"]):
         if a == "none":
@@ -419,18 +433,17 @@ class Bench:
         if path == "new":
             from engine import act
             T = self.targets()
-            v = act.validate(self.ws, self.ws.acting, T, self.act_model(case, T))
+            v = act.validate(self.ws, self.ws.acting, T, self.act_model(case, T), reading(case))
             self.last = v
             return ("yes" if v.ok else "no"), self.moved(case, T, v)
-        from engine import body
-        m = {k: v for k, v in case["model"].items() if k in ("sense", "requires", "why", "needs", "stakes", "feat")}   # the old path makes no changes
-        r = Ruling.model_validate({"answer": "x", **m}, context={"capabilities": list(ruling.C), "feats": list(body.K)})
-        return "yes" if self.road(r) else "no"
+        m = {k: v for k, v in case["model"].items() if k in ("sense", "requires", "why", "needs", "stakes")}   # the old path makes no changes
+        r = Ruling.model_validate({"answer": "x", **m}, context={"capabilities": list(ruling.C)})
+        return "yes" if self.road(r, reading(case)) else "no"
 
-    def road(self, r) -> bool:
+    def road(self, r, feat=None) -> bool:
         """(f623) The road's ruling as the game takes it: the engine's own grounds, then what lacking a power and what a body mean."""
         from engine import ruling
-        return bool(ruling.verdict(self.ws, r)["ok"]) and ruling.settled(self.ws, self.ws.acting, r).sense != "no"
+        return bool(ruling.verdict(self.ws, r)["ok"]) and ruling.settled(self.ws, self.ws.acting, r, feat).sense != "no"
 
     def live(self, case: dict, path: str = "old"):
         """The model's ruling and the engine's yes or no; on the new path also whether its changes do what the case says."""
@@ -486,22 +499,8 @@ class Tally:
     def __init__(self):
         self.right = self.accepted = self.rejected = self.none = 0
         self.needs_missed = self.changes_wrong = self.known = self.retire = 0
-        self.feats = {"ok": 0, "kind": 0, "size": 0}         # (f623) the model's feat against its case's, apart from the verdict
-        self.feat_unasked = self.feat_free = 0               # ...and on the cases that say nothing of one: named a feat, of all such
-        self.deadly_wrong = 0                                # ...and a drop the engine did not call deadly as its case does
-
-    def feat(self, case: dict, r) -> str:
-        """(f623) Count a ruling's feat; returns how to show it."""
-        if r is None or not hasattr(r, "feat"):
-            return ""
-        got = named(case, r)
-        said = "none" if r.feat.kind == "none" else f"{r.feat.kind} {r.feat.size:g}"
-        if got is None:
-            self.feat_free += 1
-            self.feat_unasked += r.feat.kind != "none"
-            return "" if r.feat.kind == "none" else f", feat {said}"
-        self.feats[got] += 1
-        return f", feat {said}" + {"ok": "", "kind": " KIND", "size": " SIZE"}[got]
+        self.deadly_wrong = 0                                # (f623) a drop the engine did not call deadly as its case does
+        self.unread = 0                                      # (f624) feat cases left unread: no call reads a feat
 
     def add(self, want: str, got: str | None, needs_ok: bool | None = None, moves_ok: bool | None = None, known: bool = False) -> bool:
         if got is None:
@@ -533,10 +532,8 @@ class Tally:
                 + (f"; {self.known} known, awaiting their feature" if self.known else "")
                 + (f"; {self.retire} known now right: retire the label" if self.retire else "")
                 + (f"; {self.none} with no ruling" if live else f"; {self.none} need the model")
-                + (f"; feats named right {self.feats['ok']} of {sum(self.feats.values())}, the kind wrong {self.feats['kind']}, the size "
-                   f"outside its range {self.feats['size']}" if sum(self.feats.values()) else "")
                 + (f"; deadly drops wrong {self.deadly_wrong}" if self.deadly_wrong else "")
-                + (f"; a feat named on {self.feat_unasked} of {self.feat_free} cases that say nothing of one" if live and self.feat_free else ""))
+                + (f"; {self.unread} feat cases unread (no call reads a feat)" if self.unread else ""))
 
 
 def judge(b: Bench, c: dict, live: bool) -> tuple[str | None, bool, str]:
@@ -557,6 +554,9 @@ def side(b: Bench, c: dict, path: str, live: bool, tally: Tally) -> str:
     """(f601) One case on one path, scored on its sense alike, with the needs (old) and the changes (new) apart: how to show it."""
     want = "no" if c["expect"] == "no" else "yes"
     needs_ok = moves_ok = None
+    if unread(c, live):                                  # (f624) its `expect` answers a reading, and none is made
+        tally.unread += 1
+        return f"{path} --  {'unread':<20}"
     if live:
         r, got, moves_ok = b.live(c, path)
         if r is not None and path == "old" and want != "no" and c.get("needs"):
@@ -566,10 +566,8 @@ def side(b: Bench, c: dict, path: str, live: bool, tally: Tally) -> str:
         out = b.offline(c, path)
         got, moves_ok = (out if path == "new" and out is not None else (out, None))
         shown = got or "-"
-    if path == "new" and live and r is not None:         # (f623) the feat the model named, counted apart from the verdict
-        shown += tally.feat(c, r)
-    if path == "new" and c.get("kind") == "feat" and b.last is not None and (live is False or "deadly" in c):   # (f623) and a deadly drop
-        if bool(c.get("deadly")) != bool(b.last.deadly) and not (live and "deadly" not in c):
+    if path == "new" and c.get("kind") == "feat" and b.last is not None:   # (f623) a deadly drop, as its case says
+        if bool(c.get("deadly")) != bool(b.last.deadly):
             tally.deadly_wrong += 1
             shown += ", deadly WRONG"
         elif b.last.deadly:
@@ -611,6 +609,10 @@ def main() -> int:
         for c in cases:
             want = "no" if c["expect"] == "no" else "yes"
             if a.path == "old":                                  # (f395) the old path's output, as it always read
+                if unread(c, a.live):                            # (f624)
+                    print(f"  --   {c['line']}  (a feat case: no call reads a feat)")
+                    skipped += 1
+                    continue
                 got, ok, shown = judge(b, c, a.live)
                 if got is None:
                     if a.live:

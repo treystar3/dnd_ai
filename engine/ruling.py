@@ -48,9 +48,6 @@ Rule with:
             without; at most two; nothing already listed; never treasure, magic items or creatures to fight - the game decides those.
             Each: name (short, "the high ledge"), what (one sentence of what it is), where (where it is from the player).
   requires: the names from CAPABILITIES the attempt needs, whether or not the character has them. Most attempts need none.
-  feat:     when the attempt is done by the body's own strength or reach, its kind from FEATS and how big it is, as the world plainly
-            is: one number in that kind's unit. Only what their own body must do: with a lever, a winch or help, their share. "none"
-            for everything else.
   stakes:   check - one of CHECKS, or an attribute, when chance decides it; hard - easy, fair or hard. Leave empty for a plain yes.
   changes:  what the attempt, if it works, makes lastingly different about a part of the place (one listed, or one under needs): part
             (its name; empty for where the player stands) and becomes (one of BECOMES): a tunnel blocked, a chamber lit, a way cleared.
@@ -66,7 +63,7 @@ def the_name(name: str) -> str:
 
 
 def request(ws, words: str, text: str) -> str:
-    from engine import body, features, inventory
+    from engine import features, inventory
     c = ws.player.character
     place = ws.place
     parts = features.lines(ws) or ["(none known)"]
@@ -84,7 +81,6 @@ def request(ws, words: str, text: str) -> str:
             f"THE CHARACTER: level {c.level} {c.custom_class or c.archetype.value}; carries {gear}; in the pack {pack}; abilities {abilities}\n"
             f"WHAT THEY CAN DO BEYOND THE ORDINARY: {have}\n"
             f"CAPABILITIES:\n{caps}\n"
-            f"FEATS (a kind: what its size measures):\n{body.lines()}\n"
             f"CHECKS: {', '.join(sorted(checks.CHECKS))}, or an attribute ({', '.join(ATTRS)})\n"
             f"BECOMES: {', '.join(features.F['becomes'])}\n"
             f"ROLES: {', '.join(sorted(ws.world.roles))}\n"
@@ -124,9 +120,10 @@ def standing(have: set[str], r) -> tuple[str, str, dict | None]:
     return "stand_in", lacked[0], {"check": C[lacked[0]]["without"]["check"], "hard": hard}
 
 
-def settled(ws, actor_id: str, r):
+def settled(ws, actor_id: str, r, feat=None):
     """(f618, f623) The road's ruling as the engine takes it for the one who tries: what lacking a power means, then what their body can
-    do. A no stays a no; a feat past the body's limit, or a drop that would hurt, is no way through."""
+    do of the feat read for the attempt (f624: a reading of its own, engine/body.py). A no stays a no; a feat past the body's limit,
+    or a drop that would hurt, is no way through."""
     from engine import body
     if actor_id != ws.acting:                        # one character a scene until multiplayer M1
         raise ValueError(f"a ruling is settled for the scene's own character, not {actor_id}")
@@ -137,37 +134,21 @@ def settled(ws, actor_id: str, r):
         r = r.model_copy(update={"sense": "no"})
     if r.sense == "no":
         return r
-    j = body.judge(body.of_character(ws.player.character), means_of(ws), r)
+    j = body.judge(body.of_character(ws.player.character), means_of(ws), r, feat)
     if j.how in ("nearly", "past", "fall"):
         return r.model_copy(update={"sense": "no"})
     return body.with_effort(r, j) if j.how == "effort" else r
 
 
-def shape():
-    """(f623) The road's ruling as the model writes it: the contract's own grammar, and its feat always said, from the table's kinds."""
-    import copy
-    from engine import body
-    from llm.contracts import Ruling
-    schema = Ruling.model_json_schema()
-    schema["properties"]["feat"] = body.schema()
-    schema["required"] = list(schema.get("required") or []) + ["feat"]
-
-    class Shaped(Ruling):
-        @classmethod
-        def model_json_schema(cls, *a, **k) -> dict:
-            return copy.deepcopy(schema)
-    Shaped.__name__ = Shaped.__qualname__ = "Ruling"
-    return Shaped
-
-
 def ask(ws, words: str, text: str):
     """The model's ruling, or None when it cannot give one (on the road, pressing on past an obstacle: f603)."""
-    from engine import body, checks, features
+    from engine import checks, features
+    from llm.contracts import Ruling
     from llm.gateway import LLMError, generate
     try:
-        return generate("ruling", SYSTEM, request(ws, words, text), shape(), temperature=0.3, max_tokens=500,
+        return generate("ruling", SYSTEM, request(ws, words, text), Ruling, temperature=0.3, max_tokens=500,
                         validation_context={"capabilities": list(C), "checks": sorted(checks.CHECKS) + list(ATTRS), "roles": sorted(ws.world.roles),
-                                            "becomes": list(features.F["becomes"]), "feats": list(body.K)})
+                                            "becomes": list(features.F["becomes"])})
     except LLMError as e:
         console.debug(f"ruling: none ({e})")
         return None

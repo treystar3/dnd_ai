@@ -1,6 +1,7 @@
 """(f623) Feats of the body: the model says how big, the engine says whether a body can (docs/design/19). The act's ruling rolled a
-jump onto a roof and a portcullis raised by hand, because nothing in its path knew how big the feat was. Now a ruling names the feat
-(a kind from data/rules/body.yaml and its size), and one reader (engine/body.py judge) settles it for the body that tries, on both
+jump onto a roof and a portcullis raised by hand, because nothing in its path knew how big the feat was. Now an attempt's feat (a
+kind from data/rules/body.yaml and its size; since f624 a reading of its own, engine/body.py reading, patched here to hand one in)
+is settled by one reader (engine/body.py judge) for the body that tries, on both
 ruling paths: within easy reach, as ruled; within reach, at least a cost at fair or hard; past the limit, a no told from the table.
 A drop past what a body lands unhurt is done and paid for, by one fall table for any being, and one that would kill is warned of
 first and then is the game's one death. The feats here are not the ones the probe held.
@@ -14,7 +15,6 @@ stub = simlib.Stub("warrior", 3)
 simlib.install(stub)
 simlib.quiet_console()
 from engine import act, body, checks, combat, party, pools, pulse, ruling, targets
-from llm.contracts import ActRuling, Ruling
 
 bad = []
 def check(n, ok, x=""):
@@ -67,7 +67,7 @@ check("a jump is bounded by the better of strength and dexterity",
 def R(sense="yes", kind="none", size=0, requires=(), check_="", hard=""):
     return types.SimpleNamespace(sense=sense, requires=list(requires), stakes=types.SimpleNamespace(check=check_, hard=hard),
                                  feat=types.SimpleNamespace(kind=kind, size=size))
-J = lambda n, r, have=(): body.judge(person(n), set(have), r)
+J = lambda n, r, have=(): body.judge(person(n), set(have), r, r.feat)
 strong = [J(30, R("yes", "lift", s)) for s in (400, 600, 900, 1100, 1300)]
 check("a weight against a strong back: easily, with effort at fair, at hard, nearly, and never",
       [j.how for j in strong] == ["free", "effort", "effort", "nearly", "past"]
@@ -132,32 +132,11 @@ check("a character gives their own body, with what their gear adds, and a townsp
 check("what a fall took is told in the table's words, harder as it took more",
       [body.word(x) for x in (0.05, 0.2, 0.6, 1)] == [F["told"][0][1], F["told"][1][1], F["told"][2][1], F["told"][2][1]] and len(F["told"]) == 3)
 
-# ---- the contract: a ruling names the feat, on both paths
-T = targets.targets_for(ws, ws.acting)
-ctx = act.context(ws, T)
-ok = ActRuling.model_validate({"sense": "yes", "works": "x", "feat": {"kind": "Lift ", "size": 300}}, context=ctx)
-check("a ruling names its feat: a kind from the table and a size", (ok.feat.kind, ok.feat.size) == ("lift", 300))
-check("...an older kept ruling with none reads as no feat of the body", ActRuling.model_validate({"sense": "yes"}, context=ctx).feat.kind == "none"
-      and Ruling.model_validate({"sense": "yes"}, context=ctx).feat.kind == "none")
-check("...a feat of none carries no size", ActRuling.model_validate({"sense": "yes", "feat": {"kind": "none", "size": 9}}, context=ctx).feat.size == 0)
-def refused(model, d):
-    try:
-        model.model_validate(d, context=ctx)
-        return False
-    except ValueError:
-        return True
-check("...a kind the table does not hold, or a feat with no size, is sent back, on either path",
-      all(refused(m, {"sense": "yes", "feat": f}) for m in (ActRuling, Ruling) for f in ({"kind": "wingspan", "size": 3}, {"kind": "lift", "size": 0},
-                                                                                         {"kind": "lift"})))
-schema = act.shape(ws, T).model_json_schema()
-feats = lambda s: {k for v in s["properties"]["feat"]["anyOf"] for k in v["properties"]["kind"]["enum"]}
-check("the act's grammar has every ruling say its feat, a yes and a no alike, from the table's kinds or none",
-      all("feat" in br["required"] and feats(br) == set(K) | {"none"} for br in schema["anyOf"]), [br["required"] for br in schema["anyOf"]])
-road = ruling.shape().model_json_schema()
-check("...and the road's grammar the same", "feat" in road["required"] and feats(road) == set(K) | {"none"} and road["title"] == "Ruling", road.get("required"))
-asked = [act.request(ws, ws.acting, T, "lift the trough", "I lift the trough."), ruling.request(ws, "lift the trough", "I lift the trough.")]
-check("both requests list the feats with what each one's size measures, and both prompts ask for it",
-      all("FEATS" in a and all(f"  {k}: " in a and K[k]["unit"] in a for k in K) for a in asked) and "feat:" in act.SYSTEM and "feat:" in ruling.SYSTEM)
+# ---- how a reading is asked: the table's own list and grammar
+kinds = {k for v in body.schema()["anyOf"] for k in v["properties"]["kind"]["enum"]}
+check("the table lists every kind with what its size measures, and its grammar is a kind with a size, or none",
+      all(f"  {k}: " in body.lines() and K[k]["unit"] in body.lines() for k in K) and kinds == set(K) | {"none"}
+      and body.schema()["anyOf"][1]["required"] == ["kind", "size"], kinds)
 
 # ---- in play: the act's path
 told, rolled, shown = [], [], []
@@ -166,8 +145,14 @@ ws.narrate = lambda event, text="": told.append(event)
 ruling.odds = lambda ws_, effect, r: rolled.append(dict(r)) or real_odds(ws_, effect, r)
 import ui.console as uc
 uc.ledger = lambda *a, **k: shown.append(str(a[0]) if a else "")
+real_reading = body.reading
+def hand(d):
+    """A ruling as the stub gives it, and the feat written beside it handed in as the attempt's reading (f624)."""
+    feat = body.read(**d["feat"]) if "feat" in d else body.Feat()
+    body.reading = lambda ws_, actor_id, text_: feat
+    return {k: v for k, v in d.items() if k != "feat"}
 def attempt(text, d, roll="success"):
-    stub.act_ruling = d
+    stub.act_ruling = hand(d)
     checks.roll = lambda odds, rng=None, c=None: (roll, 1)
     told.clear(); rolled.clear(); shown.clear()
     with ws.operation("action:other", text) as op:
@@ -296,7 +281,7 @@ for fn in ("note", "ledger"):
     setattr(uc, fn, lambda *a, _fn=fn, **k: noted.append((_fn, str(a[0]) if a else "")))
 hz = {"tier": "normal", "what": "A span of the bridge gone, the river loud below.", "behind": "parth"}
 def road_past(d, roll="success"):
-    stub.ruling = d
+    stub.ruling = hand(d)
     noted.clear(); rolled.clear()
     checks.roll = lambda odds, rng=None, c=None: (roll, 1)
     ruling.odds = lambda ws_, effect, r: rolled.append(dict(r)) or real_odds(ws_, effect, r)
@@ -317,8 +302,9 @@ check("...a drop that would hurt is not jumped on the road: around", not rolled 
 sys.path.insert(0, "tools")
 from tools import ruling_eval
 case = {"line": "I lift the trough.", "at": "trading_square", "expect": "no", "kind": "feat", "feat": {"kind": "lift", "size": [200, 900]}}
-named = lambda spec, kind, size: ruling_eval.named({**case, "feat": spec}, types.SimpleNamespace(feat=types.SimpleNamespace(kind=kind, size=size)))
-check("the measure reads a ruling's feat against a case: the kind right and the size inside its range",
+body.reading = real_reading
+named = lambda spec, kind, size: ruling_eval.named({**case, "feat": spec}, body.Feat(kind, size))
+check("the measure scores a reading against a case: the kind right and the size inside its range",
       [named(case["feat"], "lift", 300), named(case["feat"], "carry", 300), named(case["feat"], "lift", 60), named("none", "none", 0),
        named("none", "lift", 20)] == ["ok", "kind", "size", "ok", "kind"])
 check("...and a case may hold more than one fair answer", named(["none", {"kind": "lift", "size": [10, 150]}], "none", 0) == "ok"
@@ -340,8 +326,8 @@ check("...and offline the table answers every one of them as the case says, the 
       run.returncode == 0 and f"{len(mine)} of {len(mine)} right" in run.stdout and run.stdout.count("deadly: warned, then a death") == 1
       and "WRONG" not in run.stdout, (run.returncode, run.stdout[-900:], run.stderr[-600:]))
 lie = {**mine[0], "model": {**mine[0]["model"], "feat": {"kind": "lift", "size": 40}}}
-check("...a case whose own ruling names a feat its case does not call fair is refused as a file, and so is a deadly that is no feat case",
-      any("own ruling" in p for p in ruling_eval.problems([lie])) and ruling_eval.problems([{"line": "x", "expect": "no", "deadly": True}]))
+check("...a case whose own reading names a feat its case does not call fair is refused as a file, and so is a deadly that is no feat case",
+      any("own reading" in p for p in ruling_eval.problems([lie])) and ruling_eval.problems([{"line": "x", "expect": "no", "deadly": True}]))
 check("the file says what its expectations are: the table's arithmetic, not the owner's rulings", "NOT rulings of the owner's" in FEATS.read_text(encoding="utf-8"))
 
 if bad:

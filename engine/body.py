@@ -1,8 +1,9 @@
 """(f623) What a body can do, and what a fall does to it (data/rules/body.yaml; docs/design/19).
 
-A ruling names the feat an attempt asks of the body: a kind and a size (llm/contracts.py Feat). The size is the model's and the
-decision is the engine's: `judge` reads the table for the body that tries and says how the ruling stands, on either ruling path.
-`fall` is one table for any being: the share of its whole health a fall of some feet takes, from a small view of the body that a
+What an attempt asks of the body is a reading of its own, apart from its ruling (f624): a kind and a size (`Feat`). The decision is
+the engine's: `judge` reads the table for the body that tries and says how the ruling stands, on either ruling path. No call makes
+the reading yet (`reading`), so in play the table is not asked and no fall is paid for (docs/design/19 section 14). `fall` is
+one table for any being: the share of its whole health a fall of some feet takes, from a small view of the body that a
 character, a fighter of any kind and an ordinary person each give."""
 from __future__ import annotations
 
@@ -25,8 +26,33 @@ class Body:
 
 
 @dataclass(frozen=True)
+class Feat:
+    """What an attempt asks of the body that tries it: a kind from the table and its size in that kind's unit, or none."""
+    kind: str = "none"
+    size: float = 0
+
+
+def read(kind: str = "none", size: float = 0) -> Feat:
+    """A reading held to the table: a kind it does not hold, or a feat with no size, is no reading (ValueError)."""
+    kind = (kind or "").strip().lower() or "none"
+    if kind == "none":
+        return Feat()
+    if kind not in K:
+        raise ValueError(f"a feat's kind is one of {', '.join(K)} or none, not {kind}")
+    if not float(size or 0) > 0:
+        raise ValueError("a feat of the body needs its size, one number above 0 in that kind's unit")
+    return Feat(kind, float(size))
+
+
+def reading(ws, actor_id: str, text: str) -> Feat:
+    """What this attempt asks of the body of the one who tries, read from the player's words: the one place either ruling path gets
+    it. (f624) No call reads it yet: none, and an attempt stands as ruled (docs/design/19 section 14)."""
+    return Feat()
+
+
+@dataclass(frozen=True)
 class Judged:
-    """A ruling's feat as the engine takes it. how: none (no feat of the body), power (a power they have does it), free (within easy
+    """An attempt's feat as the engine takes it. how: none (no feat of the body), power (a power they have does it), free (within easy
     reach: as ruled), effort (at least a cost, on `stakes`), nearly or past (a no, `answer`), fall (a drop past what they land unhurt:
     made, rolled on `stakes`, and `share` of their whole health is what it takes landed badly)."""
     how: str = "none"
@@ -92,10 +118,9 @@ def word(share: float) -> str:
     return next((w for top, w in F["told"] if share <= top), F["told"][-1][1])
 
 
-def judge(body: Body, have: set, r) -> Judged:
-    """How a ruling stands for this body, by the feat it names. `have`: the capabilities of the one who tries."""
+def judge(body: Body, have: set, r, feat: Feat | None = None) -> Judged:
+    """How a ruling stands for this body, by the feat read for the attempt. `have`: the capabilities of the one who tries."""
     from engine import ruling
-    feat = getattr(r, "feat", None)
     kind, size = getattr(feat, "kind", "none"), float(getattr(feat, "size", 0) or 0)
     if kind not in K or size <= 0:
         return Judged()
@@ -128,12 +153,12 @@ def with_effort(r, j: Judged):
 
 
 def lines() -> str:
-    """The kinds as a ruling's request lists them."""
+    """The kinds as a request for a reading would list them (no call asks for one yet)."""
     return "\n".join(f"  {k}: {v['about']}, in {v['unit']}" for k, v in K.items())
 
 
 def schema() -> dict:
-    """A ruling's feat in its grammar: a kind from the table with a size, or none."""
+    """The grammar a reading would be written against (no call asks for one yet): a kind from the table with a size, or none."""
     return {"anyOf": [{"type": "object", "required": ["kind"], "properties": {"kind": {"enum": ["none"]}}},
                       {"type": "object", "required": ["kind", "size"],
                        "properties": {"kind": {"enum": list(K)}, "size": {"type": "integer", "minimum": 1, "maximum": int(B["most"])}}}]}

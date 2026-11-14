@@ -38,9 +38,6 @@ Rule with:
             onward). Only what it cannot happen without; at most two; never treasure, magic items or creatures to fight. Each: name
             (short), what (one sentence of what it is), where (where it is from the player).
   requires: the names from CAPABILITIES the attempt needs, whether or not the character has them. Most attempts need none.
-  feat:     when the attempt is done by the body's own strength or reach, its kind from FEATS and how big it is, as the world plainly
-            is: one number in that kind's unit. Only what their own body must do: with a lever, a winch or help, their share. "none"
-            for everything else.
   stakes:   check - one of CHECKS, or an attribute, when chance decides it; hard - easy, fair, hard, or beyond: past anything someone
             with what they have could do, however they try (it then does not happen). Leave empty for a plain yes.
   changes:  what the act, if it works, makes lastingly different, each on one target by its code from TARGETS, named from CHANGES and
@@ -59,7 +56,7 @@ Respond only with JSON matching the schema."""
 # ---------- the request
 
 def request(ws, actor_id: str, T, words: str, text: str) -> str:
-    from engine import body, checks, features, inventory, ruling, targets
+    from engine import checks, features, inventory, ruling, targets
     if actor_id != ws.acting:                        # (f594) one character a scene until multiplayer M1: never another's sheet
         raise ValueError(f"an act is ruled for the scene's own character, not {actor_id}")
     c = ws.player.character
@@ -76,7 +73,6 @@ def request(ws, actor_id: str, T, words: str, text: str) -> str:
             f"THE CHARACTER: level {c.level} {c.custom_class or c.archetype.value}; carries {gear}; in the pack {pack}; abilities {abilities}\n"
             f"WHAT THEY CAN DO BEYOND THE ORDINARY: {have}\n"
             f"CAPABILITIES:\n{caps}\n"
-            f"FEATS (a kind: what its size measures):\n{body.lines()}\n"
             f"CHECKS: {', '.join(sorted(checks.CHECKS))}, or an attribute ({', '.join(ruling.ATTRS)})\n"
             f"CHANGES:\n{changes}\n"
             f"BECOMES (a part's state): {', '.join(features.F['becomes'])}\n"
@@ -101,20 +97,18 @@ def own_body(ws, actor_id: str):
 
 
 def context(ws, T) -> dict:
-    from engine import body, checks, ruling, targets
+    from engine import checks, ruling, targets
     return {"capabilities": list(ruling.C), "checks": sorted(checks.CHECKS) + list(ruling.ATTRS), "roles": sorted(ws.world.roles),
-            "changes": list(targets.CH["changes"]), "codes": T.codes(), "most": int(A["most_changes"]), "fails": list(A["fails"]),
-            "feats": list(body.K)}
+            "changes": list(targets.CH["changes"]), "codes": T.codes(), "most": int(A["most_changes"]), "fails": list(A["fails"])}
 
 
 def shape(ws, T):
     """(f606) The act ruling's contract for this call: it validates as ActRuling does, and the grammar the model writes against is made
     for the scene, so a ruling can only be written in words the engine takes: targets by code, each with only the change words that land
     on its kind (never a situation itself), who acts where a change needs it, the state a change of state or of access gives, the fail,
-    the check and the capabilities from their lists, a no that says what happens instead, and short free text. (f623) Every ruling says
-    its feat, from the body's table."""
+    the check and the capabilities from their lists, a no that says what happens instead, and short free text."""
     import copy
-    from engine import body, checks, features, ruling, situation_parts, targets
+    from engine import checks, features, ruling, situation_parts, targets
     from llm.contracts import ActRuling
     L = A["grammar"]
     defs = ActRuling.model_json_schema()["$defs"]
@@ -164,16 +158,15 @@ def shape(ws, T):
         "needs": {"type": "array", "items": need, "maxItems": int(L["needs"])},
         "requires": {"type": "array", "items": {"enum": list(ruling.C) + sorted(checks.CHECKS) + list(ruling.ATTRS)},   # a check named
                      "maxItems": int(L["requires"])},                                        # here moves to the stakes, as the contract has it
-        "feat": body.schema(),
         "stakes": {"type": "object", "properties": {"check": {"enum": [""] + sorted(checks.CHECKS) + list(ruling.ATTRS)},
                                                     "hard": {"enum": defs["ActStakes"]["properties"]["hard"]["enum"]}}},
         "fail": {"enum": list(A["fails"])},
         "instead": {"type": "array", "items": text("instead"), "maxItems": int(L["instead_items"])}}
     acts = {"type": "array", "items": {"anyOf": changes} if changes else {"type": "object"},
             "maxItems": int(A["most_changes"]) if changes else 0}
-    yes = {"type": "object", "required": ["sense", "works", "feat"], "properties": {"sense": {"enum": ["yes", "cost"]}, **common, "changes": acts,
+    yes = {"type": "object", "required": ["sense", "works"], "properties": {"sense": {"enum": ["yes", "cost"]}, **common, "changes": acts,
                                                                             "works": {**text("works"), "minLength": 1}}}   # (f609)
-    no = {"type": "object", "required": ["sense", "answer", "requires", "feat"], "properties": {   # (f618) a no says what power it wants, if any
+    no = {"type": "object", "required": ["sense", "answer", "requires"], "properties": {       # (f618) a no says what power it wants, if any
         "sense": {"enum": ["no"]}, **common, "changes": {"type": "array", "maxItems": 0}, "answer": {**text("answer"), "minLength": 1}}}
     schema = {"title": "ActRuling", "anyOf": [yes, no]}
 
@@ -310,14 +303,14 @@ class Checked:
     dropped: list = field(default_factory=list)      # (change, why)
     enabled: bool = False      # a real thing it relies on (a tagged thing, the ground of a part): a strong success may match an ability's
     without: str = ""          # (f618) the capability it is done without, on what stands in for it
-    body: object = None        # (f623) the ruling's feat as the body's table takes it (engine/body.py Judged)
+    body: object = None        # (f623) the attempt's feat as the body's table takes it (engine/body.py Judged)
     deadly: bool = False       # (f623) a drop that would take all the character has left, however it is landed
 
 
-def validate(ws, actor_id: str, T, r) -> Checked:
+def validate(ws, actor_id: str, T, r, feat=None) -> Checked:
     """The engine's checks on a ruling, reading only. A no stands; a yes may be refused on the engine's grounds (a power the character
-    lacks, a need the world cannot hold); each change is checked in order as one chain, and one that does not hold is dropped with its
-    reason and so is every change that needs it."""
+    lacks, a feat past their body, a need the world cannot hold); each change is checked in order as one chain, and one that does not
+    hold is dropped with its reason and so is every change that needs it. `feat`: what the attempt asks of the body (body.reading)."""
     from types import SimpleNamespace
     from engine import ruling
     how, cap, stakes = ruling.standing(means(ws, actor_id), r)   # (f618) the engine decides what lacking a power means
@@ -331,7 +324,7 @@ def validate(ws, actor_id: str, T, r) -> Checked:
     if how == "stand_in":                            # done without it: a cost on what stands in, whichever way the model ruled
         r = r.model_copy(update={"sense": "cost", "stakes": type(r.stakes)(**stakes)})
     from engine import body
-    j = body.judge(own_body(ws, actor_id), means(ws, actor_id), r)   # (f623) the size is the ruling's; whether a body can is the engine's
+    j = body.judge(own_body(ws, actor_id), means(ws, actor_id), r, feat)   # (f623) whether a body can is the engine's
     if j.how in ("nearly", "past"):
         return Checked(False, r, j.answer, list(r.instead),
                        f"{j.kind} of {j.size:g} {body.K[j.kind]['unit']}: past what their body can do ({j.limit:g})", body=j)
@@ -595,11 +588,11 @@ def act(ws, actor_id: str, words: str, text: str) -> None:
 def decide(ws, actor_id: str, T, r, fresh: bool, words: str, text: str, continuing: str = "") -> None:
     """A ruling in hand: checked, kept, and refused or made real. `continuing`: the attempt was told beginning before (f596); how it
     turned out is told as of then."""
-    from engine import ruling
+    from engine import body, ruling
     own = words or text
     if continuing:
         words = f"{continuing} {words or text}"
-    v = validate(ws, actor_id, T, r)
+    v = validate(ws, actor_id, T, r, body.reading(ws, actor_id, text or own))
     if fresh:
         keep(ws, actor_id, T, text, r)
     else:

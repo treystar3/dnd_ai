@@ -52,6 +52,8 @@ decides those), or by what the words claim (f616).
 
 ## 4. The mechanism
 
+*Since f624 the feat is not a field of the ruling: section 14 says why. Point 1 below is as f623 built it; the rest stands.*
+
 1. **The ruling says what the body must do.** The act's ruling gains one field, `feat`: a kind from a list the engine hands it,
    and a size in that kind's unit. "Jump up onto the guild hall roof" is `{kind: jump_up, size: 12}`. Most attempts are no feat
    of the body, and say so.
@@ -342,5 +344,81 @@ Not built, said plainly:
   test holds that for a creature of each size, a hire, a companion and the character in a fight. Nothing yet takes health from
   any of them for a fall: that is step 7 (a shove off a height in a fight), and the townsperson's with phase 4.
 - **A Phoenix item** turns a killing blow aside in a fight. It does not turn a fall aside.
-- **The size inside the ruling is still unmeasured** on the real model. That is step 5, the pod session.
+- **The size inside the ruling is still unmeasured** on the real model. That is step 5, the pod session. (Measured since: section
+  14. The field did not stand, and f624 took it out of both rulings.)
 - **"beyond"** is still in the ruling (step 6, after the measure).
+
+## 14. The measure (the pod session of 2026-11-13), and what it says
+
+One pod, the RTX PRO 6000 MIG 24GB card, 36 minutes, about $0.42. The code at b641acc. The forty feat cases and the three older
+corpora (99 cases), each twice. The run before it (f619, at 5b71e02, the same card and the same two passes) is the "before".
+Between the two commits the act's ruling differs by this feature alone: its instruction (300 characters), its list of feats, and
+the field in its grammar.
+
+**The engine's arithmetic did what the table says on every case.** Every wrong verdict below comes from the kind or the size the
+model named, or from what the field did to the rest of the ruling.
+
+Against section 8, in its order:
+
+1. **Is the field filled when it should be, and "none" when it should not? Filled, yes. "None", no.**
+   - On the thirty feat cases the kind was right on 24 and 25 (the two passes). The misses: a jump over a stall named as a jump
+     across, a stone thrown far named by the stone's weight, a climb named as lifting 180 pounds, a dive named as a drop, a
+     breath held under the millpond named as nothing.
+   - On the ten cases of the feat file that are no feat, "none" on 9 of 10.
+   - **On the 99 older cases a feat was named on 44, both passes,** where a handful are feats at all. Most are of two shapes:
+     the character's own weight (lift or carry 150 to 180 pounds for a climb, a wade, a walk, a wrestle, a door broken down), and
+     a token size of 1 to 10 for handling a small thing. The token sizes are under half of any limit and change nothing. The
+     body's own weight does: it raises the difficulty unseen for the bench's bodies, and for a weak one it is a refusal (a lift
+     of 180 pounds is past strength 10, whose limit is 150). Two were refused outright in the run: climbing onto the rocks above
+     the cave mouth (named a jump up of 10 feet, both passes) and diving with water breathing (named a jump up of 10 feet, one
+     pass).
+2. **Are the sizes inside a ruling as honest as those asked alone? For most, yes. For the heaviest, no.** Of the probe's
+   eighteen sizes, fourteen came back within a factor of 1.6 and two under another kind. The two heaviest came back at under half: the portcullis 500 pounds (asked
+   alone, 1200) and the millstone 400 (1200). A ruling that has said "cost" names a size the cost can be paid for. The
+   portcullis, tried at strength 30, was let through in both passes.
+3. **Does the engine's answer come out right?** 34 and 35 of 40. The wrong ones: the portcullis and the water cask (size low),
+   the anvil at the limit exactly (150 pounds, a hard roll, where the case wants a no), the broken span (12 feet of a limit of
+   13), the boulder moved with a lever (the boulder's weight named, not the body's share, so refused), and the millpond (the
+   model said no for want of water breathing and named no feat; holding a breath stood in for the power, f618, and the body was
+   never asked).
+4. **Did anything else move? Yes, and this is the finding.**
+   - The sense or the verdict differs from the run before on 16 and 14 of the 99 (the two passes). Right, by file, before and
+     now: the 50 simple cases 49, now 50 and 48; the 28 of several steps 27, now 26 and 26; the 21 of things and situations 21,
+     now 19 of 19 and 20 of 20, with two rulings and one lost (below).
+   - What it fixed: the jump to the guild hall's roof is refused, both passes.
+   - What it broke: digging a tunnel into the guild's vault went from no to a cost (both passes). Six lines went from a cost to
+     a plain yes (searching rocks, following tracks, finding a stream, asking the wolf, asking the dead sailor, chalking arrows).
+   - **The ruling writes less of itself.** Of the rulings that stand, 5 of 70 gave no `why` before and 31 of 68 now; 1 gave no
+     `requires` before and 28 now. A ruling that does not say what power it needs is not held to f618: breathing water was
+     required before and is not now.
+   - **Every ruling with two or more changes numbered them all 1.** Eight rulings a pass were refused by the contract and asked
+     again (none before); two were lost in one pass and one in the other.
+   - The two passes of the run before differed on 1 of 99. These differ on 5.
+
+**So the field does not stand as built.** Questions 1 and 4 fail, 2 fails at the heavy end. The fallback of section 8 was a second
+small call asking the size alone "only when the first ruling names a feat". That keeps the field in the ruling, and the field in
+the ruling is what moved it. What the measure points to instead: the ruling goes back to what it was at f619, word for word, and
+the feat is asked in a call of its own, as the probe asked it. The engine's side (the table, the bands, falling, the warned
+death) is unchanged by that. It needs the owner's word and its own measure, since the probe has only been run on twenty lines and
+two of them no feat.
+
+The results are kept outside the repo with the session's files (pod6/out), beside the run before (pod5/out).
+
+### What was done about it (f624)
+
+Three ways forward were set out and ranked by a reader who did not know which the author leaned to: the feat read in a call of its
+own, each attempt; sizes kept on the thing (the owner's "step after", section 10 answer 4); and the one call kept and hardened.
+The reader put them in that order, and found the order of work that beats any one of them. The owner, 2026-11-13: "Yes, step one".
+
+1. **The field is out of both rulings (f624).** Each asks what it asked before f623: the same instruction, request and grammar,
+   and the recording's request for the act's ruling is again the one recorded before f623. What an attempt asks of the body is a
+   reading of its own (engine/body.py `reading`), the one place either ruling path gets it, and no call makes it yet: an attempt
+   stands as ruled. The table, the bands, falling and the warned death are as built and answer whoever hands them a reading; in
+   play nothing does, so today no feat is refused by the table and no fall is paid for.
+2. **The engine numbers a ruling's changes,** its own feature: a number the engine can count is not asked of the model.
+3. **One session on the real model:** the restored ruling against the run before f623; the reading asked alone on all 139 lines,
+   as a kind with a size and as a kind with a thing and no size, each with and without a kind for the body moving itself. The
+   probe told the model what to measure, so whether it can tell a feat from none, asked alone, has never been measured.
+4. **By that result:** the reading wired as a call of its own, kept as a ruling is kept (a feat refused must be the same feat
+   asked again), then sizes kept on the thing. If the model names feats where there are none when asked alone too, the game does
+   without the reading.
