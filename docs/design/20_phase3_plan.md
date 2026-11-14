@@ -1,7 +1,10 @@
 # 20. Phase 3: the groundwork, planned against the code as it stands
 
 Written 2026-11-14 against `main` at 84fc7cd (f627, with the prose branch merged). Approved by the owner the same day ("Approve as
-recommended"), with the recommendations of section 7 taken. Nothing here is built yet.
+recommended"), with the recommendations of section 7 taken.
+
+**Built so far:** f628 and f630. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
+"Yes, move it"), because three of its logs are written where there is no scene to ask who acted (see f629 below).
 
 This is not a new design. Two designs the owner has already taken stand behind it:
 
@@ -82,10 +85,7 @@ Each feature has its test first, replays the three goldens exactly unless it say
   the fight's pane), taken through the window's bridge, before f635 moves them.
 - A pin of each log's row shape, before f629 adds to it.
 
-**f629: the operation and every log row name who acted.** `Operation` gains `actor`, written by its record, the presentation entry
-and the recorder's input row; the turn log, the call log, the refusals, the audit and the crash log gain it too. A row without one
-reads as the save's one character. No recording moves: the replay compares id, kind and rows, and both kept rows are outside the
-state digest. The fields first appear in the goldens at f640.
+f629 (the operation and every log row name who acted) was planned here and is built after f632: see section B.
 
 **f630: one helper for the acting character, and no literal `"player"` id.** Code that takes a character id but still reads the
 scene's player for the place and the sheet (engine/act.py, engine/ruling.py, engine/targets.py) reads them through one helper by
@@ -99,6 +99,9 @@ named "player" is a side, not an id, and stays. A fence counts what is left and 
 `buffering`, `line_done`, `line_losses`; and `pending`, `halted`, `last_failure`, `last_budget`. The operation's snapshot moves
 onto it from the session. The scene keeps one descriptor per field, so no call site changes and `getattr(self, "ran", [])` means
 what it did.
+- What f628 found of today's behaviour, which the table has to say: a failed operation puts `pending` back to what it found by
+  its own hand (it is not kept as set), writes `halted` and `last_failure` itself, and leaves `last_budget`, `broken`,
+  `last_text`, `crash_after_commit` and `recovered_at_load` as they stand.
 - **Every one of the 36 rolled-back names is declared** as the turn's, the actor's view or the scene's, in a table a test holds,
   whether or not it moves now. Only the turn's move. This is the list M1's split of the scene starts from.
 - The four scene fields no list holds today (`broken`, `last_text`, `crash_after_commit`, `recovered_at_load`) are declared too.
@@ -112,6 +115,13 @@ process's own dice and screen answer, as today.
 - A count of `self.player` per directory (scenes 1,031, services 61) that only falls.
 - Proof: two stub campaigns taken in turn on one thread each see their own actor; after each rebind the acting id is the new
   one; the clock follows a reload and an asked restore.
+
+**f629: the operation and every log row name who acted** (moved here from section A). `Operation` gains `actor`, written by
+its record, the presentation entry and the recorder's input row; the turn log, the call log, the refusals, the audit and the
+crash log gain it too. The call log, the gateway's refusals and the crash log are written where there is no scene to ask, so
+every one of them reads who acted from the actor f632 binds, the one source. A row without one reads as the save's one
+character. No recording moves: the replay compares id, kind and rows, and both kept rows are outside the state digest. The
+fields first appear in the goldens at f640. The lines of f628's log pin that say "no actor yet" are the ones this changes.
 
 **f633: the turn's registers, one owner, and no state without a home.** The operation's, the ledger's, the budget's, the turn
 log's and the asked call's module state go onto one `Registers` object the context points at (one for the process while there is
@@ -178,8 +188,8 @@ input that only falls.
 
 | Pull request | Features | Why together |
 |---|---|---|
-| 1 | f628, f629, f630 | No turn code; the pins everything after rests on |
-| 2 | f631, f632 | The two contexts; scenes/world.py and the session |
+| 1 | f628, f630 | No turn code; the pins everything after rests on |
+| 2 | f631, f632, f629 | The two contexts, then the logs that read who acted from them; scenes/world.py and the session |
 | 3 | f633, f634 | The module state; wide and mechanical, with the fence |
 | 4 | f635, f636 | The screen |
 | 5 | f637, f638 | Storage nothing reaches yet |
