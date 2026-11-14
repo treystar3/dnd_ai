@@ -8,6 +8,7 @@
 bands: {effort: 0.5, hard: 0.8, nearly: 1.25}
 at_least: {effort: fair, hard: hard}       # how hard a feat past each band is, at the least
 most: 100000            # the largest size a reading's grammar lets it write
+thing_chars: 60         # the most a reading writes to name the thing a feat is done to
 
 # Each kind: `about` and `unit` are what a reading is told its size measures; `by` the attribute that bounds it (the better, of two);
 # `limit` the most a body of that attribute can do, at three marks: 10 an ordinary person, 15 a fit one, 30 the best a person starts

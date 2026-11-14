@@ -1669,6 +1669,39 @@ class CataclysmProposal(BaseModel):
         return self
 
 
+class FeatReading(BaseModel):
+    """(f627) What an attempt asks of the body, read in a call of its own (engine/body.py attempt): a kind of the body's table with
+    the thing it is done to, or no feat. The context holds the table's `kinds` and the words that mean no feat (`blank`)."""
+    kind: str = "none"
+    thing: str = ""
+
+    @model_validator(mode="after")
+    def check(self, info: ValidationInfo):
+        ctx = info.context or {}
+        self.kind = (self.kind or "").strip().lower() or "none"
+        self.thing = (self.thing or "").strip()
+        if self.kind in (ctx.get("blank") or ["none"]):
+            self.thing = ""
+            return self
+        if self.kind not in (ctx.get("kinds") or []):
+            raise ValueError(f"kind is one of {', '.join(list(ctx.get('blank') or ['none']) + list(ctx.get('kinds') or []))}")
+        if not self.thing or len(self.thing) > (ctx.get("thing_chars") or len(self.thing)):
+            raise ValueError("a feat names the thing it is done to, in a few words")
+        return self
+
+
+class FeatSize(BaseModel):
+    """(f627) How big the thing a feat is done to is, one whole number in its kind's unit (engine/body.py attempt)."""
+    size: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def check(self, info: ValidationInfo):
+        most = (info.context or {}).get("most")
+        if most and self.size > most:
+            raise ValueError(f"size is a whole number from 1 to {most}")
+        return self
+
+
 def _numbered(changes: list) -> None:
     """(f625) A ruling's changes numbered by the engine, each by its place in the list (the first is 1): a number the engine can
     count is not the model's to write, and `needs` names earlier changes by their place. A list in which every change was written

@@ -1,8 +1,10 @@
 """(f623) What a body can do, and what a fall does to it (data/rules/body.yaml; docs/design/19).
 
 What an attempt asks of the body is a reading of its own, apart from its ruling (f624): a kind and a size (`Feat`). The decision is
-the engine's: `judge` reads the table for the body that tries and says how the ruling stands, on either ruling path. No call makes
-the reading yet (`reading`), so in play the table is not asked and no fall is paid for (docs/design/19 section 14). `fall` is
+the engine's: `judge` reads the table for the body that tries and says how the ruling stands, on either ruling path. (f627) An
+attempt is read in two calls (`attempt`): whether it is a feat, which kind and done to what; then, for a feat alone, how big that
+thing is. They are measured (tools/reading_eval.py) and not yet called in play: `reading` still answers none, so in play the
+table is not asked and no fall is paid for (docs/design/19 section 16). `fall` is
 one table for any being: the share of its whole health a fall of some feet takes, from a small view of the body that a
 character, a fighter of any kind and an ordinary person each give."""
 from __future__ import annotations
@@ -46,7 +48,7 @@ def read(kind: str = "none", size: float = 0) -> Feat:
 
 def reading(ws, actor_id: str, text: str) -> Feat:
     """What this attempt asks of the body of the one who tries, read from the player's words: the one place either ruling path gets
-    it. (f624) No call reads it yet: none, and an attempt stands as ruled (docs/design/19 section 14)."""
+    it. (f624) No call reads it in play yet: none, and an attempt stands as ruled (docs/design/19 section 16)."""
     return Feat()
 
 
@@ -153,15 +155,109 @@ def with_effort(r, j: Judged):
 
 
 def lines() -> str:
-    """The kinds as a request for a reading would list them (no call asks for one yet)."""
+    """The kinds as a reading's instruction lists them."""
     return "\n".join(f"  {k}: {v['about']}, in {v['unit']}" for k, v in K.items())
 
 
 def schema() -> dict:
-    """The grammar a reading would be written against (no call asks for one yet): a kind from the table with a size, or none."""
+    """A kind from the table with its size, or none, as one grammar (the size arms of tools/reading_eval.py)."""
     return {"anyOf": [{"type": "object", "required": ["kind"], "properties": {"kind": {"enum": ["none"]}}},
                       {"type": "object", "required": ["kind", "size"],
                        "properties": {"kind": {"enum": list(K)}, "size": {"type": "integer", "minimum": 1, "maximum": int(B["most"])}}}]}
+
+
+# ---------- (f627) an attempt read: the feat, then the size of its thing
+
+OWN = "self"                    # the body moving only itself: no kind of the table's, so the table reads it as no feat
+ASKED = ("You are the dungeon master of a low-fantasy world of towns, roads and wilds. A player's character attempts something. "
+         "Say whether it is a feat of their own body, and which. You do not rule on it: never whether it works.\n"
+         "kind: when the attempt is done by the body's own strength or reach, its kind from FEATS. Only what their own body must "
+         "do: with a lever, a winch or help, their share. \"none\" for everything else.\n")
+THING = "thing: what it is done to or over, in a few words, as the player named it."
+
+
+def own_line(has_no: str = "thing") -> str:
+    """The body's own kind as a reading's list holds it: the class named, with no example of it (an example would be a line of
+    the corpus the reading is measured on)."""
+    return f"  {OWN}: the body moving only itself, where none of those is the measure; it has no {has_no}"
+
+
+FEAT_SYSTEM = f"{ASKED}{THING}\nFEATS (a kind: what its size measures):\n{lines()}\n{own_line()}"
+SIZE_SYSTEM = ("You are the dungeon master of a low-fantasy world of towns, roads and wilds. A player's character attempts a feat of "
+               "their own body. Say how big it is, as the world plainly is: one number, in the unit asked. Give the size of what "
+               "their own body must do: the size of the thing itself where they do it alone, and only their share of it where a "
+               "tool or other hands help. Not what the character can do, and not whether it works.")
+
+
+def feat_request(where: str, line: str) -> str:
+    return f"WHERE: {where}\nTHE ATTEMPT: {line}"
+
+
+def size_request(where: str, line: str, kind: str, thing: str) -> str:
+    return f"{feat_request(where, line)}\nTHE THING: {thing}\nMEASURE: {K[kind]['about']}, in {K[kind]['unit']}"
+
+
+def feat_context() -> dict:
+    return {"kinds": list(K), "blank": ["none", OWN], "most": int(B["most"]), "thing_chars": int(B["thing_chars"])}
+
+
+def _shaped(model, schema: dict):
+    """A contract written against this grammar, under its own name (as an act's ruling is: engine/act.py shape)."""
+    import copy
+
+    class Shaped(model):
+        @classmethod
+        def model_json_schema(cls, *a, **k) -> dict:
+            return copy.deepcopy(schema)
+    Shaped.__name__ = Shaped.__qualname__ = model.__name__
+    return Shaped
+
+
+def feat_shape():
+    """The feat in its grammar: no feat (none, or the body's own kind), or a kind of the table's with the thing it is done to."""
+    from llm.contracts import FeatReading
+    return _shaped(FeatReading, {"title": "FeatReading", "anyOf": [
+        {"type": "object", "required": ["kind"], "properties": {"kind": {"enum": ["none", OWN]}}},
+        {"type": "object", "required": ["kind", "thing"],
+         "properties": {"kind": {"enum": list(K)}, "thing": {"type": "string", "minLength": 1, "maxLength": int(B["thing_chars"])}}}]})
+
+
+def size_shape():
+    from llm.contracts import FeatSize
+    return _shaped(FeatSize, {"title": "FeatSize", "type": "object", "required": ["size"],
+                              "properties": {"size": {"type": "integer", "minimum": 1, "maximum": int(B["most"])}}})
+
+
+@dataclass(frozen=True)
+class Read:
+    """An attempt as the two calls read it. `feat`: what the table is handed. `said`: the kind as it was named (none, the body's
+    own, or a kind of the table's) and `thing` what it is done to. `lost`: the call that gave no answer (feat or size), when the
+    table is handed none for that."""
+    feat: Feat = Feat()
+    said: str = "none"
+    thing: str = ""
+    lost: str = ""
+
+
+def attempt(where: str, line: str) -> Read:
+    """What this attempt asks of the body, from the place's name and the player's words: one call for most, a second for a feat."""
+    from llm.gateway import LLMError, generate
+    from ui import console
+    try:
+        f = generate("feat_reading", FEAT_SYSTEM, feat_request(where, line), feat_shape(), temperature=0.3, max_tokens=80,
+                     validation_context=feat_context())
+    except LLMError as e:
+        console.debug(f"feat reading: none ({e})")
+        return Read(lost="feat")
+    if f.kind not in K:
+        return Read(said=f.kind)
+    try:
+        s = generate("feat_size", SIZE_SYSTEM, size_request(where, line, f.kind, f.thing), size_shape(), temperature=0.3, max_tokens=40,
+                     validation_context=feat_context())
+    except LLMError as e:
+        console.debug(f"feat size: none ({e})")
+        return Read(said=f.kind, thing=f.thing, lost="size")
+    return Read(read(f.kind, s.size), f.kind, f.thing)
 
 
 def problems() -> list[str]:
@@ -177,8 +273,9 @@ def problems() -> list[str]:
     if not (set(least) == {"effort", "hard"} and set(least.values()) <= set(ruling.HARDER)
             and ruling.HARDER.index(least["effort"]) <= ruling.HARDER.index(least["hard"])):
         bad.append(f"body.yaml at_least: effort and hard, each one of {', '.join(ruling.HARDER)}, hard no easier than effort")
-    if not (isinstance(B.get("most"), int) and B["most"] > 0):
-        bad.append("body.yaml most: a whole number above 0")
+    for name in ("most", "thing_chars"):
+        if not (isinstance(B.get(name), int) and not isinstance(B.get(name), bool) and B[name] > 0):
+            bad.append(f"body.yaml {name}: a whole number above 0")
     kinds = B.get("kinds") or {}
     for k, spec in kinds.items():
         by = spec.get("by")
