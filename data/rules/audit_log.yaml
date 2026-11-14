@@ -60,6 +60,8 @@ tasks:
   board_stakes:          "writing who asked for each new guild posting, why, and what will change when it is done"
   combat_aftermath:      "the narrator telling how a fight ended"
   live_judge:            "a second reading of what the characters said, by the model itself (tools/live_check.py)"
+  feat_reading:          "reading whether what a character tries is a feat of their own body, and which"
+  feat_size:             "saying how big the thing a feat is done to is"
   moment:                "what is going on as the player walks into a place"
   named_spell:           "naming a spell codex"
   npc_parting:           "a person's words as the player leaves them"

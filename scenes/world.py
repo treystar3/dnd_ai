@@ -228,6 +228,57 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def advance_quiet(self, minutes: int) -> None:
         self.advance(minutes)
 
+    def dies(self, actor_id: str) -> None:
+        """(f623) A death outside a fight: the same price and the same Threshold as a death in one (engine/death.py)."""
+        if actor_id != self.acting:                      # one character a scene until multiplayer M1
+            raise ValueError(f"a death here is the scene's own character's, not {actor_id}")
+        from engine import death
+        from engine.domain_events import PlayerFell
+        summary = death.die(self.player.character)
+        self.notice(PlayerFell(minute=self.minutes, place=self.player.location, deaths=summary["deaths"]))
+        self.threshold(summary)
+
+    def threshold(self, summary: dict) -> None:
+        """(f623) What follows any death of the character, in a fight or out of one: the goddess, the days, waking at the last rest."""
+        ws = self
+        c = ws.player.character
+        lost = [f"half their gold ({summary['coins']} gone, {summary['kept']} kept)" if summary['coins_raw'] else "nothing - their purse was spared"]
+        if ws.captives_lost("got away while their captor lay dead"):                 # (f392) nobody waits bound beside a corpse
+            lost.append("the captives they held, who got away")
+        console.note("You have died.")
+        console.wait("Darkness. Then the sourceless light of the Threshold, dimmer than you remember.")
+        said = list(getattr(ws.player, "goddess_said", []))                        # (f349) she remembers what she said on earlier returns
+        event = cp.THRESHOLD_EVENT.format(deaths=c.deaths, losses="; ".join(lost))
+        if said:
+            event += (" She remembers every earlier return and what she said then (below, as RECENT CONVERSATION): this time she begins"
+                      " elsewhere, on a different image, and never repeats an opening.")
+        ws.mark_passage("goddess", lambda: self.goddess_now(said, event), failures.goddess_silent)   # (f464) her words, an operation of their own: the death stands either way
+        console.ledger("Lost: " + " · ".join(lost))
+        days = COMBAT_RULES["death"]["days_pass"]
+        ws.advance_quiet(days * clock.MINUTES_PER_DAY)
+        pools.fill_missing(c)
+        ws.player.delve = None           # waking at the Threshold, never inside a dungeon
+        ws.party_disband(None, "you fell")
+        wake = c.last_rest if c.last_rest in ws.world.places else ws.world.start_location
+        ws.enter(wake)
+        ws.narrate(f"{days} days have passed in the world. The player wakes here, alive again, a lighter purse and nothing else lost. "
+                   "They are thrown back by the goddess's failing light and wake with a sharp breath. Describe waking, stark: the first "
+                   "breath, said only once in the whole passage, then what they see.")
+        ws.show_exits()
+
+    def goddess_now(self, said: list, event: str) -> None:
+        """(f464) The goddess at a death: her words from the model, remembered against her next return; a passage operation of its own,
+        goddess_silent in its place when they cannot be written."""
+        from llm.contracts import GoddessLine
+        from scenes import goddess_prompts as gp
+        ws = self
+        line = generate("goddess_line", gp.goddess_system(ws.goddess_knowledge()),
+                        gp.narration_request("death", event, [("Orenna, on an earlier return", s) for s in said[-4:]]),
+                        GoddessLine, temperature=0.9, validation_context={"said": said})
+        ws.player.goddess_said = (said + [line.speech])[-8:]
+        ws.store.save_player(ws.player)
+        console.say(line.speech, "The Goddess")
+
     def goddess_knowledge(self) -> dict:
         return json.loads((__import__("core.paths", fromlist=["BUNDLE"]).BUNDLE / "data" / "goddess_knowledge.json").read_text(encoding="utf-8"))
 
@@ -660,6 +711,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.__dict__.pop("_streets_cache", None)                                           # (f357) a new place: read the streets afresh
         self.end_contexts(place_id)
         same_place = place_id == self.player.location
+        if not same_place:
+            from engine import act as _act
+            _act.left(self, self.acting)                                 # (f623) a warning of a deadly drop is of the place left
         self.revisit = self.store.load_place(place_id).populated
         self.player.location = place_id
         self.note_town(place_id)

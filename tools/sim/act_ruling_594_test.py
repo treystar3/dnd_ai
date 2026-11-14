@@ -57,9 +57,10 @@ r = ActRuling.model_validate({"sense": "no", "answer": "Nothing comes of it.", "
                               "changes": [{"n": 1, "target": crate_code, "becomes": "broken"}]}, context=ctx)
 check("a no makes no changes, but keeps what it rested on; a failure not in the list is the first of them", r.changes == []
       and r.uses == [crate_code] and r.fail == list(act.A["fails"])[0], r)
-check("...two changes of one number, a need of a later change, and a who that is no target are sent back",
-      "own number" in bad_answer({"sense": "cost", "changes": [{"n": 1, "target": crate_code, "becomes": "broken"},
-                                                              {"n": 1, "target": crate_code, "becomes": "mended"}]})
+two = ActRuling.model_validate({"sense": "cost", "works": "x", "changes": [{"n": 1, "target": crate_code, "becomes": "broken"},
+                                                                         {"n": 1, "target": crate_code, "becomes": "mended"}]}, context=ctx)
+check("...two changes written under one number are two changes, numbered by their place (f625); a need of a later change and a who"
+      " that is no target are sent back", [ch.n for ch in two.changes] == [1, 2]
       and "earlier" in bad_answer({"sense": "cost", "changes": [{"n": 1, "target": crate_code, "becomes": "broken", "needs": [2]},
                                                                {"n": 2, "target": crate_code, "becomes": "mended"}]})
       and "TARGETS" in bad_answer({"sense": "cost", "changes": [{"n": 1, "target": crate_code, "becomes": "broken", "who": "p99"}]}))

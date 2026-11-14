@@ -183,7 +183,7 @@ are given the situation's PARTS (numbered: its people, goods, ties, what it lays
 changed in them so far, and THE ACT: what the player did, to whom, who was there, and how it went. Rule what this act changed, part by
 part, the way the world would answer it. People have minds of their own: they may refuse, deceive, give way, or stay set against the
 player.
-changes: each {n, part, who, becomes, because, about, needs}; n numbers them from 1, in order.
+changes: each {part, who, becomes, because, about, needs}.
   believes, doubts: a person who heard it now believes or doubts something (about: the number of the evidence it is about, 0 for
     what the act claimed). A lie changes what someone believes, never what is true.
   warmer, colder, afraid, angry, grateful: how a person who was there now feels toward the player.
@@ -194,7 +194,8 @@ changes: each {n, part, who, becomes, because, about, needs}; n numbers them fro
     own act does it by hand, there where it is, or the number of the person who does it: a person lifts only what they impose or
     command, gives up only what they hold, and acts only as they are willing to.
   because: what it rests on: words (what was said), coin (handed over), goods (given), force (done by hand), evidence (a found piece
-    shown; about: its number) or earlier (an earlier change). needs: the numbers of the earlier changes it rests on.
+    shown; about: its number) or earlier (an earlier change).
+  needs: the earlier changes it rests on, each by its place in the list (1 for the first).
 Words change what people believe, feel and will do; the world changes only through someone's action. One refusing, hostile or
 committed toward the player is not moved by words alone: only by what reaches them - force, coin, goods, evidence shown to them, or a
 change in the world that touches them; one committed, only by evidence or force. A failed act brings no gain.

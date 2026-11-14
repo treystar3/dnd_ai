@@ -96,12 +96,13 @@ if by_kind.get("part"):
           shape_of("state")["properties"]["state"]["enum"] == list(features.F["becomes"]) and "state" in shape_of("state")["required"]
           and shape_of("access")["properties"]["state"]["enum"] == list(targets.CH["changes"]["access"]["args"]), shape_of("access"))
 fields = lambda model: set(model.model_fields)
+asked = lambda model: set(model.model_json_schema()["properties"])   # (f625) less what the engine fills itself: a change's number
 from llm.contracts import ActChange, Need, Stakes
 check("the grammar asks for no field the contract lacks, and every field the contract has (a new field is never unwritable): a yes's "
       "or a cost's success and a no's answer each on its own branch (f609)",
-      set(props) | set(no["properties"]) == fields(ActRuling) and set(props) ^ set(no["properties"]) == {"works", "answer"} and all(set(v["properties"]) == fields(ActChange) for v in changes)
+      set(props) | set(no["properties"]) == fields(ActRuling) and set(props) ^ set(no["properties"]) == {"works", "answer"} and all(set(v["properties"]) == asked(ActChange) for v in changes)
       and set(props["needs"]["items"]["properties"]) == fields(Need) and set(props["stakes"]["properties"]) == fields(Stakes),
-      (set(props) ^ fields(ActRuling), set(no["properties"]), [set(v["properties"]) ^ fields(ActChange) for v in changes][:1]))
+      (set(props) ^ fields(ActRuling), set(no["properties"]), [set(v["properties"]) ^ asked(ActChange) for v in changes][:1]))
 check("...as many changes as act.yaml allows", props["changes"].get("maxItems") == int(act.A["most_changes"]), props["changes"])
 check("free text is short: why, the answer, what to try instead, a change's label",
       props["why"].get("maxLength") and no["properties"]["answer"].get("maxLength") and props["instead"]["items"].get("maxLength")
@@ -109,12 +110,12 @@ check("free text is short: why, the answer, what to try instead, a change's labe
 
 ctx = act.context(ws, T)
 good = {"sense": "cost", "why": "a show of steel", "works": "The looters back off.", "stakes": {"check": "intimidation", "hard": "fair"}, "fail": "hurt",
-        "changes": [{"n": 1, "target": cond, "becomes": "lifted", "because": "force"}]}
+        "changes": [{"target": cond, "becomes": "lifted", "because": "force"}]}
 a, b = ActRuling.model_validate(good, context=ctx), Shaped.model_validate(good, context=ctx)
 check("a ruling validates through the shaped contract exactly as through the act ruling's own", a.model_dump() == b.model_dump()
       and isinstance(b, ActRuling))
 try:
-    Shaped.model_validate({**good, "changes": [{"n": 1, "target": cond, "becomes": "cleared", "because": "force"}]}, context=ctx)
+    Shaped.model_validate({**good, "changes": [{"target": cond, "becomes": "cleared", "because": "force"}]}, context=ctx)
     stood = True
 except ValueError:
     stood = False
@@ -143,12 +144,12 @@ who = person_codes[-1]
 part = (by_kind.get("part") or [None])[0]
 fair = [good,
         {"sense": "cost", "why": "steel", "works": "They give up.", "stakes": {"check": "strength", "hard": "fair"}, "fail": "hurt",
-         "changes": [{"n": 1, "target": who, "becomes": "surrenders", "who": who, "because": "force"}]},
+         "changes": [{"target": who, "becomes": "surrenders", "who": who, "because": "force"}]},
         {"sense": "no", "why": "no power for it", "answer": "The looters laugh as nothing happens.", "fail": "hurt", "requires": []},
-        {"sense": "yes", "why": "simply done", "works": "It is moved.", "uses": [obj], "fail": "noticed", "changes": [{"n": 1, "target": obj, "becomes": "moved",
+        {"sense": "yes", "why": "simply done", "works": "It is moved.", "uses": [obj], "fail": "noticed", "changes": [{"target": obj, "becomes": "moved",
                                                                                            "because": "skill"}]}]
 if part:
-    fair.append({"sense": "cost", "why": "a bar", "works": "It is barred.", "fail": "hurt", "changes": [{"n": 1, "target": part, "becomes": "state",
+    fair.append({"sense": "cost", "why": "a bar", "works": "It is barred.", "fail": "hurt", "changes": [{"target": part, "becomes": "state",
                                                                              "state": features.F["becomes"][0], "because": "skill"}]})
 climb = {"sense": "cost", "why": "wet rock", "works": "You reach the ledge.", "requires": ["dexterity"], "fail": "hurt"}
 moved = Shaped.model_validate(climb, context=ctx)
@@ -157,9 +158,9 @@ check("a climb that names its check under requires fits the grammar, and the che
 check("fair rulings fit the grammar: a lifted danger, a surrender by the one who surrenders, a no that answers, a thing moved, a state",
       all(fits(x, s) for x in fair), [x for x in fair if not fits(x, s)])
 unfair = [{**good, "fail": "time_lost, noise, noticed, hurt"},
-          {**good, "changes": [{"n": 1, "target": cond, "becomes": "cleared", "because": "force"}]},
-          {**good, "changes": [{"n": 1, "target": by_kind["situation"][0], "becomes": "safe"}]},
-          {**good, "changes": [{"n": 1, "target": who, "becomes": "surrenders", "because": "force"}]},
+          {**good, "changes": [{"target": cond, "becomes": "cleared", "because": "force"}]},
+          {**good, "changes": [{"target": by_kind["situation"][0], "becomes": "safe"}]},
+          {**good, "changes": [{"target": who, "becomes": "surrenders", "because": "force"}]},
           {"sense": "no", "why": "no", "fail": "hurt"}]
 check("...and the pod's failures cannot be written: a listed fail, an invented word, the situation itself, a surrender with no one "
       "surrendering, a no with no answer", not any(fits(x, s) for x in unfair), [x for x in unfair if fits(x, s)])

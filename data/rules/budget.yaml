@@ -100,5 +100,7 @@ tasks:
   starting_kit:             {need: required, answer_tokens: 60}
   # ---- the tools' own calls, outside play
   live_judge:               {need: tool, answer_tokens: 200}
+  feat_reading:             {need: tool, answer_tokens: 20}      # (f627) whether an attempt is a feat of the body: measured, not yet played
+  feat_size:                {need: tool, answer_tokens: 10}      # (f627) the size of the thing a feat is done to
   player_line:              {need: tool, answer_tokens: 60}
   town_profile:             {need: tool, answer_tokens: 800}

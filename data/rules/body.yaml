@@ -1,0 +1,106 @@
+# WHAT A BODY CAN DO (f623, engine/body.py; docs/design/19). What an attempt asks of the body that tries it is read as a kind from
+# this table and a size in that kind's unit (f624: a reading of its own, not a part of the ruling). The engine then decides by the
+# share of the body's limit the size is: half or less, as ruled; past `effort`, at least a cost at fair; past `hard`, at least hard;
+# past the limit, a no, told as `nearly` up to `nearly` times the limit and as `past` beyond. The ruling's own check and a harder
+# difficulty of its own stand. Both ruling paths hand it their reading (the act's and the road's). No call makes the reading yet
+# (f624), so in play the table is not asked.
+
+bands: {effort: 0.5, hard: 0.8, nearly: 1.25}
+at_least: {effort: fair, hard: hard}       # how hard a feat past each band is, at the least
+most: 100000            # the largest size a reading's grammar lets it write
+thing_chars: 60         # the most a reading writes to name the thing a feat is done to
+
+# Each kind: `about` and `unit` are what a reading is told its size measures; `by` the attribute that bounds it (the better, of two);
+# `limit` the most a body of that attribute can do, at three marks: 10 an ordinary person, 15 a fit one, 30 the best a person starts
+# as. Between two marks the limit runs straight, past the last it runs straight on with no ceiling (the owner, 2026-11-13), and below
+# the first it falls away in proportion. `powers`: the capabilities (capabilities.yaml) that do the feat in the body's place; a
+# character who has one is not held to the table. `past` and `nearly`: what happens instead, second person, as it would be seen
+# (the fall's kind has neither: a drop is never refused).
+kinds:
+  jump_up:
+    about: "a jump up onto or over a thing: how high"
+    unit: feet
+    by: [strength, dexterity]
+    limit: {10: 4, 15: 6, 30: 9}
+    powers: [flight]
+    past: "You gather yourself and jump, and your hands come nowhere near the top. It is far too high."
+    nearly: "You jump with all you have and your fingers brush the edge, and that is all. It is just too high."
+  jump_across:
+    about: "a jump across a gap: how wide"
+    unit: feet
+    by: [strength, dexterity]
+    limit: {10: 8, 15: 13, 30: 26}
+    powers: [flight]
+    past: "You measure the gap from its edge, and your legs tell you the truth of it. It is far too wide to jump."
+    nearly: "You pace out the run and stop at the edge. It is a stride wider than you can clear."
+  drop:
+    about: "a drop or a jump down: how far"
+    unit: feet
+    by: [dexterity]
+    limit: {10: 8, 15: 12, 30: 25}
+    powers: [flight]
+  lift:
+    about: "raising a weight off the ground: how heavy"
+    unit: pounds
+    by: [strength]
+    limit: {10: 150, 15: 250, 30: 1000}
+    past: "You get your hands under it and heave, and it does not shift."
+    nearly: "You heave, and it comes up a hand's breadth and no more."
+  carry:
+    about: "carrying or dragging a weight any way: how heavy"
+    unit: pounds
+    by: [strength]
+    limit: {10: 80, 15: 130, 30: 450}
+    past: "You take the weight and your knees give before the first step. It is far more than you can carry."
+    nearly: "You get it up and manage two staggering steps before you have to set it down."
+  throw:
+    about: "hurling a heavy thing: how heavy"
+    unit: pounds
+    by: [strength]
+    limit: {10: 30, 15: 50, 30: 200}
+    past: "You strain to get it off the ground at all. Throwing it is out of the question."
+    nearly: "You heave it with everything you have, and it drops a pace from your feet."
+  throw_far:
+    about: "throwing a thing held in one hand a long way: how far"
+    unit: feet
+    by: [strength]
+    limit: {10: 60, 15: 100, 30: 300}
+    past: "You throw with all you have, and it falls far short."
+    nearly: "You throw with all you have, and it falls a little short."
+  breath:
+    about: "going without air: how long"
+    unit: seconds
+    by: [constitution]
+    limit: {10: 50, 15: 80, 30: 300}
+    powers: [water_breathing]
+    past: "Your chest tells you long before the end of it. No one breath of yours lasts that long."
+    nearly: "You hold it until your sight swims, and it is still not long enough."
+
+# FALLING, for any being (the owner, 2026-11-13: "done and paid for. This should set groundwork for fall damage being calculated to
+# any being in the world"). A body lands `kind`'s limit unhurt, scaled by its `size`. Past that a fall takes a share of its whole
+# health, rising straight from nothing at the unhurt height to all of it at `dead_at` times that height. A share, never a number of
+# points, so it means the same at any level. A character's own drop past the unhurt height is made, never refused: the ruling's check
+# at `hard` decides the landing, and `landing` is the part of the share each outcome takes and how the narrator is told it was landed.
+# A fall that takes all of it takes all of it however it is landed. `ordinary`: the attribute of one with no sheet (a townsperson).
+fall:
+  kind: drop
+  dead_at: 4
+  size: {Tiny: 3, Small: 1.5, Medium: 1, Large: 0.8, Huge: 0.6, Gargantuan: 0.5}
+  ordinary: 10
+  hard: hard
+  landing: {strong success: [0.5, well], success: [0.5, well], partial: [0.75, roughly], failure: [1, badly]}
+  # what a fall took, by the share of whole health, for the narrator: [up to this share, the word]
+  told: [[0.12, "jarred and bruised"], [0.4, "hurt"], [1, "badly hurt"]]
+  # (the owner, 2026-11-13: "Yes, warned first") A character's drop that would take all they have left, even landed well, is not made
+  # the first time: they are told at the edge. Tried again at that place, it is made, and it is the game's one death (combat.yaml
+  # death). The warning is kept for the character at that place and dropped when they leave it. It is of that drop: a deadly drop
+  # there of at least `same_drop` of the height warned of is the same drop, however it is worded; a much shorter one (deadly because
+  # they are wounded) is warned of in its turn.
+  same_drop: 0.5
+  warned: "From the edge the drop is plain: {feet} feet down, and a fall like that would kill them."
+  warned_line: "A drop of {feet} feet would kill you."
+  died:
+    - "You step off. It is {feet} feet down, and no one lands a fall like that."
+    - "You jump. The ground is {feet} feet below, and it does not forgive that."
+    - "You let go. {feet} feet of air, and then the end of it."
+    - "You go over the edge. It is {feet} feet to the bottom, farther than anyone falls and lives."

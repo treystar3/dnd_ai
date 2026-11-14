@@ -11,10 +11,9 @@ import config
 from engine import entities
 from engine import ability_traits as AT
 from engine import accessories, inventory, clock, combat, events, failures, items, ledger, loot, mentor, money, party, pools
-from llm.contracts import AccessoryName, CombatIntent, GoddessLine, LegendaryName, LootName, Narration
+from llm.contracts import AccessoryName, CombatIntent, LegendaryName, LootName, Narration
 from llm.gateway import LLMError, generate
 from scenes import combat_prompts as cp
-from scenes import goddess_prompts as gp
 from scenes.voice import fresh
 from ui import console
 from engine import asked, streams
@@ -1226,41 +1225,5 @@ class CombatScene:
                          LootName, temperature=0.9, max_tokens=150)
         item.name, item.description = named.name.strip(), named.description.strip()
 
-    def goddess_now(self, said: list, event: str) -> None:
-        """(f464) The goddess at a death: her words from the model, remembered against her next return; a passage operation of its own,
-        goddess_silent in its place when they cannot be written."""
-        ws = self.ws
-        line = generate("goddess_line", gp.goddess_system(ws.goddess_knowledge()),
-                        gp.narration_request("death", event, [("Orenna, on an earlier return", s) for s in said[-4:]]),
-                        GoddessLine, temperature=0.9, validation_context={"said": said})
-        ws.player.goddess_said = (said + [line.speech])[-8:]
-        ws.store.save_player(ws.player)
-        console.say(line.speech, "The Goddess")
-
     def defeat(self) -> None:
-        ws = self.ws
-        c = ws.player.character
-        summary = self.service.fall(self.fight)                  # (f503) the death's price; PlayerFell published
-        lost = [f"half their gold ({summary['coins']} gone, {summary['kept']} kept)" if summary['coins_raw'] else "nothing - their purse was spared"]
-        if ws.captives_lost("got away while their captor lay dead"):                 # (f392) nobody waits bound beside a corpse
-            lost.append("the captives they held, who got away")
-        console.note("You have died.")
-        console.wait("Darkness. Then the sourceless light of the Threshold, dimmer than you remember.")
-        said = list(getattr(ws.player, "goddess_said", []))                        # (f349) she remembers what she said on earlier returns
-        event = cp.THRESHOLD_EVENT.format(deaths=c.deaths, losses="; ".join(lost))
-        if said:
-            event += (" She remembers every earlier return and what she said then (below, as RECENT CONVERSATION): this time she begins"
-                      " elsewhere, on a different image, and never repeats an opening.")
-        ws.mark_passage("goddess", lambda: self.goddess_now(said, event), failures.goddess_silent)   # (f464) her words, an operation of their own: the death stands either way
-        console.ledger("Lost: " + " · ".join(lost))
-        days = combat.RULES["death"]["days_pass"]
-        ws.advance_quiet(days * clock.MINUTES_PER_DAY)
-        pools.fill_missing(c)
-        ws.player.delve = None           # waking at the Threshold, never inside a dungeon
-        ws.party_disband(None, "you fell")
-        wake = c.last_rest if c.last_rest in ws.world.places else ws.world.start_location
-        ws.enter(wake)
-        ws.narrate(f"{days} days have passed in the world. The player wakes here, alive again, a lighter purse and nothing else lost. "
-                   "They are thrown back by the goddess's failing light and wake with a sharp breath. Describe waking, stark: the first "
-                   "breath, said only once in the whole passage, then what they see.")
-        ws.show_exits()
+        self.ws.threshold(self.service.fall(self.fight))         # (f503) the death's price, PlayerFell published; (f623) then the Threshold

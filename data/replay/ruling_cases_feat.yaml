@@ -1,0 +1,134 @@
+# (f623) FEATS OF THE BODY: the fourth ruling set, for the act's ruling (engine/act.py; tools/ruling_eval.py --cases <this file>;
+# docs/design/19 section 8). The shape of data/replay/ruling_cases.yaml, and for every case:
+#   feat    what a sensible table would name as the feat of the body: "none", {kind, size: [low, high]} in that kind's unit
+#           (data/rules/body.yaml), or a list of fair answers. The ranges are wide: the model's sizes run low by up to a factor of two.
+#   body    the body it is tried with: one number for strength, dexterity and constitution (10 an ordinary person, 15 a fit one, 30
+#           the best a person starts as), or some of them by name.
+#   expect  what the body's table answers for that body today (a no where the feat is past it, whatever the model ruled). These are
+#           the table's arithmetic held still, NOT rulings of the owner's: when the owner rules a feat fair or not, the table changes
+#           and the case with it, and the case then says it is the owner's.
+#   deadly  true where the drop would kill that body: in play it is warned of first and then is a death.
+#   model   a ruling to try the engine's arithmetic against offline, and beside it (`feat`) the reading of the attempt the table is
+#           handed (f624: a feat is a reading of its own, never a part of the ruling; live, no call reads one yet and these cases
+#           are left unread). The first twenty hold the sizes and rulings Gemma 4 12B gave when asked alone (the probe of
+#           2026-11-13); the rest are written by hand.
+# The first twenty are the probe's lines. The twenty after are not: seven feats, three done with a tool or with help (the size is the
+# body's own share), and ten that are no feat of the body at all.
+
+# ---------- the probe's twenty ----------
+- {line: "I jump up onto the roof of the guild hall.", at: trading_square, expect: "no", kind: feat, body: 15,
+   feat: {kind: jump_up, size: [8, 30]},
+   model: {sense: "cost", stakes: {check: dexterity, hard: fair}, feat: {kind: jump_up, size: 12}}}
+- {line: "I jump over the market stall.", at: trading_square, expect: "cost", kind: feat, body: 15,
+   feat: {kind: jump_up, size: [3, 6]},
+   model: {sense: "yes", feat: {kind: jump_up, size: 4}}}
+- {line: "I leap across the alley from one rooftop to the next.", at: trading_square, expect: "cost", kind: feat, body: 30,
+   feat: {kind: jump_across, size: [6, 16]},
+   model: {sense: "cost", stakes: {check: dexterity, hard: fair}, feat: {kind: jump_across, size: 12}}}
+- {line: "I jump the town ditch.", at: trading_square, expect: "yes", kind: feat, body: 15,
+   feat: {kind: jump_across, size: [4, 12]},
+   model: {sense: "yes", feat: {kind: jump_across, size: 6}}}
+- {line: "I vault the low garden wall.", at: trading_square, expect: "cost", kind: feat, body: 15,
+   feat: {kind: jump_up, size: [2, 5]},
+   model: {sense: "cost", stakes: {check: dexterity, hard: fair}, feat: {kind: jump_up, size: 4}}}
+- {line: "I leap from the quay onto the deck of the barge.", at: trading_square, expect: "cost", kind: feat, body: 15,
+   feat: {kind: jump_across, size: [4, 12]},
+   model: {sense: "cost", stakes: {check: dexterity, hard: fair}, feat: {kind: jump_across, size: 8}}}
+- {line: "I jump down from the top of the watch tower.", at: trading_square, expect: "cost", kind: feat, body: 30,
+   feat: {kind: drop, size: [25, 80]},
+   model: {sense: "cost", stakes: {check: dexterity, hard: fair}, feat: {kind: drop, size: 35}}}
+- {line: "I lift the anvil off its block.", at: trading_square, expect: "no", kind: feat, body: 10,
+   feat: {kind: lift, size: [100, 400]},
+   model: {sense: "cost", stakes: {check: strength, hard: fair}, feat: {kind: lift, size: 180}}}
+- {line: "I lift the loaded grain cart off the man pinned under it.", at: trading_square, expect: "no", kind: feat, body: 15,
+   feat: {kind: lift, size: [400, 3000]},
+   model: {sense: "cost", stakes: {check: strength, hard: fair}, feat: {kind: lift, size: 450}}}
+- {line: "I pick up the sack of flour.", at: trading_square, expect: "yes", kind: feat, body: 10,
+   feat: {kind: lift, size: [20, 120]},
+   model: {sense: "yes", feat: {kind: lift, size: 50}}}
+- {line: "I lift the portcullis with my bare hands.", at: trading_square, expect: "no", kind: feat, body: 30,
+   feat: {kind: lift, size: [600, 5000]},
+   model: {sense: "cost", stakes: {check: strength, hard: hard}, feat: {kind: lift, size: 1200}}}
+- {line: "I carry the sleeping child up the stairs.", at: trading_square, expect: "cost", kind: feat, body: 10,
+   feat: {kind: carry, size: [20, 80]},
+   model: {sense: "cost", stakes: {check: strength, hard: fair}, feat: {kind: carry, size: 25}}}
+- {line: "I heave the fallen millstone upright.", at: trading_square, expect: "no", kind: feat, body: 15,
+   feat: {kind: lift, size: [500, 4000]},
+   model: {sense: "cost", stakes: {check: strength, hard: fair}, feat: {kind: lift, size: 1200}}}
+- {line: "I throw the grappling hook up to the battlement.", at: trading_square, expect: "cost", kind: feat, body: 15, carried: [a grappling hook],
+   feat: {kind: throw_far, size: [20, 80]},
+   model: {sense: "cost", stakes: {check: dexterity, hard: fair}, feat: {kind: throw_far, size: 45}}}
+- {line: "I throw a stone across the river.", at: trading_square, expect: "cost", kind: feat, body: 10,
+   feat: {kind: throw_far, size: [30, 300]},
+   model: {sense: "cost", stakes: {check: strength, hard: fair}, feat: {kind: throw_far, size: 45}}}
+- {line: "I hurl the full ale barrel at the door.", at: trading_square, expect: "no", kind: feat, body: 15,
+   feat: {kind: throw, size: [100, 500]},
+   model: {sense: "cost", stakes: {check: strength, hard: fair}, feat: {kind: throw, size: 160}}}
+- {line: "I swim under the sunken gate on one breath.", at: tidepool_caves, expect: "cost", kind: feat, body: 15,
+   feat: {kind: breath, size: [15, 120]},
+   model: {sense: "cost", stakes: {check: constitution, hard: fair}, feat: {kind: breath, size: 45}}}
+- {line: "I hold my breath until the smoke clears.", at: trading_square, expect: "cost", kind: feat, body: 10,
+   feat: {kind: breath, size: [20, 180]},
+   model: {sense: "yes", feat: {kind: breath, size: 45}}}
+- {line: "I dive to the bottom of the harbour.", at: tidepool_caves, expect: "cost", kind: feat, body: 15,
+   feat: ["none", {kind: breath, size: [20, 180]}],
+   model: {sense: "cost", stakes: {check: constitution, hard: fair}, feat: {kind: none}}}
+- {line: "I climb the cliff above the cove.", at: tidepool_caves, expect: "cost", kind: feat, body: 15,
+   feat: "none",
+   model: {sense: "cost", stakes: {check: dexterity, hard: fair}, feat: {kind: none}}}
+
+# ---------- seven feats the probe did not hold ----------
+- {line: "I clear the broken span of the bridge at a run.", at: trading_square, expect: "no", kind: feat, body: 15,
+   feat: {kind: jump_across, size: [8, 25]},
+   model: {sense: "cost", stakes: {check: dexterity, hard: hard}, feat: {kind: jump_across, size: 15}}}
+- {line: "I drop from the hayloft to the barn floor.", at: trading_square, expect: "cost", kind: feat, body: 15,
+   feat: {kind: drop, size: [7, 15]},
+   model: {sense: "yes", feat: {kind: drop, size: 10}}}
+- {line: "I step off the cliff top onto the rocks far below.", at: tidepool_caves, expect: "cost", kind: feat, body: 10, deadly: true,
+   feat: {kind: drop, size: [40, 300]},
+   model: {sense: "cost", stakes: {check: dexterity, hard: hard}, feat: {kind: drop, size: 80}}}
+- {line: "I shoulder the fallen roof beam off the trapped miner.", at: tidepool_caves, expect: "cost", kind: feat, body: 30,
+   feat: {kind: lift, size: [150, 800]},
+   model: {sense: "cost", stakes: {check: strength, hard: fair}, feat: {kind: lift, size: 300}}}
+- {line: "I haul the full water cask up the cellar steps on my back.", at: trading_square, expect: "no", kind: feat, body: 15,
+   feat: {kind: carry, size: [100, 500]},
+   model: {sense: "cost", stakes: {check: strength, hard: fair}, feat: {kind: carry, size: 250}}}
+- {line: "I fling the blacksmith's anvil through the shutters.", at: trading_square, expect: "cost", kind: feat, body: 30,
+   feat: {kind: throw, size: [100, 400]},
+   model: {sense: "cost", stakes: {check: strength, hard: fair}, feat: {kind: throw, size: 180}}}
+- {line: "I stay under the millpond until the riders have passed.", at: trading_square, expect: "no", kind: feat, body: 15,
+   feat: {kind: breath, size: [30, 300]},
+   model: {sense: "cost", stakes: {check: constitution, hard: hard}, feat: {kind: breath, size: 120}}}
+
+# ---------- three done with a tool or with help: the size is the body's own share ----------
+- {line: "I raise the portcullis by turning its winch.", at: trading_square, expect: "cost", kind: feat, body: 10,
+   feat: ["none", {kind: lift, size: [10, 150]}],
+   model: {sense: "cost", stakes: {check: strength, hard: fair}, feat: {kind: none}}}
+- {line: "With a long iron bar for a lever I tip the boulder off the path.", at: tidepool_caves, expect: "cost", kind: feat, body: 15,
+   feat: ["none", {kind: lift, size: [20, 300]}],
+   model: {sense: "cost", stakes: {check: strength, hard: fair}, feat: {kind: lift, size: 100}}}
+- {line: "Four of us take a corner each and bear the millstone to the cart.", at: trading_square, expect: "cost", kind: feat, body: 30,
+   feat: [{kind: carry, size: [100, 500]}, {kind: lift, size: [100, 500]}],
+   model: {sense: "cost", stakes: {check: strength, hard: fair}, feat: {kind: carry, size: 300}}}
+
+# ---------- ten that are no feat of the body ----------
+- {line: "I pick the lock on the strongbox.", at: trading_square, expect: "cost", kind: feat, body: 10, feat: "none",
+   model: {sense: "cost", stakes: {check: dexterity, hard: fair}, feat: {kind: none}}}
+- {line: "I haggle with the fishmonger over the price of eels.", at: trading_square, expect: "cost", kind: feat, body: 10, feat: "none",
+   model: {sense: "cost", stakes: {check: persuasion, hard: fair}, feat: {kind: none}}}
+- {line: "I read the notice nailed to the tavern door.", at: trading_square, expect: "yes", kind: feat, body: 10, feat: "none",
+   model: {sense: "yes", feat: {kind: none}}}
+- {line: "I whistle a tune while I wait.", at: trading_square, expect: "yes", kind: feat, body: 10, feat: "none",
+   model: {sense: "yes", feat: {kind: none}}}
+- {line: "I sharpen my blade on the doorstep.", at: trading_square, expect: "yes", kind: feat, body: 10, feat: "none",
+   model: {sense: "yes", feat: {kind: none}}}
+- {line: "I track the fox by its prints in the mud.", at: tidepool_caves, expect: "cost", kind: feat, body: 10, feat: "none",
+   model: {sense: "cost", stakes: {check: perception, hard: fair}, feat: {kind: none}}}
+- {line: "I tie my bootlaces.", at: trading_square, expect: "yes", kind: feat, body: 10, feat: "none",
+   model: {sense: "yes", feat: {kind: none}}}
+- {line: "I balance along the top rail of the fence.", at: trading_square, expect: "cost", kind: feat, body: 10, feat: "none",
+   model: {sense: "cost", stakes: {check: dexterity, hard: fair}, feat: {kind: none}}}
+- {line: "I count the coins in my purse.", at: trading_square, expect: "yes", kind: feat, body: 10, feat: "none",
+   model: {sense: "yes", feat: {kind: none}}}
+- {line: "I listen at the shutter for voices.", at: trading_square, expect: "cost", kind: feat, body: 10, feat: "none",
+   model: {sense: "cost", stakes: {check: perception, hard: fair}, feat: {kind: none}}}

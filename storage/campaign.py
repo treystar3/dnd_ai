@@ -437,6 +437,13 @@ class CampaignStore:
     def save_act_pending(self, data: dict) -> None:
         self._put("act_pending", json.dumps(data))
 
+    def load_fall_warned(self) -> dict:
+        """(f623) Where each character was warned a drop would kill them (engine/act.py), by character id: one place each."""
+        return self._kv("fall_warned") or {}
+
+    def save_fall_warned(self, data: dict) -> None:
+        self._put("fall_warned", json.dumps(data))
+
     def load_discoveries(self) -> dict:
         base = {"places": [], "tracks": [], "leads": []}
         got = self._kv("discoveries")
