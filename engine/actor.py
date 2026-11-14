@@ -1,21 +1,33 @@
-"""(f631) The turn's context: the fields a line and its operations keep while they are played, on an object of their own
-(docs/design/20_phase3_plan.md; docs/design/13_foundations_design.md).
+"""The actor's context and the turn's (docs/design/20_phase3_plan.md; docs/design/13_foundations_design.md).
 
-A scene holds one (`scene.turnctx`) and reads each field through a descriptor of the same name (TurnField), so no call site knows
-the field moved: `self.ran`, `getattr(self, "ran", [])` and `self.halted = True` mean what they did. FIELDS declares every field:
-whether a new line resets it (LINE), whether a failed operation puts it back to what the operation found (ROLLED), or neither
-(KEPT: it stands across lines and failures until the turn's own code writes it). The operation's snapshot is kept here too
-(engine/session.py begin_turn, rollback).
+(f632) ActorContext is what a scene plays for: the character's record, the dice, where the text goes, the clock and the turn's
+context. A scene holds one (`scene.actor`); its `player` is a view over it, and so is the party's and the fight's
+(services/party.py, services/fight.py), so a record put in the scene's place (a reload after a failed operation, the pulse, an
+arc's end) is the one each of them reads next. The scene's entries bind it (`bound`), and the one bound before is back on the way
+out; `current()` is the one bound, the process's own (PROCESS) when none is: no player, the process's dice, the console's
+channel as it stands. Clock is the save's time as a view with nothing of its own; its `advance` is the one writer in play.
+
+(f631) TurnContext is the fields a line and its operations keep while they are played. The scene reads each field through a
+descriptor of the same name (TurnField), so no call site knows the field moved: `self.ran`, `getattr(self, "ran", [])` and
+`self.halted = True` mean what they did. FIELDS declares every field: whether a new line resets it (LINE), whether a failed
+operation puts it back to what the operation found (ROLLED), or neither (KEPT: it stands across lines and failures until the
+turn's own code writes it). The operation's snapshot is kept here too (engine/session.py begin_turn, rollback).
 
 HOMES declares where every name a failed operation puts back belongs once a scene is split for several characters (multiplayer
 M1): the turn's, one character's view, or the scene's, shared by everyone in it. Only the turn's have moved; the rest are still
 attributes of the scene, and this is the list that split starts from.
 
-One context a scene while there is one actor; M1 makes it one for each."""
+One actor a scene, and one turn's context, while a scene has one character; M1 makes it one for each."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+import contextlib
+import contextvars
+import functools
+from dataclasses import dataclass, field
 from typing import Callable
+
+from engine import clock as calendar
+from engine import streams
 
 LINE, ROLLED, KEPT = "line", "rolled", "kept"
 UNSET = object()
@@ -100,13 +112,91 @@ class TurnContext:
         self.values.setdefault(name, []).append(item)
 
 
+class Clock:
+    """(f632) The save's time, read from the save's meta each time it is asked: nothing here to go stale when the meta is replaced
+    whole (a reload, an asked restore) or a harness sets it."""
+
+    def __init__(self, store) -> None:
+        self._store = store
+
+    @property
+    def minutes(self) -> int:
+        return self._store.meta.minutes
+
+    @property
+    def day(self) -> int:
+        return self._store.meta.day
+
+    def advance(self, minutes: int) -> int:
+        """Time passes: the minute, and the day with it. The one writer of the save's time in the game's code."""
+        meta = self._store.meta
+        meta.minutes += minutes
+        meta.day = calendar.day(meta.minutes)
+        return meta.minutes
+
+
+@dataclass(eq=False)
+class ActorContext:
+    player: object = None                      # the character's record (PlayerState); none for the process's own
+    dice: streams.Streams = streams.DEFAULT    # the set of dice that answers engine/streams.py while this actor is bound
+    out: object = None                         # the console's channel while it is bound; None: the channel as it stands
+    clock: Clock | None = None
+    turn: TurnContext = field(default_factory=TurnContext)
+
+    @property
+    def character_id(self) -> str:
+        return self.player.character.id
+
+
+PROCESS = ActorContext()                       # no actor bound: the process's dice and the console's channel answer
+_bound: contextvars.ContextVar = contextvars.ContextVar("actor", default=PROCESS)
+
+
+def current() -> ActorContext:
+    """The actor whose entry is running on this thread; PROCESS outside every entry and on a thread no entry runs on."""
+    return _bound.get()
+
+
+@contextlib.contextmanager
+def bind(mine: ActorContext):
+    """This actor is the current one until the block ends, its dice with it; the one before is back after, a fault or not. Both
+    are this thread's. A channel of its own takes the console's text for the whole process (ui/console.py use), every thread's
+    with it, until the output seam is the channel's (f635)."""
+    from ui import console
+    token = _bound.set(mine)
+    try:
+        with streams.use(mine.dice), (console.use(mine.out) if mine.out is not None else contextlib.nullcontext()):
+            yield mine
+    finally:
+        _bound.reset(token)
+
+
+def actor_of(scene) -> ActorContext:
+    """The scene's actor, made the first time it is asked for (the scene's constructor, as it is given its player). Under no `_`
+    name: the session's sweep of the scene's caches would copy it at every operation and put a stale one back."""
+    mine = scene.__dict__.get("actor")
+    if mine is None:
+        mine = scene.__dict__["actor"] = ActorContext(clock=Clock(scene.store))
+    return mine
+
+
+def bound(entry):
+    """An entry of the scene (open_world, run, turn, handle, command, the pulse): its actor is bound while it runs. One entry
+    inside another binds nothing again, so a channel put over the actor's in between stays."""
+    @functools.wraps(entry)
+    def run(scene, *args, **kwargs):
+        mine = actor_of(scene)
+        if current() is mine:
+            return entry(scene, *args, **kwargs)
+        with bind(mine):
+            return entry(scene, *args, **kwargs)
+    run.binds_actor = True
+    return run
+
+
 def turn_of(scene) -> TurnContext:
-    """The scene's turn context, made the first time it is asked for. Under no `_` name: the session's sweep of the scene's caches
-    would copy it at every operation and put a stale one back."""
-    ctx = scene.__dict__.get("turnctx")
-    if ctx is None:
-        ctx = scene.__dict__["turnctx"] = TurnContext()
-    return ctx
+    """The turn's context of the scene's actor."""
+    return actor_of(scene).turn
 
 
 class TurnField:

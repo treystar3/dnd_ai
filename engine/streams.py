@@ -18,6 +18,8 @@ STRICT is set by a session that must replay exactly (a recording, the determinis
 model's arrival, which otherwise land whenever they finish, are then fixed at an input's edge."""
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import random
 
 UNSEEDED = "unseeded"
@@ -27,7 +29,8 @@ BEGUN = 0                       # (f585) how many inputs have been begun: a call
 
 class Streams:
     """(f581) One set of dice: the named streams, the key they were last seeded from, and their snapshot. The process has one (DEFAULT,
-    which the functions below are); it alone seeds the global random module. A second set beside it moves nothing of the first."""
+    which the functions below are when no actor is bound); it alone seeds the global random module. A second set beside it moves
+    nothing of the first."""
 
     def __init__(self, process: bool = False):
         self._streams: dict[str, random.Random] = {}
@@ -113,8 +116,55 @@ class Streams:
 
 
 DEFAULT = Streams(process=True)
-begin, reset, get, new_id, key, keyed, snapshot, restore = (DEFAULT.begin, DEFAULT.reset, DEFAULT.get, DEFAULT.new_id, DEFAULT.key,
-                                                             DEFAULT.keyed, DEFAULT.snapshot, DEFAULT.restore)
+_current: contextvars.ContextVar = contextvars.ContextVar("dice", default=DEFAULT)
+
+
+def current() -> Streams:
+    """(f632) The set of dice the functions below are: the bound actor's (engine/actor.py bind), the process's when none is bound
+    and on a thread no entry runs on."""
+    return _current.get()
+
+
+@contextlib.contextmanager
+def use(dice: Streams):
+    """(f632) This set answers the functions below until the block ends; the one before it is back after, a fault or not."""
+    token = _current.set(dice)
+    try:
+        yield dice
+    finally:
+        _current.reset(token)
+
+
+def begin(seed, step: int, said: str = "") -> None:
+    current().begin(seed, step, said)
+
+
+def reset() -> None:
+    current().reset()
+
+
+def get(name: str) -> random.Random:
+    return current().get(name)
+
+
+def new_id(n: int = 8, stream: str = "ids") -> str:
+    return current().new_id(n, stream)
+
+
+def key() -> str:
+    return current().key()
+
+
+def keyed(purpose: str, speaker: str = "", conversation: str = "", n: int = 0) -> random.Random:
+    return current().keyed(purpose, speaker, conversation, n)
+
+
+def snapshot() -> tuple:
+    return current().snapshot()
+
+
+def restore(snap: tuple) -> None:
+    current().restore(snap)
 
 
 def fixed(*parts) -> random.Random:

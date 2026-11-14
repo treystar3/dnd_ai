@@ -3,7 +3,7 @@
 Written 2026-11-14 against `main` at 84fc7cd (f627, with the prose branch merged). Approved by the owner the same day ("Approve as
 recommended"), with the recommendations of section 7 taken.
 
-**Built so far:** f628, f630 and f631. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
+**Built so far:** f628, f630, f631 and f632. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
 "Yes, move it"), because three of its logs are written where there is no scene to ask who acted (see f629 below).
 
 This is not a new design. Two designs the owner has already taken stand behind it:
@@ -115,6 +115,19 @@ process's own dice and screen answer, as today.
 - A count of `self.player` per directory (scenes 1,031, services 61) that only falls.
 - Proof: two stub campaigns taken in turn on one thread each see their own actor; after each rebind the acting id is the new
   one; the clock follows a reload and an asked restore.
+- As built (tools/sim/actor_632_test.py): the count by the test's own search is scenes 1,087 and services 63. The bound actor
+  and its dice are kept for each thread, so a thread no entry runs on reads the process's default; a channel of the actor's
+  own is not: it takes the console's text for the whole process (ui/console.py `use`) until f635, and no actor has one yet. An entry run inside another binds nothing
+  again, so a channel put over the actor's in between (an operation's held lines, a tap) keeps the text. A start's time goes
+  through the clock too, so the day it saves is the day of its minute, where it was left at the first day until time next passed.
+- **Where the process's default is reached today** (risk 2; each is a place M1 has to give an actor or refuse story output):
+  main.py before and after `scene.run()`, the game's one way into a scene (the home page, loading and migrating a save, creation,
+  the session's open and close, which reset the dice); the threads no entry runs on (the people written behind the scenes in
+  npc/backfill.py, the model's loader and spawner in llm/launch.py and llm/runtime.py, the window's server in ui/gui/server.py);
+  and a test or a tool that calls a scene's method other than the five entries and the pulse.
+- Left for later features: a stream of the dice kept on an object (the scene's `rng`, the fight's; the list is
+  tools/sim/stream_object_581_test.py's KEPT) is still the process's, so an actor with dice of its own answers the dice
+  module's functions only until those holders ask the actor. The output seam beyond the console's `print` is f635's.
 
 **f629: the operation and every log row name who acted** (moved here from section A). `Operation` gains `actor`, written by
 its record, the presentation entry and the recorder's input row; the turn log, the call log, the refusals, the audit and the

@@ -85,8 +85,8 @@ config.TURN_LOG_PATH = "saves/turn_context_631/turns.jsonl"
 simlib.quiet_console()
 turn = actor.turn_of(ws)
 check("the scene's context is one object, the same each time it is asked for", turn is actor.turn_of(ws) and isinstance(turn, actor.TurnContext))
-check("it sits under no name the session sweeps or rolls back", "turnctx" in ws.__dict__ and "turnctx" not in WorldScene.ROLLED
-      and not any(v is turn for k, v in ws.__dict__.items() if k.startswith("_")))
+check("it is the scene's actor's (f632), under no name the session sweeps or rolls back", turn is ws.actor.turn and "actor" not in WorldScene.ROLLED
+      and not any(v is turn or v is ws.actor for k, v in ws.__dict__.items() if k.startswith("_")))
 check("before anything has run the step reads as none and the kept fields as the scene set them", ws.step is None and ws.pending == []
       and ws.halted is False and ws.last_failure == "" and ws.last_budget == {}, (ws.pending, ws.halted, ws.last_failure, ws.last_budget))
 made = {k: getattr(ws, k, MISSING) for k in line | {"buffering"}}
