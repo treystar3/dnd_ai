@@ -61,6 +61,12 @@ heals nothing.
 - Test first: a fence over every field of `Combat` typed as a fighter (a new one fails the test until it is declared as in the
   fight or not yet in it, as `reserves` are); the mentor's fight with an operation stood down in the middle, which the stub never
   does today; and the same on a second such field made for the test.
+- **As built (f643, tools/sim/fight_one_fighter_643_test.py, written first).** The rule is the fight's own, not the row's: `Combat`
+  declares which of its fields name one of the fight (`ONE_OF_THE_FIGHT`) and which hold those not yet in it (`NOT_YET_IN_IT`),
+  and whenever a fight is made from its data (the row, a save) a field of the first kind is the very fighter in `fighters`.
+  This is not where the plan put it (the writing and reading of the row): the row's shape is unchanged, and every way a fight
+  is read is covered, not the one. A row saved with the two apart (a troll fight under way in an older save) comes back as the
+  one in the fight, the one the bars showed.
 
 **A2. What a line says it did is read from what was committed (3.1, 3.3).** "The rest of the line did not take; say it again" is
 built from the steps that finished, and a walk and a hand-in are committed as operations of their own before the talk. So a paid

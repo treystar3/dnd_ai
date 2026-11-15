@@ -9,7 +9,7 @@ import math
 import random
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import yaml
 from core import yamlio
@@ -399,6 +399,19 @@ class Combat(BaseModel):
     ground_told: dict = {}         # (f571) each zone as last told to the narrator and who stood there then (battlefield.note_ground_told)
     felled_by: dict[str, str] = {}  # (f412) who struck each fallen fighter down, as the story names them: a night's narration gave a
                                     # pirate's killing blow on a companion to the player's own blade
+    ONE_OF_THE_FIGHT: ClassVar[tuple[str, ...]] = ("mentor_ally",)             # (f643) held by name while also in `fighters`
+    NOT_YET_IN_IT: ClassVar[tuple[str, ...]] = ("reserves", "ally_reserves")   # (f643) they leave their list as they enter
+
+    @model_validator(mode="after")
+    def one_fighter_each(self) -> "Combat":
+        """(f643) A fight read from its row has one fighter for each person: a field that names one of `fighters` holds that very
+        fighter, so an order, a wound or a draught on either is on both. Someone not in the fight yet keeps their own record."""
+        for name in self.ONE_OF_THE_FIGHT:
+            held = getattr(self, name)
+            there = self.get(held.id) if held is not None else None
+            if there is not None and there is not held:
+                setattr(self, name, there)
+        return self
 
     def get(self, fid: str) -> Fighter | None:
         return next((f for f in self.fighters if f.id == fid), None)
