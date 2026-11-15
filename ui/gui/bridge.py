@@ -199,9 +199,8 @@ class Bridge:
             self.emit(k="side_end")
 
     def status_block(self, when, weather, place_line, spot_line, vitals, level, points, coins, xp=(0, 0), needs=None) -> None:
-        from engine import money
-        import config
-        self.emit(k="status", debug=bool(config.DEBUG), when=when, weather=weather, place=place_line, spot=spot_line,
+        from engine import actor, money
+        self.emit(k="status", debug=bool(actor.prefs().debug), when=when, weather=weather, place=place_line, spot=spot_line,
                   vitals={k: [round(v[0]), v[1]] for k, v in vitals.items()}, level=level, points=points,
                   coins=money.fmt(coins), xp=list(xp), needs=needs or {})
 

@@ -708,7 +708,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 "threads": threads, "effects": live}
 
     def show_pulse(self) -> None:
-        if not config.DEBUG:
+        if not actor.prefs().debug:
             console.note("#pulse is a debug pane (run the game with --debug).")
             return
         data = self.pulse_data()
@@ -1830,7 +1830,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         enchanting.set_discount(self.has("arcane_appraiser") or 0)
         enchanter = next((n for n in self.present if n.role == "enchanter"), None)
         own_hands = self.owns("enchanter") and bool(self.place.stations)
-        if not enchanter and not own_hands and not config.DEBUG:
+        if not enchanter and not own_hands and not actor.prefs().debug:
             console.note("There's no enchanter here. You'll need to find one - perhaps somewhere magic is welcome."
                          + (" Or a workshop: you can do the work yourself." if self.owns("enchanter") else ""))
             return
@@ -2662,7 +2662,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             from engine import refusals
             console.note(refusals.summary())
         elif name == "world":
-            if not config.DEBUG:
+            if not actor.prefs().debug:
                 console.note("#world is a debug command (run with --debug).")
             else:
                 self.show_world_state()
@@ -2702,16 +2702,19 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             console.note(f"Item box ({here}): {len(self.player.stash)}/{self.stash_cap()} slots")
             for i in self.player.stash:
                 console.note(f"  {inv.label(i)}")
-        elif name == "dialogue":
-            config.NARRATED_DIALOGUE = not config.NARRATED_DIALOGUE
-            console.note(f"Conversations {'narrated' if config.NARRATED_DIALOGUE else 'shown as plain dialogue'}.")
+        elif name == "dialogue":                            # (f636) the three preferences are the player's whose turn it is
+            mine = actor.prefs()
+            mine.dialogue = not mine.dialogue
+            console.note(f"Conversations {'narrated' if mine.dialogue else 'shown as plain dialogue'}.")
         elif name == "numbers":
-            config.COMBAT_NUMBERS = not config.COMBAT_NUMBERS
-            console.note(f"Combat numbers {'shown' if config.COMBAT_NUMBERS else 'hidden'}.")
+            mine = actor.prefs()
+            mine.numbers = not mine.numbers
+            console.note(f"Combat numbers {'shown' if mine.numbers else 'hidden'}.")
         elif name == "debug":
-            config.DEBUG = not config.DEBUG
-            console.note(f"Debug mode {'on' if config.DEBUG else 'off'}.")
-        elif name.split()[0] == "levelup" and config.DEBUG:
+            mine = actor.prefs()
+            mine.debug = not mine.debug
+            console.note(f"Debug mode {'on' if mine.debug else 'off'}.")
+        elif name.split()[0] == "levelup" and actor.prefs().debug:
             c = self.player.character
             count = int(name.split()[1]) if len(name.split()) > 1 and name.split()[1].isdigit() else 1
             leveling.level_up(c, count)
@@ -3548,7 +3551,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             console.debug(f"ignored gift '{reply.gives.name}' - not a story object, or offered for sale")
         speaker = npc.label(self.acting) if reply.told_own_name else label_before
         self.flush(text)
-        if config.NARRATED_DIALOGUE:
+        if actor.prefs().dialogue:
             self.narrate_dialogue(npc, label_before, speaker, text, reply, first_time,
                                   reasons=self.frame_reasons(npc, reply, revealed, check_note))     # (f347) the engine decides if there is a frame
         else:

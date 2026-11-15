@@ -3,7 +3,7 @@
 Written 2026-11-14 against `main` at 84fc7cd (f627, with the prose branch merged). Approved by the owner the same day ("Approve as
 recommended"), with the recommendations of section 7 taken.
 
-**Built so far:** f628, f630, f631, f632, f629, f633, f634 and f635. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
+**Built so far:** f628, f630, f631, f632, f629, f633, f634, f635 and f636. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
 "Yes, move it"), because three of its logs are written where there is no scene to ask who acted (see f629 below).
 
 This is not a new design. Two designs the owner has already taken stand behind it:
@@ -259,6 +259,34 @@ As built:
 
 **f636: a player's preferences on the actor.** `#dialogue`, `#numbers` and `#debug` flip flags on `config` today
 (scenes/world.py:2693-2699). They move to the actor; `--debug` at start sets the first actor's.
+
+As built:
+- `Prefs` (engine/actor.py) holds the three: `debug`, `numbers`, `dialogue`, as the game starts them (off, on, on). An actor
+  points at a set (`ActorContext.prefs`), the process's one while a scene has one character, as the registers and the caches
+  are; `actor.prefs()` is the set of the actor bound on this thread.
+- The three commands flip the preference of the actor whose turn it is and say what they said. Every reader asks
+  `actor.prefs()`: the console's debug line and the help, the gateway's rejections, `#pulse`, `#world`, `#levelup`, the
+  enchanter's absence, the window's status; the numbers under a round; a townsperson's, the mentor's and a companion's framed
+  words and the party's exchange. Eight files of the game read one.
+- `--debug` is read by `main.options(argv)`, which sets the preference of the actor bound as the game starts: the process's,
+  so the first player's.
+- `config.DEBUG`, `config.COMBAT_NUMBERS` and `config.NARRATED_DIALOGUE` are gone. Reading or setting one raises and says
+  which preference to ask (`actor.moved`, as f633 and f634 did). A read that gives its own default (`getattr(config,
+  "DEBUG", False)`) is not told: it gets its default, as with every moved name. So tools/sim/prefs_636_test.py reads the
+  code of every Python file for a use of one, and the text of every file of any kind for one spelt.
+- Nothing differs in play. A preference is still the player's for the run: the session puts none back when a campaign
+  opens or closes, as it put none of the three flags back.
+- With actors of their own (M1), a thread no entry runs on reads the process's set: a debug line from the people written
+  behind the scenes is shown by the process's preference, not a player's. Whose screen that line belongs on is M1's to say.
+- The table (engine/owned.py): config's three rows are three of the actor's (`engine.actor.Prefs.<name>`), put back by the
+  player alone; 88 rows still.
+- Tests changed: four set `config.DEBUG` and set the preference now, f628's pin of the window among them (two lines of
+  its set-up; its kept events are untouched) and console_bytes_579 (its two helpers; its kept text is untouched); one of
+  output_channel_635's examples of code that is not a console write named the flag and names another setting;
+  owned_state_633 holds the actor's rows as the caches and the preferences.
+- **For the owner before M1:** `#debug` opens `#levelup` and enchanting with no enchanter to whoever types it, today as
+  before. Once each player has preferences of their own that is each player's own doing, in front of the others (pillar 6).
+  Whether debug in a group is the host's alone, off, or each player's is not decided here.
 
 ### C. The storage (last, with no other change to data/ or the save pending)
 

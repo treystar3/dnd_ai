@@ -1,7 +1,7 @@
 """(f633) Whose every piece of state outside a save is, and what puts it back (docs/design/20_phase3_plan.md).
 
 STATE declares every module-level name in the game's code that is written after import, and each of the turn's registers and
-of the actor's caches (engine/actor.py Registers, Caches): whose it is (`scope`) and what puts it back (`resets`, in words). A
+of the actor's caches and preferences (engine/actor.py Registers, Caches, Prefs): whose it is (`scope`) and what puts it back (`resets`, in words). A
 row the session puts back when a campaign opens or closes also says how (`put_back`), when it is clean and what it holds:
 engine/session.py reset() and residue() are those rows and nothing else. tools/sim/owned_state_633_test.py reads the syntax tree of the game's code and fails
 on a written name that is not a row here, so the next one cannot arrive unnoticed.
@@ -9,9 +9,10 @@ on a written name that is not a row here, so the next one cannot arrive unnotice
 The scopes:
 - TURN: one line's, or one input's. The registers are where it belongs; a row of this scope on a module name is one still to
   move there.
-- ACTOR: one character's. The caches are where it belongs, the process's one set while a scene has one character.
+- ACTOR: one character's. The caches are where it belongs, the process's one set while a scene has one character; so are a
+  player's preferences, which only the player puts back.
 - CAMPAIGN: the save's that is open, put back when it closes.
-- PROCESS: this run of the program's: a data file read once, a tally written out at the end, a switch the player set, a seam
+- PROCESS: this run of the program's: a data file read once, a tally written out at the end, a switch the start-up set, a seam
   something installed and takes out itself.
 - CALL: one call's own on its thread, put back as the call returns.
 
@@ -66,7 +67,7 @@ def field(held, scope: str, name: str) -> Row:
     return Row(scope, SESSION, lambda: setattr(held, name, fresh()), lambda: getattr(held, name) == fresh(), lambda: repr(getattr(held, name))[:80])
 
 
-HELD = "engine.actor."                                 # a row for a field of the registers or the caches: engine.actor.<Class>.<field>
+HELD = "engine.actor."                                 # a row for a field of the registers, the caches or the preferences: engine.actor.<Class>.<field>
 
 
 def _fields() -> dict[str, Row]:
@@ -75,10 +76,18 @@ def _fields() -> dict[str, Row]:
             for held, scope in ((actor.SHARED, TURN), (actor.SHARED_CACHES, ACTOR)) for name in held.FRESH}
 
 
+def _prefs() -> dict[str, Row]:
+    """(f636) A player's preferences: the actor's, and nothing but the player puts one back."""
+    from engine import actor
+    by = {"debug": "#debug, or --debug at the start", "numbers": "#numbers", "dialogue": "#dialogue"}
+    return {f"{HELD}Prefs.{name}": Row(ACTOR, f"the player ({by[name]})") for name in actor.SHARED_PREFS.FRESH}
+
+
 STATE: dict[str, Row] = {
     # ---- the turn's registers (the operation, the ledger, the budget, the turn log's open turn, the serving, the owner) and the
     # actor's caches (the journal, the ids, the claims' events and sink, the cast, the lines said last, the discount)
     **_fields(),
+    **_prefs(),
 
     # ---- the open campaign's
     "engine.pulse.LAST": Row(CAMPAIGN, SESSION, lambda: _at("engine.pulse.LAST").update(made_by="", attempted=""),
@@ -131,9 +140,6 @@ STATE: dict[str, Row] = {
     "llm.audit._full": Row(PROCESS, "nothing: the audit file reached its size, said once"),
 
     # ---- this run's: switches and seams
-    "config.DEBUG": Row(PROCESS, "the player (#debug, or --debug at the start)"),
-    "config.COMBAT_NUMBERS": Row(PROCESS, "the player (#numbers)"),
-    "config.NARRATED_DIALOGUE": Row(PROCESS, "the player (#dialogue)"),
     "engine.budget.PROFILE": Row(PROCESS, "budget.priced puts back what it changed: the card's speeds every estimate is made at"),
     "engine.budget.SLOW": Row(PROCESS, "the model server: set as it starts below the minimum card, cleared as it stops (llm/launch.py, llm/runtime.py)"),
     "llm.backend._sources": Row(PROCESS, "each handle takes out its own (backend.use): where a model call is answered from"),
@@ -169,7 +175,7 @@ STATE: dict[str, Row] = {
 
 
 def label(key: str) -> str:
-    """A row's name in the session's residue: the module and the name, or `registers.<name>`, `caches.<name>`."""
+    """A row's name in the session's residue: the module and the name, or `registers.<name>`, `caches.<name>`, `prefs.<name>`."""
     if key.startswith(HELD) and key.count(".") == 3:
         cls, name = key[len(HELD):].split(".")
         return f"{cls.lower()}.{name}"

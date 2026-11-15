@@ -767,7 +767,7 @@ class CombatScene:
         self.ws.remember_narration(TAG.sub("", result.text))
         self.note_ground_told()                                  # (f571) the telling stood: what it was given of the ground is told
         self.note_fight_shown(result.text)
-        if config.COMBAT_NUMBERS and not console.windowed():
+        if actor.prefs().numbers and not console.windowed():
             console.combat_numbers(f.log)
 
     ITEM_VERBS = r"\b(give|hand|toss|throw|pass|use|drink|feed|pour|apply|administer|let)\b"

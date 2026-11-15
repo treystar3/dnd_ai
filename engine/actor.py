@@ -31,8 +31,12 @@ companions' pronouns (engine/names.py), the stand-in and dropped-question lines 
 engine/questions.py) and the enchanter's discount (engine/enchanting.py). Read and written through those modules' functions,
 which reach the caches of the actor bound (`caches()`).
 
-One actor a scene, one turn's context, and one set of registers and of caches for the process, while a scene has one
-character; M1 makes it one for each."""
+(f636) Prefs is what a player chose for their own screen: the engine's debug lines and commands (#debug, --debug at the
+start), the numbers under a narrated round (#numbers) and whether conversations are narrated (#dialogue). Read where it
+matters as `prefs()`, the actor's bound. The player's for the run: no campaign's close puts one back.
+
+One actor a scene, one turn's context, and one set of registers, of caches and of preferences for the process, while a scene
+has one character; M1 makes it one for each."""
 from __future__ import annotations
 
 import collections
@@ -45,6 +49,7 @@ import types
 from dataclasses import dataclass, field
 from typing import Callable
 
+import config
 from engine import clock as calendar
 from engine import streams
 
@@ -222,8 +227,19 @@ class Caches(Held):
     }
 
 
+class Prefs(Held):
+    """(f636) What a player chose for their own screen."""
+
+    FRESH: dict[str, Callable] = {
+        "debug": bool,                         # the engine's decisions shown, and the debug commands open
+        "numbers": lambda: True,               # the numbers under each narrated round of a fight
+        "dialogue": lambda: True,              # conversations wrapped in narration; off, the words alone
+    }
+
+
 SHARED = Registers()                           # the process's one set, every actor's while there is one actor
 SHARED_CACHES = Caches()                       # (f634) ...and its one set of caches
+SHARED_PREFS = Prefs()                         # (f636) ...and of preferences: the first player's
 
 
 @dataclass(eq=False)
@@ -235,6 +251,7 @@ class ActorContext:
     turn: TurnContext = field(default_factory=TurnContext)
     registers: Registers = SHARED              # (f633) the turn's registers: the process's one, until a second actor has its own
     caches: Caches = SHARED_CACHES             # (f634) what is kept for the character between lines: the process's, likewise
+    prefs: Prefs = SHARED_PREFS                # (f636) what the player chose for their screen: the process's, likewise
 
     @property
     def character_id(self) -> str:
@@ -259,6 +276,11 @@ def registers() -> Registers:
 def caches() -> Caches:
     """(f634) The caches of the actor bound on this thread; the process's one outside every entry."""
     return current().caches
+
+
+def prefs() -> Prefs:
+    """(f636) The preferences of the actor bound on this thread; the process's one outside every entry."""
+    return current().prefs
 
 
 def moved(module_name: str, names: dict[str, str]) -> None:
@@ -360,3 +382,6 @@ def install(cls) -> None:
     """Give a scene class its name for every field."""
     for name in FIELDS:
         setattr(cls, name, TurnField(name))
+
+
+moved("config", {"DEBUG": "actor.prefs().debug", "COMBAT_NUMBERS": "actor.prefs().numbers", "NARRATED_DIALOGUE": "actor.prefs().dialogue"})   # (f636)

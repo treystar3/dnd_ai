@@ -226,8 +226,8 @@ check("(the scan read the game: its packages and the two modules at the root, ne
 undeclared = {f"{m}.{n}": sorted(how) for (m, n), how in sorted(written.items()) if f"{m}.{n}" not in owned.STATE}
 check("every module-level name the game writes after import is declared in the table", not undeclared, undeclared)
 
-REGISTER, CACHE = "engine.actor.Registers.", "engine.actor.Caches."
-HELD = {REGISTER: actor.Registers, CACHE: actor.Caches}
+REGISTER, CACHE, PREF = "engine.actor.Registers.", "engine.actor.Caches.", "engine.actor.Prefs."
+HELD = {REGISTER: actor.Registers, CACHE: actor.Caches, PREF: actor.Prefs}
 dead = []
 for key, row in owned.STATE.items():
     if key.startswith(owned.HELD) and key.count(".") == 3:
@@ -237,11 +237,12 @@ for key, row in owned.STATE.items():
     mod, _, name = key.rpartition(".")
     if mod not in TREES or (name not in bindings(TREES[mod]) if name != "*" else (mod, "*") not in written):
         dead.append(key)
-check("the table holds no dead row: each names a module-level binding that is there, or one of the registers or the caches", not dead, dead)
+check("the table holds no dead row: each names a module-level binding that is there, or one of the registers, the caches or the preferences", not dead, dead)
 check("every one of the turn's registers is a row, the turn's", all(owned.STATE.get(REGISTER + f) and owned.STATE[REGISTER + f].scope == owned.TURN
                                                                    for f in actor.Registers.FRESH), sorted(actor.Registers.FRESH))
-check("(f634) every one of the actor's caches is a row, the actor's, and nothing else is the actor's any more",
-      {k for k, r in owned.STATE.items() if r.scope == owned.ACTOR} == {CACHE + f for f in actor.Caches.FRESH} and len(actor.Caches.FRESH) == 8,
+check("(f634, f636) every one of the actor's caches and of a player's preferences is a row, the actor's, and nothing else is the actor's",
+      {k for k, r in owned.STATE.items() if r.scope == owned.ACTOR} == {CACHE + f for f in actor.Caches.FRESH} | {PREF + f for f in actor.Prefs.FRESH}
+      and (len(actor.Caches.FRESH), len(actor.Prefs.FRESH)) == (8, 3),
       sorted(k for k, r in owned.STATE.items() if r.scope == owned.ACTOR))
 shape = [k for k, r in owned.STATE.items() if r.scope not in owned.SCOPES or not r.resets.strip()
          or len({r.put_back is None, r.clean is None, r.what is None}) != 1]

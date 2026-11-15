@@ -40,7 +40,7 @@ SEAM = ("ask", "scope", "kind", "status_block", "busy_text", "panel", "setup_pro
         "combat_state")
 STATUS = ("Day 3, dusk", "light rain", "Trading Square, Parth", "a quiet corner", {"health": (40.4, 52), "mana": (0, 0), "stamina": (11.0, 40)},
           3, 2, 12345)
-was_debug, config.DEBUG = config.DEBUG, False
+was_debug, actor.prefs().debug = actor.prefs().debug, False
 
 
 def module_now() -> dict:
@@ -416,7 +416,7 @@ PASSED = {
     "a call": "from ui import console\nconsole.note('x')\n",
     "a read": "from ui import console\nreal = console.now('ask')\nw = console.WIDTH\n",
     "another object called console": "console = Thing()\nconsole.note = f\n",
-    "another module's attribute": "from ui import console\nimport config\nconfig.DEBUG = console.windowed()\n",
+    "another module's attribute": "from ui import console\nimport config\nconfig.MAX_TOKENS = console.width()\n",
 }
 check("the search catches every way a console attribute is written", all(assigned(s) for s in CAUGHT.values()), [k for k, s in CAUGHT.items() if not assigned(s)])
 check("...and passes what is not one", not any(assigned(s) for s in PASSED.values()), [k for k, s in PASSED.items() if assigned(s)])
@@ -437,7 +437,7 @@ check("every one of them was read", not unread, unread)
 check(f"no file in the repository assigns to a console attribute ({len(files)} files: the game, the tools, the tests)", not writers and len(files) > 700,
       (len(writers), sum(len(v) for v in writers.values()), sorted(writers.items())[:6]))
 
-config.DEBUG = was_debug
+actor.prefs().debug = was_debug
 shutil.rmtree(BASE, ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

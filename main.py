@@ -23,6 +23,7 @@ from core.version import VERSION
 
 if paths.FROZEN:
     os.chdir(paths.APP)          # saves/ and logs/ live beside the exe
+from engine import actor
 from engine.session import CampaignSession
 from npc.traits import load_traits
 from scenes.goddess import ThresholdScene
@@ -43,14 +44,20 @@ def utf8_streams() -> None:
             s.reconfigure(encoding="utf-8", errors="replace")
 
 
-def main():
+def options(argv=None):
+    """The command line, read. (f636) --debug is the first player's preference."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--new", action="store_true", help="start a new game")
     parser.add_argument("--debug", action="store_true", help="show engine decisions")
     parser.add_argument("--gui", action="store_true", help="play in a window instead of the terminal")
     parser.add_argument("--terminal", action="store_true", help="play in the terminal (the built app opens a window by default)")
-    args = parser.parse_args()
-    config.DEBUG = args.debug
+    args = parser.parse_args(argv)
+    actor.prefs().debug = args.debug
+    return args
+
+
+def main():
+    args = options()
     utf8_streams()
     import atexit
     from engine import turnlog

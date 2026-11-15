@@ -14,7 +14,7 @@ import textwrap
 import types
 
 import config
-from engine import items, money, stats
+from engine import actor, items, money, stats
 
 WIDTH = 92                 # the terminal's; what the game wraps to is the channel's (width())
 CONTEXT_LABEL = {"combat": "C", "out_of_combat": "O", "both": "B"}
@@ -267,7 +267,7 @@ def dialogue(before: str, speaker: str, speech: str, after: str) -> None:
 
 @_out
 def debug(message: str) -> None:
-    if config.DEBUG:
+    if actor.prefs().debug:
         with kind("debug"):
             print(f"  [debug] {message}")
 
@@ -751,7 +751,7 @@ def show_help() -> None:
     print("  #numbers  show or hide the numbers under each round of combat")
     print("  #menu     save and go back to the main menu: continue, load another game, or start a new one")
     print("  #debug    toggle debug mode (shows what the engine decides)")
-    if config.DEBUG:
+    if actor.prefs().debug:
         print("  #levelup [n]  (debug) gain n levels")
     print("Anything else you type is something your character does or says.")
 

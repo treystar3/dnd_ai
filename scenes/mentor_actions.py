@@ -3,7 +3,7 @@ tracking and the fight, can be talked to throughout, and a troll that should not
 engine/mentor.py; the fixed words are in data/world/mentor.yaml. Her free answers come from the model with a locked fact sheet, so
 she can't invent a rule. The first hunt can't be lost: the player's health holds at 1."""
 from engine import entities
-from engine import combat, encounters, inventory, mentor, money, pools, voice_rules
+from engine import actor, combat, encounters, inventory, mentor, money, pools, voice_rules
 import config
 import re
 from llm.contracts import MentorLines, MentorReply, MentorSpeech
@@ -45,7 +45,7 @@ class MentorActions:
         speech = speech.strip()
         introduced = bool(self.player.mentor.get("introduced"))
         moment = f"maren:{mentor.stage(self.player) or 'meeting'}:{introduced}"
-        narrated = getattr(config, "NARRATED_DIALOGUE", True) and getattr(config, "VOICED_MENTOR", True) and not self.combat
+        narrated = actor.prefs().dialogue and getattr(config, "VOICED_MENTOR", True) and not self.combat
         if narrated and moment in self.__dict__.setdefault("_framed_here", set()):         # (a new place clears it: scenes/world.py enter)
             g = voice_rules.short_gesture(gesture or "")
             console.npc_says(label, speech, g)

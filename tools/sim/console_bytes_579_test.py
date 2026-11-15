@@ -21,7 +21,7 @@ simlib.install(simlib.Stub("warrior", 3))
 import config
 import ui.console as console
 from core.models import Archetype
-from engine import items
+from engine import actor, items
 from llm.contracts import ClassInterpretation
 from storage import statehash
 
@@ -43,19 +43,21 @@ def shown(fn) -> str:
 
 
 def debug_on(message):
-    was, config.DEBUG = config.DEBUG, True
+    mine = actor.prefs()
+    was, mine.debug = mine.debug, True
     try:
         console.debug(message)
     finally:
-        config.DEBUG = was
+        mine.debug = was
 
 
 def debug_off(message):
-    was, config.DEBUG = config.DEBUG, False
+    mine = actor.prefs()
+    was, mine.debug = mine.debug, False
     try:
         console.debug(message)
     finally:
-        config.DEBUG = was
+        mine.debug = was
 
 
 # ---- arguments alone decide these

@@ -18,6 +18,7 @@ import simlib
 simlib.install(simlib.Stub("warrior", 3))
 import config
 import ui.console as console
+from engine import actor
 from llm.gateway import LLMError
 from ui.gui import bridge as bridge_mod
 
@@ -31,7 +32,7 @@ SEAM = {"ask", "scope", "status_block", "kind", "busy_text", "panel", "setup_pro
         "combat_state", "damage_tags", "WIDTH"}
 
 # ---- each of them, called through the console with a window up
-was_debug, config.DEBUG = config.DEBUG, False
+was_debug, actor.prefs().debug = actor.prefs().debug, False
 b = bridge_mod.Bridge()
 b.install()
 try:
@@ -83,7 +84,7 @@ try:
     events = [ev for _, ev in b.log]
 finally:
     b.uninstall()
-    config.DEBUG = was_debug
+    actor.prefs().debug = was_debug
 
 now = {"events": events, "returned": returned}
 check("every name of the seam is called here", used == SEAM, sorted(SEAM ^ used))

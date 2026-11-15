@@ -9,7 +9,7 @@ import random
 import config
 from engine import regard                                   # (f480)
 from engine import entities
-from engine import banter, clock, money, mentor, pulse, quirks, weather
+from engine import actor, banter, clock, money, mentor, pulse, quirks, weather
 from engine import party as rules
 from llm.contracts import Exchange, PairDynamic
 from llm.gateway import generate, LLMError
@@ -149,7 +149,7 @@ class BanterActions:
 
     def exchange_frame(self, merged: list[list[str]]) -> tuple[str, str]:
         """(f325) How the party falls into talking and how it ends, from the narrator - one call for the whole exchange. ('', '') without it."""
-        if not merged or not getattr(config, "NARRATED_DIALOGUE", True) or not getattr(config, "VOICED_MENTOR", True):
+        if not merged or not actor.prefs().dialogue or not getattr(config, "VOICED_MENTOR", True):
             return "", ""
         from llm.contracts import DialogueFrame
         from scenes import world_prompts as wp
