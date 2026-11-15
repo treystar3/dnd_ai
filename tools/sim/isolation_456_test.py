@@ -121,7 +121,8 @@ if "residue_b" in runs["ab"] and "residue_b" in runs["b"]:
           (rep.returncode, rep.stdout[-400:], rep.stderr[-400:]))
 
 # ---- the bundle stored nothing new and re-hashed nothing
-check("the state hash reads the same six tables", set(statehash.TABLES) == {"kv", "places", "npcs", "npc_memory", "event_log", "entities"}, sorted(statehash.TABLES))
+check("the state hash reads the six tables, and (f640) the players' and the world's four lists'", set(statehash.TABLES) == {"kv", "places", "npcs", "npc_memory", "event_log", "entities",
+                                                                                                       "players", "threads", "deeds", "news", "effects"}, sorted(statehash.TABLES))
 golden = json.loads(pathlib.Path("data/replay/sessions/stub_short/meta.json").read_text(encoding="utf-8"))
 check("...and the data hash is the golden's: no new data file, no number moved", statehash.data_hash() == golden["data"], (statehash.data_hash()[:12], golden["data"][:12]))
 

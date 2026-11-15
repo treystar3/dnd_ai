@@ -201,7 +201,7 @@ LITERALS = {                                             # the string "player" o
     "storage/invariants.py": 3,                          # where a problem is; one id among a record's
     "core/models.py": 1,                                 # the saved id itself
     # ---- the saved row's key, which M1's migration re-keys (the owner, 2026-11-14)
-    "storage/playerstable.py": 1, "storage/campaign.py": 2, "storage/saves.py": 2,     # (f638) named once; the export, the import, the save list
+    "storage/playerstable.py": 1, "storage/saves.py": 2,                               # (f638) named once; the save list
     # ---- a word, not an id: a key of a prompt's context, a word the model may write, a name in a table, an attribute's name
     "engine/banter.py": 1, "engine/battlefield_builder.py": 1, "engine/data_check.py": 1, "engine/hygiene.py": 4,
     "engine/mentor.py": 1, "engine/situation_parts.py": 1, "engine/situations.py": 4, "engine/worn.py": 1, "scenes/combat_scene.py": 1, "scenes/part_actions.py": 1, "scenes/party_actions.py": 1, "scenes/plan_repairs.py": 1,

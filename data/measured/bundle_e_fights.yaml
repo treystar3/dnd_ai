@@ -15,36 +15,36 @@ fight_tasks:
 - spell_rank
 goldens:
   stub_fight:
-    3:
+    2:
       estimate: 18.4
       calls:
         combat_opening: 1
       operations: 6
       reruns: 0
       simulations: 80
-    4:
+    3:
       estimate: 9.2
       calls:
         combat_interpret: 1
       operations: 2
       reruns: 0
       simulations: 0
-    5:
-      estimate: 13.1
+    4:
+      estimate: 39.4
       calls:
         combat_interpret: 1
         combat_narrate: 1
       operations: 3
       reruns: 0
       simulations: 0
-    6:
+    5:
       estimate: 9.2
       calls:
         combat_interpret: 3
       operations: 3
       reruns: 3
       simulations: 0
-    7:
+    6:
       estimate: 13.1
       calls:
         combat_interpret: 1
@@ -52,16 +52,24 @@ goldens:
       operations: 3
       reruns: 0
       simulations: 0
-    8:
-      estimate: 33.5
+    7:
+      estimate: 33.7
       calls:
         combat_interpret: 1
         combat_narrate: 3
       operations: 2
       reruns: 0
       simulations: 0
+    9:
+      estimate: 13.3
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
     10:
-      estimate: 13.2
+      estimate: 13.6
       calls:
         combat_interpret: 1
         combat_narrate: 1
@@ -69,7 +77,7 @@ goldens:
       reruns: 0
       simulations: 0
     11:
-      estimate: 13.2
+      estimate: 13.5
       calls:
         combat_interpret: 1
         combat_narrate: 1
@@ -77,7 +85,7 @@ goldens:
       reruns: 0
       simulations: 0
     12:
-      estimate: 13.1
+      estimate: 13.5
       calls:
         combat_interpret: 1
         combat_narrate: 1
@@ -85,7 +93,7 @@ goldens:
       reruns: 0
       simulations: 0
     13:
-      estimate: 13.0
+      estimate: 13.5
       calls:
         combat_interpret: 1
         combat_narrate: 1
@@ -93,7 +101,7 @@ goldens:
       reruns: 0
       simulations: 0
     14:
-      estimate: 13.0
+      estimate: 13.2
       calls:
         combat_interpret: 1
         combat_narrate: 1
@@ -101,47 +109,7 @@ goldens:
       reruns: 0
       simulations: 0
     15:
-      estimate: 13.0
-      calls:
-        combat_interpret: 1
-        combat_narrate: 1
-      operations: 3
-      reruns: 0
-      simulations: 0
-    16:
-      estimate: 13.1
-      calls:
-        combat_interpret: 1
-        combat_narrate: 1
-      operations: 3
-      reruns: 0
-      simulations: 0
-    17:
-      estimate: 13.0
-      calls:
-        combat_interpret: 1
-        combat_narrate: 1
-      operations: 3
-      reruns: 0
-      simulations: 0
-    18:
-      estimate: 13.0
-      calls:
-        combat_interpret: 1
-        combat_narrate: 1
-      operations: 3
-      reruns: 0
-      simulations: 0
-    19:
-      estimate: 13.0
-      calls:
-        combat_interpret: 1
-        combat_narrate: 1
-      operations: 3
-      reruns: 0
-      simulations: 0
-    20:
-      estimate: 34.0
+      estimate: 48.9
       calls:
         accessory_name: 1
         combat_aftermath: 1
@@ -152,22 +120,14 @@ goldens:
       operations: 5
       reruns: 0
       simulations: 0
-    23:
-      estimate: 18.2
+    17:
+      estimate: 18.4
       calls:
         combat_opening: 1
       operations: 6
       reruns: 0
       simulations: 80
-    24:
-      estimate: 12.7
-      calls:
-        combat_interpret: 1
-        combat_narrate: 1
-      operations: 3
-      reruns: 0
-      simulations: 0
-    25:
+    18:
       estimate: 17.4
       calls:
         combat_interpret: 1
@@ -185,7 +145,7 @@ goldens:
       reruns: 0
       simulations: 80
     12:
-      estimate: 12.7
+      estimate: 12.6
       calls:
         combat_interpret: 1
         combat_narrate: 1
@@ -216,30 +176,7 @@ goldens:
       operations: 3
       reruns: 0
       simulations: 0
-    17:
-      estimate: 18.0
-      calls:
-        combat_opening: 1
-      operations: 6
-      reruns: 0
-      simulations: 80
-    18:
-      estimate: 12.7
-      calls:
-        combat_interpret: 1
-        combat_narrate: 1
-      operations: 3
-      reruns: 0
-      simulations: 0
-    19:
-      estimate: 12.5
-      calls:
-        combat_interpret: 1
-        combat_narrate: 1
-      operations: 3
-      reruns: 0
-      simulations: 0
-    20:
+    16:
       estimate: 12.6
       calls:
         combat_interpret: 1
@@ -247,13 +184,36 @@ goldens:
       operations: 3
       reruns: 0
       simulations: 0
-    21:
+    17:
+      estimate: 12.6
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    18:
       estimate: 3.1
       calls:
         combat_interpret: 1
       operations: 2
       reruns: 0
       simulations: 0
+    19:
+      estimate: 12.7
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    21:
+      estimate: 18.0
+      calls:
+        combat_opening: 1
+      operations: 6
+      reruns: 0
+      simulations: 80
     22:
       estimate: 12.6
       calls:
@@ -279,6 +239,30 @@ goldens:
       reruns: 0
       simulations: 0
     25:
+      estimate: 12.6
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    26:
+      estimate: 12.6
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    27:
+      estimate: 12.6
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    28:
       estimate: 12.7
       calls:
         combat_interpret: 1
@@ -286,43 +270,11 @@ goldens:
       operations: 3
       reruns: 0
       simulations: 0
-    30:
-      estimate: 31.5
-      calls:
-        combat_opening: 1
-      operations: 6
-      reruns: 0
-      simulations: 80
-    31:
-      estimate: 12.7
+    29:
+      estimate: 12.6
       calls:
         combat_interpret: 1
         combat_narrate: 1
       operations: 3
-      reruns: 0
-      simulations: 0
-    32:
-      estimate: 12.7
-      calls:
-        combat_interpret: 1
-        combat_narrate: 1
-      operations: 3
-      reruns: 0
-      simulations: 0
-    33:
-      estimate: 12.7
-      calls:
-        combat_interpret: 1
-        combat_narrate: 1
-      operations: 3
-      reruns: 0
-      simulations: 0
-    34:
-      estimate: 29.4
-      calls:
-        combat_interpret: 1
-        combat_narrate: 1
-        goddess_line: 1
-      operations: 5
       reruns: 0
       simulations: 0

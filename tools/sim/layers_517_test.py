@@ -148,15 +148,10 @@ kept = ROOT / "data/replay/sessions" / name
 old, new = lines(kept / "calls.jsonl.gz"), lines(folder / "calls.jsonl.gz")
 differ = [i for i, (a, b) in enumerate(zip(old, new)) if masked(a) != masked(b)]
 turns = lambda p: (p / "turns.jsonl").read_text(encoding="utf-8")
-def inputs(p, kept_rows=None):                               # (f629) a kept row that names no one yet (until the one re-record, f640) is
-    got = [l for l in (p / "inputs.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]      # compared with the name set aside
-    if kept_rows is None or len(kept_rows) != len(got):
-        return got
-    aside = lambda l: json.dumps({k: v for k, v in json.loads(l).items() if k != "actor"}, ensure_ascii=False)
-    return [l if "actor" in json.loads(k) else aside(l) for k, l in zip(kept_rows, got)]
+inputs = lambda p: [l for l in (p / "inputs.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
 om, nm = json.loads((kept / "meta.json").read_text()), json.loads((folder / "meta.json").read_text())
 print(json.dumps({"rows": [len(old), len(new)], "differ": differ[:10], "turns": turns(kept) == turns(folder),
-                  "inputs": inputs(kept) == inputs(folder, inputs(kept)),
+                  "inputs": inputs(kept) == inputs(folder),
                   "meta_keys": [k for k in nm if k not in ("overlapped", "budget_cached")] == [k for k in om if k not in ("overlapped", "budget_cached")]
                                and list(nm)[-1:] == ["overlapped"] and nm.get("budget_cached") is True,      # (f538) a fresh recording says how it priced
                   "overlapped": nm.get("overlapped"),

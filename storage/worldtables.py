@@ -1,6 +1,6 @@
 """(f637) The world's four lists in tables of their own (docs/design/05 step 6; docs/design/13; docs/design/20_phase3_plan.md).
 
-The world's state is one JSON row, read and written whole (storage/worldrow.py). TableWorld answers the same seam with the
+Until version 17 the world's state was one JSON row, read and written whole (storage/worldrow.py). TableWorld answers the same seam with the
 matters, the deeds, the news and the effects each kept as the rows of a table, in the order the list holds them. Every other key
 stays in the row, with a marker where each list stood, so the keys load in their order. A row's json is the list's item as the
 row would have written it, and the only thing read back; the columns beside it are read from it when it is written, for a query
@@ -10,7 +10,7 @@ to find rows by.
 reads what the tables hold, writes the rows that differ, and always writes the row of the other keys: a rollback takes all of it
 back, and an operation that saved the world has written.
 
-Not used yet: a save is version 16 and its store's world is the row's. `adopt` is what the migration will do.
+(f640) A save's world is the tables' from version 17. The row is what an older save is read from until its step, which is `adopt`.
 """
 from __future__ import annotations
 
@@ -79,7 +79,7 @@ def ensure(store) -> None:
 
 def adopt(store) -> "TableWorld":
     """The store's world is kept in the tables from here on: they are made, and the lists the row held are moved into them. What
-    the migration will do to a save, and how a test puts the tables under a store. A save with no world row is left with none.
+    the migration does to a save (v17), and how a test puts the tables under a store. A save with no world row is left with none.
     For a store nothing holds a loaded world of: a copy the row loaded, saved after this, is noted as stale."""
     ensure(store)
     world = store._world if isinstance(store._world, TableWorld) else TableWorld(store)

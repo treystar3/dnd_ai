@@ -3,7 +3,7 @@ f629). Two lines are played through the game's own loop and recorded, one that s
 the rows they leave are read: the turn log, the model call log, the audit, the operation's record in the save, its presentation
 entry, and the recording's input and turn rows. A refusal and a fault are filed the way the game files them. Each is held to the fields it has,
 and the three kept recordings to theirs. Each names who acted (f629; tools/sim/who_acted_629_test.py holds whose name it is); the
-kept recordings gain the field at the one re-record (f640).
+kept recordings have the field since the one re-record (f640).
 Run: python tools/sim/log_rows_628_test.py"""
 import json
 import re
@@ -157,7 +157,7 @@ check("filed outside every entry, the refusal names no one and the fault's entry
 del refusals.SESSION[:], crashlog.SESSION[:]
 
 # ---- a recording's rows: the one just made, and the three kept
-INPUT = {"i", "main", "text", "turn", "steps"}            # the kept recordings', until the one re-record (f640)
+INPUT = {"i", "main", "text", "turn", "steps", "actor"}   # (f640) the kept recordings name whose line it was, as a new one does
 TURN = {"i", "turn", "steps", "state", "outcomes", "operations", "presented", "shown", "lines", "shown_text"}
 
 
@@ -172,8 +172,8 @@ def recording(folder: Path, inputs=INPUT) -> list:
     return wrong
 
 
-check("the recording just made holds a turn row of the kept shape, and an input row that says whose line it was besides",
-      not recording(OUT, INPUT | {"actor"}), recording(OUT, INPUT | {"actor"})[:4])
+check("the recording just made holds a turn row of the kept shape, and an input row that says whose line it was",
+      not recording(OUT), recording(OUT)[:4])
 told = [line for r in rows(OUT / "turns.jsonl") for line in r["shown_text"]]
 check("what the turn log says was shown for the line that stood is what the recording kept as shown (the tap and the recorder saw the same)",
       stood is not None and all(any(s["text"] in line or line in s["text"] for line in told) for s in stood["shown"]),

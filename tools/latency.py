@@ -8,6 +8,10 @@
                                                            (f510) fight inputs too, and every input under budget.yaml limit_seconds
     python tools/latency.py --rekeep MOST --note TEXT      (f571) the baseline's estimates set to today's price for each input the gate
                                                            prices dearer, by MOST seconds at most (an owner's accepted cost only)
+    python tools/latency.py --retold RECORDING --from N --note TEXT [--over I,J]
+                                                           (f640) a recording made again as another story from input N on: its kept
+                                                           estimates from there set to today's prices (plain inputs over the limit
+                                                           only when named; the inputs before N stay held to theirs)
     python tools/latency.py --fights                       (f510) the goldens' fight measures, to data/measured/bundle_e_fights.yaml
     python tools/latency.py --ceilings [RUN_DIR...]        (f490) each speech task's ceiling, from the night's p95 and the goldens
     python tools/latency.py --estimates RECORDING          (f490) a recording's inputs priced at expected answers, as the baseline keeps them
@@ -482,6 +486,59 @@ def rekeep(most: float, note: str, path: Path = BASELINE, root: Path = GOLDENS, 
     return "\n".join(told) or "nothing dearer: nothing written"
 
 
+def retold(name: str, note: str, start: int = 0, path: Path = BASELINE, root: Path = GOLDENS, today: str = "", limit: float | None = None,
+           over: list[int] | tuple[int, ...] = ()) -> str:
+    """(f640) tools/latency.py --retold RECORDING --from N --note TEXT [--over I,J]: a recording made again as another story from
+    input N on has other lines there, so no kept price is the price of the same line: its kept estimates from N on are set to
+    today's prices (at the baseline's priced_at), and the header says when, why, from where and which plain inputs it now keeps
+    over the limit. The inputs before N are the same lines: they stay held to their kept prices. Refuses, writing nothing: without
+    a note; for a recording the baseline does not keep; when an input before N is dearer than kept, or gone (a line grown dearer
+    is --rekeep's); when nothing from N on differs from what is kept (no other story); when a fight input is over budget.yaml
+    limit_seconds (never kept); and when the plain inputs over it from N on are not exactly those the command names (a retelling
+    adds to Bundle D's debt only in the open)."""
+    import datetime
+    import textwrap
+    import card_profile
+    from engine import budget
+    if not note.strip():
+        return "refused, nothing written: a retelling says why (--note TEXT)"
+    limit = card_profile.budget_limit() if limit is None else limit
+    base = _yaml(path)
+    folder = Path(root) / name
+    if name not in (base.get("estimates") or {}) or not (folder / "calls.jsonl.gz").exists():
+        return f"refused, nothing written: {name} is not a recording the baseline keeps"
+    with budget.priced(**(base.get("priced_at") or {})):
+        now = {i: round(s, 1) for i, s in card_profile.estimate_inputs(folder, expected=True)}
+    kept = {int(k): float(v) for k, v in (base["estimates"][name] or {}).items()}
+    grown = [i for i in sorted({i for i in set(now) | set(kept) if i < start}) if i not in now or i not in kept or now[i] > kept[i]]
+    if grown:
+        return (f"refused, nothing written: before input {start} the lines are the same, and these are dearer than kept or gone "
+                f"(a line grown dearer is --rekeep's): " + ", ".join(f"{name} input {i} ({kept.get(i)} -> {now.get(i)} s)" for i in grown))
+    new = {i: s for i, s in now.items() if i >= start}
+    if new == {i: s for i, s in kept.items() if i >= start}:
+        return f"refused, nothing written: nothing of {name} from input {start} on differs from what is kept: no other story to price"
+    fights = fight_inputs(folder)
+    lost = sorted(i for i, s in new.items() if s > limit and i in fights)
+    if lost:
+        return "refused, nothing written: over the limit in a fight: " + ", ".join(f"{name} input {i} ({now[i]} s)" for i in lost)
+    plain = sorted(i for i, s in new.items() if s > limit)
+    if plain != sorted(set(int(i) for i in over)):
+        return (f"refused, nothing written: {name} prices these plain inputs over the limit, and they are kept only when named "
+                f"(--over {','.join(str(i) for i in plain) or 'with none'}): " + (", ".join(f"input {i} ({now[i]} s)" for i in plain) or "none"))
+    lines = Path(path).read_text(encoding="utf-8").split("\n")
+    at = lines.index(f"  {name}:", lines.index("estimates:"))
+    end = next((k for k in range(at + 1, len(lines)) if not lines[k].startswith("    ")), len(lines))
+    lines[at + 1:end] = [x for x in lines[at + 1:end] if int(x.split(":")[0]) < start] + [f"    {i}: {s}" for i, s in sorted(new.items())]
+    when = today or datetime.date.today().isoformat()
+    text = (f"({when}, tools/latency.py --retold {name} --from {start}) {note}. Its {len(new)} inputs from {start} on set to today's prices"
+            + (": kept over the limit, plain inputs " + ", ".join(f"{i} ({now[i]} s)" for i in plain) if plain else ", none over the limit"))
+    k = next(j for j, line in enumerate(lines) if line.startswith("#   priced_at:"))
+    lines[k:k] = textwrap.wrap(text, width=136, initial_indent="#                 ", subsequent_indent="#                 ")
+    Path(path).write_text("\n".join(lines), encoding="utf-8", newline="\n")
+    return (f"{name}: {len(new)} inputs from {start} on set to today's prices"
+            + (f"; kept over the limit: {', '.join(str(i) for i in plain)}" if plain else ""))
+
+
 def golden_sizes(root: Path = GOLDENS) -> dict[str, tuple[int, str]]:
     """(f490) Per speech task, the largest prompt any golden recording sends, and the golden it is in."""
     import card_profile
@@ -833,6 +890,16 @@ def main() -> None:
     if args[0] == "--rekeep":                                       # (f571) --rekeep MOST : the dearer inputs' estimates set to today's price
         k = args.index("--note") + 1 if "--note" in args[2:] else 0
         print(rekeep(float(args[1]), note=args[k] if 0 < k < len(args) else ""))
+        return
+    if args[0] == "--retold":                                       # (f640) --retold RECORDING --from N : another story's prices
+        k = args.index("--note") + 1 if "--note" in args[2:] else 0
+        o = args.index("--over") + 1 if "--over" in args[2:] else 0
+        f = args.index("--from") + 1 if "--from" in args[2:] else 0
+        if not 0 < f < len(args):
+            print("refused, nothing written: a retelling says from which input the story is another (--from N; 0 for a new recording)")
+            return
+        print(retold(args[1], note=args[k] if 0 < k < len(args) else "", start=int(args[f]),
+                     over=[int(x) for x in args[o].split(",") if x.strip()] if 0 < o < len(args) else ()))
         return
     if args[0] == "--fights":                                       # (f510) the goldens' fight measures, written to data/measured/bundle_e_fights.yaml
         print(write_fights())

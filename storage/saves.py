@@ -74,7 +74,7 @@ def summary(name: str, saves_dir: Path | None = None) -> dict | None:
     class and level, where they are, the in-game day. None when the folder holds no database; `ready: False` with a reason when it
     cannot be played here (no character yet, or a save from a newer build)."""
     saves_dir = Path(saves_dir or SAVES_DIR)
-    from storage import migrations
+    from storage import migrations, playerstable
     path = Path(saves_dir) / name / DB_NAME
     if not path.exists():
         return None
@@ -85,6 +85,10 @@ def summary(name: str, saves_dir: Path | None = None) -> dict | None:
         try:
             version = int(db.execute("PRAGMA user_version").fetchone()[0])
             rows = dict(db.execute("SELECT key, json FROM kv WHERE key IN ('player', 'campaign')").fetchall())
+            if db.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (playerstable.TABLE,)).fetchone():
+                found = db.execute(f'SELECT json FROM "{playerstable.TABLE}" WHERE character_id = ?', (playerstable.FIRST,)).fetchone()
+                if found:                                 # (f640) the players table; a save not opened since has the row above
+                    rows[playerstable.KEY] = found[0]
         finally:
             db.close()
     except sqlite3.Error as e:

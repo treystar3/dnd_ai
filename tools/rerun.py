@@ -327,14 +327,17 @@ class _NoServer:
             os.environ["MERAVIA_NO_SERVER"] = self.before
 
 
-def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) -> dict:
+def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None, as_schema: int | None = None) -> dict:
     """Replay one recording. Returns {"matched": n inputs, "of": n, "parted": None | {...where and how}}. on_call(row, k, request) is told
     of every call the game makes, with the recorded row it was served, the neutral request and the request itself (the real-card timing,
-    f443, sends the same request to a model)."""
+    f443, sends the same request to a model). (f640) as_schema: the state after each input is read as that version of the save held
+    it (storage/statehash.py VIEWS), for a recording made before a migration that moved rows and changed no play."""
     rec = load(folder)
     from engine import recording, streams
     from llm import embed
     from storage import statehash
+    if as_schema is not None and as_schema not in statehash.VIEWS:
+        raise ValueError(f"no view of the state as version {as_schema} held it (there is one for: {', '.join(str(v) for v in sorted(statehash.VIEWS))})")
     if rec["meta"].get("data") != statehash.data_hash():
         print("warning: this recording was made on other rules or content (its data hash differs); differences may be that", file=sys.stderr)
     streams.STRICT = True
@@ -397,7 +400,7 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
         want = next((t for t in turns if t["i"] == i), None)
         if want is None:
             return
-        got = statehash.digest(store)
+        got = statehash.digest(store) if as_schema is None else statehash.digest(dumped=statehash.view(statehash.dump(store), as_schema))
         shown = hashlib.sha256("\n".join(state["shown"]).encode("utf-8")).hexdigest()
         if got["all"] != want["state"]["all"]:
             tables = [t for t in got if t != "all" and got[t] != want["state"].get(t)]
@@ -626,6 +629,8 @@ def main() -> int:
     ap.add_argument("--rebless", action="store_true", help="with --golden: record it again, and say what changed")
     ap.add_argument("--translate", action="store_true", help="(f527) with --rebless: every kept row's request in the neutral form against the new rows' fingerprints")
     ap.add_argument("--make", metavar="FOLDER", help="record a stub session into FOLDER (used by the tests)")
+    ap.add_argument("--as-schema", type=int, default=None, metavar="N", help="(f640) read the state after each input as version N of the save "
+                    "held it: a recording made before a migration that moved rows is replayed whole before it is made again")
     ap.add_argument("--inputs", type=int, default=40)
     ap.add_argument("--time", metavar="URL", help="(f443) send every recorded request to the llama-server at URL beside the replay, and keep "
                     "how long each took in the recording's timed.jsonl (tools/card_profile.py reads it)")
@@ -677,9 +682,13 @@ def main() -> int:
     folder = golden(a.golden) if a.golden else Path(a.recording or "")
     if not (folder / "meta.json").exists():
         ap.error(f"no recording at {folder}")
+    from storage import statehash
+    if a.as_schema is not None and a.as_schema not in statehash.VIEWS:
+        print(f"refused: there is no view of the state as version {a.as_schema} held it (there is one for: {', '.join(str(v) for v in sorted(statehash.VIEWS))})")
+        return 2
     try:
         load(folder)                                                   # (f517) refused before anything is opened for writing:
-        out = replay(folder, loose=a.loose, on_call=timer(folder, a.time, a.time_key, a.time_embed) if a.time else None)   # --time's timed.jsonl is kept
+        out = replay(folder, loose=a.loose, on_call=timer(folder, a.time, a.time_key, a.time_embed) if a.time else None, as_schema=a.as_schema)   # --time's timed.jsonl is kept
     except Unreplayable as e:
         print(f"refused: {e}")
         return 2

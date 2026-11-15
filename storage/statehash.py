@@ -24,6 +24,12 @@ TABLES = {
     "npc_memory": ("SELECT * FROM npc_memory ORDER BY id", 1, ()),
     "event_log": ("SELECT * FROM event_log ORDER BY seq", 1, (6,)),
     "entities": ("SELECT * FROM entities ORDER BY ref", 1, (6,)),
+    "players": ("SELECT character_id, place, json FROM players ORDER BY character_id", 1, (2,)),
+    # (f640) a list's rows by where they stand: the same reading whatever numbers the rows came to have
+    "threads": ("SELECT row_number() OVER (ORDER BY ord), id, status, place, json FROM threads ORDER BY ord", 1, (4,)),
+    "deeds": ("SELECT row_number() OVER (ORDER BY ord), seq, minute, kind, actor, place, json FROM deeds ORDER BY ord", 1, (6,)),
+    "news": ("SELECT row_number() OVER (ORDER BY ord), minute, origin, thread, json FROM news ORDER BY ord", 1, (4,)),
+    "effects": ('SELECT row_number() OVER (ORDER BY ord), kind, place, "until", thread, json FROM effects ORDER BY ord', 1, (5,)),
 }
 NOT_STATE = {("kv", "campaign"): ("name", "created")}    # the save's folder name and when it was made: a replay plays a copy under another
 NOT_STATE_ROWS = {("kv", "operations"), ("kv", "presentation")}   # (f462) the record of what committed and what of it is left to show: the
@@ -67,8 +73,32 @@ def digest(store=None, dumped: dict | None = None) -> dict[str, str]:
     """{table: sha256 of its rows, "all": sha256 of every table's}."""
     d = dumped if dumped is not None else dump(store)
     out = {t: _h(rows) for t, rows in d.items()}
-    out["all"] = _h([out[t] for t in TABLES])
+    out["all"] = _h([out[t] for t in TABLES if t in d])       # (f640) a view (below) holds the tables its version had
     return out
+
+
+def _as_v16(d: dict) -> dict:
+    """The state as version 16 held it: the player's record and the world's four lists in the small table, and no table of theirs."""
+    from storage import playerstable, worldtables
+    kv = []
+    for key, value in d["kv"]:
+        if key == worldtables.KEY and isinstance(value, dict):
+            value = {k: [r[-1] for r in d.get(k, [])] if k in worldtables.LISTS and v == worldtables.marker(k) else v for k, v in value.items()}
+        kv.append([key, value])
+    first = [[playerstable.KEY, r[-1]] for r in d.get(playerstable.TABLE, []) if r[0] == playerstable.FIRST]
+    kv = [r for r in kv if not (first and r[0] == playerstable.KEY)] + first
+    moved = set(worldtables.LISTS) | {playerstable.TABLE}
+    return {t: (sorted(kv, key=lambda r: r[0]) if t == "kv" else rows) for t, rows in d.items() if t not in moved}
+
+
+# (f640) a dump read as an older version of the save held it: what a recording from before a move of rows is replayed against
+VIEWS = {16: _as_v16}
+
+
+def view(dumped: dict, schema: int) -> dict:
+    if schema not in VIEWS:
+        raise ValueError(f"no view of the state as version {schema} held it (there is one for: {', '.join(str(v) for v in sorted(VIEWS))})")
+    return VIEWS[schema](dumped)
 
 
 def diff(a: dict, b: dict, limit: int = 3) -> list[str]:

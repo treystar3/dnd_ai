@@ -1063,7 +1063,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 op = None
                 try:
                     with console.scope(text), questions.fence():             # a pane button is a whole operation too: all of it, or none of it (f463)
-                        self.new_input(text)                                # (f439) the dice of this input
+                        self.new_input(text, story=False)                   # (f439) the dice of this input: its own (f639)
                         self.collecting = True                              # (f498) a telling it asks for (a fight begun from the pack's button,
                         op, _ = self.asked_operation(f"command:{name}", text, lambda op: self.command(text), where="command")   # a draught's
                         self.run_passages()                                 # passage) is a passage operation after it, told once it stands
@@ -1131,13 +1131,18 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         from engine import names, party as rules                # (f412) each companion's pronoun, for what reaches the screen
         names.set_cast({m["name"].split()[0]: rules.pronoun_of(m) for m in self.player.party if m.get("name") and m.get("permanent")})
 
-    def new_input(self, text: str) -> None:
+    def new_input(self, text: str, story: bool) -> None:
         """(f439) A new input, a typed line or a pane's command: the campaign counts it, inside the turn's transaction (a turn rolled back
         takes its count back with it, so the line tried again meets the same dice), and every stream of dice starts again from the seed,
-        that count and the line (engine/streams.py). (A session that must replay exactly, streams.STRICT, takes in the residents made in
-        the background at the input's edge before this, outside the transaction: apply_backfill in run().)"""
-        self.store.meta.steps += 1                                  # (f463) saved by the first operation that stands (commit_operation first_of_line)
-        streams.begin(self.store.meta.seed, self.store.meta.steps, text)
+        a count and the line (engine/streams.py). (f639) A line of the story starts from the count of story inputs, so a pane looked at
+        between two lines moves none of the story's dice; a command starts from the count of every input, which no line's key can be.
+        (A session that must replay exactly, streams.STRICT, takes in the residents made in the background at the input's edge before
+        this, outside the transaction: apply_backfill in run().)"""
+        meta = self.store.meta
+        meta.steps += 1                                             # (f463) saved by the first operation that stands (commit_operation first_of_line)
+        if story:
+            meta.story_steps += 1
+        streams.begin(meta.seed, meta.story_steps if story else meta.steps, text)
         from engine import budget
         budget.open()                                               # (f468) the input's minute of model time begins; closed when the line is done
 
@@ -1533,10 +1538,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def defer(self, kind: str, data: dict) -> None:
         """(f469) An optional call the budget deferred (engine/budget.py Deferred, the table's `later: deferred`): queued in the save,
-        with the input it came from, for a later turn's tail (run_deferred). Called inside the operation whose call it was, so a rollback
-        takes the entry with it; one deferred again from the queue keeps its first input's age."""
+        with the line of the story it came from, for a later turn's tail (run_deferred). Called inside the operation whose call it was, so
+        a rollback takes the entry with it; one deferred again from the queue keeps its first age. (f639) Its age is in lines of the
+        story: a pane looked at ages nothing."""
         rows = self.store.load_deferred()
-        rows.append({"kind": kind, "data": data, "from_steps": int(self.__dict__.get("_deferred_from", self.store.meta.steps))})
+        rows.append({"kind": kind, "data": data, "from_steps": int(self.__dict__.get("_deferred_from", self.store.meta.story_steps))})
         self.store.save_deferred(rows)
 
     def run_deferred(self) -> None:
@@ -1549,7 +1555,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             return
         from engine import operation as _op
         keep = int(_op.RETENTION.get("deferred_turns") or 3)
-        steps = self.store.meta.steps
+        steps = self.store.meta.story_steps
         live = [r for r in rows if steps - int(r.get("from_steps", steps)) <= keep]
         if self.combat:
             if live != rows:
@@ -1633,7 +1639,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.begin_line()
         try:
             with questions.fence():
-                self.new_input(text)                       # (f439) the dice of this input
+                self.new_input(text, story=True)           # (f439) the dice of this input
                 ledger.begin()                             # (f394) the turn's record
                 self.ran = []
                 plan = None
@@ -3651,11 +3657,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         from engine import quirks
         gesture = voice_rules.short_gesture(quirks.bare_gesture(self.unnamed(getattr(reply, "gesture", "") or "", npc), npc.name))   # no 'Rossy gives...': the label is printed
         if stood_in and not gesture:
-            gesture = streams.keyed("frame_stand_in", npc.id, "", self.store.meta.steps).choice(voice_rules.V["frame_stand_in"])
+            gesture = streams.keyed("frame_stand_in", npc.id, "", self.store.meta.story_steps).choice(voice_rules.V["frame_stand_in"])
         from llm.contracts import NO_WORDS
         if NO_WORDS.fullmatch(reply.speech or ""):                     # (f422) no words: what they do, and no name over an empty line
             done = self.unnamed(getattr(reply, "gesture", "") or "", npc).strip()
-            silent = streams.keyed("no_words", npc.id, "", self.store.meta.steps).choice(voice_rules.V["no_words"]).format(speaker=speaker)
+            silent = streams.keyed("no_words", npc.id, "", self.store.meta.story_steps).choice(voice_rules.V["no_words"]).format(speaker=speaker)
             line = f"{speaker} {done}" if done and not done.lower().startswith(speaker.lower()) else (done or silent)
             console.narrate(cap_first(line.rstrip(".") + "."))
             self.remember_narration(line)

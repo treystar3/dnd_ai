@@ -168,7 +168,8 @@ check("...differ across inputs", c1 != a1)
 check("...and move no die of the ids stream", undisturbed == nxt, (undisturbed, nxt))
 
 # ---- the digest's tables stand; the record is named as not state; the session owns the open operation
-check("the six tables are still the digest's", list(statehash.TABLES) == ["kv", "places", "npcs", "npc_memory", "event_log", "entities"])
+check("the six tables are still the digest's, with (f640) the players' and the world's lists' after them",
+      list(statehash.TABLES) == ["kv", "places", "npcs", "npc_memory", "event_log", "entities", "players", "threads", "deeds", "news", "effects"])
 check("the record's rows are named as not state", statehash.NOT_STATE_ROWS == {("kv", "operations"), ("kv", "presentation")})
 dumped = statehash.dump(store)
 check("...and the dump leaves them out though they are in the save", not any(r[0] in ("operations", "presentation") for r in dumped["kv"]) and store._kv("operations") is not None)

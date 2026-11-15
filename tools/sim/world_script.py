@@ -16,8 +16,8 @@ past what is kept, deeds past their cap, the history at its cap, and an operatio
                                                          "rest": the digest of the small rows but the world's, "ops": the
                                                          operations that stood, "stale": the saves the detector noted, "shown":
                                                          the lines shown, "world": the storage the world was kept in
-    ... --world tables                                   (f637) the same play with the world's lists in their tables
-                                                         (storage/worldtables.py)
+    ... --world row, --players row                       (f640) the same play with the world, or the player, put back in the
+                                                         one row a save kept it in before (tools/sim/rows_v16.py)
     world_script.run_apart("name")                       the same from a test: the play's dict (the stand-in model numbers what it
                                                          invents by a count the process keeps, so two plays compared share none)
     play(name, stub, prepare=fn)                         in this process; fn(game) before anything is written: where a storage
@@ -336,15 +336,16 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("name")
     ap.add_argument("--seed", type=int, default=SEED)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--world", choices=("row", "tables"), default="row")
-    ap.add_argument("--players", choices=("row", "table"), default="row")
+    ap.add_argument("--world", choices=("row", "tables"), default="tables")
+    ap.add_argument("--players", choices=("row", "table"), default="table")
     a = ap.parse_args(argv)
     stub = simlib.Stub("warrior", 3)
     simlib.install(stub)
     shown = simlib.quiet_console()
-    from storage import playerstable, worldtables
-    adopted = [fn for on, fn in ((a.world == "tables", worldtables.adopt), (a.players == "table", playerstable.adopt)) if on]
-    prepare = lambda g: [fn(g.store) for fn in adopted]
+    sys.path.insert(0, "tools/sim")
+    import rows_v16
+    back = [fn for on, fn in ((a.world == "row", rows_v16.world_to_row), (a.players == "row", rows_v16.player_to_row)) if on]
+    prepare = lambda g: [fn(g.store) for fn in back]
     run = play(a.name, stub, seed=a.seed, prepare=prepare)
     kept, held = type(run.game.store._world).__name__, type(run.game.store._players).__name__
     run.game.session.close()

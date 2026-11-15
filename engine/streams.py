@@ -4,12 +4,14 @@ The rebuild checks each stage by replaying recorded sessions through the real tu
 nothing in it is left to chance the save does not decide. Before this, the scene's and the fight's dice were unseeded, a dozen
 other places made fresh unseeded generators or rolled the global random module, lessons drew from the machine's own entropy, and
 the ids of items, contracts, threads and road stops were uuids that seeded draws of their own. Now each of them is a named stream
-here, reseeded at every input from the campaign's seed, its count of inputs (CampaignMeta.steps, saved with the input, so a rolled
-back one is taken back with it) and the line typed (begin), so:
+here, reseeded at every input from the campaign's seed, a count (saved with the input, so a rolled back one is taken back with it)
+and the line typed (begin). (f639) The count is of the story's lines for a line of the story (CampaignMeta.story_steps) and of every
+input for a pane's command (CampaignMeta.steps): a pane looked at moves none of the story's dice. So:
 
 - the same save and the same line give the same turn, in any process: a recorded session replays exactly;
 - a line tried again after its turn rolled back meets the same dice, which is fair;
-- two inputs never share a key, however alike, so ids made from the ids stream never repeat in a save;
+- two inputs never share a key, however alike, so ids made from the ids stream never repeat in a save (a command's line begins
+  with its mark and a line of the story never does, so the two counts cannot give one key);
 - a different campaign seed plays differently: no two runs alike.
 
 Character creation keeps the machine's entropy on purpose (the same idea twice gives different abilities); a recording starts after
@@ -58,7 +60,7 @@ class Streams:
             random.seed(self._seed("global"))
 
     def begin(self, seed, step: int, said: str = "") -> None:
-        """A new input: every stream starts again from (the campaign's seed, its count of inputs, the line typed). String seeds are
+        """A new input: every stream starts again from (the campaign's seed, the count the caller gives, the line typed). String seeds are
         hashed the same in every process. The process's set reseeds the global random module too, for anything that still rolls it."""
         self._key = f"{seed}:{step}:{said}"
         self._begun()

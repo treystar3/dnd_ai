@@ -16,11 +16,10 @@ Recorded on the tree before the rewrite (f495), with the stand-in model's answer
                captain falls, with his drops named (a rare or epic piece, a legendary piece, and his relic) and the level gained; then
                searching again until something of the fields is found, and running from it
 
-The seed is the one on which the dice gave what the census asks: the player alive at the end (about half the seeds die to the
-captain), a hire dead (party.yaml death_when_down, a coin's toss for each who goes down; on this seed the standing one, Dade Bromwood,
-and the hurt one carried out alive) and a legendary among the captain's two drops (combat.yaml loot.boss rarity_weights, about one in
-five). Another seed is another recording; the census refuses one that holds less. CENSUS (census()) is what the recording must hold,
-or the maker refuses it."""
+The seed is the one on which the dice gave what the census asks: the player alive at the end, a hire dead (party.yaml
+death_when_down, a coin's toss for each who goes down) and a legendary among the captain's two drops (combat.yaml loot.boss
+rarity_weights, about one in five). Another seed is another recording; the census refuses one that holds less. CENSUS (census()) is
+what the recording must hold, or the maker refuses it. Few seeds give it all (one of the first two hundred)."""
 from __future__ import annotations
 
 import random
@@ -29,7 +28,7 @@ from pathlib import Path
 
 from llm.errors import Failure                  # (f527) a planted failure is the interface's own, no longer the old client's
 
-SEED = 18
+SEED = 147
 SAVE = "rerun_make_stub_fight"
 PLACE = "south_fields"
 BOSS = "bandit_captain"

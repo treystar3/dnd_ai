@@ -798,8 +798,10 @@ st["deeds"] = [{"kind": "persuade", "minute": ws.minutes - 100, "place": "tradin
 st.pop("seq", None)
 th["parts"][N - 1]["willing"], th["parts"][N - 1]["willing_at"] = {by: "wary"}, {by: ws.minutes - 50}
 th["paths"] = [{"kind": "persuade", "target": noble.id, "done": False}]
+migrations.in_rows(store)                             # (f640) the step is run on a save from before the tables, and the save brought on
 store._put("world_state", _json.dumps(st))
 migrations._v16_world_count(store)
+migrations._v17_tables(store)
 st = store.load_world_state()
 th = pulse.thread_of(st, "th547")
 check("(the sixth review) an older save's deeds are numbered, and the stance it held keeps what it answered",

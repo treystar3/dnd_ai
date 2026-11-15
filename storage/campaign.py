@@ -26,9 +26,9 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
-from storage.playerstable import FIRST, RowPlayers
+from storage.playerstable import FIRST, TablePlayers
 
 from core.models import Item, Character
 from npc.models import NPC, Memory
@@ -44,7 +44,14 @@ class CampaignMeta(BaseModel):
     turn: int = 0
     minutes: int = 0
     created: str
-    steps: int = 0          # (f439) inputs taken in this campaign: with the seed and the line typed, what every turn's dice start from
+    steps: int = 0          # (f439) inputs taken, a pane's command with the rest: which input an operation is of, and a command's own dice
+    story_steps: int = -1   # (f639) lines of the story taken: what a line's dice start from, so a pane looked at moves none of them
+
+    @model_validator(mode="after")
+    def _story_from_inputs(self):
+        if self.story_steps < 0:                # (f639) a save from before goes on from its one count: no key it has had is met again
+            self.story_steps = self.steps
+        return self
 
 
 class PlaceState(BaseModel):
@@ -155,8 +162,22 @@ def _npc_index(npc: NPC) -> dict:
             "protected": int(npc.protected)}
 
 
-class SaveTooNew(Exception):
+class SaveRefused(Exception):
+    """(f640) The save is not opened, and its message is the line the player reads; the home page comes back."""
+
+
+class SaveTooNew(SaveRefused):
     """The save was made by a newer build than this one: opening it here could misread or damage it."""
+
+
+class SaveNotMigrated(SaveRefused):
+    """(f640) A step that brings an older save forward failed: its writes were taken back, the steps before it stand, the file is
+    closed. A copy from before this try's first step is in the save's backups."""
+
+
+# (f640) what the player reads then
+NOT_MIGRATED = ("This save could not be brought up to this version of the game, so it was not opened. A copy of it from before the "
+                "attempt is in its backups folder. You can start a new game.")
 
 
 BACKUPS_KEPT = 3
@@ -251,9 +272,9 @@ class CampaignStore:
         self._exempt = 0               # (f462) writes the fence lets through (mark_shown)
         self._writes = 0               # (f470) rows written since the store opened: an operation compares before and after
         self._later: list = []         # (f470) people a read filled in outside any operation, saved by the next (save_npc_later)
-        from storage.worldrow import RowWorld
-        self._world = RowWorld(self)   # (f589) the world's state behind one seam (engine/worldstate.py reads through it)
-        self._players = RowPlayers(self)   # (f638) where the characters' records are kept (storage/playerstable.py)
+        from storage.worldtables import TableWorld
+        self._world = TableWorld(self)   # (f589) the world's state behind one seam (engine/worldstate.py reads through it)
+        self._players = TablePlayers(self)   # (f638) where the characters' records are kept (storage/playerstable.py)
 
     # ---------- opening ----------
 
@@ -267,11 +288,12 @@ class CampaignStore:
         db.execute("PRAGMA journal_mode=WAL")
         db.execute("PRAGMA synchronous=NORMAL")
         store = cls(root, CampaignMeta(name=name, seed=0, created=""), db)
-        from storage import migrations
+        from storage import migrations, playerstable, worldtables
         if fresh:                                         # a new database is created whole at the current schema and marked current;
             db.executescript(SCHEMA_V1)                   # an older one is brought forward step by step below (storage/migrations.py)
             db.executescript(SCHEMA_V2)
             db.executescript(SCHEMA_V3)
+            db.executescript(worldtables.DDL + playerstable.DDL)   # (f640) the world's lists and the players, as v17 makes them
             migrations.typed_memory(store)                # (f478) memories typed, as v10 makes them on an older save
             store.set_version(migrations.CURRENT)
             if (root / "campaign.json").exists():
@@ -287,7 +309,14 @@ class CampaignStore:
             store.save_meta()
         else:
             store.meta = CampaignMeta.model_validate(row)
-        migrations.run(store)                             # an older database is brought forward here, and only here (a backup is taken first)
+        try:
+            migrations.run(store)                         # an older database is brought forward here, and only here (a backup is taken first)
+        except migrations.StepFailed as e:                # (f640) the player is told; a fault that is no step's stays a fault
+            db.close()
+            raise SaveNotMigrated(NOT_MIGRATED) from e
+        except Exception:
+            db.close()
+            raise
         return store
 
     def backup(self, label: str = "") -> Path:
@@ -952,11 +981,15 @@ class CampaignStore:
         with self.transaction():
             meta = (root / "campaign.json").read_text(encoding="utf-8")
             self._put("campaign", CampaignMeta.model_validate_json(meta).model_dump_json())
-            for key, fn in (("player", "player.json"), ("world_state", "world_state.json"), ("dungeons", "dungeons.json"), ("arcs", "arcs.json"),
+            for key, fn in (("dungeons", "dungeons.json"), ("arcs", "arcs.json"),
                             ("discoveries", "discoveries.json"), ("legendaries", "legendaries.json"), ("combat", "combat.json"), ("story", "story.json")):
                 p = root / fn
                 if p.exists():
                     self._put(key, p.read_text(encoding="utf-8"))
+            if (root / "player.json").exists():           # (f640) the player and the world go where the store keeps them
+                self._players.put(json.loads((root / "player.json").read_text(encoding="utf-8")))
+            if (root / "world_state.json").exists():
+                self._world.save(json.loads((root / "world_state.json").read_text(encoding="utf-8")))
             for p in sorted((root / "places").glob("*.json")) if (root / "places").exists() else []:
                 self._db.execute("INSERT OR REPLACE INTO places (id, json) VALUES (?, ?)", (p.stem, p.read_text(encoding="utf-8")))
             for p in sorted((root / "npcs").glob("*.json")) if (root / "npcs").exists() else []:
@@ -975,10 +1008,13 @@ class CampaignStore:
     def export_json(self, folder: Path) -> None:
         """Write the whole campaign out as readable files (for a look, or a bug report). The database stays the save."""
         folder.mkdir(parents=True, exist_ok=True)
-        for key, fn in (("campaign", "campaign.json"), ("player", "player.json"), ("world_state", "world_state.json"), ("dungeons", "dungeons.json"),
+        texts = {"player.json": self.player_text(),       # (f640) the player and the whole world, from where the store keeps them
+                 "world_state.json": json.dumps(self.load_world_state()) if self._kv_text(self._world.KEY) is not None else None}
+        for key, fn in (("campaign", "campaign.json"), ("dungeons", "dungeons.json"),
                         ("arcs", "arcs.json"), ("discoveries", "discoveries.json"), ("legendaries", "legendaries.json"), ("combat", "combat.json"),
                         ("story", "story.json")):
-            t = self._kv_text(key)
+            texts[fn] = self._kv_text(key)
+        for fn, t in texts.items():
             if t is not None:
                 (folder / fn).write_text(json.dumps(json.loads(t), indent=2), encoding="utf-8")
         (folder / "places").mkdir(exist_ok=True)

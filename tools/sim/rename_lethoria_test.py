@@ -4,6 +4,7 @@ people, a home there, the standing kept per town, the knowledge group of its peo
 import json, random, re, shutil, subprocess, sys
 sys.path.insert(0, ".")
 import simlib
+import rows_v16
 simlib.install(simlib.Stub("warrior", 3))
 from storage import migrations
 from storage.campaign import CampaignStore, PlayerState
@@ -52,7 +53,7 @@ store.execute("INSERT INTO places (id, json) VALUES (?, ?)", (f"home_{oo}", json
 store.execute("INSERT INTO npc_memory (npc_id, day, text) VALUES (?, ?, ?)", ("n1", 1, f"The stranger came up the road to {o}'s gates."))
 store.execute("INSERT INTO event_log (minute, kind, actor, target, text, data, action) VALUES (?, ?, ?, ?, ?, ?, ?)",
               (5, "arrived", "player", oo, f"Arrived in {o}.", json.dumps({"place": f"{oo}_guild"}), f"I go to {o}"))
-store.set_version(4)                     # as a save written before the rename was
+rows_v16.lowered(store, 4)               # as a save written before the rename was
 store.close()
 
 store = CampaignStore.open_or_create("rename_lethoria_test")

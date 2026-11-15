@@ -27,7 +27,7 @@ from engine import actor
 from engine.session import CampaignSession
 from npc.traits import load_traits
 from scenes.goddess import ThresholdScene
-from storage.campaign import PlayerState, SaveTooNew
+from storage.campaign import PlayerState, SaveRefused
 from storage import saves
 from ui import console
 from llm.errors import Cancelled, LLMError                     # (f514) from the module that imports no model client
@@ -140,7 +140,7 @@ def play(args):
                 return                                 # behind the loading line (Try again, or Quit)
         try:
             session = CampaignSession.open(name)       # (f453) the campaign's session: its store, its map (f434: its own, never another
-        except SaveTooNew as e:                        # save's), the work it starts in the background, and what it closes when it ends
+        except SaveRefused as e:                       # save's), the work it starts in the background, and what it closes when it ends
             console.note(str(e))
             continue
         saves.touch(name)

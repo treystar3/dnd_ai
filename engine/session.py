@@ -8,7 +8,7 @@ the open turn, the casting cache, the planned anchors, the world's reactions) st
 and a creation call or a backfill still running when the save closed ran on, so that had the next session's recorder been installed,
 its answer would have been written down as that session's.
 
-- CampaignSession.open(name) resets what it owns, opens the store (SaveTooNew propagates to the caller, who tells the player, as before)
+- CampaignSession.open(name) resets what it owns, opens the store (a save refused propagates to the caller, who tells the player)
   and presents the map: a CampaignWorld over the one authored World (world/campaign.py). (f633) What it owns is declared in
   engine/owned.py STATE, the one table of every piece of state outside a save: the rows that say how they are put back (the turn's
   registers, the acting character's caches, the campaign's) are reset at open (a session never closed, after a crash, leaves
@@ -82,11 +82,17 @@ class CampaignSession:
     def open(cls, name: str, saves_dir=None) -> "CampaignSession":
         """The session of the save of this name, made if there is none: the one way the game opens a campaign (main.py, tools/rerun.py,
         simlib.campaign). Nothing of a session before this one in the process, closed or not, reaches it."""
-        from storage.campaign import SAVES_DIR, CampaignStore
+        from storage.campaign import SAVES_DIR, CampaignStore, SaveRefused
         from world.campaign import CampaignWorld
         from world.loader import authored
         reset()
-        store = CampaignStore.open_or_create(name, saves_dir or SAVES_DIR)     # SaveTooNew propagates: the caller tells the player
+        try:
+            store = CampaignStore.open_or_create(name, saves_dir or SAVES_DIR)
+        except SaveRefused as e:                           # the caller tells the player; (f640) why a step failed is kept for the logs
+            if e.__cause__ is not None:
+                from engine import crashlog
+                crashlog.record(e.__cause__, "a save not brought up to this version", save=name)
+            raise
         return cls(store, CampaignWorld(authored()))
 
     @classmethod

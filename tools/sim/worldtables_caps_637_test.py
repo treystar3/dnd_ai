@@ -22,6 +22,8 @@ simlib.install(simlib.Stub("warrior", 3))
 import config
 from engine import deeds, pulse
 from storage import worldtables
+sys.path.insert(0, "tools/sim")
+import rows_v16
 
 DAYS, SEED, EVERY, WINDOW = 1000, 11, 10, 100
 PLACE = "trading_square"
@@ -34,8 +36,8 @@ def play(name: str, kind: str, out: str) -> None:
     g = simlib.campaign(name, seed=SEED, location=PLACE)
     ws, store = g.scene, g.store
     config.TURN_LOG_PATH = f"saves/{name}/turns.jsonl"
-    if kind == "tables":
-        worldtables.adopt(store)
+    if kind == "row":
+        rows_v16.world_to_row(store)                     # (f640) a save has the tables: the row's side is put back
     world = store._world
     ws.enter(PLACE)
     wrote, real = [], world.save

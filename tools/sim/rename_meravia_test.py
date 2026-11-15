@@ -3,6 +3,7 @@ what the model wrote under the old name (memories, moods, the journal, narration
 import random, re, shutil, sqlite3, subprocess, sys
 sys.path.insert(0, ".")
 import simlib
+import rows_v16
 simlib.install(simlib.Stub("warrior", 3))
 from storage import migrations
 from storage.campaign import CampaignStore, PlayerState
@@ -39,7 +40,7 @@ n = NPC(id="n1", name="Hal", people="human", role="baker", location="parth", moo
 store.save_npc(n)
 store.execute("INSERT INTO npc_memory (npc_id, day, text) VALUES (?, ?, ?)", ("n1", 1, "The stranger said Rivia was wide, a trivial thing."))
 store.execute("INSERT INTO event_log (minute, kind, text, action) VALUES (?, ?, ?, ?)", (5, "said", "A tale of Rivia.", "I talk about Rivia"))
-store.set_version(3)                     # as a save written before the rename was
+rows_v16.lowered(store, 3)               # as a save written before the rename was
 store.close()
 store = CampaignStore.open_or_create("rename_meravia_test")
 check("the old save is brought to the current version", store.version == migrations.CURRENT, store.version)
