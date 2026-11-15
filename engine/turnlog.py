@@ -29,6 +29,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import config
+from engine import actor
 
 COUNTS: dict[str, int] = {}          # handled_by -> lines this session
 _writes = 0
@@ -47,13 +48,18 @@ def path() -> Path:
     return Path(getattr(config, "TURN_LOG_PATH", "logs/turns.jsonl"))
 
 
+def _head() -> dict:
+    """(f629) How every row begins: when, and who acted (the bound actor, engine/actor.py who)."""
+    return {"time": datetime.now(timezone.utc).isoformat(timespec="seconds"), "actor": actor.who()}
+
+
 def record(turn: int, text: str, handled_by: str, **fields) -> None:
     """One typed line: `handled_by` is the intercept that took it ("errand", "mentor", "trial", "camp", "exit"...), "combat" in a
     fight, or "interpret" when the model read it (then the audit's fields and every interpreter call ride along)."""
     COUNTS[handled_by] = COUNTS.get(handled_by, 0) + 1
     if not enabled():
         return
-    entry = {"time": datetime.now(timezone.utc).isoformat(timespec="seconds"), "turn": turn, "handled_by": handled_by, "text": text, **fields}
+    entry = {**_head(), "turn": turn, "handled_by": handled_by, "text": text, **fields}
     if _open is not None:
         _open["rows"].append(entry)
         return
@@ -107,12 +113,12 @@ def end(rolled_back: bool = False, command: dict | None = None, failure: str = "
         if not (command.get("changed") or told or crash or world_failed):                  # (f449) a fault always leaves its row
             return
         COUNTS["command"] = COUNTS.get("command", 0) + 1
-        rows = rows or [{"time": datetime.now(timezone.utc).isoformat(timespec="seconds"), "turn": command.get("turn"),
-                         "handled_by": "command", "text": command.get("text", ""), "changed": command.get("changed", [])}]
+        rows = rows or [{**_head(), "turn": command.get("turn"), "handled_by": "command", "text": command.get("text", ""),
+                         "changed": command.get("changed", [])}]
     if not rows:
         if not t["shown"]:
             return
-        rows = [{"time": datetime.now(timezone.utc).isoformat(timespec="seconds"), "handled_by": "unrecorded", "text": ""}]
+        rows = [{**_head(), "handled_by": "unrecorded", "text": ""}]
     rows[-1].update(started=t["started"], turn_seconds=round(time.perf_counter() - t["t0"], 2), shown=t["shown"])
     if t["rewrites"]:
         rows[-1]["rewrites"] = t["rewrites"]

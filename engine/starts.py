@@ -58,13 +58,13 @@ def resolve(world, key: str, towns: dict) -> list[str]:
 def apply(store, world, catalog, player, name: str, rng: random.Random, who: str) -> dict:
     """Make the save match the start. The player is saved at their start location already; their level, gear and rank are the caller's
     (they need the class). Returns what was done: the days, the situations made, the people met."""
-    from engine import clock, pulse, standing
+    from engine import actor, clock, pulse, standing
     from npc.life import populate_place
     sp = spec(name)
     if not sp:
         raise KeyError(f"no start named '{name}' (data/rules/starts.yaml)")
     now = max(store.meta.minutes, int(sp.get("days", 0)) * 1440 + 8 * 60)
-    store.meta.minutes = now
+    actor.Clock(store).advance(now - store.meta.minutes)   # (f632) the clock is the one writer of the save's time
     store.save_meta()
     day = clock.day(now)
     towns = towns_for(world, player.location)

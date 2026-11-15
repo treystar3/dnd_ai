@@ -2,7 +2,7 @@
 pins hold behaviour and must pass unchanged while the code moves: tools/sim/turn_fields_628_test.py for a line's fields,
 tools/sim/output_seam_628_test.py for what the window is sent. This test is the other half. It reads how the code does it today,
 so that until each part moves nothing new can join it without being pinned first:
-- every field begin_line resets is one the line pin holds (f631 replaces this check with its declared table);
+- every field the turn's table says a new line resets is one the line pin holds (engine/actor.py FIELDS);
 - every console attribute the window swaps is one the seam pin calls, and the window puts each back (f635 replaces these);
 - every place the game's code assigns a console attribute is recorded, and the list only shrinks (f635 brings it to none).
 Each feature that moves a part replaces its check here with the fence over what took its place.
@@ -57,12 +57,14 @@ def assigned_in(path: Path) -> set:
     return set().union(set(), *(console_targets(n) for n in ast.walk(ast.parse(path.read_text(encoding="utf-8")))))
 
 
-# ---- a line's fields (until f631)
+# ---- a line's fields: the turn's table (f631) names the ones a new line resets, and the scene's begin_line sets none by hand
 LINE = held_set("turn_fields_628_test.py", "LINE")
+from engine import actor
+declared = {k for k, f in actor.FIELDS.items() if actor.LINE in f.marks}
 tree = ast.parse((ROOT / "scenes" / "world.py").read_text(encoding="utf-8"))
 begin = next(f for f in ast.walk(tree) if isinstance(f, ast.FunctionDef) and f.name == "begin_line")
-check("every field a new line resets is one the line pin holds (a field added to begin_line is pinned there first)",
-      self_fields(begin) == LINE, sorted(self_fields(begin) ^ LINE))
+check("every field a new line resets is one the line pin holds (a field marked LINE in the turn's table is pinned there first)",
+      declared == LINE and not self_fields(begin), (sorted(declared ^ LINE), sorted(self_fields(begin))))
 
 # ---- the window's swaps (until f635)
 SEAM = held_set("output_seam_628_test.py", "SEAM")

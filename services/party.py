@@ -29,11 +29,15 @@ class PartyFull(Exception):
 
 
 class PartyService:
-    def __init__(self, player, now: Callable[[], int], seed: str | int = "", bus=None):
-        self.player = player
+    def __init__(self, actor, now: Callable[[], int], seed: str | int = "", bus=None):
+        self.actor = actor                   # (f632) who the party is of (engine/actor.py): their record is read when it is asked for
         self.now = now                       # the game's minute, read when a change is made
         self.seed = seed
         self._bus = bus                      # (f454) the session's bus (the scene passes it); the current one when none is given
+
+    @property
+    def player(self):
+        return self.actor.player
 
     def _publish(self, event):
         return (self._bus or current()).publish(event)

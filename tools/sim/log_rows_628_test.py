@@ -1,8 +1,8 @@
 """(f628) What each log and record holds of a line, pinned before phase 3 adds who acted to them (docs/design/20_phase3_plan.md
 f629). Two lines are played through the game's own loop and recorded, one that stands and one whose reading fails every try, and
 the rows they leave are read: the turn log, the model call log, the audit, the operation's record in the save, its presentation
-entry, and the recording's input and turn rows. A refusal and a fault are filed the way the game files them. Each is held to the fields it has
-today, and the three kept recordings to theirs. None names who acted yet: that check is the line f629 changes on purpose, and the
+entry, and the recording's input and turn rows. A refusal and a fault are filed the way the game files them. Each is held to the fields it has,
+and the three kept recordings to theirs. Each names who acted (f629; tools/sim/who_acted_629_test.py holds whose name it is); the
 kept recordings gain the field at the one re-record (f640).
 Run: python tools/sim/log_rows_628_test.py"""
 import json
@@ -95,8 +95,8 @@ failed = next((r for r in turns if r.get("rolled_back")), None)
 # ---- the turn log
 check("(a line that stood and a line that failed each left their row in the turn log)", stood is not None and failed is not None,
       [(r.get("text"), r.get("stood"), r.get("rolled_back")) for r in turns])
-EVERY_TURN = {"time", "turn", "handled_by", "text", "started", "turn_seconds", "shown"}
-check("a line's last row says when, which turn, what took it, what was typed, when it began, how long it took and what was shown",
+EVERY_TURN = {"time", "turn", "actor", "handled_by", "text", "started", "turn_seconds", "shown"}
+check("a line's last row says when, which turn, who acted, what took it, what was typed, when it began, how long it took and what was shown",
       stood is not None and EVERY_TURN <= set(stood), stood and sorted(EVERY_TURN - set(stood)))
 check("...a line nothing took has the same but its turn, and says nothing recorded it", failed is not None
       and EVERY_TURN - {"turn"} <= set(failed) and "turn" not in failed and failed["handled_by"] == "unrecorded",
@@ -108,43 +108,41 @@ check("...each thing shown is its kind and its words", stood is not None and sto
 check("...a line whose reading failed says the model failed, and that nothing of it stood", failed is not None
       and failed.get("model_failed") and failed.get("stood") == "none" and "crashed" not in failed,
       failed and {k: failed.get(k) for k in ("model_failed", "stood", "crashed")})
-check("no row of the turn log names who acted yet (f629 adds it)", not any("actor" in r for r in turns))
+check("every row of the turn log names who acted", all(r.get("actor") == "player" for r in turns), [r.get("actor") for r in turns])
 
 # ---- the model call log
-EVERY_CALL = {"time", "turn", "task", "model", "attempt", "seconds", "messages", "raw", "error"}
+EVERY_CALL = {"time", "turn", "actor", "task", "model", "attempt", "seconds", "messages", "raw", "error"}
 check("(the two lines left their calls in the call log)", len(calls) >= 3, len(calls))
-check("every call's row says when, the turn it served, its task, the model, the try, the seconds, what was sent, the answer and the error",
+check("every call's row says when, the turn it served, who it was made for, its task, the model, the try, the seconds, what was sent, the answer and the error",
       calls and all(EVERY_CALL <= set(c) for c in calls), [sorted(EVERY_CALL - set(c)) for c in calls if not EVERY_CALL <= set(c)][:3])
 check("...a try that failed carries its error, one that was taken carries none", any(c["error"] for c in calls) and any(c["error"] is None for c in calls))
-check("no row of the call log names who acted yet (f629 adds it)", not any("actor" in c for c in calls))
+check("...the line's calls for its character, a call made outside every entry for no one", {c["actor"] for c in calls} == {"player", ""}
+      and all(c["actor"] == "player" for c in calls if c["task"] in ("interpret_action", "narrate")), [(c["task"], c["actor"]) for c in calls])
 
 # ---- the audit
 heads = [l for l in audited.splitlines() if l.startswith("## #")]
-HEAD = re.compile(r"^## #\d+ · [a-z_]+ · attempt \d+ · \d+\.\ds(?: · [^·]+)? · (?:operation [0-9a-f]+ \([^)]+\)|outside any operation)$")
+HEAD = re.compile(r"^## #\d+ · [a-z_]+ · attempt \d+ · \d+\.\ds(?: · [^·]+)? · (?:operation [0-9a-f]+ \([^)]+\)|outside any operation) · (?:actor \S+|no actor)$")
 check("(the two lines left their calls in the audit)", len(heads) >= 3, len(heads))
-check("every audited call is headed by its number, task, try, seconds and the operation it served", heads and all(HEAD.match(h) for h in heads),
+check("every audited call is headed by its number, task, try, seconds, the operation it served and who it was made for", heads and all(HEAD.match(h) for h in heads),
       [h for h in heads if not HEAD.match(h)][:3])
 check("...under the turn it belongs to, with the line typed", '# Turn ' in audited and '"I look around."' in audited,
       [l for l in audited.splitlines() if l.startswith("# ")][:4])
 check("...with why the call was made and whether its answer was taken", audited.count("**Why:**") == len(heads) == audited.count("**Verdict:**"))
-check("the audit does not name who acted yet (f629 adds it)", not any("actor" in h.lower() for h in heads))
 
 # ---- the operation in the save, and its presentation entry
 op = operation.Operation(id="o1", kind="line", steps=3, index=0, revision_seen=7, text="a line")
-check("an operation's record holds its id, kind, input, place in the line, text and rows, and nothing else",
-      set(op.record()) == {"id", "kind", "steps", "index", "text", "rows"}, sorted(op.record()))
-check("...the save keeps it with the revision it made", ops and all(set(o) == {"id", "kind", "steps", "index", "text", "rows", "revision"} for o in ops),
+check("an operation's record holds its id, kind, input, place in the line, text, rows and who acted, and nothing else",
+      set(op.record()) == {"id", "kind", "steps", "index", "text", "rows", "actor"}, sorted(op.record()))
+check("...the save keeps it with the revision it made", ops and all(set(o) == {"id", "kind", "steps", "index", "text", "rows", "actor", "revision"} for o in ops),
       ops and sorted(ops[-1]))
-check("an operation's presentation entry holds its lines, its input, its kind and the calls that told it",
-      entries and all(set(e) == {"lines", "steps", "kind", "calls"} for e in entries), entries and sorted(entries[-1]))
-check("neither names who acted yet (f629 adds it)", "actor" not in op.record() and not any("actor" in o for o in ops)
-      and not any("actor" in e for e in entries))
+check("an operation's presentation entry holds its lines, its input, its kind, the calls that told it and whose page they are for",
+      entries and all(set(e) == {"lines", "steps", "kind", "calls", "actor"} for e in entries), entries and sorted(entries[-1]))
 
 # ---- a refusal and a fault, filed as the game files them
 refusals.note("unclear", "I flurble the wicket", why="no reading of it", place="parth", turn=4, asked="What do you mean to do?")
 refusal = rows(BASE / "refusals.jsonl")
-check("a refusal's row says when, the turn, its kind, the line, why, where and what was asked back",
-      refusal and set(refusal[-1]) == {"time", "turn", "kind", "text", "why", "place", "asked"}, refusal and sorted(refusal[-1]))
+check("a refusal's row says when, the turn, who acted, its kind, the line, why, where and what was asked back",
+      refusal and set(refusal[-1]) == {"time", "turn", "actor", "kind", "text", "why", "place", "asked"}, refusal and sorted(refusal[-1]))
 try:
     raise ValueError("a fault of the game's own")
 except ValueError as e:
@@ -154,26 +152,28 @@ check("a fault's entry says when, where in the game and the error, with what it 
       set(entry) == {"time", "where", "error", "text", "place"} and entry["error"] == "ValueError: a fault of the game's own", entry)
 check("...and the crash log holds it as a headed entry with its traceback", f"{entry['time']}  turn: ValueError: a fault of the game's own" in crash
       and "  text: I look around.\n" in crash and "Traceback" in crash, crash[:200])
-check("neither names who acted yet (f629 adds it)", "actor" not in refusal[-1] and "actor" not in entry)
+check("filed outside every entry, the refusal names no one and the fault's entry leaves who out with the rest that is empty",
+      refusal[-1]["actor"] == "" and "actor" not in entry)
 del refusals.SESSION[:], crashlog.SESSION[:]
 
 # ---- a recording's rows: the one just made, and the three kept
-INPUT = {"i", "main", "text", "turn", "steps"}
+INPUT = {"i", "main", "text", "turn", "steps"}            # the kept recordings', until the one re-record (f640)
 TURN = {"i", "turn", "steps", "state", "outcomes", "operations", "presented", "shown", "lines", "shown_text"}
 
 
-def recording(folder: Path) -> list:
+def recording(folder: Path, inputs=INPUT) -> list:
     wrong = []
     ins, tns = rows(folder / "inputs.jsonl"), rows(folder / "turns.jsonl")
     if not ins or not tns:
         return [f"{folder.name}: no rows"]
-    wrong += [f"{folder.name} input {r.get('i')}: {sorted(set(r) ^ INPUT)}" for r in ins if set(r) != INPUT]
+    wrong += [f"{folder.name} input {r.get('i')}: {sorted(set(r) ^ inputs)}" for r in ins if set(r) != inputs]
     wrong += [f"{folder.name} turn {r.get('i')}: {sorted((set(r) - {'rows'}) ^ TURN)}" for r in tns if set(r) - {"rows"} != TURN]
     wrong += [f"{folder.name} turn {r.get('i')}: an operation with {sorted(o)}" for r in tns for o in r["operations"] if set(o) != {"id", "kind", "rows"}]
     return wrong
 
 
-check("the recording just made holds an input row and a turn row of the kept shape", not recording(OUT), recording(OUT)[:4])
+check("the recording just made holds a turn row of the kept shape, and an input row that says whose line it was besides",
+      not recording(OUT, INPUT | {"actor"}), recording(OUT, INPUT | {"actor"})[:4])
 told = [line for r in rows(OUT / "turns.jsonl") for line in r["shown_text"]]
 check("what the turn log says was shown for the line that stood is what the recording kept as shown (the tap and the recorder saw the same)",
       stood is not None and all(any(s["text"] in line or line in s["text"] for line in told) for s in stood["shown"]),

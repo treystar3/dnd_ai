@@ -461,10 +461,12 @@ def tagged(**fields):
 def _log(task, attempt, elapsed, messages, raw, error, usage=None, shape=None):
     global _writes
     path = Path(config.LOG_PATH)
+    from engine import actor
     from llm import audit
     entry = {
         "time": datetime.now(timezone.utc).isoformat(),
         "turn": audit.current_turn(),                   # joins this call to its row in the turn log (engine/turnlog.py)
+        "actor": actor.who(),                           # (f629) who the call was made for: the bound actor, none on a thread beside the turn
         "task": task,
         "model": config.MODEL,
         "attempt": attempt,

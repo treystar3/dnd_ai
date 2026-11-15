@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import config
+from engine import actor
 from ui import console
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -26,8 +27,8 @@ SESSION: list[dict] = []
 
 
 def note(kind: str, text: str, why: str = "", place: str = "", turn: int = -1, asked: str = "") -> None:
-    row = {"time": datetime.now(timezone.utc).isoformat(timespec="seconds"), "turn": turn, "kind": kind, "text": text, "why": why,
-           "place": place, "asked": asked}
+    row = {"time": datetime.now(timezone.utc).isoformat(timespec="seconds"), "turn": turn, "actor": actor.who(), "kind": kind, "text": text,
+           "why": why, "place": place, "asked": asked}       # (f629) who acted: the bound actor (the gateway's refusals have no scene to ask)
     SESSION.append(row)
     console.debug(f"refusal ({kind}): {text[:80]!r} - {why[:120]}")
     if not getattr(config, "REFUSALS_LOG", True):
