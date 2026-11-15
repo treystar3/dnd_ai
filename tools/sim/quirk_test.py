@@ -179,7 +179,7 @@ for _ in range(4):
 check("a fact told again is still one fact, never counted", len(ff["memories"]) == 1 and ff["memories"][0]["count"] == 1 and "more than once" not in " ".join(rules.pick_memories(ff)))
 mm["quirks"] = {"likes": "harvest", "dislikes": "flee", "reacted": {}}
 for d in (1, 2, 3):
-    quirks.react(mm, "flee", "disapprove", d)
+    quirks.react(mm, "flee", "disapprove", d, by="player")
 fl = [x for x in mm["memories"] if x.get("key") == "deed:flee"]
 check("repeated deeds fold into one first-person memory that counts", len(fl) == 1 and "3 times" in fl[0]["text"] and fl[0]["text"].startswith("I have seen them run from a fight"), fl)
 check("no third-person 'the player was seen' memories", not any("the player was seen" in x["text"].lower() for x in mm["memories"]))

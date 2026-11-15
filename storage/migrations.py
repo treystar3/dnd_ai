@@ -181,7 +181,7 @@ def _v11_hire_memories(store) -> None:
         if not m.get("id"):
             continue
         for x in m.get("memories") or []:
-            r = memory.hire_row(x)
+            r = memory.hire_row(x, "player")             # (f630) the one character an older save had
             store._db.execute("INSERT INTO npc_memory (npc_id, day, turn, kind, importance, text, subject, source, about, minute, times) "
                               "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (f"hire:{m['id']}", r["day"], r["turn"], r["kind"], r["importance"],
                                                                          r["text"], r["subject"], r["source"], r["about"], r["minute"], r["times"]))

@@ -442,7 +442,7 @@ class Bench:
     def road(self, r, feat=None) -> bool:
         """(f623) The road's ruling as the game takes it: the engine's own grounds, then what lacking a power and what a body mean."""
         from engine import ruling
-        return bool(ruling.verdict(self.ws, r)["ok"]) and ruling.settled(self.ws, self.ws.acting, r, feat).sense != "no"
+        return bool(ruling.verdict(self.ws, self.ws.acting, r)["ok"]) and ruling.settled(self.ws, self.ws.acting, r, feat).sense != "no"
 
     def live(self, case: dict, path: str = "old"):
         """The model's ruling and the engine's yes or no; on the new path also whether its changes do what the case says."""
@@ -458,7 +458,7 @@ class Bench:
             v = act.validate(self.ws, self.ws.acting, T, r)
             self.last = v
             return r, ("yes" if v.ok else "no"), self.moved(case, T, v)
-        r = ruling.ask(self.ws, line, line)
+        r = ruling.ask(self.ws, self.ws.acting, line, line)
         if r is None:
             return None, None, None
         return r, ("yes" if self.road(r) else "no"), None

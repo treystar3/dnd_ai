@@ -64,7 +64,7 @@ canon.JOURNAL = lambda kind, actor, target, text, data: st.journal(400, kind, ac
 from engine import quirks
 m = {"id": "h1", "name": "Bram Voss", "bond": 20, "memories": [], "quirks": {"likes": "harvest", "dislikes": "flee", "reacted": {}, "deeds_seen": {}}}
 quirks.roll(m, random.Random(1)); m["quirks"].update(likes="harvest", dislikes="flee", reacted={})
-quirks.react(m, "flee", "disapprove", 3)
+quirks.react(m, "flee", "disapprove", 3, by="player")
 last = st.journal_tail(1)[-1]
 check("a deed reaction is journaled with what the player typed as the action", last["kind"] == "deed_reaction" and last["data"]["deed"] == "flee" and last["action"] == "I run", last)
 canon.JOURNAL = None

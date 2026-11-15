@@ -121,7 +121,9 @@ with_party = targets.targets_for(ws, ws.acting)
 ws.player.party = []
 check("the character's companions are named too", any(t.code == "c1" and t.ref == "hire_brena" and "Brena" in t.line for t in with_party.rows))
 check("no line names a place by its id", not any("trading_square" in t.line for t in T.rows), [t.line for t in T.rows if "trading_square" in t.line])
+simlib.stood_beside(ws, "another_character")             # (f630) a second character here, behind the scene's helper
 other = targets.targets_for(ws, "another_character")
+del ws.player_of
 check("built for another character: their things carried, never the first one's", any(t.ref == theirs.ref for t in other.rows)
       and not any(t.ref == sack.ref for t in other.rows))
 

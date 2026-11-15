@@ -33,12 +33,13 @@ MISSING = object()
 check("the declared state names what a line writes outside the save", len(ws.ROLLED) >= 20 and "recent_narration" in ws.ROLLED and "last_plan" in ws.ROLLED)
 ws.recent_narration = ["what was told before"]
 ws.last_spoken = "someone"
-before = {k: (copy.deepcopy(ws.__dict__[k]) if k in ws.__dict__ else MISSING) for k in ws.ROLLED}
+held = lambda k: getattr(ws, k, MISSING)                # (f628) as the game reads it: a field that leaves the scene's own dict is still seen
+before = {k: (copy.deepcopy(held(k)) if held(k) is not MISSING else MISSING) for k in ws.ROLLED}
 with ws.operation("test", "a failing step") as op:
     for k in ws.ROLLED:
         setattr(ws, k, f"sentinel:{k}")
     raise LLMError("the model failed")
-after = {k: ws.__dict__.get(k, MISSING) for k in ws.ROLLED}
+after = {k: held(k) for k in ws.ROLLED}
 moved = [k for k in ws.ROLLED if k != "step" and ((after[k] is MISSING) != (before[k] is MISSING) or (after[k] is not MISSING and after[k] != before[k]))]
 check("every declared attribute is as it was before the operation, and one it set anew is unset", op.state == "rolled_back" and not moved, moved)
 check("...and the step being done is none (the operation's abandon says so)", ws.step is None)

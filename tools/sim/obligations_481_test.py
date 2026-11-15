@@ -40,7 +40,7 @@ hours = ws.world.roles["farmer"].hours
 c = obligations.open_(store, "contract", "w1", ws.acting, "Clear the north field", ws.minutes, terms={"quest": "q9"}, key="q9")
 for i in range(30):
     m = store.load_npc("w1")
-    memory.keep(m, f"A hard day, number {i}, with its own words {i * 7}.", day=1 + i, turn=i, kind="experienced", importance=3, minute=600 + i)
+    memory.keep(m, f"A hard day, number {i}, with its own words {i * 7}.", day=1 + i, turn=i, kind="experienced", subject="player", importance=3, minute=600 + i)
     store.save_npc(m)
 store.meta.minutes += 90 * 1440
 store.save_meta()

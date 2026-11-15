@@ -62,17 +62,17 @@ def the_name(name: str) -> str:
     return "the " + re.sub(r"^(?:the|a|an)\s+", "", name.strip(), flags=re.I).strip()
 
 
-def request(ws, words: str, text: str) -> str:
+def request(ws, actor_id: str, words: str, text: str) -> str:
     from engine import features, inventory
-    c = ws.player.character
-    place = ws.place
+    mine = ws.player_of(actor_id)
+    c, place = mine.character, ws.world.places[mine.location]
     parts = features.lines(ws) or ["(none known)"]
-    people = [f"{n.label(ws.acting)} ({n.role.replace('_', ' ')})" for n in ws.present][:8] or ["no one"]
+    people = [f"{n.label(actor_id)} ({n.role.replace('_', ' ')})" for n in ws.present][:8] or ["no one"]
     gear = ", ".join(i.name for i in c.equipment.values())[:200] or "nothing"
     pack = ", ".join(inventory.label(i) for i in c.inventory[:12]) or "nothing"
     abilities = ", ".join(a.name for a in c.actives[:12]) or "none"
     caps = "\n".join(f"  {k}: {v['about']}" for k, v in C.items())
-    have = ", ".join(sorted(means_of(ws))) or "none"
+    have = ", ".join(sorted(means_of(ws, actor_id))) or "none"
     from engine import checks
     last = ws.recent_narration[-1] if ws.recent_narration else "(none)"
     return (f"PLACE: {place.name} ({place.type}{', ' + place.biome if place.biome else ''}{', dangerous' if place.danger else ''})\n"
@@ -88,9 +88,9 @@ def request(ws, words: str, text: str) -> str:
             f"THE PLAYER TRIES: {words}\nTHEIR WORDS: \"{text}\"")
 
 
-def means_of(ws) -> set[str]:
+def means_of(ws, actor_id: str) -> set[str]:
     """What the character can do beyond the ordinary: the story's and items' gifts, their abilities' field uses, their people."""
-    c = ws.player.character
+    c = ws.player_of(actor_id).character
     have = set(getattr(c, "capabilities", []) or [])
     fields = {getattr(a, "field_use", "") for a in c.actives}
     effects = {getattr(a.effect, "value", str(a.effect)) for a in c.actives}
@@ -125,28 +125,27 @@ def settled(ws, actor_id: str, r, feat=None):
     do of the feat read for the attempt (f624: a reading of its own, engine/body.py). A no stays a no; a feat past the body's limit,
     or a drop that would hurt, is no way through."""
     from engine import body
-    if actor_id != ws.acting:                        # one character a scene until multiplayer M1
-        raise ValueError(f"a ruling is settled for the scene's own character, not {actor_id}")
-    how, _, stakes = standing(means_of(ws), r)
+    have = means_of(ws, actor_id)
+    how, _, stakes = standing(have, r)
     if how == "stand_in":
         r = r.model_copy(update={"sense": "cost", "stakes": type(r.stakes)(**stakes)})
     elif how == "lacks":
         r = r.model_copy(update={"sense": "no"})
     if r.sense == "no":
         return r
-    j = body.judge(body.of_character(ws.player.character), means_of(ws), r, feat)
+    j = body.judge(body.of_character(ws.player_of(actor_id).character), have, r, feat)
     if j.how in ("nearly", "past", "fall"):
         return r.model_copy(update={"sense": "no"})
     return body.with_effort(r, j) if j.how == "effort" else r
 
 
-def ask(ws, words: str, text: str):
+def ask(ws, actor_id: str, words: str, text: str):
     """The model's ruling, or None when it cannot give one (on the road, pressing on past an obstacle: f603)."""
     from engine import checks, features
     from llm.contracts import Ruling
     from llm.gateway import LLMError, generate
     try:
-        return generate("ruling", SYSTEM, request(ws, words, text), Ruling, temperature=0.3, max_tokens=500,
+        return generate("ruling", SYSTEM, request(ws, actor_id, words, text), Ruling, temperature=0.3, max_tokens=500,
                         validation_context={"capabilities": list(C), "checks": sorted(checks.CHECKS) + list(ATTRS), "roles": sorted(ws.world.roles),
                                             "becomes": list(features.F["becomes"])})
     except LLMError as e:
@@ -154,10 +153,11 @@ def ask(ws, words: str, text: str):
         return None
 
 
-def verdict(ws, r) -> dict:
+def verdict(ws, actor_id: str, r) -> dict:
     """The engine's checks on a ruling: {ok, answer, instead, why}. A no from the model stands; a yes may be refused on the engine's
     grounds only."""
-    how, cap, _ = standing(means_of(ws), r)            # (f618) a stand-in's stakes are the caller's to roll
+    how, cap, _ = standing(means_of(ws, actor_id), r)  # (f618) a stand-in's stakes are the caller's to roll
+    here = ws.player_of(actor_id).location
     if r.sense == "no" and how != "stand_in":
         return {"ok": False, "answer": r.answer, "instead": r.instead, "why": r.why or "it does not make sense here"}
     if how == "lacks":
@@ -167,18 +167,18 @@ def verdict(ws, r) -> dict:
         if n.kind in ("feature", "way"):
             e = features.find(ws, n.name)
             name = the_name(n.name).lower()
-            gone = None if e is not None else next((x for x in ws.store.find_entities(kind="feature", place=ws.player.location)
+            gone = None if e is not None else next((x for x in ws.store.find_entities(kind="feature", place=here)
                                                      if x.state == "gone" and x.name.lower() == name), None)
             if gone is not None:                       # a part that fell in or was lost is not called back by asking for it
                 return {"ok": False, "answer": f"{gone.name[0].upper() + gone.name[1:]} is gone.", "instead": r.instead, "why": "it is gone"}
-            if e is None and not features.room(ws, ws.player.location):
+            if e is None and not features.room(ws, here):
                 return {"ok": False, "answer": f"There is no {n.name.removeprefix('the ')} here, and nowhere it could be.", "instead": r.instead,
                         "why": "the place holds all it can"}
         if n.kind == "person":
             dead = [x for x in ws.store.npc_rows() if x.name and n.name and x.name.lower() in n.name.lower() and x.gone]
             if dead:
                 return {"ok": False, "answer": f"{dead[0].name} is gone from the world.", "instead": r.instead, "why": "they are gone"}
-            if appeared_today(ws) >= APPEAR_PER_DAY:
+            if appeared_today(ws, actor_id) >= APPEAR_PER_DAY:
                 return {"ok": False, "answer": "Nobody comes.", "instead": r.instead, "why": "no more people appear here today"}
     for ch in r.changes:                               # a change to a part this place does not have, and that is not being made, is no change
         if ch.part and features.find(ws, ch.part) is None and not any(features.find(ws, n.name) is None and _same(n.name, ch.part) for n in r.needs):
@@ -191,55 +191,56 @@ def _same(a: str, b: str) -> bool:
     return norm(a) == norm(b)
 
 
-def appeared_today(ws) -> int:
+def appeared_today(ws, actor_id: str) -> int:
     """People who appeared for an attempt at this place today (the pace: a place does not fill with whoever is called for)."""
     from engine import clock
-    return len((ws.__dict__.get("_appeared") or {}).get((ws.player.location, clock.day(ws.minutes)), []))
+    return len((ws.__dict__.get("_appeared") or {}).get((ws.player_of(actor_id).location, clock.day(ws.minutes)), []))
 
 
-def make_room(ws, r) -> list[str]:
+def make_room(ws, actor_id: str, r) -> list[str]:
     """What the world now holds that it did not, made for the attempt: parts of the place (kept, linked to where the player stands), a
     person (made by the engine: name, people, gender; the model's words only say what they are), a thing (engine/objects.py, its words
     kept on the place)."""
     from engine import features, ledger
+    here = ws.player_of(actor_id).location
     out = []
     for n in r.needs:
         if n.kind in ("feature", "way"):
             if features.find(ws, n.name) is not None:
                 continue
             named = features.named_part(n.name) or features.named_part(f"the {n.name.removeprefix('the ')}")
-            kind = named[1] if named else ("tunnel" if n.kind == "way" else features.kinds_here(ws.place)[0])
+            kind = named[1] if named else ("tunnel" if n.kind == "way" else features.kinds_here(ws.world.places[here])[0])
             name = named[0] if named else the_name(n.name)
-            e = features.adopt(ws, ws.player.location, name, kind, "ruled")
+            e = features.adopt(ws, here, name, kind, "ruled")
             if e is not None:
                 if n.what:
                     e.data["what"] = n.what.strip()
                     ws.store.save_entity(e)
                 out.append(f"{e.name}: {e.data.get('what', '')}")
         elif n.kind == "person":
-            npc = appear(ws, n)
+            npc = appear(ws, actor_id, n)
             if npc is not None:
-                out.append(f"{npc.label(ws.acting)} ({npc.role.replace('_', ' ')}): {npc.description}")
+                out.append(f"{npc.label(actor_id)} ({npc.role.replace('_', ' ')}): {npc.description}")
         elif n.kind == "thing":
             from engine import objects
             mark = f"{n.name}: {n.what}".strip(": ")
             ws.add_mark(mark)                                   # what is said of the place
             spot = features.spot_of(ws)
-            obj = objects.make(ws.store, ws.player.location, n.name, n.what, "ruled", ws.minutes,
+            obj = objects.make(ws.store, here, n.name, n.what, "ruled", ws.minutes,
                                part=spot.ref if spot is not None else "", mark=mark)   # (f592) and the thing itself, there to be used
             ledger.add("made", ref=obj.ref, name=obj.name, how="ruled", say=f"{obj.name} is here: {n.what}")
             out.append(f"{n.name}: {n.what}")
     return out
 
 
-def appear(ws, n):
+def appear(ws, actor_id: str, n):
     """(f395) Someone the attempt calls for, made a real person of this place: the engine draws their name, people and gender (as for
     any townsperson); the ruling's words say only what they are. Kept, present at once, and counted per place and day."""
     from engine import clock, ledger
     from npc import life, names
     from npc.models import NPC
     from npc.traits import assign_traits, npc_rng
-    pid = ws.player.location
+    pid = ws.player_of(actor_id).location
     rng = random.Random(f"{ws.store.meta.seed}:appear:{pid}:{ws.minutes}:{n.name}")
     roles = ws.world.roles
     role = n.role if n.role in roles else next((r for r in roles if r in f"{n.name} {n.what}".lower().replace(" ", "_")), "wanderer")
@@ -259,27 +260,27 @@ def appear(ws, n):
     ws.residents = ws.residents + [npc]
     ws.present = ws.present + [npc]
     ws.__dict__.setdefault("_appeared", {}).setdefault((pid, clock.day(ws.minutes)), []).append(npc.id)
-    ledger.add("made", ref=f"person:{npc.id}", name=npc.label(ws.acting), how="ruled", say=f"{npc.label(ws.acting)} is here now: {npc.description}")
+    ledger.add("made", ref=f"person:{npc.id}", name=npc.label(actor_id), how="ruled", say=f"{npc.label(actor_id)} is here now: {npc.description}")
     return npc
 
 
-def refuse(ws, v: dict, words: str, text: str) -> None:
+def refuse(ws, actor_id: str, v: dict, words: str, text: str) -> None:
     """No, in the world's own words: nothing made, nothing broken, a moment spent, and what could be tried instead."""
     from engine import ledger, refusals, world_improv
     ws.advance(1)
     ledger.add("refused", say=f"What the player tries does not happen: {v['answer']}")
-    refusals.note("refused", text, v["why"], ws.player.location, ws.store.meta.turn)
+    refusals.note("refused", text, v["why"], ws.player_of(actor_id).location, ws.store.meta.turn)
     instead = f" They could instead: {'; '.join(v['instead'])}." if v.get("instead") else ""
     ws.narrate(f"THE GAME HAS DECIDED: what the player tries ({world_improv.what_of(words or text)}) does not happen. Show it as it would be "
                f"seen: {v['answer']} Nothing is made, nothing breaks, and nobody makes much of it.{instead} Let the way forward be plain "
                "without telling them what to do.", text)
 
 
-def odds(ws, effect: str, ruled: dict) -> float:
+def odds(ws, actor_id: str, effect: str, ruled: dict) -> float:
     """The chance an attempt succeeds, from the rules: the ruling's check (a skill, or an attribute), or the act's own attribute, made
     easier or harder by how hard the ruling says it is."""
     from engine import checks, world_improv
-    c = ws.player.character
+    c = ws.player_of(actor_id).character
     check = ruled.get("check") or ""
     if check in checks.CHECKS:
         base, _ = checks.chance(c, check, ws.check_triggers(check, False))

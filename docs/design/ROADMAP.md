@@ -24,6 +24,10 @@ Anything still open there has to be folded in by the owner.
 | 4 | The rewrites that sit on the groundwork: doc 02 steps 5 and 6 (combat onto the one ruling), doc 09 section B (smaller prompts, decide then speak, beats; about 90 narration call sites move once) | yes |
 | 5 | Multiplayer: doc 08 M1 to M5 with docs 06 and 07. Then doc 09 section C (training) once the prompts are stable | from M3 |
 
+Phase 3 is planned in docs/design/20_phase3_plan.md (approved 2026-11-14), which changes one thing above: doc 05's steps 3 and 4
+change what a player can do, so they leave phase 3 for a plan of their own after it, and step 7 goes with multiplayer M1. Phase 3
+keeps doc 05 step 6 and adds what doc 17's M0 asks (the whole output seam, who acted on every log row).
+
 Doc 10 steps 2 to 6 (the screen-only player agent, the judge, the chambers) fit wherever the owner answers its question; earlier is
 better, because it measures everything else. Doc 11 steps 2 and 3 follow doc 10's corpora.
 

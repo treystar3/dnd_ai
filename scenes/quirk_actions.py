@@ -183,7 +183,7 @@ class QuirkActions:
         speaking = set(plan.speaker_ids)
         for m in crew:                                       # feeling something is not saying it: everyone with a view is changed by it
             if m["id"] in stances:
-                quirks.react(m, deed, stances[m["id"]], day, spoke=m["id"] in speaking)
+                quirks.react(m, deed, stances[m["id"]], day, spoke=m["id"] in speaking, by=self.acting)
         by_id = {m["id"]: m for m in crew}
         pick = [by_id[i] for i in plan.speaker_ids]
         if len(pick) > 1:

@@ -190,6 +190,7 @@ ws2.enter("trading_square")
 with ws2.operation("test", "reloaded"):
     after = act.kept(ws2, ws2.acting, targets.targets_for(ws2, ws2.acting), text)
 check("...and after the save is opened again", after is not None and after.uses == first.uses)
+simlib.stood_beside(ws, "another_character")             # (f630) a second character here, behind the scene's helper
 To = targets.targets_for(ws, "another_character")
 their = ActRuling.model_validate({"sense": "yes", "why": "theirs"}, context=act.context(ws, To))
 with ws.operation("test", "theirs"):
@@ -198,12 +199,13 @@ mine_now = act.kept(ws, ws.acting, targets.targets_for(ws, ws.acting), text)
 theirs_now = act.kept(ws, "another_character", targets.targets_for(ws, "another_character"), text)
 check("two characters keep their own rulings for the same act", mine_now is not None and mine_now.why == first.why
       and theirs_now is not None and theirs_now.why == "theirs", (mine_now and mine_now.why, theirs_now and theirs_now.why))
+del ws.player_of
 try:
     act.request(ws, "another_character", To, "x", "x")
     refused_other = False
 except ValueError:
     refused_other = True
-check("...and a ruling is asked only for the scene's own character (one a scene, until multiplayer)", refused_other)
+check("...and a ruling is asked only for a character the scene holds (one a scene, until multiplayer)", refused_other)
 with ws.operation("test", "a new thing lying here"):
     plank = objects.make(store, "trading_square", "a loose plank", "", minute=ws.minutes)
 check("a new thing lying here is a changed circumstance even for a ruling that named nothing",

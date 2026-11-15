@@ -167,6 +167,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         names the call sites that read it)."""
         return self.player.character.id
 
+    def player_of(self, actor_id: str):
+        """(f630) The record of a character in this scene, by id: where they stand, their sheet, their party. Code handed an id asks
+        here, never the scene's player; an id the scene holds no character for is refused."""
+        if actor_id != self.acting:                      # one character a scene until multiplayer M1
+            raise ValueError(f"this scene holds no character {actor_id!r}")
+        return self.player
+
     def notice(self, event, *people) -> None:
         """The world notices a deed of the player's (engine/reactions.py). `people` are the records this code holds for anyone in it, so
         that the reactions change the very objects it will save, whether or not they stand in `present` right now."""
@@ -230,12 +237,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def dies(self, actor_id: str) -> None:
         """(f623) A death outside a fight: the same price and the same Threshold as a death in one (engine/death.py)."""
-        if actor_id != self.acting:                      # one character a scene until multiplayer M1
-            raise ValueError(f"a death here is the scene's own character's, not {actor_id}")
         from engine import death
         from engine.domain_events import PlayerFell
-        summary = death.die(self.player.character)
-        self.notice(PlayerFell(minute=self.minutes, place=self.player.location, deaths=summary["deaths"]))
+        fallen = self.player_of(actor_id)
+        summary = death.die(fallen.character)
+        self.notice(PlayerFell(minute=self.minutes, place=fallen.location, deaths=summary["deaths"]))
         self.threshold(summary)
 
     def threshold(self, summary: dict) -> None:

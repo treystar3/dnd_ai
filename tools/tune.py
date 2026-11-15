@@ -25,7 +25,7 @@ EARLY_MIX = {"crude": 40, "common": 45, "uncommon": 15}
 def mix_for(level: int, mix=RARITY_MIX) -> dict:
     """Early characters wear what they started with and a few finds; by level 40 they wear the full typical mix."""
     t = min(1.0, max(0.0, (level - 1) / 39))
-    keys = set(mix) | set(EARLY_MIX)
+    keys = dict.fromkeys([*EARLY_MIX, *mix])            # (f642) in the order declared: a set's order differs in each process, and a seeded draw with it
     return {k: EARLY_MIX.get(k, 0) * (1 - t) + mix.get(k, 0) * t for k in keys}
 
 

@@ -101,7 +101,7 @@ check("the grammar has a no say what power it wants, if any, so the engine can s
 told, rolled = [], []
 real_narrate, real_roll, real_odds = ws.narrate, checks.roll, ruling.odds
 ws.narrate = lambda event, text="": told.append(event)
-ruling.odds = lambda ws_, effect, r: rolled.append(dict(r)) or real_odds(ws_, effect, r)
+ruling.odds = lambda ws_, who, effect, r: rolled.append(dict(r)) or real_odds(ws_, who, effect, r)
 def attempt(text, d, roll="success"):
     stub.act_ruling = d
     checks.roll = lambda odds, rng=None, c=None: (roll, 1)

@@ -67,16 +67,17 @@ def targets_for(ws, actor_id: str) -> Targets:
     things they carry, the roads out, and each live situation whose trouble is here with its parts."""
     from engine import features, objects, pulse, roads, situation_parts
     store, world = ws.store, ws.world
-    place = ws.player.location
+    mine = ws.player_of(actor_id)
+    place = mine.location
     out: list[Target] = []
     codes: dict[str, str] = {}
     for i, n in enumerate((n for n in ws.present if not getattr(n, "gone", False)), 1):
         label, role = n.label(actor_id), n.role.replace("_", " ")
         codes[n.id] = f"p{i}"
         out.append(Target(f"p{i}", "person", n.id, f"{label}{'' if role in label else f' ({role})'}, here", state=_state(n.location)))
-    for i, m in enumerate(getattr(ws.player, "party", None) or [], 1):          # the character's own companions
+    for i, m in enumerate(getattr(mine, "party", None) or [], 1):          # the character's own companions
         out.append(Target(f"c{i}", "person", str(m.get("id", "")), f"{m.get('name', 'a companion')} ({m.get('role', 'companion')}), "
-                          "your companion", state=_state(getattr(ws.player, "party_mode", ""))))
+                          "your companion", state=_state(getattr(mine, "party_mode", ""))))
     known = [e for e in sorted(features.here(store, place), key=lambda e: (features.depth(e), e.ref)) if e.state != "unseen"]
     for i, e in enumerate(known, 1):
         now = sorted(features.now_of(e, ws.minutes))

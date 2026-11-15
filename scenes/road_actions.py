@@ -481,7 +481,7 @@ class RoadActions:
         what = hz["what"].rstrip(".")
         r = None
         if not re.search(R["hazard"]["around_words"], (text or "").lower()):
-            r = ruling.ask(self, f"pressing straight on past {what}", text or "I keep going")
+            r = ruling.ask(self, self.acting, f"pressing straight on past {what}", text or "I keep going")
             if r is not None:                        # (f618, f623) what lacking a power means, and what a body can do, are the engine's
                 from engine import body
                 r = ruling.settled(self, self.acting, r, body.reading(self, self.acting, text or ""))
@@ -501,7 +501,7 @@ class RoadActions:
         ruled = {"check": r.stakes.check, "hard": r.stakes.hard} if r is not None else {}
         if r is not None and r.sense == "yes" and not ruled["check"]:
             return
-        degree, _ = checks.roll(ruling.odds(self, "attempt", ruled), rng, c=c)
+        degree, _ = checks.roll(ruling.odds(self, self.acting, "attempt", ruled), rng, c=c)
         console.note(checks.label(ruled.get("check") or "getting past", degree.replace("_", " ")))
         if degree in ("failure", "partial"):
             delay = rng.randint(lo, hi) // (2 if degree == "partial" else 1)

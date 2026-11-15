@@ -943,6 +943,19 @@ def _second_character(ws):
     return other
 
 
+def stood_beside(ws, actor_id: str, **fields):
+    """(f630) A second character's record stood behind the scene's player_of, for tests of code that is handed a character's id,
+    until a scene holds several (multiplayer M1): a copy of the scene's player under `actor_id`, with `fields` set on it. Returns
+    the record; `del ws.player_of` takes it away again."""
+    other = ws.player.model_copy(deep=True)
+    other.character.id = actor_id
+    for k, v in fields.items():
+        setattr(other, k, v)
+    real = ws.player_of
+    ws.player_of = lambda who: other if who == actor_id else real(who)
+    return other
+
+
 def offer(store, holder: str, family: str, terms: dict, who: str = "player", minute: int | None = None):
     """(f481) An offer in the registry for a test, from the person `holder` to the character `who`: what tests set as npc.work_offer
     ("work") or npc.quest_offer ("request") before offers ended for a reason. An old offer's hour (until) is dropped: nothing ends by age."""

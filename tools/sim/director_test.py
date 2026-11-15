@@ -135,7 +135,7 @@ H = _q.Q["habituation"]
 m = hire(9, "Vell Arn", ["blunt"], "fighter"); m["quirks"].update(dislikes="harvest", likes="spare", reacted={}); m["bond"] = 20
 deltas = []
 for day in range(1, 7):
-    b0 = m["bond"]; _q.react(m, "harvest", "disapprove", day, spoke=True); deltas.append(m["bond"] - b0)
+    b0 = m["bond"]; _q.react(m, "harvest", "disapprove", day, spoke=True, by="player"); deltas.append(m["bond"] - b0)
 check("trust moves less each time they see a deed they mind, then not at all", deltas[0] < deltas[1] <= deltas[2] <= 0 and deltas[-1] == 0, deltas)
 check("...so a hire who cannot stand skinning loses only a little trust over it, however long the player keeps doing it", sum(deltas) >= -5, sum(deltas))
 m2 = hire(8, "Odd Fell", ["blunt"], "fighter"); m2["quirks"].update(likes="harvest", reacted={}, deeds_seen={"harvest": 0}); rates = []

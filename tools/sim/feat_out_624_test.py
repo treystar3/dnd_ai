@@ -36,7 +36,7 @@ ctx = act.context(ws, T)
 # ---- the rulings ask what they asked before
 check("neither ruling's contract holds a feat", "feat" not in ActRuling.model_fields and "feat" not in Ruling.model_fields
       and not hasattr(contracts, "Feat"))
-asked = [act.request(ws, ws.acting, T, "lift the trough", "I lift the trough."), ruling.request(ws, "lift the trough", "I lift the trough.")]
+asked = [act.request(ws, ws.acting, T, "lift the trough", "I lift the trough."), ruling.request(ws, ws.acting, "lift the trough", "I lift the trough.")]
 check("neither request lists the feats and neither instruction asks for one",
       not any("FEATS" in a for a in asked) and "feat:" not in act.SYSTEM and "feat:" not in ruling.SYSTEM)
 schema = act.shape(ws, T).model_json_schema()
@@ -73,7 +73,7 @@ check("the engine's check on a ruling: as ruled with no reading; past the body w
 told, rolled, shown = [], [], []
 real_narrate, real_roll, real_odds, real_reading = ws.narrate, checks.roll, ruling.odds, body.reading
 ws.narrate = lambda event, text="": told.append(event)
-ruling.odds = lambda ws_, effect, r: rolled.append(dict(r)) or real_odds(ws_, effect, r)
+ruling.odds = lambda ws_, who, effect, r: rolled.append(dict(r)) or real_odds(ws_, who, effect, r)
 import ui.console as uc
 uc.ledger = lambda *a, **k: shown.append(str(a[0]) if a else "")
 def attempt(text, d, feat=None, roll="success"):
@@ -112,7 +112,7 @@ def road_past(d, feat=None):
     body.reading = (lambda ws_, actor_id, text_: feat) if feat is not None else real_reading
     noted.clear(); rolled.clear()
     checks.roll = lambda odds, rng=None, c=None: ("success", 1)
-    ruling.odds = lambda ws_, effect, r: rolled.append(dict(r)) or real_odds(ws_, effect, r)
+    ruling.odds = lambda ws_, who, effect, r: rolled.append(dict(r)) or real_odds(ws_, who, effect, r)
     ws.get_past(dict(hz), "I keep going")
     checks.roll, ruling.odds, body.reading = real_roll, real_odds, real_reading
 span = {"sense": "cost", "why": "x", "stakes": {"check": "dexterity", "hard": "fair"}}

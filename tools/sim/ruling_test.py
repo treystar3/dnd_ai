@@ -56,20 +56,20 @@ check("the ruling test set: the engine's own grounds are right on every case it 
 # ---- means
 c = ws.player.character
 c.capabilities = []
-check("a warrior with nothing that grants it cannot fly", "flight" not in ruling.means_of(ws))
+check("a warrior with nothing that grants it cannot fly", "flight" not in ruling.means_of(ws, ws.acting))
 c.capabilities = ["flight"]
-check("...something that grants flight (the story, an item) is a means", "flight" in ruling.means_of(ws))
+check("...something that grants flight (the story, an item) is a means", "flight" in ruling.means_of(ws, ws.acting))
 c.capabilities = []
 old_people = c.people
 c.people = "dwarf"
-check("a dwarf sees in the dark", "darkvision" in ruling.means_of(ws))
+check("a dwarf sees in the dark", "darkvision" in ruling.means_of(ws, ws.acting))
 c.people = old_people
-v = ruling.verdict(ws, rule(sense="yes", why="", requires=["flight"]))
+v = ruling.verdict(ws, ws.acting, rule(sense="yes", why="", requires=["flight"]))
 check("a yes that needs flight the character lacks is a no, in the world's words", not v["ok"] and v["answer"] == ruling.C["flight"]["lacking"], v)
 c.capabilities = ["flight"]
-check("...and stands with the means", ruling.verdict(ws, rule(sense="yes", why="", requires=["flight"]))["ok"])
+check("...and stands with the means", ruling.verdict(ws, ws.acting, rule(sense="yes", why="", requires=["flight"]))["ok"])
 c.capabilities = []
-check("the model's no stands, whatever the character can do", not ruling.verdict(ws, rule(sense="no", why="impossible", answer="Nothing happens."))["ok"])
+check("the model's no stands, whatever the character can do", not ruling.verdict(ws, ws.acting, rule(sense="no", why="impossible", answer="Nothing happens."))["ok"])
 try:
     rule(sense="yes", requires=["wings_of_gold"])
     sent_back = False
@@ -81,47 +81,47 @@ check("a capability not in the list is sent back to the model, not trusted", sen
 ledger.begin()
 r = rule(sense="cost", why="a cave goes on", needs=[{"kind": "feature", "name": "the high ledge", "what": "a shelf of rock above the pools",
                                                      "where": "above"}], stakes={"check": "athletics", "hard": "fair"})
-check("a yes for a part this place does not hold yet stands", ruling.verdict(ws, r)["ok"])
-made = ruling.make_room(ws, r)
+check("a yes for a part this place does not hold yet stands", ruling.verdict(ws, ws.acting, r)["ok"])
+made = ruling.make_room(ws, ws.acting, r)
 ledge = features.find(ws, "the high ledge")
 check("...the part is made real, kept, with what the ruling said it is, and recorded", ledge is not None and ledge.data.get("what") == "a shelf of rock above the pools"
       and made and ledger.count("made") >= 1, (made, ledge))
-check("...and asking again makes nothing twice", ruling.make_room(ws, r) == [] or features.find(ws, "the high ledge").ref == ledge.ref)
+check("...and asking again makes nothing twice", ruling.make_room(ws, ws.acting, r) == [] or features.find(ws, "the high ledge").ref == ledge.ref)
 room = features.room
 features.room = lambda ws_, pid: False
-v = ruling.verdict(ws, rule(sense="yes", needs=[{"kind": "feature", "name": "the sunken vault", "what": "a vault"}]))
+v = ruling.verdict(ws, ws.acting, rule(sense="yes", needs=[{"kind": "feature", "name": "the sunken vault", "what": "a vault"}]))
 check("when the place holds all it can, a new part is refused plainly", not v["ok"] and "nowhere it could be" in v["answer"], v)
 features.room = room
 ledge.state = "gone"; store.save_entity(ledge)
-v = ruling.verdict(ws, rule(sense="yes", needs=[{"kind": "feature", "name": "the high ledge", "what": "a ledge"}]))
+v = ruling.verdict(ws, ws.acting, rule(sense="yes", needs=[{"kind": "feature", "name": "the high ledge", "what": "a ledge"}]))
 check("consistency: a part that is gone cannot be called back", not v["ok"] and "gone" in v["answer"], v)
 
 # ---- people: made by the engine, counted per place and day; the dead stay dead
 hermit = rule(sense="yes", needs=[{"kind": "person", "name": "the hermit", "what": "an old recluse of the dry chamber", "role": "hermit"}])
-check("someone the attempt calls for may appear", ruling.verdict(ws, hermit)["ok"])
-made = ruling.make_room(ws, hermit)
+check("someone the attempt calls for may appear", ruling.verdict(ws, ws.acting, hermit)["ok"])
+made = ruling.make_room(ws, ws.acting, hermit)
 h = next((n for n in ws.present if n.role == "hermit"), None)
 check("...a real person of this place: named by the engine, kept, present, a resident, and recorded", h is not None and h.name and store.npc_exists(h.id)
       and h.id in store.load_place("tidepool_caves").residents and "the hermit" in h.label("player") and made, (made, [n.label("player") for n in ws.present]))
 check("...of the role the ruling named, described in its words", h is not None and h.role == "hermit" and "recluse" in h.description)
-wanderer = ruling.appear(ws, Ruling.model_validate({"answer": "", "sense": "yes", "needs": [{"kind": "person", "name": "a stranger", "what": "a traveller"}]},
+wanderer = ruling.appear(ws, ws.acting, Ruling.model_validate({"answer": "", "sense": "yes", "needs": [{"kind": "person", "name": "a stranger", "what": "a traveller"}]},
                                                    context={"capabilities": []}).needs[0])
 check("a person with no role that fits is a wanderer", wanderer.role == "wanderer", wanderer.role)
-check("two have appeared here today", ruling.appeared_today(ws) == 2)
-v = ruling.verdict(ws, hermit)
+check("two have appeared here today", ruling.appeared_today(ws, ws.acting) == 2)
+v = ruling.verdict(ws, ws.acting, hermit)
 check("...and a third is refused: a place does not fill with whoever is called for", not v["ok"] and v["answer"] == "Nobody comes.", v)
 store.meta.minutes += 24 * 60
-check("...the next day the count starts again", ruling.appeared_today(ws) == 0)
+check("...the next day the count starts again", ruling.appeared_today(ws, ws.acting) == 0)
 h.gone = "dead"; store.save_npc(h)
-v = ruling.verdict(ws, rule(sense="yes", needs=[{"kind": "person", "name": h.name, "what": "the hermit again"}]))
+v = ruling.verdict(ws, ws.acting, rule(sense="yes", needs=[{"kind": "person", "name": h.name, "what": "the hermit again"}]))
 check("consistency: a person who is gone does not come back when called", not v["ok"] and "gone from the world" in v["answer"], v)
 
 # ---- a plain yes is done without a roll; a cost is rolled on the ruling's check
 ruled = {"sense": "cost", "check": "athletics", "hard": "easy"}
-easy = ruling.odds(ws, "climb", ruled)
-hard = ruling.odds(ws, "climb", {**ruled, "hard": "hard"})
+easy = ruling.odds(ws, ws.acting, "climb", ruled)
+hard = ruling.odds(ws, ws.acting, "climb", {**ruled, "hard": "hard"})
 check("how hard the ruling says it is moves the odds", easy > hard, (easy, hard))
-check("an attribute is a check too", 0 < ruling.odds(ws, "climb", {"sense": "cost", "check": "strength", "hard": "fair"}) <= 100)
+check("an attribute is a check too", 0 < ruling.odds(ws, ws.acting, "climb", {"sense": "cost", "check": "strength", "hard": "fair"}) <= 100)
 stub.ruling = None
 
 check("the capabilities check clean", ruling.problems() == [], ruling.problems())

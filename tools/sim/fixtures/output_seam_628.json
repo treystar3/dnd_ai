@@ -1,0 +1,191 @@
+{
+ "events": [
+  {
+   "k": "text",
+   "pane": "main",
+   "kind": "plain",
+   "text": "A line before anything is asked.\n"
+  },
+  {
+   "k": "prompt",
+   "main": true,
+   "menu": false
+  },
+  {
+   "k": "echo",
+   "text": "look around"
+  },
+  {
+   "k": "prompt",
+   "main": true,
+   "menu": false
+  },
+  {
+   "k": "prompt",
+   "main": false,
+   "menu": false
+  },
+  {
+   "k": "echo",
+   "text": "yes"
+  },
+  {
+   "k": "prompt",
+   "main": false,
+   "menu": true
+  },
+  {
+   "k": "echo",
+   "text": "no"
+  },
+  {
+   "k": "side_begin",
+   "cmd": "#journal"
+  },
+  {
+   "k": "text",
+   "pane": "side",
+   "kind": "plain",
+   "text": "What the journal holds.\n"
+  },
+  {
+   "k": "panel",
+   "name": "shop",
+   "data": {
+    "wares": [
+     {
+      "name": "a coil of rope",
+      "price": 12
+     }
+    ]
+   }
+  },
+  {
+   "k": "side_end"
+  },
+  {
+   "k": "text",
+   "pane": "main",
+   "kind": "plain",
+   "text": "What is seen.\n"
+  },
+  {
+   "k": "text",
+   "pane": "main",
+   "kind": "speech",
+   "text": "Mind the mud.\n"
+  },
+  {
+   "k": "status",
+   "debug": false,
+   "when": "Day 3, dusk",
+   "weather": "light rain",
+   "place": "Trading Square, Parth",
+   "spot": "a quiet corner by the well",
+   "vitals": {
+    "health": [
+     40,
+     52
+    ],
+    "mana": [
+     0,
+     0
+    ],
+    "stamina": [
+     11,
+     40
+    ]
+   },
+   "level": 3,
+   "points": 2,
+   "coins": "1₲ 23Ş 45₵",
+   "xp": [
+    120,
+    400
+   ],
+   "needs": {
+    "hunger": 2
+   }
+  },
+  {
+   "k": "busy",
+   "on": true,
+   "text": "People go about their day."
+  },
+  {
+   "k": "busy",
+   "on": false,
+   "text": ""
+  },
+  {
+   "k": "busy",
+   "on": true,
+   "text": ""
+  },
+  {
+   "k": "busy",
+   "on": false,
+   "text": ""
+  },
+  {
+   "k": "setup_progress",
+   "frac": 0.5,
+   "text": "Waking the model"
+  },
+  {
+   "k": "home",
+   "data": {
+    "saves": [
+     {
+      "name": "Vessa",
+      "level": 3
+     }
+    ]
+   }
+  },
+  {
+   "k": "home_end"
+  },
+  {
+   "k": "creation",
+   "data": {
+    "step": "name",
+    "ask": "What are you called?"
+   }
+  },
+  {
+   "k": "creation_end"
+  },
+  {
+   "k": "combat",
+   "data": {
+    "round": 1,
+    "foes": [
+     {
+      "name": "grey wolf",
+      "hp": 9
+     }
+    ]
+   }
+  },
+  {
+   "k": "combat_end"
+  }
+ ],
+ "returned": {
+  "ask, main, the pinned view first": "#character",
+  "ask, main": "look around",
+  "ask, main, the pinned view again after a line": "#character",
+  "ask, main, a view": "#journal",
+  "ask, a question": "yes",
+  "ask, a question the main menu may leave": "no",
+  "panel, in the side pane": true,
+  "panel, outside the side pane": false,
+  "home": true,
+  "creation": true,
+  "combat_state": true,
+  "combat_state, over": true,
+  "damage_tags": true,
+  "WIDTH": 2000
+ }
+}
