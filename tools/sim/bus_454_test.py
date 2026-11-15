@@ -91,7 +91,7 @@ try:
 except RuntimeError:
     check("a raising subscriber is not hidden", True)
 off()
-loose = PartyService(wb.player, lambda: wb.minutes, wb.store.meta.seed)
+loose = PartyService(wb.actor, lambda: wb.minutes, wb.store.meta.seed)
 check("a service given no bus publishes on the current one", loose._bus is None and loose._publish(de.PartyModeChanged(minute=1, mode="follow")) is bus_b.recent[-1])
 check("nothing was dropped while a campaign was open", idle.dropped == 1)
 b.close()

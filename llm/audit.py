@@ -106,9 +106,11 @@ def _record(task: str, attempt: int, elapsed: float, messages: list[dict], raw: 
             _turn_written = _turn
         why = A["tasks"].get(task, "")
         verdict = "accepted" if error is None else f"rejected - {error}"
-        from engine import operation as _op
+        from engine import actor, operation as _op
         op = _op.current()
         where = f" · operation {op.id} ({op.kind})" if op is not None else " · outside any operation"      # (f471) the key to the turn log's ops
+        who = actor.who()
+        where += f" · actor {who}" if who else " · no actor"                                               # (f629) who it was made for
         lines.append(f"\n## #{_count} · {task} · attempt {attempt + 1} · {elapsed:.1f}s" + (f" · {model}" if model else "") + where)
         lines.append(f"**Why:** {why or task}  ")
         lines.append(f"**Verdict:** {verdict}\n")

@@ -570,7 +570,8 @@ class CampaignStore:
         if first_of_line:
             self.save_meta()
         pres = self._kv("presentation") or {}
-        pres[op.id] = {"lines": list(op.lines), "steps": op.steps, "kind": op.kind, "calls": op.presentation()}   # (f467) the calls, to make again
+        pres[op.id] = {"lines": list(op.lines), "steps": op.steps, "kind": op.kind, "calls": op.presentation(),   # (f467) the calls, to make again
+                       "actor": op.actor}                                                                          # (f629) and whose page they are for
         self._put("presentation", json.dumps(pres, ensure_ascii=False))
         return entry
 

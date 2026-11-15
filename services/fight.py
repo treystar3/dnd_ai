@@ -180,15 +180,30 @@ class Captive:
 
 
 class FightService:
-    def __init__(self, store, bus, party, dice, player, world, now: Callable[[], int], characters: list | None = None):
+    def __init__(self, store, bus, party, dice, actor, world, now: Callable[[], int], characters: list | None = None):
         self.store = store
         self._bus = bus                      # the session's bus; the current one when none is given
         self.party = party                   # PartyService: a hire going down is its decision (decide_down)
         self.dice = dice                     # the fight's stream (streams.get("combat")), reseeded at every input
-        self.player = player
+        self.actor = actor                   # (f632) who fights (engine/actor.py): their record is read when it is asked for
         self.world = world                   # read for the bestiary
         self.now = now                       # the game's minute
-        self.characters = list(characters) if characters else ([player.character] if player is not None else [])   # (f508) who fights as a player: one today, several in shape
+        self.given = list(characters) if characters else None   # (f508) who fights as a player, when the caller or the fight's spec says
+
+    @property
+    def player(self):
+        return self.actor.player
+
+    @property
+    def characters(self) -> list:
+        """(f508) Who fights as a player: one today (the actor's own character), several in shape."""
+        if self.given is not None:
+            return self.given
+        return [self.player.character] if self.player is not None else []
+
+    @characters.setter
+    def characters(self, who: list) -> None:
+        self.given = who
 
     def cast(self, fight: combat.Combat) -> list:
         """(f508) Each player fighter with its character, in order: the first is the player's own, id "player"; the rest bear their

@@ -18,6 +18,7 @@ from pathlib import Path
 
 import yaml
 from core import yamlio
+from engine import actor as _actor
 from engine import streams
 
 _B = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8"))
@@ -41,10 +42,12 @@ class Operation:
     crashed: bool = False           # (f466) ...and which of the two
     thread: int | None = field(default=None, repr=False, compare=False)   # (f520) the thread that opened it, which it belongs to
     void: bool = False              # (f470) nothing took the line inside it: ended without a record, nothing written, nothing shown
+    actor: str = ""                 # (f629) the character whose entry opened it (engine/actor.py who); "" when none was bound
 
     def record(self) -> dict:
         """What the save keeps of it: no lines (they are the presentation entry's) and no state (a record is a commit)."""
-        return {"id": self.id, "kind": self.kind, "steps": self.steps, "index": self.index, "text": self.text, "rows": list(self.rows)}
+        return {"id": self.id, "kind": self.kind, "steps": self.steps, "index": self.index, "text": self.text, "rows": list(self.rows),
+                "actor": self.actor}
 
     def presentation(self) -> list:
         """(f467) What it holds, as the calls the next load can make again through the installed bindings (scenes/world.py
@@ -98,7 +101,7 @@ def begin(kind: str, steps: int, index: int, revision_seen: int, text: str = "",
     global CURRENT
     if CURRENT is not None:
         raise RuntimeError(f"an operation is already open: {CURRENT.kind} {CURRENT.id}")
-    CURRENT = Operation(op_id or streams.new_id(ID_DIGITS, stream="ops"), kind, steps, index, revision_seen, text)
+    CURRENT = Operation(op_id or streams.new_id(ID_DIGITS, stream="ops"), kind, steps, index, revision_seen, text, actor=_actor.who())
     CURRENT.thread = threading.get_ident()          # (f520) the thread that opened it, the one it belongs to
     return CURRENT
 

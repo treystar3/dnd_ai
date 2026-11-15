@@ -3,7 +3,7 @@
 Written 2026-11-14 against `main` at 84fc7cd (f627, with the prose branch merged). Approved by the owner the same day ("Approve as
 recommended"), with the recommendations of section 7 taken.
 
-**Built so far:** f628 and f630. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
+**Built so far:** f628, f630, f631, f632 and f629. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
 "Yes, move it"), because three of its logs are written where there is no scene to ask who acted (see f629 below).
 
 This is not a new design. Two designs the owner has already taken stand behind it:
@@ -42,7 +42,7 @@ Each of these changes what a feature below must do. None overturns the design.
 
 1. **The file name is taken.** engine/context.py is the prompt's scene records, an unrelated module. The contexts go in a new
    module, engine/actor.py.
-2. **The rolled-back names are 36, not 5.** `WorldScene.ROLLED` (scenes/world.py:1130) has grown with the fight, the camp, the
+2. **The rolled-back names are 35, not 5.** `WorldScene.ROLLED` (scenes/world.py:1130) has grown with the fight, the camp, the
    lessons and phase 2. Twenty-two of them are never set in `__init__` and exist only once written; the rollback depends on
    "absent means remove".
 3. **A line resets twelve fields, not nine.** `begin_line` (scenes/world.py:1148) also resets `line_from`, `line_log` and
@@ -78,7 +78,7 @@ Each feature has its test first, replays the three goldens exactly unless it say
 ### A. No turn code (can start at once)
 
 **f628: the pins, widened (tests only).**
-- All 36 rolled-back names, the twelve line fields and the swept caches are read through `getattr` around a failed operation, an
+- All 35 rolled-back names, the twelve line fields and the swept caches are read through `getattr` around a failed operation, an
   asked stand-down and a line whose second operation fails. A name never set stays absent after a rollback.
 - tools/sim/scene_rollback_465_test.py reads `ws.__dict__` and would pass blind for a moved field: it reads through `getattr`.
 - A pin of what every output function sends that is not text (the line asked for, the panes, the status block, the busy light,
@@ -102,7 +102,7 @@ what it did.
 - What f628 found of today's behaviour, which the table has to say: a failed operation puts `pending` back to what it found by
   its own hand (it is not kept as set), writes `halted` and `last_failure` itself, and leaves `last_budget`, `broken`,
   `last_text`, `crash_after_commit` and `recovered_at_load` as they stand.
-- **Every one of the 36 rolled-back names is declared** as the turn's, the actor's view or the scene's, in a table a test holds,
+- **Every one of the 35 rolled-back names is declared** as the turn's, the actor's view or the scene's, in a table a test holds,
   whether or not it moves now. Only the turn's move. This is the list M1's split of the scene starts from.
 - The four scene fields no list holds today (`broken`, `last_text`, `crash_after_commit`, `recovered_at_load`) are declared too.
 - Proof: f628's pins unchanged. Each golden holds a call that fails every try, so the rollback over the moved fields is replayed.
@@ -115,6 +115,19 @@ process's own dice and screen answer, as today.
 - A count of `self.player` per directory (scenes 1,031, services 61) that only falls.
 - Proof: two stub campaigns taken in turn on one thread each see their own actor; after each rebind the acting id is the new
   one; the clock follows a reload and an asked restore.
+- As built (tools/sim/actor_632_test.py): the count by the test's own search is scenes 1,087 and services 63. The bound actor
+  and its dice are kept for each thread, so a thread no entry runs on reads the process's default; a channel of the actor's
+  own is not: it takes the console's text for the whole process (ui/console.py `use`) until f635, and no actor has one yet. An entry run inside another binds nothing
+  again, so a channel put over the actor's in between (an operation's held lines, a tap) keeps the text. A start's time goes
+  through the clock too, so the day it saves is the day of its minute, where it was left at the first day until time next passed.
+- **Where the process's default is reached today** (risk 2; each is a place M1 has to give an actor or refuse story output):
+  main.py before and after `scene.run()`, the game's one way into a scene (the home page, loading and migrating a save, creation,
+  the session's open and close, which reset the dice); the threads no entry runs on (the people written behind the scenes in
+  npc/backfill.py, the model's loader and spawner in llm/launch.py and llm/runtime.py, the window's server in ui/gui/server.py);
+  and a test or a tool that calls a scene's method other than the five entries and the pulse.
+- Left for later features: a stream of the dice kept on an object (the scene's `rng`, the fight's; the list is
+  tools/sim/stream_object_581_test.py's KEPT) is still the process's, so an actor with dice of its own answers the dice
+  module's functions only until those holders ask the actor. The output seam beyond the console's `print` is f635's.
 
 **f629: the operation and every log row name who acted** (moved here from section A). `Operation` gains `actor`, written by
 its record, the presentation entry and the recorder's input row; the turn log, the call log, the refusals, the audit and the
@@ -122,6 +135,13 @@ crash log gain it too. The call log, the gateway's refusals and the crash log ar
 every one of them reads who acted from the actor f632 binds, the one source. A row without one reads as the save's one
 character. No recording moves: the replay compares id, kind and rows, and both kept rows are outside the state digest. The
 fields first appear in the goldens at f640. The lines of f628's log pin that say "no actor yet" are the ones this changes.
+- As built (tools/sim/who_acted_629_test.py, on a character whose id is not the usual one): the one source is
+  `actor.who()`, the bound actor's character, and it is "" when none is bound. So a row written outside every entry or on a
+  thread beside the turn names no one: a call the people written behind the scenes make, a fault while the game loads, a
+  harness's own step. The crash log leaves an empty name out, as it leaves out everything empty; the audit says "no actor".
+  The recorder's turn rows are unchanged (an operation there is still its id, kind and rows), so no recording moves. A fresh
+  recording's input rows carry the name and the three kept ones do not until f640: tools/sim/layers_517_test.py, which
+  compares the two line for line, sets the name aside on a row whose kept one has none, and compares whole once it has.
 
 **f633: the turn's registers, one owner, and no state without a home.** The operation's, the ledger's, the budget's, the turn
 log's and the asked call's module state go onto one `Registers` object the context points at (one for the process while there is
@@ -204,7 +224,7 @@ Where a build finds one of these features wrong in a way that changes its shape,
 ## 5. Risks
 
 1. **A field drops out of the rollback without a sound.** The guard is f628's pins, written on today's code and unchanged through
-   f631, and the table that declares all 36 names.
+   f631, and the table that declares all 35 names.
 2. **A missing bind hides while there is one actor.** Everything shares the process's default, so code outside an entry works
    today and would reach the wrong player in M1. M1 must turn the default into an error for story output; f632 lists where it
    is reached.
@@ -215,7 +235,7 @@ Where a build finds one of these features wrong in a way that changes its shape,
 5. **Two unused implementations drift** if other work lands between f637 and f640. They are built close together.
 6. **f639 clouds the proof of f640** if the two are read together. They are read apart: the storage move on the old recordings
    first, then the dice step.
-7. **The actor's view is not split here.** Thirty of the 36 rolled-back names stay on the scene. That is M1's work; this phase
+7. **The actor's view is not split here.** Twenty-nine of the 35 rolled-back names stay on the scene. That is M1's work; this phase
    only declares which is which.
 
 ## 6. Not in this plan

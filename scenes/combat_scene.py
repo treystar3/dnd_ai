@@ -16,7 +16,7 @@ from llm.gateway import LLMError, generate
 from scenes import combat_prompts as cp
 from scenes.voice import fresh
 from ui import console
-from engine import asked, streams
+from engine import actor, asked, streams
 from services.fight import FightService, FightSpec, RoundIntent, ROLE_PROFILES, _Shape, whose_blow   # (f503) the fight's mechanics; the
 #                                                                             helpers kept importable from here (party_actions, tests)  # noqa
 
@@ -120,11 +120,12 @@ def place_figures(text: str, hits: list[dict], window: bool, story: list[str] = 
 
 def service_of(ws, dice=None) -> FightService:
     """(f503) The fight service over this scene's campaign: its store, its session's bus, its party service, the fight's stream (the
-    scene's own die when it has one, so a test that steers sc.rng steers the service), the player's record, the world and the clock.
-    Built per use, over the records as they stand now (a rollback reloads the player)."""
+    scene's own die when it has one, so a test that steers sc.rng steers the service), the scene's actor, the world and the clock.
+    (f632) It reads the actor's record when it asks, so one kept across a rollback's reload is not left on the old record."""
     session = getattr(ws, "session", None)
+    held = getattr(ws, "actor", None) or actor.ActorContext(player=getattr(ws, "player", None))   # a stand-in scene: its record as given
     return FightService(getattr(ws, "store", None), session.bus if session is not None else None, getattr(ws, "party_service", None),
-                        dice or streams.get("combat"), getattr(ws, "player", None), getattr(ws, "world", None), lambda: ws.minutes)
+                        dice or streams.get("combat"), held, getattr(ws, "world", None), lambda: ws.minutes)
 
 
 def read_effect(words: str) -> str:

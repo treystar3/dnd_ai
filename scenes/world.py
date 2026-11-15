@@ -86,6 +86,7 @@ UNPAID = re.compile(r"\b(without pay(ing)?|for free|no fee|steal|snatch|forge|by
 PAST = re.compile(r"\b(paid|gave|yesterday|last (week|night|time)|already|before)\b")                        # "the 2 silver I paid you" is no offer
 from engine.actions import TIME_COST                 # how long each kind of action takes: declared with the action (engine/actions.py)
 from engine import streams
+from engine import actor                                    # (f631, f632) the scene's actor and the turn's context
 SEARCH = encounters.E
 
 
@@ -165,7 +166,17 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """(f480) The id of the character whose line is being played. What a person makes of "the player" is what they make of this
         character (engine/regard.py): the one place the scene says which character that is (one today; tools/sim/regard_480_test.py
         names the call sites that read it)."""
-        return self.player.character.id
+        return actor.actor_of(self).character_id
+
+    @property
+    def player(self):
+        """(f632) The acting character's record: the actor's (engine/actor.py), so a record put in its place here is the one the
+        party's service and the fight's read next."""
+        return actor.actor_of(self).player
+
+    @player.setter
+    def player(self, record) -> None:
+        actor.actor_of(self).player = record
 
     def player_of(self, actor_id: str):
         """(f630) The record of a character in this scene, by id: where they stand, their sheet, their party. Code handed an id asks
@@ -189,9 +200,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     @property
     def party_service(self):
-        """The party's mechanics (services/party.py), always over the player's current record (which a rollback reloads)."""
+        """The party's mechanics (services/party.py), over the actor's record as it stands when asked (a rollback reloads it)."""
         from services.party import PartyService
-        return PartyService(self.player, lambda: self.minutes, self.store.meta.seed, bus=self.session.bus)   # (f454)
+        return PartyService(self.actor, lambda: self.minutes, self.store.meta.seed, bus=self.session.bus)   # (f454)
 
     @property
     def place(self):
@@ -199,7 +210,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     @property
     def minutes(self) -> int:
-        return self.store.meta.minutes
+        return actor.actor_of(self).clock.minutes
 
     def time_label(self) -> str:
         light = " (dark)" if clock.is_dark(self.minutes) else ""
@@ -483,7 +494,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def advance(self, minutes: int, exert: bool = False, wait: str = "") -> None:
         """Time passes. exert: travelling, working or fighting. wait: 'rest' or 'sleep' - health comes back, and a sleep clears fatigue."""
         before = clock.period(self.minutes)
-        self.store.meta.minutes += minutes
+        self.actor.clock.advance(minutes)                  # (f632) the minute and the day: the clock is their one writer
         c = self.player.character
         was = needs.marks(c)
         needs.tick(c, minutes, exertion=exert, sleeping=wait == "sleep", resting=wait == "rest")
@@ -491,7 +502,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.time_note(line)
         rest = needs.N["rest_heal_per_hour"]["safe" if self.safe_to_rest() else "rough"] if wait else 0.0
         pools.recover(c, minutes, conditions=self.conditions(), rest=rest)
-        self.store.meta.day = clock.day(self.minutes)
         self.refresh_present()
         if self.partner and self.partner not in self.present:
             self.time_note(f"{self.partner.label(self.acting)} heads off for the day.")
@@ -650,6 +660,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.residents = [n for n in (self.store.load_npc(i) for i in here.residents) if not n.gone]
             self.refresh_present()
 
+    @actor.bound
     def run_pulse(self) -> None:
         """Let the world move on, then see who is still here. (f466) The pulse may write the player through the save (engine/pulse.py
         remove_npc ties off the quests and commissions of someone gone); when it has, the scene takes the saved player before the drift is
@@ -904,6 +915,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 for p in sorted(s.get("paused", ()))]
         return out
 
+    @actor.bound
     def open_world(self) -> None:
         """(f466) What the world owes the save as the game opens (the discoveries, homes, the road's place, the dungeons and the field's
         uses kept whole, and the pulse up to now), as one world operation, world:open, under the "#start" dice (f439). Its id is drawn
@@ -968,6 +980,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.__dict__["_recovered_unreported"] = len(ids)
         return True
 
+    @actor.bound
     def run(self) -> None:
         self.open_world()
         recovered = self.recover_unshown()                                  # (f467) first: what stood before the game last closed, never shown
@@ -1153,12 +1166,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def begin_line(self) -> None:
         """(f463) A line begins: nothing of the last one's operations is kept, and the write fence is armed for its life."""
-        self.last_crash = False
-        self.line_ops, self.line_failed, self.line_done, self.line_world_failed = [], [], [], []
-        self.passages, self.line_untold, self.unshown_ops, self.collecting = [], [], {}, False
-        self.line_from, self.line_losses = self.player.location, 0      # (f583) where the line began, and no death yet, for the pools
-        tail = self.store.journal_tail(1)
-        self.line_log = tail[-1]["seq"] if tail else 0
+        tail = self.store.journal_tail(1)                  # (f631) the line's fields start fresh on the turn's context (engine/actor.py)
+        actor.turn_of(self).begin_line(line_from=self.player.location, line_log=tail[-1]["seq"] if tail else 0)
         self.store.arm(True)
 
     @contextmanager
@@ -1612,6 +1621,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         whether it was the game's own fault (logs/crash.log) or the model's."""
         return [{"kind": o.kind, "error": o.failure, "crash": o.crashed} for o in self.line_world_failed]
 
+    @actor.bound
     def turn(self, text: str):
         """(f463) One typed line, as operations: the understanding and the first action (or the whole of an intercepted line, an answer, a
         fight's round) first, then each later step of the plan, then its passage (f464), then (f466) the world's own operations, apart:
@@ -1753,8 +1763,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         ran = ", ".join(getattr(self, "ran", []) or []) or "nothing"
         console.note("Nothing comes of that here. Try it another way, or say plainly what you want to happen.")   # (f391) in the world's words
         refusals.note("silent", text, f"the turn showed nothing; actions run: {ran}", self.player.location, self.store.meta.turn)
-
-    step = None                                      # (f416) the plan's step being done, while one is
 
     def refuse(self, say: str, needed_by_rest: bool | None = None) -> None:
         """(f416) The game says no to a step. The player reads why; the turn's record keeps what did not happen, so the passage that tells
@@ -2134,6 +2142,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         elif self.pending_clarify is not None:
             self.store.clear_question()
 
+    @actor.bound
     def handle(self, text: str) -> None:
         """The whole of a line, in one piece and with no operation around it (the tests' way in; the game's is turn(), f463)."""
         plan = self.read_line(text)
@@ -2238,7 +2247,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 console.debug(f"no such action kind: {intent.kind}")
                 self.halted = True
                 return
-            self.__dict__.setdefault("ran", []).append(intent.kind)
+            actor.turn_of(self).add("ran", intent.kind)
             refused_before = sum(1 for r in ledger.ROWS if r.get("kind") == "refused")
             getattr(self, f"on_{intent.kind}")(intent, text)
             if self.player.road:                       # (f427) a hand for someone in need at a stop, or a way past what blocks it
@@ -2553,6 +2562,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     FIGHT_LOCKED = ("goto", "goroad", "maproad", "mapgo", "shopbuy", "shopsell", "boardaccept", "boardabandon", "boardrequest", "boardjoin", "boardhire")
 
+    @actor.bound
     def command(self, text: str) -> None:
         name = text[1:].strip().lower()
         if self.combat and name.split()[0] in self.FIGHT_LOCKED:      # a pane button cannot walk, shop or sign up in the middle of a fight
@@ -3030,7 +3040,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         read = generate("interpret_action", wp.INTERPRET_SYSTEM, req, ActionPlan, temperature=0.2, max_tokens=700)
         actions = read.actions
         self.dropped_steps = [(a.summary or a.kind).strip() for a in read.dropped]        # (f332) a fourth thing and beyond: told to the player, not lost
-        self.__dict__.setdefault("interpret_calls", []).append({          # the call in full, for the turn log and a lossless replay case
+        actor.turn_of(self).add("interpret_calls", {         # the call in full, for the turn log and a lossless replay case
             "hint": hint, "place": self.player.location, "place_name": self.place.name,
             "roles": {p.id: p.role for p in _sc.present_people() if p.kind == "npc"},
             "partner": self.partner.id if self.partner else "", "last_spoken": last or "",
@@ -4171,3 +4181,4 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 from scenes import intercepts as _intercepts                                     # noqa: E402
 WorldScene.INTERCEPT_TABLE = _intercepts.gather(WorldScene)                     # declared by the mixins, run in order by handle()
 WorldScene.REPAIR_TABLE = plan_repairs.gather(WorldScene)                        # the plan repairs, declared the same way, run in order by repair()
+actor.install(WorldScene)                                                        # (f631) its names for the fields of the turn's context

@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import config
+from engine import actor
 
 ROOT = Path(__file__).resolve().parent.parent
 SEP = "\n" + "-" * 78 + "\n"
@@ -28,6 +29,7 @@ def path() -> Path:
 def record(exc: BaseException, where: str, **context) -> dict:
     """Write one fault: when, where in the game, what the player had typed and where they stood, the exception and its traceback.
     Returns the entry (also kept in SESSION). Never raises: a log that cannot be written must not become a second fault."""
+    context = {"actor": actor.who(), **context}            # (f629) who acted, when someone did: the bound actor
     entry = {"time": datetime.now(timezone.utc).isoformat(timespec="seconds"), "where": where,
              "error": f"{type(exc).__name__}: {exc}"[:300], **{k: v for k, v in context.items() if v not in (None, "")}}
     SESSION.append(entry)
