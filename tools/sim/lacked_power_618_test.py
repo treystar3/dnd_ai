@@ -143,7 +143,7 @@ ws.narrate, checks.roll, ruling.odds = real_narrate, real_roll, real_odds
 import ui.console as uc
 shown = []
 for fn in ("note", "ledger"):
-    setattr(uc, fn, lambda *a, _fn=fn, **k: shown.append((_fn, str(a[0]) if a else "")))
+    uc.put(fn, lambda *a, _fn=fn, **k: shown.append((_fn, str(a[0]) if a else "")))
 hz = {"tier": "normal", "what": "A drowned stretch of the road, black water over the stones.", "behind": "parth"}
 def road(d):
     stub.ruling = d

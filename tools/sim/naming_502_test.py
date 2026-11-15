@@ -27,9 +27,9 @@ NAME = "naming_502"
 game = simlib.campaign(NAME, cls="warrior", seed=3, location="south_fields")
 ws, store = game.scene, game.store
 ws.enter("south_fields")
-console.combat_state = lambda data: (SHOWN.append(("pane", "")), False)[1]
-console.combat_panel = lambda lines: None
-console.legendary_reveal = lambda item: SHOWN.append(("reveal", item.name))
+console.put("combat_state", lambda data: (SHOWN.append(("pane", "")), False)[1])
+console.put("combat_panel", lambda lines: None)
+console.put("legendary_reveal", lambda item: SHOWN.append(("reveal", item.name)))
 LOG, FAIL, REQ = [], {"titles": set()}, []
 real = simlib.below()                                           # (f518) the stub's own answer, taken before the spy goes in over it
 
@@ -147,9 +147,9 @@ new = [i for i in ws.pack if i.uid not in pack0]
 check("...reopened, the pack holds both finds under the engine's own names, the legendary's name in the taken list",
       len(new) >= 2 and any(i.name.startswith("Rare ") for i in new) and any(i.rarity == "legendary" and i.title.startswith("the ") and "of awakened shrub" in i.title for i in new)
       and all(i.name in store.legendary_names() for i in new if i.rarity == "legendary"), [(i.rarity, i.name, i.title) for i in new])
-console.combat_state = lambda data: (SHOWN.append(("pane", "")), False)[1]
-console.combat_panel = lambda lines: None
-console.legendary_reveal = lambda item: SHOWN.append(("reveal", item.name))
+console.put("combat_state", lambda data: (SHOWN.append(("pane", "")), False)[1])
+console.put("combat_panel", lambda lines: None)
+console.put("legendary_reveal", lambda item: SHOWN.append(("reveal", item.name)))
 store.commit_operation = lambda op, *a, **k: (SHOWN.append(("commit", op.kind)), store.__class__.commit_operation(store, op, *a, **k))[1]
 
 # ---- a naming whose call fails every try leaves the engine's name and the item kept, its Found line showing that name

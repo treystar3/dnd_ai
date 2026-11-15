@@ -9,7 +9,7 @@ stub = simlib.Stub("warrior", 3)
 simlib.install(stub)
 import config
 import ui.console as uc
-uc.note = lambda m, *a, **k: None; uc.narrate = lambda t: None; uc.say = lambda *a, **k: None
+uc.put("note", lambda m, *a, **k: None); uc.put("narrate", lambda t: None); uc.put("say", lambda *a, **k: None)
 from storage import migrations, invariants
 from storage.campaign import CampaignStore, PlayerState, PlaceState, SaveTooNew
 from llm.gateway import LLMError

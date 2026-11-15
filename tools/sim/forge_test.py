@@ -5,10 +5,10 @@ import simlib
 simlib.install(simlib.Stub("mage", 5))
 import ui.console as uc
 NOTES, ANSWERS = [], []
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 def no_ask(*a, **k):
     raise AssertionError("the world asked in the middle of a turn (f460: a question ends the turn; the next line answers it)")
-uc.ask = no_ask
+uc.put("ask", no_ask)
 from engine import abilities, combat, forge, items, loot, field
 from llm.contracts import ActionIntent, ActiveProposal
 from npc.traits import load_traits

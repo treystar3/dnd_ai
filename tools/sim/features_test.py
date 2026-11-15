@@ -15,9 +15,9 @@ spy = simlib.stand_in(chat=chat)
 import ui.console as uc
 NOTES = []
 for f in ("narrate", "say", "npc_says", "dialogue"):
-    setattr(uc, f, lambda *a, **k: None)
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
-uc.ledger = lambda m, *a, **k: NOTES.append(str(m))
+    uc.put(f, lambda *a, **k: None)
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
+uc.put("ledger", lambda m, *a, **k: NOTES.append(str(m)))
 from engine import features, ledger
 from llm.contracts import ActionIntent
 from npc.traits import load_traits

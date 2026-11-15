@@ -70,7 +70,7 @@ class Bench:
         from storage.campaign import PlayerState
         import ui.console as uc
         self.notes: list[str] = []
-        uc.note = lambda m, *a, **k: self.notes.append(str(m))
+        uc.put("note", lambda m, *a, **k: self.notes.append(str(m)))
         shutil.rmtree(f"saves/{save}", ignore_errors=True)
         self.session = CampaignSession.open(save)                           # (f457) the campaign's session, as main.py opens it
         self.store, self.world = self.session.store, self.session.world
@@ -92,7 +92,7 @@ class Bench:
         ws.run_checks = lambda intent, text: False
         ws.on_move = lambda intent, text: (self.moves.append(intent.destination), self.ran.append(("move", intent)))
         ws.leave_by = lambda gp, text: self.moves.append(gp["members"][0]["to"])       # a way out is recorded as where it leads, not travelled
-        uc.ask = lambda *a, **k: ""                                                     # nothing in a case may stop to ask the player
+        uc.put("ask", lambda *a, **k: "")                                                     # nothing in a case may stop to ask the player
         ws.mentor_talk = lambda t: self.talked.append(t)
         ws.hire_talk = lambda m, t: self.hire.append((m["name"], t))
         quirk_actions.quirks.errand_text = lambda *a, **k: "x"

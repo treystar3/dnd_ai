@@ -39,7 +39,7 @@ ws.player.mentor["never"] = True                       # Maren's tutorial would 
 ws.enter("trading_square")
 store.save_world_state(pulse.empty_state(ws.minutes))
 notes, narrated = [], []
-console.note = lambda t, *a, **k: notes.append(t)
+console.put("note", lambda t, *a, **k: notes.append(t))
 ws._narrate_now = lambda event, player_text="": narrated.append(event)
 
 # ---- the scene tells the player

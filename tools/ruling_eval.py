@@ -224,7 +224,7 @@ class Bench:
         import config
         import ui.console as uc
         for f in ("narrate", "say", "npc_says", "dialogue", "ledger", "note"):
-            setattr(uc, f, lambda *a, **k: None)
+            uc.put(f, lambda *a, **k: None)
         config.AUDIT_ENABLED = False
         config.REFUSALS_LOG = False
         from engine.session import CampaignSession

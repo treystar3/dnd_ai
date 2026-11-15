@@ -273,6 +273,7 @@ THREAD_SITES = {
     "engine.actor:Registers.mine": "...and asked of every call: off that thread there is no turn",
     "engine.actor:<module>": "the actor bound on this thread (a context variable: each thread has its own)",
     "engine.streams:<module>": "the set of dice that answers on this thread (a context variable)",
+    "ui.console:<module>": "(f635) the channel in use on this thread (a context variable); a thread with none has the process's",
     "engine.recording:Recorder.install.ask": "the thread asking for the next line, while it asks",
     "engine.recording:Recorder._layer": "...a call that thread makes meanwhile, or a closed session's thread makes, is passed through unrecorded",
     "llm.backend:<module>": "the lane and the task of the call being made on this thread (thread-locals, put back as the call returns)",

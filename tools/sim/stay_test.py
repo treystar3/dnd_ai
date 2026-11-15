@@ -22,8 +22,8 @@ store = CampaignStore.open_or_create("stay_test"); store.meta.seed = 3; store.sa
 char, _ = simlib.make_character("warrior", random.Random(2))
 store.save_player(PlayerState(character=char, location="parth"))
 told = []
-console.narrate = lambda text: told.append(text)
-console.note = lambda text: None
+console.put("narrate", lambda text: told.append(text))
+console.put("note", lambda text: None)
 ws = WorldScene(store, world, load_traits(), store.load_player()); ws.player.mentor["never"] = True
 ws.enter("tilted_plough")
 rng = random.Random(1)

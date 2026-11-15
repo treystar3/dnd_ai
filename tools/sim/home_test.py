@@ -94,13 +94,13 @@ check("with nothing to continue, Enter begins a new game, and with nothing saved
 # choose(): a delete asked in the terminal, refused, then accepted, then a load
 answers = ["l", "d1", "n", "d1", "y", "1"]
 notes, menus = [], []
-real_ask, real_note, real_out = console.ask, console.note, console.out
-console.ask = lambda main=False: answers.pop(0)
-console.note = lambda m, *a, **k: notes.append(str(m))
-console.out = lambda t="": menus.append(str(t))
+real_ask, real_note, real_out = console.now("ask"), console.now("note"), console.now("out")
+console.put("ask", lambda main=False: answers.pop(0))
+console.put("note", lambda m, *a, **k: notes.append(str(m)))
+console.put("out", lambda t="": menus.append(str(t)))
 first = home.page(world)["saves"][0]["name"]
 kind, name_ = home.choose(world)
-console.ask, console.note, console.out = real_ask, real_note, real_out
+console.put("ask", real_ask); console.put("note", real_note); console.put("out", real_out)
 check("in the terminal, a delete is asked first and 'n' keeps the game", any("Delete" in n for n in notes) and not answers, notes)
 check("...'y' moves it aside, and the page comes back", not (root / first).exists() and any("Deleted" in n for n in notes), notes)
 check("...and a number loads a game", kind == "load" and name_ != first, (kind, name_))
@@ -108,21 +108,21 @@ check("the terminal menu offers continue, load, new and quit, and Load lists the
       any("Continue as" in m for m in menus) and any("[l] Load" in m for m in menus) and any("[n] New game" in m for m in menus)
       and any("[q] Quit" in m for m in menus) and any("d and a number" in m for m in menus), menus[:8])
 shown = []
-console.out = lambda t="": shown.append(str(t))
+console.put("out", lambda t="": shown.append(str(t)))
 home._terminal_menu(data)
 lines = [m for m in shown if "[n]" in m or "[l]" in m]
 check("New game comes before Load", [("[n]" in m) for m in lines] == [True, False], lines)
 shown.clear()
 home._terminal_menu({"title": "t", "subtitle": "", "continue": None, "saves": []})
 check("with nothing saved there is no Load at all, and Enter is New game", not any("Load" in m for m in shown) and any("[Enter] New game" in m for m in shown), shown)
-console.out = real_out
+console.put("out", real_out)
 answers = ["q", "n", "q", "y"]
 notes.clear()
-console.ask = lambda main=False: answers.pop(0)
-console.note = lambda m, *a, **k: notes.append(str(m))
-console.out = lambda t="": None
+console.put("ask", lambda main=False: answers.pop(0))
+console.put("note", lambda m, *a, **k: notes.append(str(m)))
+console.put("out", lambda t="": None)
 got = home.choose(world)
-console.ask, console.note, console.out = real_ask, real_note, real_out
+console.put("ask", real_ask); console.put("note", real_note); console.put("out", real_out)
 check("Quit is asked first: 'n' stays, 'y' quits", got == ("quit", "") and not answers and sum("Quit the game?" in n for n in notes) == 2, (got, notes))
 
 # ---- 6. the window draws the page itself and never echoes the choice
@@ -144,7 +144,7 @@ make("game_play", "Mira Holt", 5); saves.touch("game_play")
 st = CampaignStore.open_or_create("game_play", saves_dir=root)
 ws = WorldScene(st, world, load_traits(), st.load_player()); ws.enter("parth")
 said = []
-console.note = lambda m, *a, **k: said.append(str(m))
+console.put("note", lambda m, *a, **k: said.append(str(m)))
 ws.command("#menu")
 check("#menu saves and asks main.py for the home page", ws.to_menu)
 ws.to_menu = False
@@ -153,7 +153,7 @@ ws.command("#menu")
 check("...but not in the middle of a fight", not ws.to_menu and any("fight" in s for s in said), said[-1:])
 ws.combat = None
 ws.command("#newgame")
-console.ask, console.note = real_ask, real_note
+console.put("ask", real_ask); console.put("note", real_note)
 check("New game is on the main menu only: in the game #newgame is no command", not ws.to_menu and "Unknown command" in said[-1], said[-1:])
 st.close()
 check("...and the game's folder is still there for the main menu", (root / "game_play" / "campaign.db").exists() and any(x["name"] == "game_play" for x in saves.list_saves()))
@@ -162,12 +162,12 @@ check("...and the game's folder is still there for the main menu", (root / "game
 import threading
 from scenes.goddess import ThresholdScene
 asked = []
-console.ask = lambda main=False, menu=False: (asked.append(menu), "#menu")[1]
-console.note = lambda m, *a, **k: said.append(str(m))
-real_say, real_narrate = console.say, console.narrate
-console.say = console.narrate = lambda *a, **k: None
+console.put("ask", lambda main=False, menu=False: (asked.append(menu), "#menu")[1])
+console.put("note", lambda m, *a, **k: said.append(str(m)))
+real_say, real_narrate = console.now("say"), console.now("narrate")
+console.put("say", lambda *a, **k: None); console.put("narrate", lambda *a, **k: None)
 made = ThresholdScene().run()
-console.ask, console.note, console.say, console.narrate = real_ask, real_note, real_say, real_narrate
+console.put("ask", real_ask); console.put("note", real_note); console.put("say", real_say); console.put("narrate", real_narrate)
 check("creation's prompt lets the window offer Main menu", asked == [True], asked)
 check("Main menu during creation leaves it with no character", made is None and "main menu" in said[-1].lower(), said[-1:])
 fresh = saves.new_name(); make(fresh, "", player=False); saves.touch(fresh)

@@ -8,10 +8,10 @@ simlib.install(stub)
 import config
 import ui.console as uc
 SAID = []
-uc.say = lambda t, s="": SAID.append((s, t))
-uc.dialogue = lambda b, s, t, a: SAID.append((s, t))          # (f325) a companion's framed words count as said under their name
-uc.narrate = lambda t: None
-uc.note = lambda m, *a, **k: None
+uc.put("say", lambda t, s="": SAID.append((s, t)))
+uc.put("dialogue", lambda b, s, t, a: SAID.append((s, t)))          # (f325) a companion's framed words count as said under their name
+uc.put("narrate", lambda t: None)
+uc.put("note", lambda m, *a, **k: None)
 from engine import mentor, banter
 from engine import party as rules
 from llm.contracts import Exchange
@@ -269,10 +269,10 @@ check("what the player said is remembered and the impression moves", any("brothe
 check("the hire's words are said under their name and kept", SAID and SAID[-1][0] == "Bram" and live[0]["said"][-1].startswith("Bandits"), SAID)
 stub.companion = lambda u: {"speech": "", "gesture": "shrugs and looks away", "remember": "", "impression": ""}
 NARR = []
-uc.narrate = lambda t: NARR.append(t)
+uc.put("narrate", lambda t: NARR.append(t))
 SAID.clear(); w.hire_talk(live[0], "Do you like me?")
 check("a hire may answer with a gesture alone", not SAID and NARR and "shrugs" in NARR[-1], NARR)
-uc.narrate = lambda t: None
+uc.put("narrate", lambda t: None)
 stub.companion = lambda u: {"speech": "Bandits took my brother too, in the same hard winter, and I have hunted them since.", "gesture": "", "remember": "", "impression": ""}
 SAID.clear(); w.hire_talk(live[0], "Tell me about your brother.")
 calls0 = stub.calls.get("CompanionReply", 0)

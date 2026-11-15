@@ -333,7 +333,7 @@ asked.begin = real_begin
 
 from ui import console
 script = ["I look around the square for anyone who needs a hand.", "quit"]
-real_ask, console.ask = console.ask, lambda *a, **k: script.pop(0) if script else "quit"
+real_ask = console.now("ask"); console.put("ask", lambda *a, **k: script.pop(0) if script else "quit")
 SHOWN.clear()
 undo = backend.use(CancelAt("interpret_action"))
 try:
@@ -343,7 +343,7 @@ except BaseException as e:
     got = e
 finally:
     undo()
-    console.ask = real_ask
+    console.put("ask", real_ask)
 check("through the game's own loop, a cancel at the understanding leaves the loop as Cancelled and shows no 'not taken' line",
       isinstance(got, Cancelled) and not any(t in lines for _, t in SHOWN) and len(crashlog.SESSION) == crashes0,
       (repr(got), [t for _, t in SHOWN if t in lines]))

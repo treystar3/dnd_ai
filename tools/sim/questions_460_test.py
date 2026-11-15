@@ -113,7 +113,7 @@ g2 = simlib.campaign("questions_460", fresh=False)
 ws2 = g2.scene
 shown = simlib.quiet_console()
 script = ["#inventory", "y", "quit"]
-console.ask = lambda *a, **k: script.pop(0) if script else "quit"
+console.put("ask", lambda *a, **k: script.pop(0) if script else "quit")
 ws2.run()
 texts = [t for k, t in shown]
 i_q = next((i for i, t in enumerate(texts) if "Discard it for good" in t), None)

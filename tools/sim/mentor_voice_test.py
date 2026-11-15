@@ -9,11 +9,11 @@ import config
 config.FREE_MENTOR = False            # these tests are about the line-by-line path; the free path has its own at the end
 import ui.console as uc
 SAID = []
-uc.say = lambda t, s="": SAID.append((s, t))
-uc.dialogue = lambda b, s, t, a: SAID.append((s, t))
-uc.npc_says = lambda s, t, g="": SAID.append((s, t))        # her words alone, once the moment has had its frame (f374)
-uc.narrate = lambda t: None
-uc.note = lambda m, *a, **k: None
+uc.put("say", lambda t, s="": SAID.append((s, t)))
+uc.put("dialogue", lambda b, s, t, a: SAID.append((s, t)))
+uc.put("npc_says", lambda s, t, g="": SAID.append((s, t)))        # her words alone, once the moment has had its frame (f374)
+uc.put("narrate", lambda t: None)
+uc.put("note", lambda m, *a, **k: None)
 from engine import mentor
 from scenes.world import WorldScene
 from storage.campaign import CampaignStore, PlayerState

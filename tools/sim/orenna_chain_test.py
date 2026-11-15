@@ -6,12 +6,12 @@ simlib.install(simlib.Stub("warrior", 5))
 import config
 import ui.console as uc
 SAID, NOTES, ANSWERS = [], [], []
-uc.say = lambda t, s="": SAID.append((s, t))
-uc.narrate = lambda t: SAID.append(("narrate", t))
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+uc.put("say", lambda t, s="": SAID.append((s, t)))
+uc.put("narrate", lambda t: SAID.append(("narrate", t)))
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 def no_ask(*a, **k):
     raise AssertionError("the world asked in the middle of a turn (f460: a question ends the turn; the next line answers it)")
-uc.ask = no_ask
+uc.put("ask", no_ask)
 def answer_all():
     """(f460) A question of the quest's ends the turn; the lines in ANSWERS are typed next, each answering the question that stands."""
     while ANSWERS and store.load_question():

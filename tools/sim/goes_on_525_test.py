@@ -29,7 +29,7 @@ import ui.console as uc
 
 SHOWN: list[str] = []
 for f in ("narrate", "say", "npc_says", "dialogue", "ledger", "wait", "note", "out"):
-    setattr(uc, f, (lambda name: lambda *a, **k: SHOWN.append(" ".join(str(x) for x in a)))(f))
+    uc.put(f, (lambda name: lambda *a, **k: SHOWN.append(" ".join(str(x) for x in a)))(f))
 
 from engine import failures, stats
 from engine.failures import DASH, MACHINERY
@@ -142,7 +142,7 @@ def create(title: str | None, overlay: bool = True):
     SHOWN.clear()
     s = ThresholdScene()
     said: dict = {}
-    uc.ask = lambda *a, **k: answer(s, said)
+    uc.put("ask", lambda *a, **k: answer(s, said))
     try:
         got = s.run()
         err = None
@@ -229,7 +229,7 @@ def opening(seed: int, fail: set, overlay: bool = True):
     def ask(*a, **k):
         reached["n"] += 1
         raise Stop()
-    uc.ask = ask
+    uc.put("ask", ask)
     SHOWN.clear()
     err = None
     try:

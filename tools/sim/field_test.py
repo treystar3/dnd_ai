@@ -7,7 +7,7 @@ STUB = simlib.Stub("mage", 5)
 simlib.install(STUB)
 import ui.console as uc
 NOTES = []
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 from core.models import Ability, UseContext
 from engine import field, dungeons, inventory as inv, items, clock
 from llm.contracts import ActionIntent

@@ -11,8 +11,8 @@ simlib.install(simlib.Stub("warrior", 3))
 import ui.console as uc
 NOTES, PAGES = [], []
 for f in ("narrate", "say", "npc_says", "dialogue", "ledger", "wait"):
-    setattr(uc, f, lambda *a, **k: None)
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+    uc.put(f, lambda *a, **k: None)
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 from pathlib import Path
 import character.creation as cc
 from core.models import Archetype, Attributes
@@ -79,8 +79,8 @@ _gp = cc.generate_passives
 cc.generate_passives = lambda i, actives, rng=None: _gp(i, actives, random.Random(2))
 SAVED = []
 cc.save_character = lambda c, path=None: (SAVED.append(c), Path("/tmp/creation_page_test.json"))[1]
-uc.creation = lambda d: (PAGES.append(d), True)[1]
-uc.creation_done = lambda: PAGES.append("done")
+uc.put("creation", lambda d: (PAGES.append(d), True)[1])
+uc.put("creation_done", lambda: PAGES.append("done"))
 answers = ["create:who " + json.dumps(dwarf), "create:name Brenna Ashforge", "create:calling a smith who fights with a hammer", "create:confirm",
            "create:picks 1 4 6", "create:picks 1 2 3"]
 def ask(main=False, menu=False):
@@ -88,7 +88,7 @@ def ask(main=False, menu=False):
         return answers.pop(0)
     body = next((p["body"] for p in reversed(PAGES) if isinstance(p, dict) and p.get("body")), None)
     return "create:stats " + json.dumps(body["suggested"]) if body else "#menu"
-uc.ask = ask
+uc.put("ask", ask)
 from scenes.goddess import ThresholdScene, Step
 scene = ThresholdScene()
 made = scene.run()
@@ -163,7 +163,7 @@ check("when her reading fails, the page says so in her own words (f527: the owne
       any(isinstance(p, dict) and (p.get("note") or "") in _her_lines and p.get("note") for p in PAGES), [p.get("note") for p in PAGES if isinstance(p, dict)])
 
 # ---- the terminal, and the menu
-uc.creation = lambda d: False
+uc.put("creation", lambda d: False)
 answers[:] = ["a towering orc man with black hair and a broken tusk", "#menu"]
 t = ThresholdScene()
 t.run()

@@ -20,7 +20,7 @@ def chat(*a, **k):
 spy = simlib.stand_in(chat=chat, embed=None)    # (f518) the spy as the model's source, over the stub
 import ui.console as uc
 for f in ("narrate", "note", "say", "npc_says", "dialogue", "ledger"):
-    setattr(uc, f, lambda *a, **k: None)
+    uc.put(f, lambda *a, **k: None)
 from engine import checks, clock, combat, combat_improv, doings
 from npc.traits import load_traits
 from scenes import combat_scene as cs

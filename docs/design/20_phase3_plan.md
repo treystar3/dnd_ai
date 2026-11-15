@@ -3,7 +3,7 @@
 Written 2026-11-14 against `main` at 84fc7cd (f627, with the prose branch merged). Approved by the owner the same day ("Approve as
 recommended"), with the recommendations of section 7 taken.
 
-**Built so far:** f628, f630, f631, f632, f629, f633 and f634. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
+**Built so far:** f628, f630, f631, f632, f629, f633, f634 and f635. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
 "Yes, move it"), because three of its logs are written where there is no scene to ask who acted (see f629 below).
 
 This is not a new design. Two designs the owner has already taken stand behind it:
@@ -211,6 +211,51 @@ recorder's wrap and the question fence wrap the channel, never the `console` mod
 would print to the first player's window.
 - Proof: f628's pin of what the bridge is sent, unchanged; console_bytes_579 unchanged; a fence that nothing assigns to a
   `console` attribute.
+
+As built:
+- `Channel` (ui/console.py) has the twelve names of the seam as methods, with the terminal's answers: `ask`, `scope`, `kind`,
+  `status_block`, `busy_text`, `panel`, `setup_progress`, `home`, `home_done`, `creation`, `creation_done`, `combat_state`.
+  The two things the window set by hand are a channel's fields: `windowed` (was `console.damage_tags`) and `width` (was
+  `console.WIDTH`); the game asks `console.windowed()` and `console.width()`.
+- The game still calls `console.note(...)`, `console.ask(...)` and the rest. Each of the 36 outputs (`console.NAMES`) asks the
+  channel in use, which answers with what was put in the output's place there, or its own method, or the function as the
+  console writes it. `console.put(name, fn)` puts a stand-in on the channel in use and `console.now(name)` reads what
+  answers, to call and to put back: a wrapper does on a channel exactly what it did on the module.
+- The window's bridge supplies `Page`, a channel whose seam is the bridge's own methods. `install` makes it the process's
+  channel (`console.install`) and `uninstall` puts back the one it found. It no longer sets a console attribute; it still
+  takes `sys.stdout`, where the page's text goes.
+- An operation's hold (scenes/world.py), the turn log's tap, the recorder and the question fence each wrap the channel in use
+  and put back what they found on that channel.
+- The channel in use is kept for each thread (`console.use`, as the dice are); a thread with none has the process's. So an
+  actor's own channel (`ActorContext.out`) takes what its turn shows and asks, on its thread only. This rests on a new thread
+  starting with an empty context, which is so on the standard build of Python; a free-threaded build starts a thread with
+  its creator's (`sys.flags.thread_inherit_context`).
+- No output is set on the console module after import: setting or deleting a name on it raises and says to use `console.put`.
+  The one name written there is the process's channel (`_process`, by `install`); it is in the table. So
+  `importlib.reload(ui.console)` raises; nothing reloads it.
+  `console.damage_tags` and `console.WIDTH` are still readable there, answered by the channel in use, so f628's pin reads
+  them as it was written.
+- 500 places assigned a console attribute, in 178 files (414 of them in 162 tests; the rest in the harnesses, the tools and
+  the two recording scripts under data/replay/scripts). All go through `console.put` and `console.now` now, rewritten from
+  the syntax tree by a script and read over; the two tests that build a child script as text were done by hand. The fence
+  (tools/sim/output_channel_635_test.py) reads every file in the repository.
+- **What differs from before, none of it reached in play.** A stand-in belongs to the channel it was put on. Before, it was on
+  the module, so it also answered under a window installed later and under a channel put in use; now it does not. The game
+  installs its window before anything else stands in, and no actor has a channel of its own yet. One test relied on it
+  (tools/sim/channel_580_test.py: the stub's stand-in for the ledger) and gives its channel the same stand-in.
+- The pins: tools/sim/output_seam_628_test.py and its kept events are untouched. tools/sim/console_bytes_579_test.py's kept
+  text is untouched; one helper in it, which set `console.print`, puts it on the channel. tools/sim/moving_parts_628_test.py's
+  two checks on the window's swaps are replaced, as that test says, by a check that every name the pin calls is the channel's.
+- The table (engine/owned.py): the console's sixteen rows are two, `ui.console._process` and `ui.console._PLAIN`; 88 rows in
+  all (12 registers, 8 caches, 68 module names in 37 modules). The new context variable is listed among the thread sites.
+- `turnlog.tap()` takes no module, and `turnlog.begin(taps=True)` replaces `begin(console)`.
+- Past this plan's text, within what it is for: the channel in use is per thread; the module refuses a write as it runs, as
+  well as by the fence; and a channel's own method answers any of the 36 outputs, not only the twelve of the seam (a field
+  that is not callable is not taken for one).
+- Run by hand: a stubbed night of ten turns with one seed on the code before and after (tools/nightrun.py --stub); the
+  transcript and the turn logs are the same. tools/rerun.py runs in the suite. The tools that need the model
+  (tools/live_check.py, acceptance.py, event_trial.py, interp_eval.py, ruling_eval.py) were not run: every output name they
+  hand the channel was checked against `console.NAMES`.
 
 **f636: a player's preferences on the actor.** `#dialogue`, `#numbers` and `#debug` flip flags on `config` today
 (scenes/world.py:2693-2699). They move to the actor; `--debug` at start sets the first actor's.

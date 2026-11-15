@@ -74,7 +74,7 @@ stub.a_Narration = narr
 console_lines = []
 for name in ("narrate", "note", "combat_panel", "combat_numbers"):
     if hasattr(console, name):
-        setattr(console, name, (lambda n: (lambda *a, **kw: console_lines.append((n, a))))(name))
+        console.put(name, (lambda n: (lambda *a, **kw: console_lines.append((n, a))))(name))
 
 # ---- the fight. The player is made hardy enough to see every beat (this tests prompts, not balance).
 ws.combat = CombatScene.begin(ws, creature, foes, "You find the one the whole valley fears:")

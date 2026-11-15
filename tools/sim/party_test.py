@@ -6,8 +6,8 @@ from ui import console as _c
 import tempfile
 out=open(os.path.join(tempfile.gettempdir(),"party.out"),"w")   # (f573) /tmp is not a folder on every machine
 def w(*a): out.write(" ".join(str(x) for x in a)+"\n"); out.flush()
-notes=[]; _o=_c.note
-_c.note=lambda t,*a,**k:(notes.append(t),_o(t,*a,**k))[1]
+notes=[]; _o=_c.now("note")
+_c.put("note", lambda t,*a,**k:(notes.append(t),_o(t,*a,**k))[1])
 b=simbot.Bot(); ws=b.ws; c=ws.player.character
 c.level=20; c.coins=50000; ws.player.guild_rank="D"
 m=1440*30

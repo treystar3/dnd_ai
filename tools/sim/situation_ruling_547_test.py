@@ -16,7 +16,7 @@ stub = simlib.Stub("warrior", 3)
 simlib.install(stub)
 import ui.console as uc
 for fn in ("note", "narrate", "say", "npc_says", "dialogue", "ledger"):
-    setattr(uc, fn, lambda *a, **k: None)
+    uc.put(fn, lambda *a, **k: None)
 import copy
 from engine import deeds, events, memory, pulse, regard, retrieval, roads, situation_parts, situations, towns
 from llm.contracts import SituationParts

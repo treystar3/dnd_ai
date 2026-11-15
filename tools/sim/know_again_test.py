@@ -20,7 +20,7 @@ def chat(*a, **k):
 SPY = simlib.stand_in(chat=chat, embed=None)
 import ui.console as uc
 for f in ("narrate", "note", "say", "npc_says", "dialogue", "ledger"):
-    setattr(uc, f, lambda *a, **k: None)
+    uc.put(f, lambda *a, **k: None)
 from pydantic import ValidationError
 from engine import banter, mentor, quests, recognition
 from llm.contracts import CompanionReply, Exchange

@@ -22,9 +22,9 @@ shutil.rmtree("saves/streets_test", ignore_errors=True)
 store = CampaignStore.open_or_create("streets_test"); store.meta.seed = 7; store.save_meta()
 char, _ = simlib.make_character("warrior", random.Random(2))
 store.save_player(PlayerState(character=char, location="parth"))
-console.narrate = lambda text: None
-console.note = lambda text: None
-console.ledger = lambda text: None
+console.put("narrate", lambda text: None)
+console.put("note", lambda text: None)
+console.put("ledger", lambda text: None)
 ws = WorldScene(store, world, load_traits(), store.load_player()); ws.player.mentor["never"] = True
 ws.enter("parth"); ws.enter("trading_square"); ws.enter("parth")
 start = ws.minutes

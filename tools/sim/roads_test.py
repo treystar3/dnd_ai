@@ -9,15 +9,15 @@ simlib.install(stub)
 import config
 import ui.console as uc
 NOTES, ANSWERS, NARR = [], [], []
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 def no_ask(*a, **k):
     raise AssertionError("the world asked in the middle of a turn (f460: a question ends the turn; the next line answers it)")
-uc.ask = no_ask
+uc.put("ask", no_ask)
 def answer_all():
     """(f460) The fork's question ends the turn; the lines in ANSWERS are typed next, each answering the question that stands."""
     while ANSWERS and ws.store.load_question():
         ws.handle(ANSWERS.pop(0))
-uc.narrate = lambda t: NARR.append(t)
+uc.put("narrate", lambda t: NARR.append(t))
 from engine import exits, mapview, clock
 from scenes.world import WorldScene
 from scenes import road_actions

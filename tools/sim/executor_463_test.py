@@ -94,7 +94,7 @@ check("a line whose second step fails stands in part: the first action, the pass
 check("...the passage tells what stood", any(k == "narrate" for k, t in shown), shown[:3])
 check("...and no row of the failed step remains", not any(r.get("op") == ws.line_failed[0].id for r in ledger.last()))
 script = ["I look around, then wait a while.", "quit"]
-uc.ask = lambda *a, **k: script.pop(0) if script else "quit"
+uc.put("ask", lambda *a, **k: script.pop(0) if script else "quit")
 shown.clear()
 ws.run()
 del ws.on_wait
@@ -147,7 +147,7 @@ kinds = [o["kind"] for o in ops_of_input()]
 check("an intercepted line is the first operation whole, its passage, then the tail", stood is True and kinds == ["line", "passage", "tail"] and ws.player.location == "south_fields",
       (stood, kinds, ws.player.location))
 script = ["#stats", "quit"]
-uc.ask = lambda *a, **k: script.pop(0) if script else "quit"
+uc.put("ask", lambda *a, **k: script.pop(0) if script else "quit")
 ws.run()
 kinds = [o["kind"] for o in ops_of_input()]
 check("a pane command is an operation of its own", kinds == ["command:stats"], kinds)
@@ -157,7 +157,7 @@ g.close()
 r = simlib.campaign("executor_463_rec", cls="warrior", seed=3, location="parth")
 wr = r.scene
 SCRIPT = ["I look around.", "quit"]
-uc.ask = lambda *a, **k: SCRIPT.pop(0) if SCRIPT else "quit"
+uc.put("ask", lambda *a, **k: SCRIPT.pop(0) if SCRIPT else "quit")
 OUT = pathlib.Path("saves/executor_463_rec_out")
 shutil.rmtree(OUT, ignore_errors=True)
 r.session.record(folder=OUT)

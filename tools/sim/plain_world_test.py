@@ -8,7 +8,7 @@ import simlib
 simlib.install(simlib.Stub("warrior", 2))
 import ui.console as uc
 for f in ("narrate", "note", "say", "npc_says", "dialogue"):
-    setattr(uc, f, lambda *a, **k: None)
+    uc.put(f, lambda *a, **k: None)
 import config
 from engine import doings, truth, voice_rules
 from npc import prompts as npr

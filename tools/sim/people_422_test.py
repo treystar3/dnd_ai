@@ -10,11 +10,11 @@ import simlib
 simlib.install(simlib.Stub("warrior", 12))
 import ui.console as uc
 SHOWN = []
-uc.narrate = lambda t, *a, **k: SHOWN.append(("narrate", str(t)))
-uc.npc_says = lambda speaker, speech, gesture="", *a, **k: SHOWN.append(("says", f"{speaker}: {speech}"))
+uc.put("narrate", lambda t, *a, **k: SHOWN.append(("narrate", str(t))))
+uc.put("npc_says", lambda speaker, speech, gesture="", *a, **k: SHOWN.append(("says", f"{speaker}: {speech}")))
 for fn in ("say", "note", "ledger", "dialogue"):
-    setattr(uc, fn, lambda *a, **k: None)
-uc.panel = lambda name, data: False
+    uc.put(fn, lambda *a, **k: None)
+uc.put("panel", lambda name, data: False)
 from engine import combat, convo, entities, names, party, quirks, voice_profile
 from llm.contracts import Clarify, DialogueFrame, NPCReply
 from npc.traits import load_traits

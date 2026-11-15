@@ -75,8 +75,8 @@ w("---- LLM intent")
 import io,contextlib
 from ui import console as _c
 notes=[]
-_orig=_c.note
-_c.note=lambda t,*a,**k:(notes.append(t),_orig(t,*a,**k))[1]
+_orig=_c.now("note")
+_c.put("note", lambda t,*a,**k:(notes.append(t),_orig(t,*a,**k))[1])
 import scenes.camp_actions as ca
 from llm.contracts import CampIntent
 setup(); state("fresh")

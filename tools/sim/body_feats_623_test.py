@@ -144,7 +144,7 @@ real_narrate, real_roll, real_odds = ws.narrate, checks.roll, ruling.odds
 ws.narrate = lambda event, text="": told.append(event)
 ruling.odds = lambda ws_, who, effect, r: rolled.append(dict(r)) or real_odds(ws_, who, effect, r)
 import ui.console as uc
-uc.ledger = lambda *a, **k: shown.append(str(a[0]) if a else "")
+uc.put("ledger", lambda *a, **k: shown.append(str(a[0]) if a else ""))
 real_reading = body.reading
 def hand(d):
     """A ruling as the stub gives it, and the feat written beside it handed in as the attempt's reading (f624)."""
@@ -257,7 +257,7 @@ c.health = None
 attempt("I jump from the bell tower's top to the stones.", {"sense": "cost", "why": "x", "works": "You are down.", "feat": {"kind": "drop", "size": 110}})
 check("...warned afresh", not rolled and c.deaths == deaths and store.load_fall_warned()[ws.acting]["feet"] == 110)
 shown_all = simlib.quiet_console()
-uc.ledger = lambda *a, **k: shown.append(str(a[0]) if a else "")
+uc.put("ledger", lambda *a, **k: shown.append(str(a[0]) if a else ""))
 attempt("I throw myself from the bell tower.", {"sense": "cost", "why": "x", "works": "You are down.", "feat": {"kind": "drop", "size": 95}})
 check("warned, a deadly drop tried again here is made, however it is worded: the game's one death, never rolled",
       not rolled and c.deaths == deaths + 1 and c.coins == 500 and ws.player.location == home
@@ -278,7 +278,7 @@ ws.enter("trading_square")
 weak()
 noted = []
 for fn in ("note", "ledger"):
-    setattr(uc, fn, lambda *a, _fn=fn, **k: noted.append((_fn, str(a[0]) if a else "")))
+    uc.put(fn, lambda *a, _fn=fn, **k: noted.append((_fn, str(a[0]) if a else "")))
 hz = {"tier": "normal", "what": "A span of the bridge gone, the river loud below.", "behind": "parth"}
 def road_past(d, roll="success"):
     stub.ruling = hand(d)

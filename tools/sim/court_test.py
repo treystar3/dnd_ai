@@ -39,11 +39,11 @@ monarch.anchor = "rules the kingdom from here"; monarch.protected = True; store.
 check("the monarch is not met in the hall; the chamberlain is", monarch.id not in {n.id for n in ws.present} and keeper.id in {n.id for n in ws.present})
 check("...and the truth layer does not list them either", monarch.id not in truth.scene_of(ws).present_ids())
 notes = []
-_note = console.note
-console.note = lambda t, *a, **k: notes.append(t)
+_note = console.now("note")
+console.put("note", lambda t, *a, **k: notes.append(t))
 from llm.contracts import ActionIntent
 ws.on_talk(ActionIntent(kind="talk", target=monarch.id, speech="your majesty, a word"), "your majesty, a word")
-console.note = _note
+console.put("note", _note)
 check("speaking to the crown uninvited gets the door, not the crown", any("keeps the door" in n for n in notes), notes)
 
 # ---- the keeper decides nothing: the game does

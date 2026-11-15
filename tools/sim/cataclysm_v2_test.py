@@ -34,8 +34,8 @@ state = pulse.empty_state(now); store.save_world_state(state)
 narrated = []
 ws._narrate_now = lambda event, player_text="": narrated.append(event)
 notes = []
-_note = console.note
-console.note = lambda t, *a, **k: notes.append(t)
+_note = console.now("note")
+console.put("note", lambda t, *a, **k: notes.append(t))
 
 # ---- 1. a campaign lands near the player when a marked pressure is near
 marked = [p for p in world.pressures.values() if p.campaign]
@@ -111,7 +111,7 @@ events.apply_player_events(ws)
 check("word that the town lies in the path is shown as a scene when the player stands in it", any("LIES IN THE PATH" in e for e in narrated), narrated[-1:])
 check("a cataclysm's anchors may send for the player (door six on its towns)", matters.D["weights"]["cataclysm"].get("summons", 0) > 0)
 
-console.note = _note
+console.put("note", _note)
 shutil.rmtree("saves/cataclysm_v2_test", ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad), bad if bad else "")
 sys.exit(1 if bad else 0)

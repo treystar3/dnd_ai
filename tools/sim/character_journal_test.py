@@ -20,7 +20,7 @@ char, _ = simlib.make_character("warrior", random.Random(1)); char.unspent_point
 store.save_player(PlayerState(character=char, location="parth"))
 ws = WorldScene(store, world, load_traits(), store.load_player()); ws.enter("parth")
 c = ws.player.character
-console.note = lambda m: None
+console.put("note", lambda m: None)
 check("#attradd is hidden and #character is a view", "#attradd" in HIDDEN and is_view("#character"))
 str0 = c.attributes.strength
 ws.command("#attradd strength")

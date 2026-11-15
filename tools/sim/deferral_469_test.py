@@ -52,9 +52,9 @@ def hire(i, name, temper, role, bond=20):
 
 SAID = []
 SHOWN = simlib.quiet_console()
-uc.say = lambda t, s="": SAID.append((s, t))
-uc.dialogue = lambda b, s, t, a: SAID.append((s, t))
-uc.npc_says = lambda label, speech, gesture="": SAID.append((label, speech))
+uc.put("say", lambda t, s="": SAID.append((s, t)))
+uc.put("dialogue", lambda b, s, t, a: SAID.append((s, t)))
+uc.put("npc_says", lambda label, speech, gesture="": SAID.append((label, speech)))
 
 NAME = "deferral_469"
 g = simlib.campaign(NAME, cls="warrior", seed=3, location="parth")
@@ -70,7 +70,7 @@ ws.present, ws.residents = [tam], [tam]
 OUT = pathlib.Path(f"saves/{NAME}_rec")
 shutil.rmtree(OUT, ignore_errors=True)
 SCRIPT = ['I say to Tam, "Good day to you."', "I look around.", "quit"]
-uc.ask = lambda *a, **k: SCRIPT.pop(0) if SCRIPT else "quit"
+uc.put("ask", lambda *a, **k: SCRIPT.pop(0) if SCRIPT else "quit")
 budget.PROFILE.update(read_tps=1e9, write_tps=10.0)              # every answer token a tenth of a second; the prompt costs nothing
 B.update(limit_seconds=22, margin_seconds=0, floor_seconds=1, reserve_seconds=5)
 BN.update(chance=100, cooldown=0, rest_chance=100)                # the party always has something to say when it may
@@ -125,7 +125,7 @@ g = simlib.campaign(NAME, cls="warrior", seed=3, location="parth", fresh=False)
 ws, store = g.scene, g.store
 store.save_deferred([{"kind": "banter", "data": {"crew": ["h1", "h2"], "why": "rest"}, "from_steps": store.meta.steps}])   # in the save: the replay starts from it
 SCRIPT = ["I look around.", "quit"]
-uc.ask = lambda *a, **k: SCRIPT.pop(0) if SCRIPT else "quit"
+uc.put("ask", lambda *a, **k: SCRIPT.pop(0) if SCRIPT else "quit")
 budget.PROFILE.update(read_tps=1e9, write_tps=10.0)              # the profile travels in the recording's meta; the limit is the data's
 g.session.record(folder=OUT)
 stub.plan = [{"kind": "look"}]

@@ -43,7 +43,7 @@ def ask(*a, **k):
     t.start(); t.join()
     return "I look around."
 SRC = simlib.stand_in(chat=lambda **k: types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content="{}")), embed=None)   # (f518)
-uc.ask = ask
+uc.put("ask", ask)
 rec = recording.Recorder(store, folder=Path("saves/night_record_442_unit_rec")).install()
 uc.ask(main=True)
 rec.close()

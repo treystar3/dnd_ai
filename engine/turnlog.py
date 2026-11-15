@@ -82,10 +82,10 @@ def _write(entry: dict) -> None:
         pass
 
 
-def begin(console=None) -> None:
-    """(f385) A turn starts: rows wait for its end, and what the console prints is kept for them."""
-    if console is not None:
-        tap(console)
+def begin(taps: bool = False) -> None:
+    """(f385) A turn starts: rows wait for its end, and (taps) what the console prints is kept for them."""
+    if taps:
+        tap()
     actor.registers().open_turn = {"started": datetime.now(timezone.utc).isoformat(timespec="seconds"), "t0": time.perf_counter(), "rows": [],
                                    "shown": [], "rewrites": []}
 
@@ -171,18 +171,20 @@ def rewrite(task: str, why: list[str], kept: str) -> None:
         playing["rewrites"].append({"task": task, "why": why, "shown": kept})
 
 
-def tap(console) -> None:
-    """(f385) Wraps the console's story-column functions so what they print is kept for the turn's row. Whatever is installed now is
-    wrapped (the terminal's, a test's, a night run's), and only once."""
+def tap() -> None:
+    """(f385) Wraps the story column's outputs so what they print is kept for the turn's row. (f635) On the channel in use: whatever
+    answers there now is wrapped (the terminal's, a window's, a test's, a night run's), and only once."""
+    from ui import console
+    ch = console.channel()
     for name, kind in SHOWN_KINDS.items():
-        fn = getattr(console, name, None)
-        if fn is None or getattr(fn, "_turnlog", False):
+        fn = ch.get(name)
+        if getattr(fn, "_turnlog", False):
             continue
         def wrapped(*a, _fn=fn, _name=name, _kind=kind, **k):
             shown(_kind, _shown_text(_name, a, k))
             return _fn(*a, **k)
         wrapped._turnlog = True
-        setattr(console, name, wrapped)
+        ch.set(name, wrapped)
 
 
 def _shown_text(name: str, a: tuple, k: dict) -> str:

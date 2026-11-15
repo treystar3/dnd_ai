@@ -7,11 +7,11 @@ import simlib
 simlib.install(simlib.Stub("warrior", 8))
 import ui.console as uc
 ORDER = []
-uc.note = lambda m, *a, **k: ORDER.append(("note", str(m)))
-uc.narrate = lambda t, *a, **k: ORDER.append(("narrate", str(t)))
+uc.put("note", lambda m, *a, **k: ORDER.append(("note", str(m))))
+uc.put("narrate", lambda t, *a, **k: ORDER.append(("narrate", str(t))))
 for fn in ("say", "npc_says", "dialogue", "ledger"):
-    setattr(uc, fn, lambda *a, **k: None)
-uc.panel = lambda name, data: False
+    uc.put(fn, lambda *a, **k: None)
+uc.put("panel", lambda name, data: False)
 sys.path.insert(0, "tools")
 import page_measures
 from engine import ledger, money, needs, pulse

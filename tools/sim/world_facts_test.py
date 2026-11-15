@@ -4,9 +4,9 @@ sys.path.insert(0, ".")
 import simlib
 simlib.install(simlib.Stub("rogue", 3))
 import ui.console as uc
-uc.note = lambda *a, **k: None
-uc.say = lambda *a, **k: None
-uc.wait = lambda *a, **k: None
+uc.put("note", lambda *a, **k: None)
+uc.put("say", lambda *a, **k: None)
+uc.put("wait", lambda *a, **k: None)
 from llm import prompts
 from character import kit
 from llm.contracts import ClassInterpretation

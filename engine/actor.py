@@ -290,8 +290,8 @@ def who() -> str:
 @contextlib.contextmanager
 def bind(mine: ActorContext):
     """This actor is the current one until the block ends, its dice with it; the one before is back after, a fault or not. Both
-    are this thread's. A channel of its own takes the console's text for the whole process (ui/console.py use), every thread's
-    with it, until the output seam is the channel's (f635)."""
+    are this thread's. (f635) So is a channel of its own: everything the game shows or asks on this thread goes to it
+    (ui/console.py use), and another thread keeps its own, or the process's."""
     from ui import console
     token = _bound.set(mine)
     try:

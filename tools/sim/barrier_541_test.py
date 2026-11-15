@@ -19,8 +19,8 @@ def check(n, ok, x=""):
     if not ok: bad.append(n)
 
 SAID = []
-_note = console.note
-console.note = lambda s, *a, **k: (SAID.append(str(s)), _note(s, *a, **k))[1]
+_note = console.now("note")
+console.put("note", lambda s, *a, **k: (SAID.append(str(s)), _note(s, *a, **k))[1])
 roads.R["chance_per_leg"] = 0.0                       # no road happening stops these walks short of the barrier
 GAMES = []
 

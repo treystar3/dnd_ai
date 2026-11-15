@@ -99,22 +99,22 @@ class Run:
     # ---- the console: everything the game prints goes to the transcript, and the first story line stamps the time
     def install_console(self) -> None:
         from ui import console
-        self.real = {k: getattr(console, k) for k in ("narrate", "say", "npc_says", "dialogue", "note", "wait", "ledger", "out",
+        self.real = {k: console.now(k) for k in ("narrate", "say", "npc_says", "dialogue", "note", "wait", "ledger", "out",
                                                      "combat_numbers", "combat_panel", "debug", "ask", "status_block", "header")}
-        console.narrate = lambda text: self.seen("", text)
-        console.say = lambda text, speaker="": self.seen(speaker or "says", text)
-        console.npc_says = lambda label, speech, gesture="": self.seen(label, speech + (f" ({gesture})" if gesture else ""))
-        console.dialogue = lambda before, speaker, speech, after: self.seen(speaker, " ".join(x for x in (before, f'"{speech}"', after) if x))
-        console.note = lambda message, *a, **k: self.noted(str(message))
-        console.wait = lambda message: self.noted(str(message))
-        console.ledger = lambda message: self.noted(str(message))
-        console.out = lambda text="": self.noted(str(text))
-        console.combat_numbers = lambda lines: self.noted("\n".join(f"    {l}" for l in lines))
-        console.combat_panel = lambda lines: None
-        console.status_block = lambda *a, **k: None
-        console.header = lambda text: None
-        console.debug = lambda message: None
-        console.ask = self.ask
+        console.put("narrate", lambda text: self.seen("", text))
+        console.put("say", lambda text, speaker="": self.seen(speaker or "says", text))
+        console.put("npc_says", lambda label, speech, gesture="": self.seen(label, speech + (f" ({gesture})" if gesture else "")))
+        console.put("dialogue", lambda before, speaker, speech, after: self.seen(speaker, " ".join(x for x in (before, f'"{speech}"', after) if x)))
+        console.put("note", lambda message, *a, **k: self.noted(str(message)))
+        console.put("wait", lambda message: self.noted(str(message)))
+        console.put("ledger", lambda message: self.noted(str(message)))
+        console.put("out", lambda text="": self.noted(str(text)))
+        console.put("combat_numbers", lambda lines: self.noted("\n".join(f"    {l}" for l in lines)))
+        console.put("combat_panel", lambda lines: None)
+        console.put("status_block", lambda *a, **k: None)
+        console.put("header", lambda text: None)
+        console.put("debug", lambda message: None)
+        console.put("ask", self.ask)
         console.guard_outputs()                      # (f391) the transcript gets what the player would see, through the output gate
 
     def seen(self, who: str, text: str) -> None:

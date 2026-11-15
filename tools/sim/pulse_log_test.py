@@ -6,8 +6,8 @@ simlib.install(simlib.Stub("mage", 5))
 import config
 import ui.console as uc
 NOTES, PANELS = [], []
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
-uc.panel = lambda name, data: (PANELS.append((name, data)) or True)
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
+uc.put("panel", lambda name, data: (PANELS.append((name, data)) or True))
 from engine import pulse, pulselog
 from npc import land, prompts
 from npc.life import populate_place

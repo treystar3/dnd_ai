@@ -8,8 +8,8 @@ import simlib
 simlib.install(simlib.Stub("summoner", 15))
 import ui.console as uc
 for fn in ("narrate", "say", "note", "ledger"):
-    setattr(uc, fn, lambda *a, **k: None)
-uc.panel = lambda name, data: False
+    uc.put(fn, lambda *a, **k: None)
+uc.put("panel", lambda name, data: False)
 from engine import roads
 from npc.traits import load_traits
 from scenes.world import WorldScene

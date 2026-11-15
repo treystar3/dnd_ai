@@ -8,10 +8,10 @@ import simlib
 simlib.install(simlib.Stub("warrior", 7))
 import ui.console as uc
 NOTES = []
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 for fn in ("narrate", "say", "npc_says", "dialogue", "ledger"):
-    setattr(uc, fn, lambda *a, **k: None)
-uc.panel = lambda name, data: False
+    uc.put(fn, lambda *a, **k: None)
+uc.put("panel", lambda name, data: False)
 from engine import combat, inventory as inv, ledger, spells
 from llm.contracts import ActionIntent as A
 from llm.gateway import LLMError

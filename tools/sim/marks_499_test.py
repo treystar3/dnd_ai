@@ -27,8 +27,8 @@ NAME = "marks_499"
 game = simlib.campaign(NAME, cls="warrior", seed=3, location="south_fields")
 ws, store = game.scene, game.store
 ws.enter("south_fields")
-console.combat_state = lambda data: False
-console.combat_panel = lambda lines: None
+console.put("combat_state", lambda data: False)
+console.put("combat_panel", lambda lines: None)
 REQ = []
 real = simlib.below()                                           # (f518) the stub's own answer, taken before the spy goes in over it
 
@@ -75,8 +75,8 @@ game.close()
 game = simlib.campaign(NAME, cls="warrior", seed=3, location="south_fields", fresh=False)
 ws, store = game.scene, game.store
 ws.enter(ws.player.location)
-console.combat_state = lambda data: False
-console.combat_panel = lambda lines: None
+console.put("combat_state", lambda data: False)
+console.put("combat_panel", lambda lines: None)
 ws.combat = cs.CombatScene.resume(ws, store.load_combat())      # as run() resumes a saved fight when the game opens (scenes/world.py)
 check("reopened mid-fight, the fight is on with its quarry and what was read of it", ws.combat is not None and effects.get(ws.combat.fight, "quarry") is not None
       and effects.get(ws.combat.fight, "quarry").target == "e1" and list(ws.combat.fight.shown) == shown0, (ws.combat is not None, shown0))

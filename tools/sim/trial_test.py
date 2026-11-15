@@ -13,8 +13,8 @@ def check(n, ok, x=""):
     print(("PASS " if ok else "FAIL ") + n + (f"  {x}" if x else ""), file=_out)
     if not ok: bad.append(n)
 notes = []
-_o = console.note
-console.note = lambda t, *a, **k: (notes.append(t), _o(t, *a, **k))[1]
+_o = console.now("note")
+console.put("note", lambda t, *a, **k: (notes.append(t), _o(t, *a, **k))[1])
 
 b = simbot.Bot(); ws = b.ws; c = ws.player.character
 c.level = 10; c.coins = 50000

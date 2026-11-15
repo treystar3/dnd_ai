@@ -318,7 +318,7 @@ import ui.console as console
 said, moved = [], {}
 ws.said_nothing = lambda text: said.append(text)
 before = turnlog.shown_count()
-turnlog.tap(console)
+turnlog.tap()
 console.note("")                                           # nothing: it does not count
 empty = turnlog.shown_count() - before
 console.note("A gull wheels over the quay.")

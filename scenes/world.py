@@ -1057,7 +1057,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if text.startswith("#"):
                 before = self.player.location
                 bar = self.header_key()                                     # (f372) what the top bar shows, to redraw it when a button changed it
-                turnlog.begin(console)                                      # (f385) a button that does something is a row too
+                turnlog.begin(taps=True)                                      # (f385) a button that does something is a row too
                 name = (text[1:].strip().lower().split() or ["command"])[0]
                 self.begin_line()
                 op = None
@@ -1090,7 +1090,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 if self.header_key() != bar:
                     self.show_header()                                      # (f372) a hire, a sale or a walk from a pane moves the coin, the clock or the place
                 continue
-            turnlog.begin(console)                                          # (f385) the row waits for what the turn shows
+            turnlog.begin(taps=True)                                          # (f385) the row waits for what the turn shows
             stood = self.turn(text)
             if stood is False:
                 console.note(self.failed_line(text))                     # (f437, f449) in the narrator's words, never the machinery
@@ -1252,28 +1252,26 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if op is not None and op.state == "open":              # an Interrupt passed through: the operation is rolled back all the same
                 self.abandon(op, pending0, world=world, fight0=fight0)
 
-    def hold(self, op) -> dict:
-        """(f463) The story bindings replaced by ones that keep each call on the operation, for release at its commit; what the console
-        held is returned, to be put back by unhold whatever happens."""
-        real = {}
+    def hold(self, op) -> tuple:
+        """(f463) The story's outputs answered by ones that keep each call on the operation, for release at its commit. (f635) On the
+        channel in use, and no other: it is returned with what answered there before, to be put back by unhold whatever happens."""
+        ch, real = console.channel(), {}
         for name in self.HELD:
-            fn = getattr(console, name, None)
-            if fn is None:
-                continue
-            real[name] = fn
+            real[name] = ch.get(name)
 
             def held(*a, _name=name, **k):
                 op.held.append((_name, a, k))
                 if _name in self.PANE:                             # (f497) the pane's data is no line of the page; and show() takes the
-                    return console.damage_tags if _name == "combat_state" else None     # same branch held as live (the window's binding
+                    return ch.windowed if _name == "combat_state" else None             # same branch held as live (a window's page
                 op.lines.append(turnlog._shown_text(_name, a, k) if _name in turnlog.SHOWN_KINDS else " ".join(str(x) for x in a))   # says True)
-            setattr(console, name, held)
-        return real
+            ch.set(name, held)
+        return ch, real
 
     @staticmethod
-    def unhold(real: dict) -> None:
+    def unhold(held: tuple) -> None:
+        ch, real = held
         for name, fn in real.items():
-            setattr(console, name, fn)
+            ch.set(name, fn)
 
     def release(self, op) -> int:
         """(f463) The operation committed: what it held reaches the page, in the order it was said, through the real bindings. (f464) Up to
@@ -1630,7 +1628,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         not: what stood stands, nothing after it is done, and the player reads which part (run()). The write fence is armed for the life
         of the line; no question is read inside it (f461)."""
         self.name_ids()
-        turnlog.tap(console)
+        turnlog.tap()
         shown = turnlog.shown_count()
         self.begin_line()
         try:

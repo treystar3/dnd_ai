@@ -31,7 +31,7 @@ ws.enter("trading_square")
 char = ws.player.character
 narrated, notes = [], []
 ws._narrate_now = lambda event, player_text="": narrated.append(event)
-console.note = lambda t, *a, **k: notes.append(t)
+console.put("note", lambda t, *a, **k: notes.append(t))
 
 # ---- reading what an improvisation is after
 check("propping a door is read as blocking", world_improv.read_effect("I prop the door shut with the barrel") == "block")
@@ -72,7 +72,7 @@ _checks.roll = _roll
 clerk = ws.present[0]
 ws.partner = clerk
 said = []
-console.npc_says = lambda who, line, g="": said.append((who, line))
+console.put("npc_says", lambda who, line, g="": said.append((who, line)))
 stub.a_Clarify = lambda u, k: {"speaker": clerk.id, "line": "Pay the fee, or something else?"}
 refusals.SESSION.clear()
 ws.ask_back("audit_failed", "i hand it over", "the plan named someone who is not here")

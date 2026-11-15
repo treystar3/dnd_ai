@@ -73,7 +73,7 @@ check("...and a fault filed then says nothing of who (the crash log keeps only w
 
 # ---- a line played through the game's own loop, recorded
 SCRIPT = ["I look around.", "quit"]
-console.ask = lambda *a, **k: SCRIPT.pop(0) if SCRIPT else "quit"
+console.put("ask", lambda *a, **k: SCRIPT.pop(0) if SCRIPT else "quit")
 entries, opened = [], []
 real_put, real_begin = store._put, operation.begin
 

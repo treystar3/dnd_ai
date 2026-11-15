@@ -71,11 +71,11 @@ def record(folder: Path, root: Path) -> Path:
     store.save_player(player)
     for name in recording.STORY:
         if hasattr(console, name):
-            setattr(console, name, lambda *a, **k: None)
-    console.panel = lambda name, data: False
+            console.put(name, lambda *a, **k: None)
+    console.put("panel", lambda name, data: False)
     for name in ("out", "status_block", "combat_state", "show_header", "debug"):
         if hasattr(console, name):
-            setattr(console, name, lambda *a, **k: None)
+            console.put(name, lambda *a, **k: None)
     ws = session.scene(load_traits(), store.load_player())
     nightrun.hire_party(ws, 2)
     for m in ws.player.party:
@@ -167,7 +167,7 @@ def record(folder: Path, root: Path) -> Path:
             return "I search the fields for the bandits."
         stub.plan = [{"kind": "search"}]
         return "I beat through the grass for game."
-    console.ask = ask
+    console.put("ask", ask)
     session.record(folder=folder, rows=True)
     try:
         ws.run()

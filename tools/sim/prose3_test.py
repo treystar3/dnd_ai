@@ -104,8 +104,8 @@ world = load_world(); store = CampaignStore.open_or_create("prose3_test"); store
 char, _ = simlib.make_character("warrior", random.Random(2))
 store.save_player(PlayerState(character=char, location="parth"))
 printed, narrated = [], []
-console.narrate = lambda text: printed.append(text)
-console.note = lambda text: None
+console.put("narrate", lambda text: printed.append(text))
+console.put("note", lambda text: None)
 ws = WorldScene(store, world, load_traits(), store.load_player()); ws.player.mentor["never"] = True
 ws.enter("parth")
 check("a first arrival is never a quiet return", not ws.quiet_return())
@@ -172,8 +172,8 @@ check("...and does not list a thing twice", len(cs.fight_shown) == n)
 
 # places heard of: one quiet line a turn, not a note per place
 notes, ledgers = [], []
-console.note = lambda text: notes.append(text)
-console.ledger = lambda text: ledgers.append(text)
+console.put("note", lambda text: notes.append(text))
+console.put("ledger", lambda text: ledgers.append(text))
 new = [p.id for p in world.places.values() if not p.parent and p.id not in ws.known_places()][:3]
 for pid in new:
     ws.hear(pid)

@@ -89,8 +89,8 @@ def presentation(self):
 
 operation.Operation.presentation = presentation
 STATE, PANEL = [], []
-console.combat_state = lambda data: (STATE.append(data), False)[1]       # the terminal's: no pane, so the text panel follows
-console.combat_panel = lambda lines: PANEL.append(lines)
+console.put("combat_state", lambda data: (STATE.append(data), False)[1])       # the terminal's: no pane, so the text panel follows
+console.put("combat_panel", lambda lines: PANEL.append(lines))
 
 # ---- the fight begins (its own line); then a round, read outside
 creature = ws.world.bestiary["awakened_shrub"]                   # fearless (families.yaml plant): it never bolts or yields, so the fight lasts
@@ -119,14 +119,14 @@ check("...nor of the record's presentation (load re-shows the pane from the row)
       PRESENTED and not any(e[0] in ("combat_state", "combat_panel") for p in PRESENTED for e in p), [e[0] for p in PRESENTED for e in p])
 
 # ---- a window: one push, no text panel
-console.damage_tags = True
-console.combat_state = lambda data: (STATE.append(data), True)[1]
+console.channel().windowed = True
+console.put("combat_state", lambda data: (STATE.append(data), True)[1])
 del STATE[:], PANEL[:]
 ws.turn("I strike at the shrub.")
 check("a window gets one pane push for the round and no text panel", ws.combat is not None and not ws.combat.fight.over and len(STATE) == 1
       and not PANEL, (len(STATE), len(PANEL), ws.combat.fight.over if ws.combat else "over"))
-console.damage_tags = False
-console.combat_state = lambda data: (STATE.append(data), False)[1]
+console.channel().windowed = False
+console.put("combat_state", lambda data: (STATE.append(data), False)[1])
 
 # ---- a reading that fails every try: nothing moves, the player is told, the same line again is taken
 row0, digest0, round0 = store.load_combat(), statehash.digest(store)["all"], ws.combat.fight.round

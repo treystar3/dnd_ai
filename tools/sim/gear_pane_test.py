@@ -56,9 +56,9 @@ ws.gear_click("#gearunequip main_hand")
 check("the Unequip button puts it back", "main_hand" not in c.equipment and any(i.uid == "t-spare" for i in c.inventory))
 ws.gear_click("#gearequip nope"); check("an unknown item does nothing", True)
 lines = []
-real = console.note; console.note = lambda m: lines.append(m)
+real = console.now("note"); console.put("note", lambda m: lines.append(m))
 ws.show_gear()
-console.note = real
+console.put("note", real)
 check("the terminal shows -- for empty slots", any("--" in l for l in lines) or len(c.equipment) == len(items.SLOTS), lines[:3])
 two = next(b for b in items.CATALOG.values() if b.is_weapon and b.slot == "main_hand" and b.hands == 2)
 th = items.make(two.id, "common", 1); th.uid = "t-two"

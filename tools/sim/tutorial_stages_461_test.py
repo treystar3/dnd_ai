@@ -15,19 +15,19 @@ simlib.install(stub)
 import config
 import ui.console as uc
 SAID = []
-uc.say = lambda t, s="": SAID.append(["say", s, t])
-uc.dialogue = lambda b, s, t, a: SAID.append(["dialogue", s, t])
-uc.npc_says = lambda s, t, g="": SAID.append(["npc_says", s, t])
-uc.narrate = lambda t: SAID.append(["narrate", "", t])
-uc.note = lambda m, *a, **k: None
-uc.ledger = lambda *a, **k: None
+uc.put("say", lambda t, s="": SAID.append(["say", s, t]))
+uc.put("dialogue", lambda b, s, t, a: SAID.append(["dialogue", s, t]))
+uc.put("npc_says", lambda s, t, g="": SAID.append(["npc_says", s, t]))
+uc.put("narrate", lambda t: SAID.append(["narrate", "", t]))
+uc.put("note", lambda m, *a, **k: None)
+uc.put("ledger", lambda *a, **k: None)
 
 
 def no_ask(*a, **k):
     raise AssertionError("the world asked in the middle of a turn (f461: a question ends the turn; the next line answers it)")
 
 
-uc.ask = no_ask
+uc.put("ask", no_ask)
 from engine import mentor, questions
 bad = []
 
@@ -140,9 +140,9 @@ def scripted(*a, **k):
     return script.pop(0) if script else "quit"
 
 
-uc.ask = scripted
+uc.put("ask", scripted)
 w2.run()
-uc.ask = no_ask
+uc.put("ask", no_ask)
 shown_first = SAID[:marks[0]] if marks else []
 check("a save opened on her question asks it again, once, in her voice, before the first line is taken",
       sum(1 for x in shown_first if x[:2] == ["say", U] and x[2] == M["approach"]["ask_first"]) == 1, shown_first)
@@ -151,7 +151,7 @@ check("...and the answer carries the meeting to her pointed question", q and q["
 g2.close()
 
 # ---- the fence: a question read inside a turn is a fault the turn survives
-uc.ask = lambda *a, **k: "typed"
+uc.put("ask", lambda *a, **k: "typed")
 with questions.fence():
     passes = uc.ask(main=True) == "typed"
     try:
@@ -166,7 +166,7 @@ w.mentor_intercept = lambda t: (uc.ask(), True)[1]          # a site slipping ba
 stood = w.turn("I look around")
 check("a turn that reads an answer inside itself is not taken, and says why in the log", stood is False and w.last_crash and "AskedInsideTurn" in w.last_failure, (stood, w.last_failure))
 check("...and console.ask is put back afterwards", uc.ask() == "typed")
-uc.ask = no_ask
+uc.put("ask", no_ask)
 done("stages461_fence")
 src = Path("scenes/world.py").read_text(encoding="utf-8")
 check("the fence stands over every turn, every #command, the arrival after one (f463) and the game's opening (f466)", src.count("questions.fence()") == 4, src.count("questions.fence()"))

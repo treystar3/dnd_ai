@@ -10,8 +10,8 @@ stub = simlib.Stub("mage", 32)
 simlib.install(stub)
 import ui.console as uc
 for fn in ("narrate", "say", "note", "ledger"):
-    setattr(uc, fn, lambda *a, **k: None)
-uc.panel = lambda name, data: False
+    uc.put(fn, lambda *a, **k: None)
+uc.put("panel", lambda name, data: False)
 from npc.traits import load_traits
 from scenes.world import WorldScene
 from storage.campaign import CampaignStore, PlayerState

@@ -71,20 +71,22 @@ class AskedInsideTurn(RuntimeError):
 def fence():
     """(f461) While a turn is open (scenes/world.py turn, and a #command), any console.ask that is not the game loop's own raises
     AskedInsideTurn: the turn rolls back and the fault is written down, so no site slips back to reading an answer in the middle of a
-    turn. Whatever console.ask is at the time (the window's, a recording's, a test's) is wrapped and put back."""
+    turn. (f635) On the channel in use: whatever answers its ask at the time (the window's, a recording's, a test's) is wrapped and
+    put back."""
     from ui import console
-    real = console.ask
+    ch = console.channel()
+    real = ch.get("ask")
 
     def fenced(*a, **k):
         main = bool(k.get("main", a[0] if a else False))
         if not main:
             raise AskedInsideTurn("a line was asked for in the middle of a turn; a question ends the turn (engine/questions.py)")
         return real(*a, **k)
-    console.ask = fenced
+    ch.set("ask", fenced)
     try:
         yield
     finally:
-        console.ask = real
+        ch.set("ask", real)
 
 
 def problems(data: dict | None = None) -> list[str]:

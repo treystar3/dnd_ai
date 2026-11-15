@@ -7,9 +7,9 @@ stub = simlib.Stub("warrior", 3)
 simlib.install(stub)
 import ui.console as uc
 NOTES, NARR = [], []
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
-uc.narrate = lambda t: NARR.append(t)
-uc.say = lambda t, s="": None
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
+uc.put("narrate", lambda t: NARR.append(t))
+uc.put("say", lambda t, s="": None)
 from engine import combat, party
 from world.loader import load_world
 from scenes.combat_scene import CombatScene

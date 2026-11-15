@@ -64,13 +64,13 @@ class Trial:
         self.narrations: list[str] = []
         self.lines: list[str] = []
         self.debug: list[str] = []
-        uc.debug = lambda m, *a, **k: self.debug.append(str(m))
+        uc.put("debug", lambda m, *a, **k: self.debug.append(str(m)))
         if quiet:
-            uc.note = lambda m, *a, **k: self.notes.append(str(m))
-            uc.narrate = lambda t, *a, **k: None
-            uc.say = lambda *a, **k: None
-            uc.wait = lambda *a, **k: None
-            uc.ledger = lambda m, *a, **k: self.notes.append(str(m))
+            uc.put("note", lambda m, *a, **k: self.notes.append(str(m)))
+            uc.put("narrate", lambda t, *a, **k: None)
+            uc.put("say", lambda *a, **k: None)
+            uc.put("wait", lambda *a, **k: None)
+            uc.put("ledger", lambda m, *a, **k: self.notes.append(str(m)))
         self.catalog = load_traits()
         shutil.rmtree(ROOT / "saves" / save, ignore_errors=True)
         self.session = CampaignSession.open(save)                           # (f457) the campaign's session, as main.py opens it

@@ -372,12 +372,12 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
     from ui import console
     for name in recording.STORY:
         if hasattr(console, name):
-            setattr(console, name, lambda *a, _n=name, **k: state["shown"].append(" ".join(str(x) for x in a) + "".join(f" {v}" for v in k.values())))
-    console.panel = lambda name, data: False
+            console.put(name, lambda *a, _n=name, **k: state["shown"].append(" ".join(str(x) for x in a) + "".join(f" {v}" for v in k.values())))
+    console.put("panel", lambda name, data: False)
     if quiet:
         for name in ("out", "status_block", "combat_state", "show_header", "debug"):
             if hasattr(console, name):
-                setattr(console, name, lambda *a, **k: None)
+                console.put(name, lambda *a, **k: None)
 
     # the save as the session opened, under a scratch name
     name = f"rerun_{folder.name}_{os.getpid()}"             # (f529) this process's own: two replays of one recording at once (the suite
@@ -438,7 +438,7 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
             state["input"] += 1
         return row["text"]
 
-    console.ask = ask
+    console.put("ask", ask)
     try:
         ws.run()
         if state["input"]:
@@ -555,11 +555,11 @@ def make_stub_recording(folder: Path, n: int = 40, seed: int = 39, persona: str 
     store.save_player(player)
     for name in recording.STORY:
         if hasattr(console, name):
-            setattr(console, name, lambda *a, **k: None)
-    console.panel = lambda name, data: False
+            console.put(name, lambda *a, **k: None)
+    console.put("panel", lambda name, data: False)
     for name in ("out", "status_block", "combat_state", "show_header", "debug"):
         if hasattr(console, name):
-            setattr(console, name, lambda *a, **k: None)
+            console.put(name, lambda *a, **k: None)
     fail = {"on": False}
 
     def chat(**k):
@@ -587,7 +587,7 @@ def make_stub_recording(folder: Path, n: int = 40, seed: int = 39, persona: str 
         text, _kind = bot.decide()
         last["text"] = text
         return text
-    console.ask = ask
+    console.put("ask", ask)
     with _NoServer():                                       # (f518) nothing it does can reach a real model
         session.record(folder=folder, rows=rows)            # (f476) a kept recording names the rows each input changed
         try:

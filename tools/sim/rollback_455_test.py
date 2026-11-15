@@ -122,7 +122,7 @@ def ask(*a_, main=False, **k):
     fail["on"] = state["n"] == 2                     # the second line's turn finds the place and then fails: it rolls back
     stub.plan = plan
     return text
-uc.ask = ask
+uc.put("ask", ask)
 OUT = pathlib.Path("saves/rollback_455_rec_out")
 r.session.record(folder=OUT)
 wr.run()

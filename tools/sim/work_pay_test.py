@@ -35,7 +35,7 @@ ws.record_work_offer(offer, npc)
 job = simlib.offered(ws.store, npc.id, "work")                         # (f481) an offer in the registry
 check("the offer is stored at an honest wage", job and job["pay"] > 0, job)
 before = c.coins
-console.note = lambda m: None
+console.put("note", lambda m: None)
 ws.on_work(ActionIntent(kind="work", target=npc.id), "I do the work")
 check("doing the work pays the wage, and the offer is taken", c.coins > before and simlib.offered(ws.store, npc.id, "work") is None, (before, c.coins))
 print("FAILED" if bad else "ALL PASS", bad); sys.exit(1 if bad else 0)

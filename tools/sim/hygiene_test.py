@@ -41,15 +41,15 @@ with contextlib.redirect_stdout(out):
     console.note("The way through the cracked_plains is closed.")
 check("the terminal's own output is gated", "You pull out a map." in out.getvalue() and "cracked plains" in out.getvalue(), out.getvalue())
 SEEN = []
-real = console.note
-console.note = lambda m, *a, **k: SEEN.append(m)
+real = console.now("note")
+console.put("note", lambda m, *a, **k: SEEN.append(m))
 console.guard_outputs()
 console.note("Remembered here: The player takes out their journal")
 check("a harness that puts its own output in place is gated once it asks", SEEN == ["Remembered here: You take out their journal"], SEEN)
 console.guard_outputs()
 console.note("x")
-check("...and gating twice is a no-op", SEEN[-1] == "x" and getattr(console.note, "inner", None) is not None and not getattr(console.note.inner, "gated", False))
-console.note = real
+check("...and gating twice is a no-op", SEEN[-1] == "x" and getattr(console.now("note"), "inner", None) is not None and not getattr(console.now("note").inner, "gated", False))
+console.put("note", real)
 check("an improvised act's mark speaks of 'you', not 'the player'", world_improv.what_of("The player takes out their journal and sketches the gate.")
       == "take out your journal and sketches the gate", world_improv.what_of("The player takes out their journal and sketches the gate."))
 

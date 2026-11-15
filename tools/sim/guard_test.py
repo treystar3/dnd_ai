@@ -68,7 +68,7 @@ world = load_world(); store = CampaignStore.open_or_create("guard_test"); store.
 char, _ = simlib.make_character("warrior", random.Random(2))
 store.save_player(PlayerState(character=char, location="parth"))
 notes, outs = [], []
-console.note = lambda t, *a, **k: notes.append(t); console.narrate = lambda t: None; console.out = lambda t, *a, **k: outs.append(t)
+console.put("note", lambda t, *a, **k: notes.append(t)); console.put("narrate", lambda t: None); console.put("out", lambda t, *a, **k: outs.append(t))
 ws = WorldScene(store, world, load_traits(), store.load_player()); ws.player.mentor["never"] = True
 ws.enter("parth")
 ws.remember_narration("A passage the player did not like.")

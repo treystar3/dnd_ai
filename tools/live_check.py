@@ -99,9 +99,9 @@ if args.mode == "addressees":
     sys.exit(0)
 
 SAID, CALLS, REFUSED = [], [], []
-uc.say = lambda t, s="": SAID.append((s or "", t))
-uc.narrate = lambda t: SAID.append(("(narration)", t))
-uc.note = lambda m, *a, **k: SAID.append(("(game)", str(m)))          # what the game tells the player, shown so a scene with no talk is still readable
+uc.put("say", lambda t, s="": SAID.append((s or "", t)))
+uc.put("narrate", lambda t: SAID.append(("(narration)", t)))
+uc.put("note", lambda m, *a, **k: SAID.append(("(game)", str(m))))          # what the game tells the player, shown so a scene with no talk is still readable
 
 def timed(op, req, call):
     """(f518) A layer around every model call (llm/backend.py wrap), where it patched the client before: a refused draft sent back is kept,

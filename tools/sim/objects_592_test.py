@@ -58,10 +58,10 @@ check("...in hand, no pack slot", len(ws.player.character.inventory) == pack and
 check("...the place no longer tells it lying there", not any("rope ladder" in m for m in store.load_place(here).marks), store.load_place(here).marks)
 check("...and the narrator is told the character carries it", told and "rope ladder" in told[-1] and "carries" in told[-1], told)
 shown = {}
-was_panel = console.panel
-console.panel = lambda kind, data: shown.update({kind: data}) or True
+was_panel = console.now("panel")
+console.put("panel", lambda kind, data: shown.update({kind: data}) or True)
 console.show_inventory(ws.player.character, ws.carried_things())
-console.panel = was_panel
+console.put("panel", was_panel)
 check("the inventory shows what is carried in hand, in the window and the console", [c["name"] for c in shown["inventory"]["carried"]]
       == [rope.name] and "CARRIED IN HAND" in open("ui/console.py", encoding="utf-8").read()
       and "CARRIED IN HAND" in open("ui/gui/web/app.js", encoding="utf-8").read(), shown.get("inventory", {}).get("carried"))

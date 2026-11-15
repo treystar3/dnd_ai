@@ -75,8 +75,6 @@ def _fields() -> dict[str, Row]:
             for held, scope in ((actor.SHARED, TURN), (actor.SHARED_CACHES, ACTOR)) for name in held.FRESH}
 
 
-CONSOLE = "the window's bridge, which installs its own and puts back what it found (ui/gui/bridge.py); the output seam goes under the channel in f635"
-
 STATE: dict[str, Row] = {
     # ---- the turn's registers (the operation, the ledger, the budget, the turn log's open turn, the serving, the owner) and the
     # actor's caches (the journal, the ids, the claims' events and sink, the cast, the lines said last, the discount)
@@ -146,13 +144,8 @@ STATE: dict[str, Row] = {
     "llm.launch.SCREEN": Row(PROCESS, "the start-up itself: the loading screen handed from main.py to the launch, taken once"),
     "llm.runtime._GAME": Row(PROCESS, "runtime's own stop: the game's model server, its lock and its place among the sources"),
     "llm.runtime._SPAWNER": Row(PROCESS, "nothing: the one spawner of server processes, made on first use"),
-    "ui.console._channel": Row(PROCESS, "the block that set it (console.use, engine/actor.py bind): where the text goes, process-wide until f635"),
-    "ui.console.ask": Row(PROCESS, "each wrapper puts back what it found: the question fence at the turn's end, the recorder at its close, the window's bridge"),
-    "ui.console.*": Row(PROCESS, "each wrapper puts back what it found: an operation's hold over the story's bindings as it ends (scenes/world.py hold), "
-                                 "the recorder's as it closes; set by a computed name, so any of them; the output seam goes under the channel in f635"),
-    **{f"ui.console.{name}": Row(PROCESS, CONSOLE) for name in (
-        "WIDTH", "damage_tags", "busy_text", "combat_state", "creation", "creation_done", "home", "home_done", "kind", "panel", "scope",
-        "setup_progress", "status_block")},
+    "ui.console._process": Row(PROCESS, "the window's bridge, which installs its page and puts back the channel it found (ui/gui/bridge.py). What stands in for an output is set on a channel, never on the module, and put back by what set it: an operation's hold as it ends, the question fence at the turn's end, the recorder at its close"),
+    "ui.console._PLAIN": Row(PROCESS, "nothing: the outputs as the module writes them, filled as it loads"),
 
     # ---- this run's: read once, or worked out once and kept
     "engine.asked._TASKS": Row(PROCESS, READ_ONCE),

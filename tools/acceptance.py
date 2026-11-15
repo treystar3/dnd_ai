@@ -68,9 +68,9 @@ class Table:
         import ui.console as uc
         self.notes: list[str] = []
         for f in ("narrate", "say", "npc_says", "dialogue", "ledger"):
-            setattr(uc, f, lambda *a, **k: None)
-        uc.note = lambda m, *a, **k: self.notes.append(str(m))
-        uc.ask = lambda *a, **k: ""
+            uc.put(f, lambda *a, **k: None)
+        uc.put("note", lambda m, *a, **k: self.notes.append(str(m)))
+        uc.put("ask", lambda *a, **k: "")
         from engine import refusals
         self.refusals = refusals
         from npc.traits import load_traits

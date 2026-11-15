@@ -50,8 +50,8 @@ shutil.rmtree("saves/routines_test", ignore_errors=True)
 store = CampaignStore.open_or_create("routines_test"); store.meta.seed = 3; store.save_meta()
 char, _ = simlib.make_character("warrior", random.Random(2))
 store.save_player(PlayerState(character=char, location="parth"))
-console.narrate = lambda text: None
-console.note = lambda text: None
+console.put("narrate", lambda text: None)
+console.put("note", lambda text: None)
 ws = WorldScene(store, world, load_traits(), store.load_player()); ws.player.mentor["never"] = True
 ws.enter("parth"); ws.enter("tilted_plough"); ws.enter("parth_temple"); ws.enter("parth")
 from engine import retrieval
@@ -77,7 +77,7 @@ check("their neighbours can say where they usually are", any(row.name in k and "
 store.meta.minutes = at
 ws.enter("parth")
 notes = []
-console.note = lambda text: notes.append(text)
+console.put("note", lambda text: notes.append(text))
 ws.go_to_person(row, f"I go and find {row.name}")
 check("walking to someone goes where they are at this hour", ws.player.location == rt["place"] and ws.last_spoken == row.id, (ws.player.location, notes))
 shutil.rmtree("saves/routines_test", ignore_errors=True)

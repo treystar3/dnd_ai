@@ -12,8 +12,8 @@ simlib.install(stub)
 import config
 import ui.console as uc
 for fn in ("narrate", "say", "note", "ledger"):
-    setattr(uc, fn, lambda *a, **k: None)
-uc.panel = lambda name, data: False
+    uc.put(fn, lambda *a, **k: None)
+uc.put("panel", lambda name, data: False)
 from engine import recording, streams
 from storage import statehash
 from storage.campaign import CampaignStore
@@ -51,7 +51,7 @@ def ask(*a, main=False, **k):
     if plan:
         stub.plan = plan
     return text
-uc.ask = ask_before = ask
+uc.put("ask", ask); ask_before = ask
 ws = game.scene
 from llm import backend
 rec = recording.Recorder(store, folder=OUT).install()
@@ -60,7 +60,7 @@ check("a recording session is strict while it records, its layer on the model in
 ws.run()
 folder = rec.close()
 check("...and its layer taken off and the console put back when it closes", rec._layer not in backend.layers() and h.live()
-      and h.src.chat_fn is chat and uc.ask is ask_before and streams.STRICT is False)
+      and h.src.chat_fn is chat and uc.now("ask") is ask_before and streams.STRICT is False)
 
 # ---- what was kept
 meta = json.loads((OUT / "meta.json").read_text(encoding="utf-8"))

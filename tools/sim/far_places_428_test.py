@@ -10,9 +10,9 @@ simlib.install(simlib.Stub("warrior", 28))
 import ui.console as uc
 SHOWN = []
 for fn in ("narrate", "say", "note", "ledger"):
-    setattr(uc, fn, lambda *a, _fn=fn, **k: SHOWN.append((_fn, str(a[0]) if a else "")))
-uc.panel = lambda name, data: False
-uc.npc_says = lambda *a, **k: SHOWN.append(("say", str(a[1]) if len(a) > 1 else ""))
+    uc.put(fn, lambda *a, _fn=fn, **k: SHOWN.append((_fn, str(a[0]) if a else "")))
+uc.put("panel", lambda name, data: False)
+uc.put("npc_says", lambda *a, **k: SHOWN.append(("say", str(a[1]) if len(a) > 1 else "")))
 from llm.contracts import ActionIntent
 from npc.traits import load_traits
 from scenes.world import WorldScene

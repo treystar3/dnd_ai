@@ -12,8 +12,8 @@ simlib.install(stub)
 import ui.console as uc
 NOTES = []
 for f in ("narrate", "say", "npc_says", "dialogue", "ledger"):
-    setattr(uc, f, lambda *a, **k: None)
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+    uc.put(f, lambda *a, **k: None)
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 import llm.gateway as gw
 from engine import guard, mapview, pulse
 from llm.contracts import Narration

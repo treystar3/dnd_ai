@@ -212,7 +212,7 @@ def cutting_chat(**k):
 
 cut_held = simlib.stand_in(chat=cutting_chat, embed=None)
 SCRIPT = ["I look around.", "I look around.", "quit"]
-uc.ask = lambda *a, **k: SCRIPT.pop(0) if SCRIPT else "quit"
+uc.put("ask", lambda *a, **k: SCRIPT.pop(0) if SCRIPT else "quit")
 budget.PROFILE.update(read_tps=1e9, write_tps=0.15)              # nearly seven seconds a token: the understanding leaves less than the floor
 OUT = pathlib.Path("saves/budget_468_rec_out")
 shutil.rmtree(OUT, ignore_errors=True)

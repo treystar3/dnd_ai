@@ -18,8 +18,8 @@ import simlib
 simlib.install(simlib.Stub("warrior", 3))
 import ui.console as uc
 for fn in ("note", "narrate", "say", "npc_says", "dialogue", "ledger"):
-    setattr(uc, fn, lambda *a, **k: None)
-uc.panel = lambda name, data: False
+    uc.put(fn, lambda *a, **k: None)
+uc.put("panel", lambda name, data: False)
 from engine import circumstance, deeds, drift, events, pulse, regard, retrieval, roads, situation_parts, situations, towns
 from engine import inventory as inv
 from engine.domain_events import Gift, Persuaded

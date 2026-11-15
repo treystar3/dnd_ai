@@ -101,7 +101,7 @@ OUT = pathlib.Path(f"saves/{NAME}_rec")
 shutil.rmtree(OUT, ignore_errors=True)
 stub.plan = [{"kind": "look"}]
 SCRIPT = ["I look around.", "quit"]
-uc.ask = lambda *a, **k: SCRIPT.pop(0) if SCRIPT else "quit"
+uc.put("ask", lambda *a, **k: SCRIPT.pop(0) if SCRIPT else "quit")
 g2.session.record(folder=OUT)                            # after the script's ask is in place: the recorder wraps it
 SHOWN.clear()
 ws2.run()

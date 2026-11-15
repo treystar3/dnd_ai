@@ -6,8 +6,8 @@ simlib.install(simlib.Stub("warrior", 3))
 import config
 import ui.console as uc
 PANELS, SAID = [], []
-uc.panel = lambda name, data: (PANELS.append((name, data)) or True)
-uc.note = lambda m, *a, **k: SAID.append(str(m))
+uc.put("panel", lambda name, data: (PANELS.append((name, data)) or True))
+uc.put("note", lambda m, *a, **k: SAID.append(str(m)))
 from engine import combat, party as P, statsheet
 from scenes.world import WorldScene
 from storage.campaign import CampaignStore, PlayerState

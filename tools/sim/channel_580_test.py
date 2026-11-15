@@ -98,6 +98,7 @@ want = {k: to_stdout(f) for k, f in CALLS.items()}
 got, leaked = {}, {}
 for k, f in CALLS.items():
     c = Collect()
+    c.set("ledger", console.STDOUT.get("ledger"))          # (f635) the stub's stand-in for the ledger is the terminal channel's: this one is given the same
     with console.use(c):
         inside = console.channel() is c
         leaked[k] = to_stdout(f)
@@ -121,17 +122,17 @@ except RuntimeError:
 check("...even after a fault inside", console.channel() is console.STDOUT)
 
 # ---- nothing else moved
-check("the story's functions are still the gated ones, found on the module by name", all(getattr(getattr(console, n), "gated", False) for n in console.STORY))
+check("the story's functions are still the gated ones, found on the module by name", all(getattr(console.now(n), "gated", False) for n in console.STORY))
 c = Collect()
 with console.use(c):
     console.narrate("The road runs on — into the trees.")
 check("...and the gate still mends a story line on its way to a channel (no dash reaches it)", "—" not in c.text and "The road runs on" in c.text, c.text)
-saved = {n: getattr(console, n) for n in ("narrate", "say", "note", "ledger", "panel")}
+saved = {n: console.now(n) for n in ("narrate", "say", "note", "ledger", "panel")}
 shown = simlib.quiet_console()
 console.narrate("muted")
-check("a function replaced on the module (a test's mute, the night's harness) is the one called", shown == [("narrate", "muted")], shown)
+check("a function put in an output's place (a test's mute, the night's harness) is the one called", shown == [("narrate", "muted")], shown)
 for n, f in saved.items():
-    setattr(console, n, f)
+    console.put(n, f)
 
 # ---- one way out
 tree = ast.parse(Path(console.__file__).read_text(encoding="utf-8"))

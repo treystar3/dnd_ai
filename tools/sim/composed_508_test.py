@@ -30,8 +30,8 @@ def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x, file=sys.__stdout__)
     if not ok: bad.append(n)
 
-console.combat_state = lambda data: False
-console.combat_panel = lambda lines: None
+console.put("combat_state", lambda data: False)
+console.put("combat_panel", lambda lines: None)
 
 # ---- the parts and the flat names
 FLAT_NAMES = """id name side level flaw flaw_used size category creature spawn rank attrs hp max_hp stamina max_stamina mana max_mana
