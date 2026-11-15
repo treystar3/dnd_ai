@@ -83,6 +83,9 @@ def validate_campaign(store, world=None) -> list[Problem]:
             if creatures is not None and rid not in creatures:
                 out.append(Problem(f"place {pid}", f"roster entry '{rid}' is not a creature of the bestiary"))
 
+    from storage import worldtables
+    out += [Problem("world", p) for p in worldtables.problems(store)]      # (f637) the lists' tables against their json, where a save has them
+
     # ---- the player
     if not store.player_exists():
         return out
