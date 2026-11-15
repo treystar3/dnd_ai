@@ -666,9 +666,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         remove_npc ties off the quests and commissions of someone gone); when it has, the scene takes the saved player before the drift is
         applied, so the operation's commit of the scene's copy keeps what the pulse did instead of writing over it."""
         from engine import drift, events
-        before = self.store._kv_text("player")
+        before = self.store.player_text()
         deltas = pulse.catch_up(self.store, self.world, self.catalog, self.minutes) or {}
-        if self.store._kv_text("player") != before:
+        if self.store.player_text() != before:
             self.player = self.store.load_player()
             pools.fill_missing(self.player.character)
         drift.apply_player(self.player, deltas)                                                 # (f331) what the drift owes the record this scene holds

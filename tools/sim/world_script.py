@@ -12,6 +12,12 @@ past what is kept, deeds past their cap, the history at its cap, and an operatio
     python tools/sim/world_script.py NAME --out FILE     one play in a process of its own: {"steps": [[label, the world as text]],
                                                          "cover": {what: bool}, "other": the digest of every table of the save,
                                                          "calls": the model's calls over the play, by kind (f605)}
+                                                         (f637) and "wrote": whether the store was written since the step before,
+                                                         "rest": the digest of the small rows but the world's, "ops": the
+                                                         operations that stood, "stale": the saves the detector noted, "shown":
+                                                         the lines shown, "world": the storage the world was kept in
+    ... --world tables                                   (f637) the same play with the world's lists in their tables
+                                                         (storage/worldtables.py)
     world_script.run_apart("name")                       the same from a test: the play's dict (the stand-in model numbers what it
                                                          invents by a count the process keeps, so two plays compared share none)
     play(name, stub, prepare=fn)                         in this process; fn(game) before anything is written: where a storage
@@ -33,11 +39,25 @@ PLACE = "trading_square"
 class Run:
     def __init__(self, game):
         self.game, self.steps, self.cover, self.other, self.calls = game, [], {}, {}, {}
+        self.wrote, self.rest, self.ops, self.stale, self.player = [], "", [], [], ""
 
 
 def world_text(store) -> str:
     """The loaded world as text, keys in the order they are held (a storage that reorders them is caught)."""
     return json.dumps(store.load_world_state(), ensure_ascii=False)
+
+
+def first_difference(a: str, b: str) -> str:
+    """(f637) Where two worlds, as text, part: the first key whose value differs, and each side's from where they part."""
+    x, y = json.loads(a), json.loads(b)
+    if list(x) != list(y):
+        return f"the keys: {list(x)} against {list(y)}"
+    for key in x:
+        if x[key] != y[key]:
+            p, q = json.dumps(x[key], ensure_ascii=False), json.dumps(y[key], ensure_ascii=False)
+            at = next((i for i, (c, d) in enumerate(zip(p, q)) if c != d), min(len(p), len(q)))
+            return f"{key}, at {at}: {p[max(0, at - 40):at + 80]!r} against {q[max(0, at - 40):at + 80]!r}"
+    return "nothing a reader would see: the texts differ and the worlds do not"
 
 
 def play(name: str, stub, seed: int = SEED, prepare=None) -> Run:
@@ -57,8 +77,12 @@ def play(name: str, stub, seed: int = SEED, prepare=None) -> Run:
     town = pulse.town_of(world, PLACE)
     n = [0]
 
+    writes = [store._writes]
+
     def snap(label: str) -> None:
         run.steps.append((label, world_text(store)))
+        run.wrote.append(store._writes != writes[0])
+        writes[0] = store._writes
 
     def state() -> dict:
         return store.load_world_state()
@@ -285,6 +309,10 @@ def play(name: str, stub, seed: int = SEED, prepare=None) -> Run:
     snap("a last line")
     run.other = {k: v for k, v in statehash.digest(store).items()}
     run.calls = dict(sorted(stub.calls.items()))
+    run.rest = statehash._h([r for r in statehash.dump(store)["kv"] if r[0] not in (store._world.KEY, "player")])
+    run.player = store.player_text() or ""
+    run.ops = [[o["kind"], o["steps"], o["index"], o["text"], o["rows"], o["actor"]] for o in store.load_operations()["ops"]]
+    run.stale = list(store._world.stale)
     return run
 
 
@@ -308,13 +336,20 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("name")
     ap.add_argument("--seed", type=int, default=SEED)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--world", choices=("row", "tables"), default="row")
+    ap.add_argument("--players", choices=("row", "table"), default="row")
     a = ap.parse_args(argv)
     stub = simlib.Stub("warrior", 3)
     simlib.install(stub)
-    simlib.quiet_console()
-    run = play(a.name, stub, seed=a.seed)
+    shown = simlib.quiet_console()
+    from storage import playerstable, worldtables
+    adopted = [fn for on, fn in ((a.world == "tables", worldtables.adopt), (a.players == "table", playerstable.adopt)) if on]
+    prepare = lambda g: [fn(g.store) for fn in adopted]
+    run = play(a.name, stub, seed=a.seed, prepare=prepare)
+    kept, held = type(run.game.store._world).__name__, type(run.game.store._players).__name__
     run.game.session.close()
-    Path(a.out).write_text(json.dumps({"steps": run.steps, "cover": run.cover, "other": run.other, "calls": run.calls}, ensure_ascii=False),
+    Path(a.out).write_text(json.dumps({"steps": run.steps, "cover": run.cover, "other": run.other, "calls": run.calls, "wrote": run.wrote,
+                                       "rest": run.rest, "ops": run.ops, "stale": run.stale, "shown": shown, "world": kept, "player": run.player, "players": held}, ensure_ascii=False),
                            encoding="utf-8")
     return 0
 

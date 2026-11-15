@@ -3,7 +3,7 @@
 Written 2026-11-14 against `main` at 84fc7cd (f627, with the prose branch merged). Approved by the owner the same day ("Approve as
 recommended"), with the recommendations of section 7 taken.
 
-**Built so far:** f628, f630, f631, f632, f629, f633, f634, f635 and f636. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
+**Built so far:** f628, f630, f631, f632, f629, f633, f634, f635, f636, f637 and f638. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
 "Yes, move it"), because three of its logs are written where there is no scene to ask who acted (see f629 below).
 
 This is not a new design. Two designs the owner has already taken stand behind it:
@@ -299,8 +299,83 @@ the loaded dict equal with its order, every other table's digest equal, outcomes
 - Kept at the last v16 commit: the world script's end database and the three goldens' start databases, as fixtures the
   migration is tested on afterwards.
 
+As built (tools/sim/worldtables_637_test.py, tools/sim/worldtables_caps_637_test.py):
+- `TableWorld` answers the seam `RowWorld` answers. Each list is the rows of its table in the list's order (`ord`: a
+  row that stands keeps its number and a new one's is above them all); a row's json is the item as the row would have written it and is all that is read back; the
+  columns are read from it at the write (threads: id, status, place; deeds: seq, minute, kind, actor, place; news: minute,
+  origin, thread; effects: kind, place, until, thread). The row keeps every other key, and a marker where each list
+  stood, so the keys load in their order. A list that is absent, empty or not a list loads as it was saved.
+- Nothing uses it: `migrations.CURRENT` is 16, a new save has none of the four tables, and a store's world is the row's.
+  `worldtables.adopt(store)` is what f640's migration will do to a save, and how the tests put the tables under one.
+- **Past the design:** doc 13 had a save write a list's dropped head, keep the common start and write the rest again.
+  A save here writes the rows that differ, by a comparison of the two lists (`difflib`): a matter that changes where it
+  stands is one row, a deed added at the cap is one row out and one in, a finished matter moved to the end is two. Only
+  an item put in before rows that stay has the rows after it written again. Measured over 1,000 days (a pulse and a deed
+  a day, 2,000 saves): 6.1 to 9.3 rows a save in every hundred days, 7.9 in the first five hundred days and 8.0 in the
+  second, the most in one save 42, with 637 rows held.
+- The caps over those days: deeds 300 and news 300, held and reached with more than twice that made; finished matters
+  30. The running matters and the effects have no number of their own (they hold what has not ended): 36 and 17 at most
+  in each half. The same days over the row, in a process of its own, hold the same world every tenth day.
+- The seeded world script over the row and over the tables, a process each: the same world after each of its 29 steps,
+  the same other tables and rows, the same lines shown, operations, model calls and stale saves, written at the same steps.
+- Indexes only for what the narrow readers ask by (a matter's status, a deed's minute, an effect's kind and place while
+  it lasts). The readers stay filters over the whole load until f641. **For f640:** the migration fixes the indexes a
+  save has, so what f641's readers will ask by is to be settled then (a matter by its id is the likely fourth).
+- The stale-save detector notes over the tables what it notes over the row. Its mark is a digest of the row's text and
+  the rows' texts, so a load reads each table once. The world script notes no stale save over either.
+- A save turns the whole world to text before it writes anything, as the row does: one that cannot be written writes
+  nothing and notes nothing, whoever catches the error. What it writes is one transaction, the caller's when one is open.
+- The script has no step that leaves the store alone, so doc 13's "the write counter moved in both or neither" is held
+  by the save alone: a world saved as it stands writes no row of any table and still the row of the other keys.
+- The campaign's check (storage/invariants.py) names a column that is not what its json says, a json that cannot be
+  read, rows of a list the row does not point at, and a world's row that cannot be read, in a save that has the tables.
+- Not held, and named in the code: a world that held the marker's own value under a list's key in place of a list
+  would load as that table's rows (nothing writes one); and `adopt` is for a store nothing holds a loaded world of
+  (f640 migrates as a save opens).
+- Time, 400 of those days: 19.8 s over the row, 22.4 s over the tables (24.3 s with the detector on). A load is 1.5 ms
+  against 1.2 ms: it reads five things where the row reads one. f641's readers that ask one table are what gets this back.
+- The kept saves are in data/replay/saves_v16 (doc 13 said data/replay/saves; `.gitignore` leaves out every `saves/`),
+  with a note of what each is. A golden's is held to its recording's start only while that start is version 16.
+- **For the owner:** the world's `spawns` key has no cap. Over the 1,000 days it grew from 4 KB to 16 KB, steadily, in
+  the row and in the tables alike (it is not one of the four lists). Not changed here: nothing else is to touch the save
+  while f637 to f641 are open.
+
 **f638: the players table, built and proven, not yet used.** One row for each character, holding today's player record; the
 first keeps the id `player`. A port with load, save, exists and the raw text.
+
+As built (tools/sim/players_638_test.py):
+- storage/playerstable.py holds the port and its two answers. `RowPlayers` is today's one row of the small table, and is
+  what a store has. `TablePlayers` is `players(character_id, place, json)`: a row for each character, the json the
+  record as the row would have written it, the place read from it at the write. No index: a save holds a party's worth
+  of rows and the key finds one. `playerstable.adopt(store)` is what f640's migration will do: the record moved in as it
+  was, byte for byte, under the first character's id, and the old row taken away.
+- The store's `load_player`, `save_player`, `player_exists` and the new `player_text` reach the record through the port
+  (`store._players`). What a record is stays the store's and is written once: a hire's memories are rows, and the
+  clock is written with the player in one transaction. So f640's switch for the player is one line.
+- Nothing uses the table: `migrations.CURRENT` is 16, a new save has no players table, a store's players are the row's.
+- **Moved here from f640:** the scene's raw compare of the player's row around the pulse (scenes/world.py `run_pulse`)
+  asks `store.player_text()`. Over the table both raw reads were nothing, so the scene would not have seen the pulse
+  write the player (f466), and the world script could not have been played over the table to prove it.
+- Proven on the four saves kept at version 16 (two with hires): the player loads the same from the table as from the
+  row, saves the same text, and leaves every other table the same, a hire's new memories among them. A fault between
+  the player and the clock leaves neither; a failed transaction leaves the record as it was, and so does an operation
+  of the scene's that wrote the player and did not stand. The seeded world script
+  over the row and over the table, a process each: the same world after every step, other tables, lines shown,
+  operations, model calls, and the same player's record at the end.
+- The table holds a second character beside the first, each under its id. The row refuses one. `player_text` takes
+  an id; the store's other three still ask for the first: `load_player(id)` is M1's, as doc 13 left it.
+- The campaign's check names a place that is not what its record says, a record that cannot be read, and the old row
+  left beside the table, in a save that has the table.
+- **Left for f640, as planned:** the readers of the old row outside the store (storage/migrations.py v6, v8 and v11,
+  storage/saves.py, the export and the legacy import, tools/sim/hire_rows_479_test.py), and the players table in
+  `statehash.TABLES`.
+- **For f640:** `adopt` does not write the old row over a record the table already holds; it leaves the row for the
+  check to name. The migration meets an empty table, so it moves every save's record.
+- **For M1:** the table has no cap of its own: a save writes the first character's row and no other. How many
+  characters a save may hold is M1's number, and the table's cap with it.
+- **For M1:** a row's key is the slot it was saved under, not the id inside its record. They are the same in every
+  save the game makes; a test that gives the one character another id still saves it as the first. When
+  `save_player` takes an id, the check should hold the two together.
 
 **f639: only a story input takes a dice step.** The owner's answer of 2026-11-12 (doc 17, question 17): a pane's command no
 longer counts as an input for the dice (scenes/world.py:1121). This changes the dice that follow a pane click, so it is the one
