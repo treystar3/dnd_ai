@@ -72,7 +72,7 @@ stub.plan = [{"kind": "buy", "ware": "healing draught", "target": herb.id}]
 FAIL["titles"] = {"Narration"}
 SHOWN.clear(); LOG.clear()
 stood = ws.turn("I buy a healing draught from the herbalist.")
-paid = [r for r in ledger.LAST if r["kind"] == "paid"]
+paid = [r for r in ledger.last() if r["kind"] == "paid"]
 check("the buy stands though its telling failed: coins spent and the draught in the pack, in the save", stood is True and store.load_player().character.coins < coins0
       and any(i.good == "healing_draught" for i in store.load_player().character.inventory), (stood, store.load_player().character.coins, coins0))
 check("...its row is on the record with the facts a stand-in is filled from", paid and paid[0].get("facts", {}).get("who") == herb.label("player") and paid[0]["op"] in [o["id"] for o in store.load_operations()["ops"]], paid)

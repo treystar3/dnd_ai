@@ -40,7 +40,7 @@ check("a ruled thing is an object lying where it was made", rope is not None and
       and rope.ref.startswith(f"object:{here}:"), rope)
 check("...tagged by what it is (a rope ladder climbs and burns)", rope is not None and {"climbable", "flammable"} <= set(rope.data["tags"]), rope and rope.data)
 check("...its words kept on the place, and the turn's record names the thing", any("rope ladder" in m for m in store.load_place(here).marks)
-      and any(r.get("ref") == rope.ref for r in ledger.ROWS if r["kind"] == "made"), (store.load_place(here).marks, ledger.ROWS))
+      and any(r.get("ref") == rope.ref for r in ledger.this_turn() if r["kind"] == "made"), (store.load_place(here).marks, ledger.this_turn()))
 check("...and nothing a mark already tells is told again on the ground", ws.lying_here() == [], ws.lying_here())
 
 
@@ -198,7 +198,7 @@ act(ws.on_pick_up, "the rope ladder", "I pick up the rope ladder")
 act(ws.on_discard, "the rope ladder", "I discard the rope ladder")
 check("discarding a thing in hand sets it down too", store.load_entity(lad.ref).state == "here")
 check("picking one up is recorded as carried in hand, with what it is for a line if its telling fails",
-      any(r["kind"] == "carried" and (r.get("facts") or {}).get("what") == "the rope ladder" for r in ledger.ROWS + ledger.LAST), ledger.ROWS[-3:])
+      any(r["kind"] == "carried" and (r.get("facts") or {}).get("what") == "the rope ladder" for r in ledger.this_turn() + ledger.last()), ledger.this_turn()[-3:])
 check("objects.yaml and the lifecycle pass their startup checks", objects.problems() == [])
 was = dict(objects.O)
 objects.O.update(per_place=0, tags={k: v for k, v in was["tags"].items() if k != "heavy"})

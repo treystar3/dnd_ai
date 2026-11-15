@@ -3,7 +3,7 @@
 Written 2026-11-14 against `main` at 84fc7cd (f627, with the prose branch merged). Approved by the owner the same day ("Approve as
 recommended"), with the recommendations of section 7 taken.
 
-**Built so far:** f628, f630, f631, f632 and f629. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
+**Built so far:** f628, f630, f631, f632, f629 and f633. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
 "Yes, move it"), because three of its logs are written where there is no scene to ask who acted (see f629 below).
 
 This is not a new design. Two designs the owner has already taken stand behind it:
@@ -153,6 +153,32 @@ same commit, the tools the suite never runs among them (tools/rerun.py, nightrun
   writes cannot arrive unnoticed.
 - The thread-local and thread-id sites are held in an allow-list of those that exist, each with its reason.
 - Proof: the replay compares the ledger's outcomes, what was presented and the committed operations at every input.
+- As built (tools/sim/registers_633_test.py, tools/sim/owned_state_633_test.py): `Registers` is in engine/actor.py, twelve
+  fields, and every actor points at the process's one (`actor.SHARED`); a test gives two actors their own and they keep their
+  lines apart. The five modules' functions are still how it is read and written, with a reader for each name that was read
+  raw: `ledger.this_turn()`, `last()` and `totals()`, `operation.opened()`, `presented()`, `take_presented()` and `legacy()`,
+  `budget.opened()` and `last()`, `turnlog.shown_count()`. `ledger.end()` now keeps the turn's rows as the last turn's itself.
+  Reading or setting an old name raises and says what to call, and a fence over every file in the repository finds no use.
+- The owner, as built: the first of a budget, an operation or a serving to open takes the turn for its thread and the last to
+  close gives it up, as designed. While an operation or a serving is open nothing takes it. A budget alone does not hold it:
+  one opened over another drops the old one (as before), and an operation or a serving opened while another thread's budget
+  is still open takes the turn, the budget with it. That last is the one place behaviour differs: the budget then charges
+  the thread that plays, where before it stayed with the thread that opened it and charged nobody. No path of the game
+  leaves a budget open across threads (it is opened in `new_input` and closed in a `finally` on the same thread).
+  A budget that is not the open one (closed, and still held by whoever opened it) answers its holder, as it did:
+  tools/sim/budget_cached_538_test.py prices two that way, and the suite caught the first build refusing them.
+- The table, as built (engine/owned.py): 102 rows, 12 of them the registers and 90 module names in 41 modules, in five
+  scopes, not four: `call` was added for what belongs to one call on its thread (the model layer's thread-locals, which the
+  design said stay). The session's reset and residue are the 25 rows that say how they are put back; its names for the moved
+  ones are now `registers.<field>`, and the count of things shown, which nobody reset before, is reset with the rest.
+  Declared and not moved: three module names that are the turn's (`gateway._SEEN`, `audit._turn`, `pulselog._tick`), the
+  eight that are the actor's (f634), and the output seam's sixteen (f635).
+- What the scan cannot see, said in the test: a container handed to a function that changes it, an object changed through its
+  own methods, a class's attributes changed through an instance, a module reached by a computed name. Fourteen thread sites
+  are listed, each with its reason. Two rows say a store has no cap (`refusals.SESSION`, `weather._CHAIN`): both were so
+  before this, and are left for a feature of their own.
+- Run by hand: a stubbed night (tools/nightrun.py --stub, 8 turns), which reads the budget's and the ledger's last through
+  the new readers; tools/rerun.py runs in the suite. tools/live_check.py reads no moved name until f634.
 
 **f634: the actor's caches.** The journal sink, the name map and the events of engine/canon.py, the cast's pronouns, the last
 failure, the last question and the price discount move to an object on the actor, shared with the process's default while there

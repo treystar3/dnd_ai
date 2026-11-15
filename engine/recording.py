@@ -271,9 +271,9 @@ class Recorder:
         from storage import statehash
         ops = [{"id": o["id"], "kind": o["kind"], "rows": o["rows"]}                                 # (f463) the operations the input committed
                for o in self.store.load_operations()["ops"] if o.get("steps") == self.store.meta.steps]
-        presented, operation.PRESENTED[:] = list(operation.PRESENTED), []                           # (f467) what reached the page, and how
+        presented = operation.take_presented()                                                      # (f467) what reached the page, and how
         row = {"i": self.n_input, "turn": self.store.meta.turn, "steps": self.store.meta.steps,
-               "state": statehash.digest(self.store), "outcomes": ledger.LAST, "operations": ops, "presented": presented,
+               "state": statehash.digest(self.store), "outcomes": ledger.last(), "operations": ops, "presented": presented,
                "shown": hashlib.sha256("\n".join(self.shown).encode("utf-8")).hexdigest(), "lines": len(self.shown),
                "shown_text": list(self.shown)}                       # (f459) the lines, for a re-bless to name the one that moved
         if self.rows:                                                # (f476) the rows and keys this input changed

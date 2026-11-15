@@ -17,12 +17,25 @@ HOMES declares where every name a failed operation puts back belongs once a scen
 M1): the turn's, one character's view, or the scene's, shared by everyone in it. Only the turn's have moved; the rest are still
 attributes of the scene, and this is the list that split starts from.
 
-One actor a scene, and one turn's context, while a scene has one character; M1 makes it one for each."""
+(f633) Registers is what a turn keeps while it is played, which five modules each held under names of their own: the operation
+open now, what reached the page and the calls made inside a transaction (engine/operation.py), the ledger's rows, the last
+turn's and the totals (engine/ledger.py), the input's budget and the last one's summary (engine/budget.py), the turn log's open
+turn and its count of things shown (engine/turnlog.py), and the answers served to an operation that runs again
+(engine/asked.py). Those modules' functions are still how it is read and written; each reaches the registers of the actor
+bound (`registers()`). `owner` is the thread that plays the turn, the one field where there were three: off it there is no
+turn (a call from the people written behind the scenes is not charged, filed under the operation or served an answer).
+
+One actor a scene, one turn's context and one set of registers for the process, while a scene has one character; M1 makes it
+one for each."""
 from __future__ import annotations
 
+import collections
 import contextlib
 import contextvars
 import functools
+import sys
+import threading
+import types
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -135,6 +148,56 @@ class Clock:
         return meta.minutes
 
 
+class Registers:
+    """(f633) The turn's registers, each as a new one holds it (FRESH). The session puts them back when a campaign opens or
+    closes (engine/owned.py, engine/session.py)."""
+
+    FRESH: dict[str, Callable] = {
+        "owner": lambda: None,                 # the thread playing the turn; none between turns
+        "operation": lambda: None,             # the operation open now
+        "presented": list,                     # what reached the page, in order: {"op": id, "how": shown | stand_in | recovered}
+        "legacy": list,                        # the tasks asked for while an operation held the save's transaction open
+        "rows": list,                          # the ledger: this turn's rows
+        "last": list,                          # ...the last turn's, once it has ended
+        "totals": collections.Counter,         # ...and how many of each kind stand
+        "budget": lambda: None,                # the input's budget, while it is open
+        "budget_last": dict,                   # the last closed budget's summary, with the stand-ins the line showed
+        "open_turn": lambda: None,             # the turn log's rows of the turn being played, waiting for what it showed
+        "shown": int,                          # things shown since the start: a turn that moved it not at all said nothing
+        "serving": lambda: None,               # the answers of the operation that runs again
+    }
+
+    def __init__(self) -> None:
+        self.reset()
+
+    def reset(self) -> None:
+        for name, fresh in self.FRESH.items():
+            setattr(self, name, fresh())
+
+    def held(self) -> dict[str, str]:
+        """Every register that is not as a new one holds it, by name, with what it holds."""
+        return {name: repr(getattr(self, name))[:80] for name, fresh in self.FRESH.items() if getattr(self, name) != fresh()}
+
+    def claim(self) -> None:
+        """A budget, an operation or a serving opens: the turn is the calling thread's. While an operation or a serving is
+        open the turn stays its thread's. A budget alone never holds it: one left open by a line that never closed it goes
+        to the thread that opens next, and charges that thread's calls from then on."""
+        if self.operation is None and self.serving is None:
+            self.owner = threading.get_ident()
+
+    def release(self) -> None:
+        """One of the three closed: with none left open, the turn is nobody's."""
+        if self.operation is None and self.budget is None and self.serving is None:
+            self.owner = None
+
+    def mine(self) -> bool:
+        """Whether the calling thread is the one playing the turn. With nothing open, no thread is."""
+        return self.owner == threading.get_ident()
+
+
+SHARED = Registers()                           # the process's one set, every actor's while there is one actor
+
+
 @dataclass(eq=False)
 class ActorContext:
     player: object = None                      # the character's record (PlayerState); none for the process's own
@@ -142,6 +205,7 @@ class ActorContext:
     out: object = None                         # the console's channel while it is bound; None: the channel as it stands
     clock: Clock | None = None
     turn: TurnContext = field(default_factory=TurnContext)
+    registers: Registers = SHARED              # (f633) the turn's registers: the process's one, until a second actor has its own
 
     @property
     def character_id(self) -> str:
@@ -155,6 +219,30 @@ _bound: contextvars.ContextVar = contextvars.ContextVar("actor", default=PROCESS
 def current() -> ActorContext:
     """The actor whose entry is running on this thread; PROCESS outside every entry and on a thread no entry runs on."""
     return _bound.get()
+
+
+def registers() -> Registers:
+    """(f633) The turn's registers of the actor bound on this thread: the process's one outside every entry, and on a thread
+    no entry runs on, where `owner` says the turn is not that thread's."""
+    return current().registers
+
+
+def moved(module_name: str, names: dict[str, str]) -> None:
+    """(f633) Names a module once held its state under, now held elsewhere: reading one or setting one raises and says what
+    to call. Setting is refused too, or `module.NAME = ...` would quietly make a dead name nothing reads."""
+    def gone(name: str) -> AttributeError:
+        return AttributeError(f"{module_name}.{name} is no longer the module's (engine/actor.py Registers): use {names[name]}")
+
+    class Moved(types.ModuleType):
+        def __getattr__(self, name):
+            raise gone(name) if name in names else AttributeError(f"module {module_name!r} has no attribute {name!r}")
+
+        def __setattr__(self, name, value):
+            if name in names:
+                raise gone(name)
+            super().__setattr__(name, value)
+
+    sys.modules[module_name].__class__ = Moved
 
 
 def who() -> str:

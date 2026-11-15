@@ -115,7 +115,7 @@ check("...the Found line bears the model's name", rare is not None and rare.name
 told = next((r for r in REQ if "THE PLAYER FINDS" in r), "")
 check("...and the aftermath's THE PLAYER FINDS names the final names", told and rare.name in told and legend.name in told
       and "Rare " not in told.split("THE PLAYER FINDS:")[1].split("\n")[0], told.split("THE PLAYER FINDS:")[1].split("\n")[0] if told else told)
-gained = [r for r in ledger.LAST if r.get("kind") == "gained"]
+gained = [r for r in ledger.last() if r.get("kind") == "gained"]
 check("...the turn's record (the ledger the narrator and the turn log read) names them as the pack does",
       gained and all(any(i.name in (r.get("say") or "") for i in new) for r in gained), [r.get("say") for r in gained])
 
@@ -165,7 +165,7 @@ found_line = next((t for k, t in SHOWN if k == "ledger" and t.startswith("Found:
 check("a naming whose call fails every try leaves the engine's name, the item kept, the Found line showing that name, the win standing",
       stood is True and rare is not None and rare.name.startswith("Rare ") and rare.name in found_line and "naming" in ops_of_input(), (stood, rare and rare.name, found_line, ops_of_input()))
 
-check("the ratchet holds none of the five naming tasks", not ({"loot_name", "legendary_name", "accessory_name", "named_spell", "spell_rank"} & set(operation.LEGACY)), operation.LEGACY)
+check("the ratchet holds none of the five naming tasks", not ({"loot_name", "legendary_name", "accessory_name", "named_spell", "spell_rank"} & set(operation.legacy())), operation.legacy())
 
 loot.boss_drops = real_drops
 SPY()

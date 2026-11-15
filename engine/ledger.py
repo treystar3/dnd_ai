@@ -11,10 +11,12 @@ begin() opens a turn and end() closes it (the scene's turn does both); add() out
 (f416) Every writer reads the same rows. A narrator is told each row once (told() marks what it hands over, so a second passage in the
 turn does not tell it again); a person answering the player reads all of the turn's rows so far, told or not (decided()), so they never
 answer a deal or a refusal the engine has already settled the other way. The kinds are declared below, so a row of a kind nobody declared
-is a bug caught at once. Rows live one turn."""
+is a bug caught at once. Rows live one turn.
+
+(f633) The turn's rows, the last turn's and the totals are the turn's registers (engine/actor.py Registers)."""
 from __future__ import annotations
 
-import collections
+from engine import actor
 
 KINDS = {                                     # what each row means; add() refuses any other kind
     "made": "an addition to the world, real from now on",
@@ -39,37 +41,44 @@ KINDS = {                                     # what each row means; add() refus
     "gathered": "herbs or materials gathered",
     "ended": "a matter brought to an end",
 }
-ROWS: list[dict] = []                         # this turn's
-LAST: list[dict] = []                         # the last turn's, once it has ended (a night's harness reads it)
-TOTALS: collections.Counter = collections.Counter()
 
 
 def begin() -> None:
-    ROWS.clear()
-
-
-def reset() -> None:
-    """(f453) A campaign opened or closed (engine/session.py): nothing of another campaign's turns stays in this process."""
-    global LAST
-    ROWS.clear()
-    LAST = []
-    TOTALS.clear()
+    actor.registers().rows.clear()
 
 
 def end() -> list[dict]:
-    out = list(ROWS)
-    ROWS.clear()
-    return out
+    """The turn is over: its rows become the last turn's (last()), and are returned."""
+    mine = actor.registers()
+    mine.last = list(mine.rows)
+    mine.rows.clear()
+    return mine.last
+
+
+def last() -> list[dict]:
+    """The last turn's rows, once it has ended: what the recorder writes after an input, and a night's harness reads. The list
+    itself, a new one at each turn's end."""
+    return actor.registers().last
+
+
+def totals() -> dict[str, int]:
+    """How many rows of each kind stand, over the campaign so far."""
+    return dict(actor.registers().totals)
+
+
+def _take_back(mine, rows) -> None:
+    for r in rows:
+        mine.totals[r["kind"]] -= 1
+        if mine.totals[r["kind"]] <= 0:
+            del mine.totals[r["kind"]]
 
 
 def rollback() -> None:
-    """(f455) The turn rolled back: its rows are taken back and the totals with them. LAST stays the last turn that stood, which is what
-    the recorder writes after an input and the replayer compares."""
-    for r in ROWS:
-        TOTALS[r["kind"]] -= 1
-        if TOTALS[r["kind"]] <= 0:
-            del TOTALS[r["kind"]]
-    ROWS.clear()
+    """(f455) The turn rolled back: its rows are taken back and the totals with them. The last turn's stay those of the last turn that
+    stood, which is what the recorder writes after an input and the replayer compares."""
+    mine = actor.registers()
+    _take_back(mine, mine.rows)
+    mine.rows.clear()
 
 
 def add(kind: str, facts: dict | None = None, **fields) -> dict:
@@ -86,30 +95,26 @@ def add(kind: str, facts: dict | None = None, **fields) -> dict:
     if op is not None:
         row["op"] = op.id
         op.rows.append(row)
-    ROWS.append(row)
-    TOTALS[kind] += 1
+    mine = actor.registers()
+    mine.rows.append(row)
+    mine.totals[kind] += 1
     return row
 
 
 def rollback_op(op_id: str) -> None:
     """(f462) One operation rolled back: its rows and their totals go; the rest of the turn's stay."""
-    keep = []
-    for r in ROWS:
-        if r.get("op") == op_id:
-            TOTALS[r["kind"]] -= 1
-            if TOTALS[r["kind"]] <= 0:
-                del TOTALS[r["kind"]]
-        else:
-            keep.append(r)
-    ROWS[:] = keep
+    mine = actor.registers()
+    _take_back(mine, [r for r in mine.rows if r.get("op") == op_id])
+    mine.rows[:] = [r for r in mine.rows if r.get("op") != op_id]
 
 
 def this_turn() -> list[dict]:
-    return list(ROWS)
+    """The turn's rows so far, in order: the rows themselves in a list of the caller's own."""
+    return list(actor.registers().rows)
 
 
 def count(kind: str) -> int:
-    return TOTALS[kind]
+    return actor.registers().totals[kind]
 
 
 def told(but: tuple[str, ...] = ()) -> list[str]:
@@ -117,7 +122,7 @@ def told(but: tuple[str, ...] = ()) -> list[str]:
     (f416) a row told in one passage is not told again in the next. but: kinds the caller tells under heads of its own (the passage after
     a fight lists what was found and what was left), marked told and not returned."""
     out = []
-    for r in ROWS:
+    for r in actor.registers().rows:
         if r.get("say") and not r.get("told"):
             if r["kind"] not in but:
                 out.append(r["say"])
@@ -127,9 +132,12 @@ def told(but: tuple[str, ...] = ()) -> list[str]:
 
 def untold() -> list[str]:
     """(f416) What the turn did that no passage has told yet, without marking it."""
-    return [r["say"] for r in ROWS if r.get("say") and not r.get("told")]
+    return [r["say"] for r in actor.registers().rows if r.get("say") and not r.get("told")]
 
 
 def decided() -> list[str]:
     """(f416) Everything the engine has settled this turn so far, told or not: what a person answering the player must not contradict."""
-    return [r["say"] for r in ROWS if r.get("say")]
+    return [r["say"] for r in actor.registers().rows if r.get("say")]
+
+
+actor.moved(__name__, {"ROWS": "ledger.this_turn()", "LAST": "ledger.last() (ledger.end() keeps it)", "TOTALS": "ledger.totals() or ledger.count(kind)"})

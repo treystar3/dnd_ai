@@ -203,10 +203,11 @@ class Run:
                    notes=self.turn_notes[-8:], state=self.state_now(),
                    outcomes=[{k: (str(v)[:160] if isinstance(v, str) else v) for k, v in o.items()} for o in self.last_outcomes()])
         from engine import budget as _budget                                               # (f468) the budget's own measures, apart from hesitations
-        row.update(budget_seconds=int(_budget.LAST.get("estimated") or 0), required_seconds=_budget.LAST.get("required") or 0,
+        spent = _budget.last()
+        row.update(budget_seconds=int(spent.get("estimated") or 0), required_seconds=spent.get("required") or 0,
                    budget_cached=bool(_budget.CACHED),                     # (f538) priced without the prompt the server reused
-                   deferred=list(_budget.LAST.get("deferred") or []), dropped=list(_budget.LAST.get("dropped") or []),
-                   stand_ins=list(_budget.LAST.get("stand_ins") or []),
+                   deferred=list(spent.get("deferred") or []), dropped=list(spent.get("dropped") or []),
+                   stand_ins=list(spent.get("stand_ins") or []),
                    recovered=int(getattr(getattr(self.bot, "ws", None), "recovered_at_load", 0) or 0) if row["n"] == 1 else 0)   # (f471)
         row["crashed"] = bool(row["hesitated"] and getattr(getattr(self.bot, "ws", None), "last_crash", False))   # (f492) the game's fault
         self.crash_streak = self.crash_streak + 1 if row["crashed"] else 0 if not row["hesitated"] else self.crash_streak
@@ -224,7 +225,7 @@ class Run:
         """(f394) The turn's record (engine/ledger.py): what the engine did, as typed rows."""
         try:
             from engine import ledger
-            return list(ledger.LAST)
+            return list(ledger.last())
         except Exception:
             return []
 

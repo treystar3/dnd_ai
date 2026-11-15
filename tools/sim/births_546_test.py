@@ -81,7 +81,7 @@ row = next(x for x in st["threads"] if x["id"] == th["id"])
 row["truth"] = "The miller never wrote a letter to anyone; the gate burned by chance; there are wolves on the road at night."
 row["stages"][0].setdefault("effects", []).append({"kind": "leave", "npc": away.id, "text": "left for the coast"})
 store.save_world_state(st)
-calls0, legacy0, log0 = stub.calls.get("SituationParts", 0), list(operation.LEGACY), len(pulselog.LOG)
+calls0, legacy0, log0 = stub.calls.get("SituationParts", 0), list(operation.legacy()), len(pulselog.LOG)
 import llm.gateway as gw
 asked_tasks = []
 _generate = gw.generate
@@ -95,7 +95,7 @@ th = thread_of(store, th["id"])
 parts = th.get("parts") or []
 check("after the input, the parts operation gave it its parts with one call", parts and stub.calls.get("SituationParts", 0) == calls0 + 1
       and "parts_due" not in th, (len(parts), stub.calls.get("SituationParts")))
-check("...asked outside any transaction (never a legacy call)", "situation_parts" not in operation.LEGACY[len(legacy0):], operation.LEGACY)
+check("...asked outside any transaction (never a legacy call)", "situation_parts" not in operation.legacy()[len(legacy0):], operation.legacy())
 check("...and a parts row in the pulse's log", any(r.get("kind") == "parts" and r.get("thread") == th["id"] for r in list(pulselog.LOG)))
 check("the call was given what the prose established", "ALREADY ESTABLISHED" in seen.get("u", "") and "never wrote a letter" in seen["u"],
       seen.get("u", "")[-600:])

@@ -75,7 +75,7 @@ def run(with_thread: bool) -> dict:
         ws.store.save_player(ws.player)
 
     asked.begin = keep
-    legacy0 = list(operation.LEGACY)
+    legacy0 = list(operation.legacy())
     try:
         op, _ = ws.asked_operation("probe", "I look around.", body)
         error = None
@@ -84,7 +84,7 @@ def run(with_thread: bool) -> dict:
     finally:
         asked.begin = real_begin
     out = {"state": op.state if op is not None else None, "error": error, "digest": statehash.digest(g.store)["all"],
-           "answers": [[k for k, _r, _e in sv.answers] for sv in servings], "legacy_added": [t for t in operation.LEGACY if t not in legacy0],
+           "answers": [[k for k, _r, _e in sv.answers] for sv in servings], "legacy_added": [t for t in operation.legacy() if t not in legacy0],
            **seen}
     g.close()
     return out

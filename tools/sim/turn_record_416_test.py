@@ -66,7 +66,7 @@ check("...and the passage is told it did not happen", "NOT DONE, never show it d
 did, ev, words = req.find("WHAT THE GAME DID THIS TURN"), req.find("GAME EVENT:"), req.find("PLAYER'S WORDS")
 check("...what the game did comes before the event, and the player's words after, marked as only what they typed",
       0 <= did < ev < words and "only what the game did happens" in req[words:words + 120], (did, ev, words))
-check("...the turn's record keeps the refused row", any(r["kind"] == "refused" and r["step"] == "use" for r in ledger.LAST), ledger.LAST)
+check("...the turn's record keeps the refused row", any(r["kind"] == "refused" and r["step"] == "use" for r in ledger.last()), ledger.last())
 logged = [r for r in refusals.SESSION if r["kind"] == "refused"]
 check("...and the refusal is in the log, with the line and the reason", len(logged) == n0 + 1 and "whetstone" in logged[-1]["text"]
       and "nothing like that" in logged[-1]["why"], logged[-1:])
@@ -123,8 +123,8 @@ post = next((q for q in board if q["letter"] == "F" and q["kind"] not in ("missi
 ledger.begin()
 if post is not None and ws.clerk_here():
     ws.on_accept_quest(A(kind="accept_quest", item=post["title"]), f"I take {post['title']}")
-    check("taking a contract at the board keeps a row the turn can tell", any(r["kind"] == "took" and post["title"] in r["say"] for r in ledger.ROWS),
-          ledger.ROWS)
+    check("taking a contract at the board keeps a row the turn can tell", any(r["kind"] == "took" and post["title"] in r["say"] for r in ledger.this_turn()),
+          ledger.this_turn())
 else:
     check("taking a contract at the board keeps a row the turn can tell (a board and a clerk to test with)", False, (post, ws.clerk_here()))
 

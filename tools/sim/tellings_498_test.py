@@ -222,7 +222,7 @@ check("a pane command in a fight (#useitem) is an operation of its own, restarta
       and ("command:useitem", ) in {(kk,) for kk, i in BEGUN}, (k, after[:6], [kk for kk, i in BEGUN]))
 
 check("the ratchet holds none of the four tellings: nothing of them is asked inside an operation",
-      not ({"combat_opening", "combat_narrate", "combat_aftermath", "goddess_line"} & set(operation.LEGACY)), operation.LEGACY)
+      not ({"combat_opening", "combat_narrate", "combat_aftermath", "goddess_line"} & set(operation.legacy())), operation.legacy())
 
 check("every telling was asked of the test's own stand-in", spy.live() and spy.src.calls["Narration"] >= 4, dict(spy.src.calls))
 operation.begin, store.commit_operation = real_begin, real_commit

@@ -143,7 +143,7 @@ lines = [t for k, t in SHOWN if k == "narrate"]
 check("the kill whose telling fails is told by the fight's stand-ins now", stood is True and ws3.combat is None and any(t in failures.F["round_stood"] for t in lines)
       and [o.kind for o in ws3.line_untold] == ["round", "aftermath"], (stood, [o.kind for o in ws3.line_untold], lines[:3]))
 check("...with nothing left for the next load, and the stand-ins on the record of what was presented", store3.unshown() == {}
-      and [p["how"] for p in operation.PRESENTED if p["how"] == "stand_in"] == ["stand_in", "stand_in"], (store3.unshown(), operation.PRESENTED[-6:]))
+      and [p["how"] for p in operation.presented() if p["how"] == "stand_in"] == ["stand_in", "stand_in"], (store3.unshown(), operation.presented()[-6:]))
 FAIL["titles"] = set()
 
 # ---- the same kill with the tail failing: finished, written down, no second kill

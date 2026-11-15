@@ -8,10 +8,11 @@ the open turn, the casting cache, the planned anchors, the world's reactions) st
 and a creation call or a backfill still running when the save closed ran on, so that had the next session's recorder been installed,
 its answer would have been written down as that session's.
 
-- CampaignSession.open(name) resets OWNED, opens the store (SaveTooNew propagates to the caller, who tells the player, as before) and
-  presents the map: a CampaignWorld over the one authored World (world/campaign.py). OWNED is the list, declared once below, of the
-  module bindings a campaign writes while it plays, each with how it is put back and how it is known to be clean. They are reset at
-  open (a session never closed, after a crash, leaves nothing behind) and at close, never at adopt.
+- CampaignSession.open(name) resets what it owns, opens the store (SaveTooNew propagates to the caller, who tells the player, as before)
+  and presents the map: a CampaignWorld over the one authored World (world/campaign.py). (f633) What it owns is declared in
+  engine/owned.py STATE, the one table of every piece of state outside a save: the rows that say how they are put back (the turn's
+  registers, the acting character's module names, the campaign's) are reset at open (a session never closed, after a crash, leaves
+  nothing behind) and at close, never at adopt.
 - adopt(store, world) wraps a store and a world a scene was built on the old way (a test's fixture, a harness, the hundred and twenty
   constructor sites the ratchet of f450 counts down): every scene has a session either way, and nothing is reset under the test's feet.
 - scene(catalog, player) builds the WorldScene on the session's store and world; record() installs the recorder, which close() closes
@@ -31,7 +32,7 @@ its answer would have been written down as that session's.
   additions, the ledger rows and every cache written mid-turn.
 
 residue() names every owned binding not at its initial value: {} after a clean close, which the tests assert (simlib.residue). A new
-module binding a campaign writes is added to OWNED, or the next test that opens two campaigns finds it there."""
+module name the game writes is declared in engine/owned.py, or tools/sim/owned_state_633_test.py fails on it."""
 from __future__ import annotations
 
 import copy
@@ -45,37 +46,10 @@ UNSEEDED = "unseeded"
 
 
 def _owned() -> list[tuple[str, Callable[[], None], Callable[[], bool], Callable[[], str]]]:
-    """The module bindings a campaign writes while it plays: (name, put back, clean?, what it holds). Read at call time, since two of them
-    (canon.IDS, ledger.LAST) are rebound rather than changed in place."""
-    from engine import budget, canon, enchanting, failures, ledger, names, operation, pulse, questions, severity, streams, turnlog
-    from npc import life
-    from llm import embed
-    return [
-        ("canon.JOURNAL", lambda: setattr(canon, "JOURNAL", None), lambda: canon.JOURNAL is None, lambda: repr(canon.JOURNAL)),
-        ("canon.IDS", lambda: canon.IDS.clear(), lambda: not canon.IDS, lambda: repr(dict(canon.IDS))),
-        ("names.CAST", lambda: names.set_cast({}), lambda: not names.CAST, lambda: repr(dict(names.CAST))),
-        ("enchanting.DISCOUNT", lambda: enchanting.DISCOUNT.update(percent=0), lambda: not enchanting.DISCOUNT.get("percent"),
-         lambda: repr(dict(enchanting.DISCOUNT))),
-        ("pulse.LAST", lambda: pulse.LAST.update(made_by="", attempted=""), lambda: not (pulse.LAST.get("made_by") or pulse.LAST.get("attempted")),
-         lambda: repr(dict(pulse.LAST))),
-        ("failures._last", lambda: failures._last.clear(), lambda: not failures._last, lambda: repr(dict(failures._last))),
-        ("questions._last", lambda: setattr(questions, "_last", ""), lambda: not questions._last, lambda: repr(questions._last)),   # (f460)
-        ("operation.CURRENT", operation.reset, lambda: operation.CURRENT is None, lambda: repr(operation.CURRENT)),              # (f462)
-        ("operation.PRESENTED", lambda: operation.PRESENTED.clear(), lambda: not operation.PRESENTED, lambda: f"{len(operation.PRESENTED)} presented"),   # (f467)
-        ("budget.CURRENT", budget.reset, lambda: budget.CURRENT is None and not budget.LAST, lambda: repr(budget.LAST or budget.CURRENT)),   # (f468)
-        ("operation.LEGACY", lambda: operation.LEGACY.clear(), lambda: not operation.LEGACY, lambda: repr(operation.LEGACY)),   # (f470)
-        ("canon.EVENTS", lambda: canon.EVENTS.clear(), lambda: not canon.EVENTS, lambda: f"{len(canon.EVENTS)} events"),
-        ("canon._SINK", lambda: canon._SINK.clear(), lambda: not canon._SINK, lambda: f"{len(canon._SINK)} drafts under review"),
-        ("severity.REACTIONS", lambda: severity.REACTIONS.clear(), lambda: not severity.REACTIONS, lambda: f"{len(severity.REACTIONS)} reactions"),
-        ("ledger", ledger.reset, lambda: not (ledger.ROWS or ledger.LAST or ledger.TOTALS),
-         lambda: f"{len(ledger.ROWS)} rows, {len(ledger.LAST)} last, {sum(ledger.TOTALS.values())} counted"),
-        ("streams", streams.reset, lambda: streams.key() == UNSEEDED, streams.key),
-        ("turnlog._open", lambda: setattr(turnlog, "_open", None), lambda: turnlog._open is None, lambda: repr(turnlog._open)[:80]),
-        ("life._ANCHOR_SLOTS", lambda: life._ANCHOR_SLOTS.clear(), lambda: not life._ANCHOR_SLOTS, lambda: repr(dict(life._ANCHOR_SLOTS))),
-        # (f476) the embedding cache: a warm one changes what the budget charges and which embed calls a replay expects, so it is the
-        # campaign's, cleared when one opens or closes
-        ("embed._cache", lambda: embed._cache.clear(), lambda: not embed._cache, lambda: f"{len(embed._cache)} vectors"),
-    ]                                                      # (f454) the world's reactions live on the session's bus, cleared with it
+    """What a campaign leaves in the process and the session puts back: (name, put back, clean?, what it holds), the rows of the
+    one table (engine/owned.py STATE) that say how."""
+    from engine import owned
+    return [(owned.label(key), row.put_back, row.clean, row.what) for key, row in owned.STATE.items() if row.put_back is not None]
 
 
 def reset() -> None:

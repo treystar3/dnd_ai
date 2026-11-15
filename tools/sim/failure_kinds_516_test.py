@@ -370,8 +370,8 @@ finally:
 check("a cancel of the townsfolk's answer in a talk turn (asked outside the line's operation) leaves as Cancelled, the save as it was",
       isinstance(got, Cancelled) and src.cancelled == 1 and statehash.digest(g3.store)["all"] == before
       and len(crashlog.SESSION) == crashes3 and operation.current() is None and asked.serving() is None, (repr(got), src.cancelled))
-check("...the turn's budget closed and no thread of the session left running before it closes", budget.CURRENT is None
-      and g3.session.threads() == [], (budget.CURRENT, g3.session.threads()))
+check("...the turn's budget closed and no thread of the session left running before it closes", budget.opened() is None
+      and g3.session.threads() == [], (budget.opened(), g3.session.threads()))
 g3.close()
 check("...and that session closes clean too", simlib.residue() == {}, simlib.residue())
 

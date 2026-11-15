@@ -127,7 +127,7 @@ ws.turn("I attack the wolf")
 stub.plan = None
 stub.a_CombatIntent = lambda u, k: {"kind": "attack", "target": "e1"}
 ws.turn("I attack the wolf")
-legacy = set(operation.LEGACY)
+legacy = set(operation.legacy())
 print("legacy tasks this session:", sorted(legacy))
 check("no task of the understanding is asked for inside an operation any more", not (legacy & UNDERSTANDING), sorted(legacy & UNDERSTANDING))
 check("the ratchet: every task still asked for inside an operation is named in RECORDED (a family moved out may only shrink it)", legacy <= RECORDED, sorted(legacy - RECORDED))

@@ -14,11 +14,11 @@ thread), and the operation stops as a fault (Drift) with no second call: the lin
 from __future__ import annotations
 
 import hashlib
-import threading
 from pathlib import Path
 
 import yaml
 from core import yamlio
+from engine import actor
 
 ROOT = Path(__file__).resolve().parent.parent
 _TASKS: frozenset | None = None
@@ -61,16 +61,11 @@ class _Serving:
         self.at = 0
 
 
-_LOCAL = threading.local()      # (f520) the serving belongs to the thread that opened the operation: a call made on another thread at
-                                # the same moment (the people written behind the scenes, npc/backfill.py) neither enters it nor blanks it
-
-
 def _here() -> _Serving | None:
-    return getattr(_LOCAL, "serving", None)
-
-
-def _put(s: _Serving | None) -> None:
-    _LOCAL.serving = s
+    """(f520) The serving, on the thread that plays the turn: a call made on another thread at the same moment (the people written
+    behind the scenes, npc/backfill.py) neither enters it nor blanks it. (f633) It is one of the turn's registers."""
+    mine = actor.registers()
+    return mine.serving if mine.mine() else None
 
 
 def serving() -> _Serving | None:
@@ -78,9 +73,15 @@ def serving() -> _Serving | None:
 
 
 def begin(s: _Serving | None) -> None:
-    _put(s)
-    if s is not None:
-        s.at = 0
+    """An attempt of a restartable operation begins, served from `s`; with None, it is over (end)."""
+    mine = actor.registers()
+    if s is None:
+        mine.serving = None
+        mine.release()
+        return
+    mine.claim()
+    mine.serving = s
+    s.at = 0
 
 
 def end() -> None:
@@ -107,13 +108,14 @@ def call(task: str, k: str, ask):
     if task in tasks():
         raise NeedAnswer(k, ask)
     from core.interrupts import Interrupt
-    _put(None)                                           # made inside, as before: the call itself is no attempt's to serve
-    try:
+    mine = actor.registers()
+    mine.serving = None                                  # made inside, as before: the call itself is no attempt's to serve
+    try:                                                 # (f633) set aside, not ended: the turn stays this thread's
         result, error = ask(), None
     except BaseException as e:
         result, error = None, e
     finally:
-        _put(s)
+        mine.serving = s
     if isinstance(error, (NeedAnswer, Drift, Interrupt)) or not isinstance(error, (Exception, type(None))):
         raise error                                      # an Interrupt and the executor's own signals pass straight through
     s.answers.append((k, result, error))
@@ -153,3 +155,6 @@ def compute(key: str, fn):
 def problems(known: set[str]) -> list[str]:
     """The startup check: every task named to be asked outside is a task the code asks for."""
     return [f"budget.yaml asked_outside: '{t}' is no task the code asks for" for t in sorted(tasks() - set(known))]
+
+
+actor.moved(__name__, {"_LOCAL": "asked.serving()"})

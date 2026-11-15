@@ -402,7 +402,7 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
         if got["all"] != want["state"]["all"]:
             tables = [t for t in got if t != "all" and got[t] != want["state"].get(t)]
             raise Parted(f"after input {i} ({inputs_main[i - 1]['text']!r}) the state differs, in: {', '.join(tables)}")
-        if json.loads(json.dumps(ledger.LAST, default=str)) != want["outcomes"]:
+        if json.loads(json.dumps(ledger.last(), default=str)) != want["outcomes"]:
             raise Parted(f"after input {i} ({inputs_main[i - 1]['text']!r}) the turn recorded other outcomes")
         if "operations" in want:                                                       # (f463) the operations committed, their ids, kinds and rows
             ops = [{"id": o["id"], "kind": o["kind"], "rows": o["rows"]} for o in store.load_operations()["ops"] if o.get("steps") == store.meta.steps]
@@ -410,7 +410,7 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
                 raise Parted(f"after input {i} ({inputs_main[i - 1]['text']!r}) the line committed other operations "
                              f"({[o['kind'] for o in ops]} against {[o['kind'] for o in want['operations']]})")
         from engine import operation
-        presented, operation.PRESENTED[:] = json.loads(json.dumps(operation.PRESENTED, default=str)), []
+        presented = json.loads(json.dumps(operation.take_presented(), default=str))
         if "presented" in want and presented != want["presented"]:                     # (f467) what reached the page and how: shown, a stand-in, recovered at the load
             raise Parted(f"after input {i} ({inputs_main[i - 1]['text']!r}) the page was given other outcomes "
                          f"({[p['how'] for p in presented]} against {[p['how'] for p in want['presented']]})")

@@ -1038,7 +1038,7 @@ class CombatScene:
                         if getattr(item, "spell", None):
                             held.spell = item.spell
         if renamed:
-            for r in ledger.ROWS:                                         # the turn's record follows the name
+            for r in ledger.this_turn():                                     # the turn's record follows the name
                 hit = renamed.get(r.get("item"))
                 if hit is not None and r.get("kind") == "gained":
                     r["say"] = f"{inventory.label(hit[1])} is in the player's pack now."

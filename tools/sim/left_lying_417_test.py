@@ -45,7 +45,7 @@ ledger.begin()
 ws.pack.clear()
 st = ws.to_pack(inv.make_good("healing_draught", 1))
 check("a thing that fits is kept, and nothing is left", st.kept is not None and st.left is None
-      and any(r["kind"] == "gained" for r in ledger.ROWS), (st, ledger.ROWS))
+      and any(r["kind"] == "gained" for r in ledger.this_turn()), (st, ledger.this_turn()))
 ws.pack.clear()
 fill_pack()
 ledger.begin()
@@ -54,7 +54,7 @@ on_ground = [inv.label(i) for i in ws.ground_here()]
 check("with the pack full, it is left on the ground, and said so", st.kept is None and st.left is not None
       and any("draught" in g.lower() for g in on_ground), (st, on_ground))
 check("...and the turn's record says it lies here, never to be shown taken", any(r["kind"] == "left" and "Never show it taken" in r["say"]
-                                                                                  for r in ledger.ROWS), ledger.ROWS)
+                                                                                  for r in ledger.this_turn()), ledger.this_turn())
 check("whether a thing will fit can be asked without putting it there", not inv.fits(ws.pack, inv.make_good("healing_draught", 1), ws.pack_slots())
       and inv.fits([], inv.make_good("healing_draught", 1), ws.pack_slots()))
 
@@ -106,7 +106,7 @@ if smith is not None:
     hide = inv.make_good("healing_draught", 1)
     ws.finish_sale(hide, smith, "I sell it", quiet=True)
 check("a sale settled is on the turn's record, for the buyer's answer", smith is not None and any(r["kind"] == "received" and "settled" in r["say"]
-                                                                                             for r in ledger.ROWS), ledger.ROWS)
+                                                                                             for r in ledger.this_turn()), ledger.this_turn())
 check("...and a word with someone before a deal with them waits for the deal (the plan repair is declared)",
       any(r.name == "deal_then_word" for r in ws.REPAIR_TABLE))
 

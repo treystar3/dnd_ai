@@ -64,8 +64,8 @@ ws.buy_ware(keeper, meal, "I buy a hot meal")
 check("...and the charge is the same figure", before - ws.player.character.coins == quoted, (before - ws.player.character.coins, quoted))
 FIG = re.compile(r"\b\d+\b|\b(copper|silver|gold)\b", re.I)
 check("the passage of a payment is not handed a sum to restate", told and not FIG.search(told[-1]), told[-1:])
-check("...nor is the turn's record of it", any(r["kind"] == "paid" for r in ledger.ROWS) and not any(FIG.search(r["say"]) for r in ledger.ROWS
-                                                                                                   if r["kind"] == "paid"), ledger.ROWS)
+check("...nor is the turn's record of it", any(r["kind"] == "paid" for r in ledger.this_turn()) and not any(FIG.search(r["say"]) for r in ledger.this_turn()
+                                                                                                   if r["kind"] == "paid"), ledger.this_turn())
 ws.narrate = real_narrate
 stock = ws.stock_here()
 check("every piece of stock is priced by the same sum", all(p == ws.price_of(__import__("engine.items", fromlist=["price"]).price(i)

@@ -143,7 +143,7 @@ ws.turn("I strike at the shrub.")
 check("...the same line typed again is taken: a round passes and a blow is recorded",
       ws.combat is not None and ws.combat.fight.round == round0 + 1 and ws.combat.fight.hits, (ws.combat.fight.round if ws.combat else None, round0))
 check("the ratchet holds no combat_interpret: nothing of the fight's reading is asked inside an operation",
-      "combat_interpret" not in operation.LEGACY, operation.LEGACY)
+      "combat_interpret" not in operation.legacy(), operation.legacy())
 
 operation.begin, operation.Operation.presentation = real_begin, real_presentation
 SPY()
