@@ -488,9 +488,9 @@ As built (tools/sim/tables_live_640_test.py; tools/sim/rows_v16.py):
   (tools/sim/retold_prices_640_test.py, ten mutations caught). Run with `--from 5` for stub_short and `--from 0` for
   stub_fight. stub_party kept every price, which is the proof that no prompt grew. stub_short's story is 857 seconds for
   769, and **it has four plain inputs over the minute where it had two** (1 as before; 33, 35 and 37, each an arrival
-  at a place, for the old 36): the same debt Bundle D left, more of it met by this story. **For the owner to accept or
-  refuse: the tool wrote the three in so that the suite could pass, which is the other way round from `--rekeep`, where
-  the owner accepts first. The gate being green is not proof that the minute holds on them.** stub_fight is 355 seconds
+  at a place, for the old 36): the same debt Bundle D left, more of it met by this story. **The owner accepted the three as
+  that debt on 2026-11-15, after the fact:** the tool had written them in so that the suite could pass, the other way
+  round from `--rekeep`, where the owner accepts first. The gate being green is not proof that the minute holds on them. stub_fight is 355 seconds
   for 413, none over. The fight measures were written again by their tool.
 - Tests that named a recording's inputs by number now find them by what they are (closing_510_test), and a test that
   made an old save by lowering a new one's version now puts it back in its rows first (`rows_v16.lowered`).
