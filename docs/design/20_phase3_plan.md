@@ -3,7 +3,7 @@
 Written 2026-11-14 against `main` at 84fc7cd (f627, with the prose branch merged). Approved by the owner the same day ("Approve as
 recommended"), with the recommendations of section 7 taken.
 
-**Built so far:** f628, f630, f631, f632, f629, f633, f634, f635, f636, f637, f638, f639 and f640. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
+**Built so far:** all fourteen, f628 to f641. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
 "Yes, move it"), because three of its logs are written where there is no scene to ask who acted (see f629 below).
 
 This is not a new design. Two designs the owner has already taken stand behind it:
@@ -499,6 +499,27 @@ As built (tools/sim/tables_live_640_test.py; tools/sim/rows_v16.py):
 **f641: narrow reads read one table.** The readers f589 put on the seam (an effect at a place, the threads of a status, the deeds
 since a minute, the news) become one indexed query each. Writes stay load, change, save. A count of whole-world loads per golden
 input that only falls.
+
+As built (tools/sim/narrow_reads_641_test.py, written first; storage/worldtables.py `TableWorld`):
+- Each of the four is one statement on its own table, and then the filter every storage answers by (storage/worldrow.py)
+  over what the statement found. So the answer is the filter's, and the statement only finds less to filter.
+- The effects are found by kind, place and end; the matters by status; the deeds by minute: each by the index f637
+  made. The news is its table, whole. A column holds a minute or an end as a whole number, so those are asked by the
+  whole minute and the filter says which of the found are meant (an effect that ends half a minute on is held).
+- The rows are put in the list's order after they are found. Asked for in order, the deeds were read whole and the index
+  left unused.
+- A reader loads no whole world: with every way to the whole load shut, the four answer, and so do the game's four
+  askers (a price, a danger, a place shut and until when, engine/pulse.py). A reader sees what its own transaction wrote
+  and none of it once that is taken back. A save still on its rows is answered by the filter, as before.
+- **The count.** The three recordings replayed both ways, a process each: no input loads the whole world more often,
+  and over the three it is loaded 840 times for 1,448 (stub_short 409 for 713, stub_party 336 for 638, stub_fight 95 for
+  97). All three replay whole: nothing was re-recorded.
+- **The time**, on the kept world of the long script (300 deeds, 300 news, 32 matters, 9 effects), 2,000 asks each: the
+  effects at a place 0.007 ms for 0.64; the active matters 0.04 for 0.63; the deeds of the last day 0.003 for 0.64;
+  the news, which is all of its table, 0.41 for 0.64.
+- Fifteen mutations of the four readers, each caught.
+- Left as it is: the whole load still reads five things (f637 measured 1.5 ms against the row's 1.2). What is left of
+  the 840 are the callers that change the world or read a key that is no list.
 
 ## 4. How it lands
 

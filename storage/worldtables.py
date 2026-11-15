@@ -11,11 +11,13 @@ reads what the tables hold, writes the rows that differ, and always writes the r
 back, and an operation that saved the world has written.
 
 (f640) A save's world is the tables' from version 17. The row is what an older save is read from until its step, which is `adopt`.
+(f641) A narrow reader asks its own table, by its index, and loads no whole world.
 """
 from __future__ import annotations
 
 import difflib
 import json
+import math
 
 from core.models import Character
 from storage import worldrow
@@ -244,15 +246,24 @@ class TableWorld:
                 insert(j)
             break
 
-    # ---- the narrow readers: each a filter over the whole state, as the row's are
+    # ---- the narrow readers (f641): one statement on one table, found by its index, then the filter every storage answers by
+    def _found(self, table: str, where: str = "", args: tuple = ()) -> dict:
+        """The items of one list that a statement finds, in their order, as the state the filters read. A column holds a minute
+        or an end as a whole number (derive), so those are asked by the whole minute and the filter says which are meant."""
+        with self._store._lock:
+            rows = self._store._db.execute(f'SELECT ord, json FROM "{table}"{where}', args).fetchall()
+        return {table: [json.loads(text) for _, text in sorted(rows)]}     # (f641) in order here: asked for in order, a table is read whole
+
     def effects_at(self, kind: str, place: str, now: int, good: str = "") -> list[dict]:
-        return effects_matching(self.load(), now, kind, place, good)
+        found = self._found("effects", ' WHERE kind = ? AND place = ? AND "until" >= ?', (kind, place, math.floor(now)))
+        return effects_matching(found, now, kind, place, good)
 
     def threads(self, status: str | None = None) -> list[dict]:
-        return threads_matching(self.load(), status)
+        by = isinstance(status, str)
+        return threads_matching(self._found("threads", " WHERE status = ?" if by else "", (status,) if by else ()), status)
 
     def deeds_since(self, minute: int, kinds=None) -> list[dict]:
-        return deeds_matching(self.load(), minute, kinds)
+        return deeds_matching(self._found("deeds", " WHERE minute >= ?", (math.floor(minute),)), minute, kinds)
 
     def news(self) -> list[dict]:
-        return news_matching(self.load())
+        return news_matching(self._found("news"))
