@@ -779,6 +779,7 @@ class ResidentSet(BaseModel):
 
 
 class MentorReply(BaseModel):
+    REPLY: ClassVar[bool] = True         # (f644) someone's spoken answer to the player: when it cannot be written, a reply did not come
     speech: str
     gesture: str = ""
     moves_on: bool = False          # the player was saying they are ready to go on or get moving, not asking or telling her something
@@ -816,6 +817,7 @@ def misaddressed(speech: str, others: list[str], said: str = "") -> str:
 
 class CompanionReply(BaseModel):
     """A hired adventurer answering the player: what they say, what they do, and anything from this exchange worth keeping."""
+    REPLY: ClassVar[bool] = True
     speech: str = ""
     gesture: str = ""
     remember: str = ""
@@ -1067,6 +1069,7 @@ class NPCAnswerPromised(NPCAnswer):
 
 
 class NPCReply(BaseModel):
+    REPLY: ClassVar[bool] = True
     speech: str
     gesture: str = ""
     intent: Literal["small_talk", "share", "withhold", "lie", "bargain", "help", "refuse", "threaten", "leave"]
@@ -1151,6 +1154,7 @@ def parting_like(speech: str, heard: list[str]) -> str:
 class Parting(BaseModel):
     """(f347) One short line said by the person the player is leaving, in answer to a goodbye. No frame follows it. The context's
     `heard` holds the partings said lately by anyone in this town: a chorus of 'safe travels' across people is sent back."""
+    REPLY: ClassVar[bool] = True
     speech: str
     gesture: str = ""
 
@@ -2213,6 +2217,7 @@ class NPCReplyManyBase(BaseModel):
     the facts it carries, whether it gives their name); then one block for each character spoken to, each with what it means for them.
     Made per call by many_reply(ids): the server's grammar holds the number of blocks and the ids they may carry; this checks that each
     character has exactly one block and that a name is learned only from that character's own words."""
+    REPLY: ClassVar[bool] = True
     speech: str
     gesture: str = ""
     intent: Literal["small_talk", "share", "withhold", "lie", "bargain", "help", "refuse", "threaten", "leave"]

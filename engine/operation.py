@@ -41,6 +41,8 @@ class Operation:
     crashed: bool = False           # (f466) ...and which of the two
     void: bool = False              # (f470) nothing took the line inside it: ended without a record, nothing written, nothing shown
     actor: str = ""                 # (f629) the character whose entry opened it (engine/actor.py who); "" when none was bound
+    did: list = field(default_factory=list)        # (f644) what it did, in the player's terms, said as it ran; kept for the line, not saved
+    speech: bool = False            # (f644) it did not stand because someone's spoken words could not be written
 
     def record(self) -> dict:
         """What the save keeps of it: no lines (they are the presentation entry's) and no state (a record is a commit)."""
@@ -116,6 +118,14 @@ def begin(kind: str, steps: int, index: int, revision_seen: int, text: str = "",
     mine.claim()                                    # (f633) the turn is the thread's that opened it
     mine.operation = op
     return op
+
+
+def did(what: str) -> None:
+    """(f644) The open operation did this, in the player's terms (a step's summary, what was handed in and paid): what a line that
+    stood in part names, if this operation commits. Said outside any operation, it is said to nobody."""
+    op = current()
+    if op is not None and what:
+        op.did.append(what)
 
 
 def current() -> Operation | None:

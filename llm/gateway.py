@@ -369,6 +369,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
     err.transport = transport                   # (f449) read by generate(): a server down is not the same refusal as every answer refused
     err.failure = failure                       # (f516) ...and a request refused before it was read is neither
     err.whole = len(messages) == 2              # (f516) whether that last try was the request as first made, or a retry carrying its draft
+    err.speech = bool(getattr(schema, "REPLY", False))      # (f644) the words that did not come were someone's reply to the player
     raise err from last_error
 
 

@@ -43,7 +43,7 @@ def moved(before: dict, skip=()) -> list:
 
 
 ROLLED = tuple(ws.ROLLED)
-LINE = ("line_ops", "line_failed", "line_done", "line_world_failed", "passages", "line_untold", "unshown_ops", "collecting", "last_crash")
+LINE = ("line_ops", "line_failed", "line_world_failed", "passages", "line_untold", "unshown_ops", "collecting", "last_crash")
 check("(the scene declares what a line writes outside the save)", len(ROLLED) >= 30 and "recent_narration" in ROLLED and "step" in ROLLED, len(ROLLED))
 
 # ---- an operation that fails
@@ -120,9 +120,9 @@ ws.begin_line()
 store.arm(False)                                         # begin_line arms the write fence for a line's life; this is no line
 fresh = {k: getattr(ws, k, MISSING) for k in LINE}
 check("a new line begins with none of the last one's operations, passages or failures",
-      fresh == {"line_ops": [], "line_failed": [], "line_done": [], "line_world_failed": [], "passages": [], "line_untold": [],
+      fresh == {"line_ops": [], "line_failed": [], "line_world_failed": [], "passages": [], "line_untold": [],
                 "unshown_ops": {}, "collecting": False, "last_crash": False}, fresh)
-check("...each list its own (none shared with another field)", len({id(fresh[k]) for k in LINE if isinstance(fresh[k], list)}) == 6)
+check("...each list its own (none shared with another field)", len({id(fresh[k]) for k in LINE if isinstance(fresh[k], list)}) == 5)
 
 g.session.close()
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))

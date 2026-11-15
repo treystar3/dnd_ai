@@ -35,10 +35,24 @@ def not_possible(rng: random.Random | None = None) -> str:
     return _pick("turn_not_possible", rng)
 
 
+def reply_not_come(rng: random.Random | None = None) -> str | None:
+    """(f644) A line for a deed taken back because the spoken reply to it could not be written: nothing was done and nothing spent.
+    Never the one shown last. None until the owner's lines are in (failures.yaml reply_not_come), so today's line stands."""
+    got = F.get("reply_not_come") or []
+    return _pick_from("reply_not_come", got, rng) if got else None
+
+
+def walked(where: str) -> str:
+    """(f644) What an operation that walked somewhere did, for a line that stood in part: one phrase and no die. The place's own
+    name until the owner's phrase is in (failures.yaml walked)."""
+    phrase = F.get("walked") or "{where}"
+    return phrase.format_map({"where": where})
+
+
 def lines() -> list[str]:
     """Every line a turn not taken can show (the night tool counts them as failed turns). (f459) The stand-ins for an outcome that stood
-    are not among them: a survived narration failure is never a failed turn."""
-    return list(F["turn_not_taken"]) + list(F.get("turn_not_possible") or [])
+    are not among them: a survived narration failure is never a failed turn. (f644) A reply that did not come is a turn not taken."""
+    return list(F["turn_not_taken"]) + list(F.get("turn_not_possible") or []) + list(F.get("reply_not_come") or [])
 
 
 # ---- (f459) presentation that survives failure: what stood, told plainly
@@ -201,6 +215,11 @@ def problems(data: dict | None = None) -> list[str]:
                 bad.append(f"failures.yaml {key}: '{l}' leaves a brace when filled")
     for key, least in (("turn_not_taken", 6), ("turn_not_possible", 3)):
         look(key, d.get(key) if isinstance(d, dict) else None, least, None)
+    if isinstance(d, dict) and d.get("reply_not_come") is not None:           # (f644) empty until the owner reads them; checked once they are in
+        look("reply_not_come", d.get("reply_not_come"), 6, set())
+    phrase = d.get("walked") if isinstance(d, dict) else None
+    if phrase is not None and (not isinstance(phrase, str) or _placeholders(phrase) != {"where"} or DASH.search(phrase) or MACHINERY.search(phrase)):
+        bad.append("failures.yaml walked: one phrase naming {where}, with no dash and nothing of the machinery")
     for key, allowed in STAND_INS.items():
         look(key, d.get(key) if isinstance(d, dict) else None, 6, allowed)
     for key in ("creation_fail", "creation_stand_in"):                 # (f525) empty until the owner reads them; checked once they are in

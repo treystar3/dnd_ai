@@ -74,7 +74,6 @@ FIELDS: dict[str, Field] = {
     "line_ops": _f(LINE, fresh=list),                      # its operations that stood, in order
     "line_failed": _f(LINE, fresh=list),                   # ...and the player's that did not
     "line_world_failed": _f(LINE, fresh=list),             # ...and the world's own that did not
-    "line_done": _f(LINE, ROLLED, fresh=list),             # what the actions that stood did
     "passages": _f(LINE, fresh=list),                      # the passages its operations queued
     "line_untold": _f(LINE, fresh=list),                   # the passage operations told by a stand-in
     "unshown_ops": _f(LINE, fresh=dict),                   # operations whose later lines wait on a passage

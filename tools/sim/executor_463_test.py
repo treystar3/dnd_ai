@@ -43,7 +43,7 @@ stood = ws.turn("I look around.")
 kinds = [o["kind"] for o in ops_of_input()]
 check("a single-step line is six operations: its first action (the understanding before it, outside any, f470), its passage (f464), then the world's own (f466)",
       stood is True and kinds == ["action:look", "passage", "world", "arrival", "law", "tail"], (stood, kinds))
-check("...the ones the scene kept, none failed", [o.kind for o in ws.line_ops] == kinds and not ws.line_failed and ws.line_done == ["look"], ws.line_done)
+check("...the ones the scene kept, none failed", [o.kind for o in ws.line_ops] == kinds and not ws.line_failed and ws.line_stood() == ["look"], ws.line_stood())
 check("...the input's count was saved by the first operation that stood", json.loads(store._kv_text("campaign"))["steps"] == store.meta.steps)
 check("...everything shown was released and marked shown", store.unshown() == {} and any(k == "narrate" for k, t in shown), shown[:3])
 check("...and the fence is off between lines", store._armed is False and store._in_operation == 0 and store._depth == 0)
@@ -89,8 +89,8 @@ shown.clear()
 stood = ws.turn("I look around, then wait a while.")
 kinds = [o["kind"] for o in ops_of_input()]
 check("a line whose second step fails stands in part: the first action, the passage and the world's operations commit; the second action does not",
-      stood == "part" and kinds == ["action:look", "passage", "world", "arrival", "law", "tail"] and [o.kind for o in ws.line_failed] == ["action:wait"] and ws.line_done == ["look"],
-      (stood, kinds, [o.kind for o in ws.line_failed], ws.line_done))
+      stood == "part" and kinds == ["action:look", "passage", "world", "arrival", "law", "tail"] and [o.kind for o in ws.line_failed] == ["action:wait"] and ws.line_stood() == ["look"],
+      (stood, kinds, [o.kind for o in ws.line_failed], ws.line_stood()))
 check("...the passage tells what stood", any(k == "narrate" for k, t in shown), shown[:3])
 check("...and no row of the failed step remains", not any(r.get("op") == ws.line_failed[0].id for r in ledger.last()))
 script = ["I look around, then wait a while.", "quit"]

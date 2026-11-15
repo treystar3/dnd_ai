@@ -78,6 +78,34 @@ contract is reported as not having happened.
   that nothing was spent. The wording is the owner's, as many lines (pillar 3).
 - Test first: a hand-in whose clerk's reply fails; a gift whose reply fails; a three-deed line that fails at its second and at
   its third. No case in tools/sim checks this wording against what was committed today.
+- **As built (f644, tools/sim/line_stood_644_test.py, written first).** An operation says what it did as it runs
+  (engine/operation.py `did`, kept for the line and not saved): a step its summary, a hand-in what was handed in and paid (said
+  by `turn_in` itself, so it is named in whichever operation paid it: before a talk, or inside a gift), and an operation of the
+  player's that moved its character and said nothing else, the walk and where to. A step the game said no to is not named, even
+  when part of it was done before the refusal (what it paid is still named, by the hand-in's own word). The
+  line's outcome and the words of `part_stood` are read from the operations that committed (`line_stood`, `line_outcome`,
+  scenes/world.py); the list of finished steps is gone. A model's failure knows whether the words were someone's to speak
+  (llm/gateway.py; the contract says so itself, `REPLY`, llm/contracts.py), and the operation keeps it. `turn_not_taken`, `stood_any` and `round_stood` were read against the record and
+  are true as they stand: the first is said only when nothing committed, the other two only after the deed's own operation has.
+- **What a refused step counts as.** It is told by its refusal, which the player reads, and it is a turn (the count of turns and
+  steps moves; the character and the clock do not). When the next step then fails, the line is told as not taken: nothing the
+  player asked for was done. The test holds exactly that, by what moved in the save.
+- **What `did` is not.** A step's `did` is the reading's summary of the deed, not its outcome: a search that found nothing is
+  still "a search of the benches". Saying what came of a deed is group E's (the facts of a turn), not this.
+- **Waiting on the owner: the wording.** New lines a player reads are read by the owner before they are data (f512, f525). Until
+  then the data holds none, a reply that did not come is told in today's `turn_not_taken` line, a walk is named by its place
+  alone, the data's hash does not move and no recording is made again. The drafts:
+  - `reply_not_come` (six, never the one shown last):
+    1. "No reply came to that, so it was not done. Nothing was spent and nothing changed hands; say it again."
+    2. "The words that should have met that never came, and without them it did not happen. What you carried, you still carry;
+       try it once more."
+    3. "That waited on a reply, and none came. Nothing was given, nothing taken, nothing paid; say it again."
+    4. "It did not take: no words came back for it. Your purse and your pack are as they were; say it again."
+    5. "No word came back, so the moment was let go whole. Nothing of yours was spent; try it again."
+    6. "The reply to that was lost before it was spoken, and the deed with it. All you had is still yours; say it once more."
+  - `walked`: "the walk to {where}" (as in "This much is real: the walk to the temple of Parth. ...").
+  - On the owner's yes: the two go into data/rules/failures.yaml (the start-up check already holds them), and stub_party is made
+    again for the one line that changes (input 13, a talk whose reply fails).
 
 **A3. An item used on someone goes to them (2.1).** `on_use` never reads the target; the draught heals the player while the story
 has the companion drink.

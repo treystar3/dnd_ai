@@ -117,7 +117,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.line_ops: list = []      # (f463) the operations of the line being played that committed, in order
         self.line_failed: list = []   # (f463) ...and the one that did not, if any
         self.line_world_failed: list = []   # (f466) the world's own operations of the line that did not stand: rolled back alone, the player told nothing
-        self.line_done: list[str] = []   # (f463) what the committed actions did, for the part_stood line
         self.passages: list = []      # (f464) the passages the line's operations queued: [kind, fn, standin, the lines held after their marker, the operation's id]
         self.line_untold: list = []   # (f464) the passage operations of the line that did not stand and were told by a stand-in
         self.unshown_ops: dict = {}   # (f464) operations whose later lines wait on a passage: id -> segments still to release
@@ -1077,7 +1076,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 rolled = op is None or op.state != "committed"
                 crashed = rolled and self.last_crash
                 if rolled:
-                    console.note(self.failed_line(text) if crashed else failures.not_taken(self.rng))    # (f437) in the narrator's words, never the machinery
+                    console.note(self.failed_line(text))                     # (f437) in the narrator's words, never the machinery
                 failed = self.last_failure if rolled and not crashed else ""
                 crash = self.last_failure if crashed else ""
                 if self.to_menu:
@@ -1095,7 +1094,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if stood is False:
                 console.note(self.failed_line(text))                     # (f437, f449) in the narrator's words, never the machinery
             elif stood == "part":                                           # (f463) what stood stands; the player reads which part, and that the rest did not
-                console.note(failures.part_stood("; ".join(self.line_done) or "the first of it", self.rng))
+                console.note(failures.part_stood("; ".join(self.line_stood()), self.rng))
             turnlog.end(stood is False, failure="" if stood is True or self.last_crash else self.last_failure,
                         crash=self.last_failure if stood is not True and self.last_crash else "",
                         stood={True: "all", False: "none"}.get(stood, "part"), stand_in=bool(self.line_untold), world_failed=self.world_failures(),
@@ -1105,9 +1104,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def failed_line(self, text: str) -> str:
         """(f437) What the player reads when the turn could not be taken. (f449) A line that has now failed twice running on the game's own
         fault (logs/crash.log has it) is told to be left: saying it a third time will not help. The count is by the line's words, kept
-        small."""
+        small. (f644) A deed taken back because the spoken reply to it could not be written is told as that."""
         if not self.last_crash:
-            return failures.not_taken(self.rng)
+            unsaid = bool(self.line_failed) and self.line_failed[-1].speech
+            return (failures.reply_not_come(self.rng) if unsaid else None) or failures.not_taken(self.rng)
         key = " ".join(text.lower().split())[:120]
         n = self.broken.get(key, 0) + 1
         self.broken[key] = n
@@ -1153,7 +1153,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     ROLLED = ("recent_narration", "convo", "last_spoken", "wildlife", "recently_fled", "resume_pending", "held_yield", "orenna_fight", "camp_fight",
               "last_social", "weight_hint", "exits_due", "last_plan", "journey_event_factor", "haggle_factor", "craft_boost", "camp_bonus",
               "dungeon_fight", "rank_options", "learn_options", "step", "interpret_calls", "ran",
-              "partner", "stance", "pending_check", "pending_beats", "buffering", "line_done",
+              "partner", "stance", "pending_check", "pending_beats", "buffering",
               "last_hits",                            # (f489) how a beat hit each of the party goes back with the banter that measured it
               "sneaking", "queued_buffs", "fight_text", "surrender_took",
               "line_losses")   # (f496) what a fight the player starts this turn opens with (f248:
@@ -1193,6 +1193,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         index = len(self.line_ops) + len(self.line_failed) + len(self.line_world_failed)
         pending0 = list(self.pending)                # (f493) the line's held narration as this operation found it, to put back whole
         fight0 = self.fight_memory()                 # (f496) what the player has read of the fight, and who was tamed, as it found them
+        mover = self.acting
+        place0 = self.player_of(mover).location
         if world and where == "turn":
             where = "world"
         op = None
@@ -1212,6 +1214,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     self.unhold(real)                          # symmetric: the real bindings are back before anything is shown or dropped
                 if op.void and self.store._writes == writes0:
                     raise _Void()                              # (f470) nothing took the line and nothing was written: no record, nothing kept
+                here = self.player_of(mover).location
+                if not op.did and not world and here != place0:           # (f644) it moved its character and said nothing else: the walk
+                    op.did.append(failures.walked(self.world.places[here].name if here in self.world.places else here.replace("_", " ")))
                 self.save_talk()                               # (f485) the conversation, with the operation that moved it
                 self.store.save_player(self.player)            # (f464) what the operation changed of the player is its to keep: a later
                 self.store.commit_operation(op, first_of_line=(index == 0))   # operation's rollback reloads the player from the save
@@ -1240,7 +1245,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             console.debug(f"operation {kind} rolled back: {e}")
             self.last_failure = str(e) or type(e).__name__       # (f437) the turn log keeps why, as a model failure
             if op is not None:
-                op.failure = self.last_failure
+                op.failure, op.speech = self.last_failure, bool(getattr(e, "speech", False))
         except (Exception, _asked.Drift) as e:
             # (f449) The game's own fault, not the model's: the operation is rolled back, the fault goes to logs/crash.log with the line and
             # the place, and the player reads a line in the narrator's words (run()). What stood before it stands. (f466) A world
@@ -1615,6 +1620,19 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         rows += [{"id": o.id, "kind": o.kind, "index": o.index, "state": "stand_in"} for o in self.line_untold]
         return sorted(rows, key=lambda r: (r["index"], r["state"] != "stood"))
 
+    def line_stood(self) -> list[str]:
+        """(f644) What the line's operations that stood did, in order, each as the operation said of itself (engine/operation.py
+        `did`): read from what was committed, never from a list of steps."""
+        return [d for o in self.line_ops for d in o.did]
+
+    def line_outcome(self, taken: bool = True):
+        """(f644) How the line stood, by its operations: True, every one of the player's; "part", one did not and another had done
+        something; False, nothing of it was done. `taken`: False for a line that was never understood or whose first deed did not
+        stand."""
+        if taken and not self.line_failed:
+            return True
+        return "part" if self.line_stood() else False
+
     def take_recovered(self) -> int:
         """(f471) The outcomes told at the last load, reported once, on the first row after it."""
         return int(self.__dict__.pop("_recovered_unreported", 0) or 0)
@@ -1653,11 +1671,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     return got
                 op, taken = self.asked_operation("line", text, _line)
                 if op.state == "rolled_back":
-                    return False
+                    return self.line_outcome(False)
                 if not taken:                              # (f470) the understanding outside any transaction: the interpreter and the audit read
                     plan = self.understood(text)           # committed state; a question asked, or a board refresh due, is an operation of its own
                     if plan is False:
-                        return False
+                        return self.line_outcome(False)
                     if plan is not None:
                         def _first(op):
                             self._wrote_turn = False
@@ -1668,7 +1686,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                                                                             keep=plan)[0].state == "committed"
                         prepared = any(o.kind in ("action:go", "action:handin") for o in self.line_ops[before:])
                         if not stood and not prepared:
-                            return False                   # the first action did not stand: the line is not taken (a board refresh aside)
+                            return self.line_outcome(False)     # the first action did not stand: the line is not taken (a board refresh aside)
                         if not stood:                      # (f485) its prepare's own operation stood (the walk, the hand-in): what stood stands
                             plan = plan[:1]
                 self.run_passages()
@@ -1722,7 +1740,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     self.situation_births(text)                # (f546) a situation born given its parts, each in operations of its own
                 self.collecting = False                        # road (resume_road) begins committed, its opening a passage told after it
                 ledger.end()                                   # (f633) its rows are the last turn's now
-                return True if not self.line_failed else "part"
+                return self.line_outcome()                     # (f644) by what its operations committed
         except Interrupt:
             raise
         finally:
@@ -2268,7 +2286,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.turn_in(intent.target)
         if intent.kind in TIME_COST:
             self.advance(TIME_COST[intent.kind])
-        self.line_done.append((getattr(intent, "summary", "") or "").strip() or intent.kind)   # (f463) for the part_stood line
+        from engine import operation as _op
+        op = _op.current()
+        if op is not None and not any(r.get("kind") == "refused" for r in op.rows):     # (f644) a step the game said no to did not do it
+            _op.did((getattr(intent, "summary", "") or "").strip() or intent.kind.replace("_", " "))
 
     def after_steps(self, text: str) -> None:
         """(f463) After the plan's steps, (f466) outside any operation: the step is over and the line's buffering with it, the notes time

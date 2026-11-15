@@ -71,7 +71,8 @@ check("problems() rejects an unfillable placeholder, a brace left over, a dash, 
       any("{item}" in p or "cannot fill" in p for p in bad_) and any("brace" in p or "cannot be filled" in p for p in bad_) and any("dash" in p for p in bad_)
       and any("machinery" in p for p in bad_) and any("twice" in p for p in bad_) and any("goddess_silent" in p and "at least 6" in p for p in bad_)
       and any("stood.bogus" in p for p in bad_), bad_)
-check("lines() is still the two old lists, and no stand-in is among them", set(failures.lines()) == set(F["turn_not_taken"]) | set(F["turn_not_possible"])
+check("lines() is the lists of a turn not taken (f644: a reply that did not come is one), and no stand-in is among them",
+      set(failures.lines()) == set(F["turn_not_taken"]) | set(F["turn_not_possible"]) | set(F.get("reply_not_come") or [])
       and not (set(failures.lines()) & set(F["stood_any"]) | set(failures.lines()) & set(F["shown_later"])))
 sys.path.insert(0, "tools")
 import nightrun

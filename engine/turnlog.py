@@ -123,7 +123,7 @@ def end(rolled_back: bool = False, command: dict | None = None, failure: str = "
     if t["rewrites"]:
         rows[-1]["rewrites"] = t["rewrites"]
     if stood:
-        rows[-1]["stood"] = stood                              # (f463) all, part or none of the line's operations committed
+        rows[-1]["stood"] = stood                              # (f463) all, part or none of what the line asked was done (f644: by its operations)
     if stand_in:
         rows[-1]["stand_in"] = True                            # (f464) a passage of the line could not be written; a stand-in told what stood
     if world_failed:
