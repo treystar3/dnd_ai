@@ -8,11 +8,10 @@ the kv rows `operations` (the last RETENTION["operations"] records and a revisio
 commit over each other: StaleOperation) and `presentation` (the lines of each operation not yet shown, cleared by mark_shown). Both are
 outside the state digest (storage/statehash.py NOT_STATE_ROWS): the record describes the state's history and its telling, it is not the
 state, and a replay compares it through the recording instead. The ids come from a stream of their own (engine/streams.py
-new_id(stream="ops")), so drawing them moves no other die. CURRENT is the operation open now, if any; the session owns it
-(engine/session.py), as it owns the ledger's rows."""
+new_id(stream="ops")), so drawing them moves no other die. (f633) The operation open now, what reached the page and the calls
+made inside a transaction are the turn's registers (engine/actor.py Registers), read and written through the functions here."""
 from __future__ import annotations
 
-import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -40,7 +39,6 @@ class Operation:
     held: list = field(default_factory=list, repr=False)   # (f463) the story calls held back (name, args, kwargs), released at commit; not kept
     failure: str = ""               # (f466) why it did not stand, for the turn log: the model's failure, or the game's own fault
     crashed: bool = False           # (f466) ...and which of the two
-    thread: int | None = field(default=None, repr=False, compare=False)   # (f520) the thread that opened it, which it belongs to
     void: bool = False              # (f470) nothing took the line inside it: ended without a record, nothing written, nothing shown
     actor: str = ""                 # (f629) the character whose entry opened it (engine/actor.py who); "" when none was bound
 
@@ -68,13 +66,7 @@ class Operation:
         return out
 
 
-CURRENT: Operation | None = None
-PRESENTED: list = []              # (f467) what reached the page, in order: {"op": id, "how": shown | stand_in | recovered}; the recorder
-PRESENTED_KEEP = 400              # writes it per input and clears it (engine/recording.py); without one it is kept to the last few hundred
-
-
-LEGACY: list[str] = []            # (f470) the tasks the model was asked for while an operation held the save's transaction open: the
-                                  # residue prepare-then-commit moves out family by family; the test's ratchet (prepared_470_test RECORDED) only shrinks
+PRESENTED_KEEP = 400              # (f467) what reached the page is taken per input by the recorder; without one, the last few hundred are kept
 TELLING = {"passage", "round", "aftermath", "goddess", "opening"}   # (f470) operations that are the call itself (the telling): not counted; (f498) the fight's opening
 
 
@@ -83,51 +75,71 @@ def note_legacy(task: str) -> None:
     plan's prepare-then-commit reads committed state before the call and commits after it). The telling operations are their one call
     and are not counted. What is left is named, once each, for the ratchet. (f520) Only a call on the operation's own thread: the people
     written behind the scenes at the same moment wait on no transaction of the turn's."""
-    op = current()
-    if op is not None and op.kind not in TELLING and task not in LEGACY:
-        LEGACY.append(task)
+    op, kept = current(), _actor.registers().legacy
+    if op is not None and op.kind not in TELLING and task not in kept:
+        kept.append(task)
+
+
+def legacy() -> list[str]:
+    """(f470) The tasks asked for while an operation held the save's transaction open, once each, in order: the residue
+    prepare-then-commit moves out family by family (the ratchet of tools/sim/prepared_470_test.py only shrinks)."""
+    return list(_actor.registers().legacy)
 
 
 def present(op_id: str, how: str) -> None:
     """(f467) An operation's outcome reached the page: shown at its commit, told by a stand-in, or recovered at a load."""
-    PRESENTED.append({"op": op_id, "how": how})
-    del PRESENTED[:-PRESENTED_KEEP]
+    reached = _actor.registers().presented
+    reached.append({"op": op_id, "how": how})
+    del reached[:-PRESENTED_KEEP]
+
+
+def presented() -> list[dict]:
+    """(f467) What reached the page since it was last taken, in order: {"op": id, "how": shown | stand_in | recovered}."""
+    return list(_actor.registers().presented)
+
+
+def take_presented() -> list[dict]:
+    """...and it is taken: the recorder writes it with each input and leaves none (engine/recording.py, tools/rerun.py)."""
+    mine = _actor.registers()
+    out, mine.presented = mine.presented, []
+    return out
 
 
 def begin(kind: str, steps: int, index: int, revision_seen: int, text: str = "", op_id: str = "") -> Operation:
     """Open an operation, the one open now, with an id drawn from the ops stream. (f466) Or with `op_id`, one the caller drew from that
     stream before, to look for its record first: the game's opening operation (scenes/world.py open_world) repeats its id at the same
     count of inputs, so an open after a stood one finds it committed and runs nothing."""
-    global CURRENT
-    if CURRENT is not None:
-        raise RuntimeError(f"an operation is already open: {CURRENT.kind} {CURRENT.id}")
-    CURRENT = Operation(op_id or streams.new_id(ID_DIGITS, stream="ops"), kind, steps, index, revision_seen, text, actor=_actor.who())
-    CURRENT.thread = threading.get_ident()          # (f520) the thread that opened it, the one it belongs to
-    return CURRENT
+    mine = _actor.registers()
+    if mine.operation is not None:
+        raise RuntimeError(f"an operation is already open: {mine.operation.kind} {mine.operation.id}")
+    op = Operation(op_id or streams.new_id(ID_DIGITS, stream="ops"), kind, steps, index, revision_seen, text, actor=_actor.who())
+    mine.claim()                                    # (f633) the turn is the thread's that opened it
+    mine.operation = op
+    return op
 
 
 def current() -> Operation | None:
-    """The operation open now, on this thread. (f520) It belongs to the thread that opened it (the turn's): a call made on another
-    thread at the same moment (the people written behind the scenes) is no part of it, so it is not filed under it (the recorder's and the
+    """The operation open now, on this thread. (f520) It belongs to the thread that plays the turn: a call made on another thread
+    at the same moment (the people written behind the scenes) is no part of it, so it is not filed under it (the recorder's and the
     audit's op, the ledger's stamp) nor counted as waiting inside its transaction (note_legacy)."""
-    op = CURRENT
-    if op is not None and getattr(op, "thread", None) not in (None, threading.get_ident()):
-        return None
-    return op
+    mine = _actor.registers()
+    return mine.operation if mine.mine() else None
+
+
+def opened() -> Operation | None:
+    """The operation open now, whichever thread asks: for the session's residue and a test, never for filing a call."""
+    return _actor.registers().operation
 
 
 def end(state: str) -> Operation | None:
     """Close the open operation as committed or rolled_back; None if none was open."""
-    global CURRENT
-    op, CURRENT = CURRENT, None
+    mine = _actor.registers()
+    op, mine.operation = mine.operation, None
+    mine.release()
     if op is not None:
         op.state = state
     return op
 
 
-def reset() -> None:
-    """(engine/session.py) A campaign opened or closed: no operation of another campaign's stays open, and nothing it showed is carried."""
-    global CURRENT
-    CURRENT = None
-    PRESENTED.clear()
-    LEGACY.clear()
+_actor.moved(__name__, {"CURRENT": "operation.current(), or operation.opened() from any thread", "PRESENTED": "operation.presented() or take_presented()",
+                        "LEGACY": "operation.legacy()"})

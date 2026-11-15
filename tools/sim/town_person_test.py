@@ -23,8 +23,8 @@ def check(n, ok, x=""):
     if not ok: bad.append(n)
 
 notes = []
-_note = console.note
-console.note = lambda text, *a, **k: (notes.append(str(text)), _note(text, *a, **k))[1]
+_note = console.now("note")
+console.put("note", lambda text, *a, **k: (notes.append(str(text)), _note(text, *a, **k))[1])
 
 shutil.rmtree("saves/town_person_test", ignore_errors=True)
 world = load_world()

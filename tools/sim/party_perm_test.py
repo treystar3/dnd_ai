@@ -94,9 +94,9 @@ check("promote works from the party and takes the fee", ws.player.party[0]["rank
 row = ws.adventurer_row(ws.player.party[0])
 check("the party pane row carries trust, temperament, the line they hold and health, never what drives them", all(k in row for k in ("bond", "temper", "line", "health")) and "motive" not in row, row)
 said = []
-_say = console.say
-console.say = lambda t, who=None, *a, **k: said.append((who, t))
-console.dialogue = lambda before, who, speech, after="": said.append((who, speech))      # a hire's reply comes framed (console.dialogue)
+_say = console.now("say")
+console.put("say", lambda t, who=None, *a, **k: said.append((who, t)))
+console.put("dialogue", lambda before, who, speech, after="": said.append((who, speech)))      # a hire's reply comes framed (console.dialogue)
 ws.player.party = [P.new_hire({**offer, "name": "Tavi Harl"}, 30, 0)]
 ws.player.party[0]["bond"] = 10
 before = ws.player.party[0]["bond"]
@@ -105,7 +105,7 @@ check("speaking to a hire by name gets an answer from them", bool(said) and said
 check("and it is remembered and builds a little trust, once a day", ws.player.party[0]["talk"] and ws.player.party[0]["bond"] == before + 1, ws.player.party[0]["bond"])
 ws.handle("Tavi, what do you want out of this?")
 check("a second talk the same day adds no more", ws.player.party[0]["bond"] == before + 1)
-console.say = _say
+console.put("say", _say)
 _odd = P.unclassified(ws.player.party[0])
 check("every field on a hire is classified in engine/party.py (who they are, what play gave them, or the engine's numbers)", not _odd, _odd)
 print("FAILED" if bad else "ALL PASS", bad, file=_out)

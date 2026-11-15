@@ -708,7 +708,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 "threads": threads, "effects": live}
 
     def show_pulse(self) -> None:
-        if not config.DEBUG:
+        if not actor.prefs().debug:
             console.note("#pulse is a debug pane (run the game with --debug).")
             return
         data = self.pulse_data()
@@ -1057,7 +1057,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if text.startswith("#"):
                 before = self.player.location
                 bar = self.header_key()                                     # (f372) what the top bar shows, to redraw it when a button changed it
-                turnlog.begin(console)                                      # (f385) a button that does something is a row too
+                turnlog.begin(taps=True)                                      # (f385) a button that does something is a row too
                 name = (text[1:].strip().lower().split() or ["command"])[0]
                 self.begin_line()
                 op = None
@@ -1090,7 +1090,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 if self.header_key() != bar:
                     self.show_header()                                      # (f372) a hire, a sale or a walk from a pane moves the coin, the clock or the place
                 continue
-            turnlog.begin(console)                                          # (f385) the row waits for what the turn shows
+            turnlog.begin(taps=True)                                          # (f385) the row waits for what the turn shows
             stood = self.turn(text)
             if stood is False:
                 console.note(self.failed_line(text))                     # (f437, f449) in the narrator's words, never the machinery
@@ -1125,10 +1125,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def name_ids(self) -> None:
         """Who is who, for anything kept under a stable id instead of a name (engine/canon.py opinions): the hires, Maren, the player."""
         from engine import canon, mentor
-        canon.IDS = {m["name"]: m["id"] for m in self.player.party if m.get("name") and m.get("id")}
-        canon.IDS[mentor.NAME] = "maren"
-        canon.IDS[self.player.character.name] = self.player.character.id      # (f480) the character by their id ("player" with one)
-        canon.JOURNAL = lambda kind, actor, target, text, data: self.store.journal(self.minutes, kind, actor, target, text, data, self.last_text[:80])
+        canon.set_ids({**{m["name"]: m["id"] for m in self.player.party if m.get("name") and m.get("id")}, mentor.NAME: "maren",
+                       self.player.character.name: self.player.character.id})      # (f480) the character by their id ("player" with one)
+        canon.bind_journal(lambda kind, actor, target, text, data: self.store.journal(self.minutes, kind, actor, target, text, data, self.last_text[:80]))
         from engine import names, party as rules                # (f412) each companion's pronoun, for what reaches the screen
         names.set_cast({m["name"].split()[0]: rules.pronoun_of(m) for m in self.player.party if m.get("name") and m.get("permanent")})
 
@@ -1253,28 +1252,26 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if op is not None and op.state == "open":              # an Interrupt passed through: the operation is rolled back all the same
                 self.abandon(op, pending0, world=world, fight0=fight0)
 
-    def hold(self, op) -> dict:
-        """(f463) The story bindings replaced by ones that keep each call on the operation, for release at its commit; what the console
-        held is returned, to be put back by unhold whatever happens."""
-        real = {}
+    def hold(self, op) -> tuple:
+        """(f463) The story's outputs answered by ones that keep each call on the operation, for release at its commit. (f635) On the
+        channel in use, and no other: it is returned with what answered there before, to be put back by unhold whatever happens."""
+        ch, real = console.channel(), {}
         for name in self.HELD:
-            fn = getattr(console, name, None)
-            if fn is None:
-                continue
-            real[name] = fn
+            real[name] = ch.get(name)
 
             def held(*a, _name=name, **k):
                 op.held.append((_name, a, k))
                 if _name in self.PANE:                             # (f497) the pane's data is no line of the page; and show() takes the
-                    return console.damage_tags if _name == "combat_state" else None     # same branch held as live (the window's binding
+                    return ch.windowed if _name == "combat_state" else None             # same branch held as live (a window's page
                 op.lines.append(turnlog._shown_text(_name, a, k) if _name in turnlog.SHOWN_KINDS else " ".join(str(x) for x in a))   # says True)
-            setattr(console, name, held)
-        return real
+            ch.set(name, held)
+        return ch, real
 
     @staticmethod
-    def unhold(real: dict) -> None:
+    def unhold(held: tuple) -> None:
+        ch, real = held
         for name, fn in real.items():
-            setattr(console, name, fn)
+            ch.set(name, fn)
 
     def release(self, op) -> int:
         """(f463) The operation committed: what it held reaches the page, in the order it was said, through the real bindings. (f464) Up to
@@ -1315,7 +1312,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         while self.passages:
             kind, fn, standin, after, owner = self.passages.pop(0)
             halted = self.halted
-            told_before = {id(r) for r in ledger.ROWS if r.get("told")}
+            told_before = {id(r) for r in ledger.this_turn() if r.get("told")}
             op, _ = self.asked_operation(kind, self.last_text, lambda op: fn())    # (f498) restartable: the telling's own call is asked
             self.halted = halted                                   # outside it; a telling that did not stand halts nothing: the facts stand
             if op.state != "committed":
@@ -1340,14 +1337,14 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def untell(told_before: set) -> None:
         """(f464) A passage that did not stand told nothing: the rows it marked told (ledger.told, when its request was built) are untold
         again, so the stand-in and the next passage can tell them."""
-        for r in ledger.ROWS:
+        for r in ledger.this_turn():
             if r.get("told") and id(r) not in told_before:
                 r.pop("told", None)
 
     def stood_standin(self, rng) -> list[str]:
         """(f464) What the player reads when the line's passage could not be written: one plain line for each row of the line not yet
         told that has facts to fill it from (engine/failures.py stood_lines); with none, one line that the deed stands."""
-        rows = [r for r in ledger.ROWS if r.get("facts") and not r.get("told")]
+        rows = [r for r in ledger.this_turn() if r.get("facts") and not r.get("told")]
         return failures.stood_lines(rows, rng) if rows else [failures.stood_any(rng)]
 
     def abandon(self, op, pending0: list, world: bool = False, fight0=None) -> None:
@@ -1382,7 +1379,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             states = {k: x.model_copy(deep=True) for k, x in held.items()}       # who is here and who acts, as found: put back in place,
             lists = (list(self.residents), list(self.present), self.partner, self.player)   # the same objects, so a holder sees the re-run
             meta = self.store.meta.model_copy()          # the clock and the input's count as they stand in memory (a give-back reloads the save's)
-            told0 = {id(r) for r in ledger.ROWS if r.get("told")}        # (f498) what was told before this attempt
+            told0 = {id(r) for r in ledger.this_turn() if r.get("told")}        # (f498) what was told before this attempt
             asked.begin(serve)
             result = None
             try:
@@ -1631,8 +1628,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         not: what stood stands, nothing after it is done, and the player reads which part (run()). The write fence is armed for the life
         of the line; no question is read inside it (f461)."""
         self.name_ids()
-        turnlog.tap(console)
-        shown = turnlog.SHOWN
+        turnlog.tap()
+        shown = turnlog.shown_count()
         self.begin_line()
         try:
             with questions.fence():
@@ -1682,7 +1679,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                         if op.state != "committed":
                             break                              # what stood stands; the rest of the line is not done
                     if self.pending:                           # (f464) several actions: their one passage, an operation after them all and before the pulse
-                        told_before = {id(r) for r in ledger.ROWS if r.get("told")}
+                        told_before = {id(r) for r in ledger.this_turn() if r.get("told")}
                         with self.operation("passage", text) as op:
                             self.passage(text)
                         if op.state != "committed":
@@ -1718,7 +1715,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     self.take_up_rulings(text)                 # (f597) a deed left waiting on a situation, after the line, as births are
                     self.situation_births(text)                # (f546) a situation born given its parts, each in operations of its own
                 self.collecting = False                        # road (resume_road) begins committed, its opening a passage told after it
-                ledger.LAST = ledger.end()
+                ledger.end()                                   # (f633) its rows are the last turn's now
                 return True if not self.line_failed else "part"
         except Interrupt:
             raise
@@ -1747,7 +1744,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         from engine import operation as _op
         held_now = (len(_op.current().lines) + sum(1 for h in _op.current().held if h[0] == "marker")
                     if _op.current() is not None else 0)     # (f463) what this operation holds, not yet released; (f498) a passage it queued
-        if turnlog.SHOWN + held_now == shown and not self.to_menu:
+        if turnlog.shown_count() + held_now == shown and not self.to_menu:
             self.said_nothing(text)
         self.store.save_player(self.player)
 
@@ -1830,15 +1827,15 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def enchant_command(self, args: str, confirmed: bool = False) -> None:
         from engine import enchanting
         c = self.player.character
-        enchanting.DISCOUNT["percent"] = self.has("arcane_appraiser") or 0
+        enchanting.set_discount(self.has("arcane_appraiser") or 0)
         enchanter = next((n for n in self.present if n.role == "enchanter"), None)
         own_hands = self.owns("enchanter") and bool(self.place.stations)
-        if not enchanter and not own_hands and not config.DEBUG:
+        if not enchanter and not own_hands and not actor.prefs().debug:
             console.note("There's no enchanter here. You'll need to find one - perhaps somewhere magic is welcome."
                          + (" Or a workshop: you can do the work yourself." if self.owns("enchanter") else ""))
             return
         if not enchanter and own_hands:
-            enchanting.DISCOUNT["percent"] = 100        # Enchanter: your own hands at a workshop, no fee
+            enchanting.set_discount(100)                # Enchanter: your own hands at a workshop, no fee
             console.note("No enchanter here, but a workshop and your own hands will do (Enchanter).")
         gear = list(c.equipment.values()) + [i for i in c.inventory if items.base_of(i).slot != "none"]
         if not args:
@@ -2248,10 +2245,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.halted = True
                 return
             actor.turn_of(self).add("ran", intent.kind)
-            refused_before = sum(1 for r in ledger.ROWS if r.get("kind") == "refused")
+            refused_before = sum(1 for r in ledger.this_turn() if r.get("kind") == "refused")
             getattr(self, f"on_{intent.kind}")(intent, text)
             if self.player.road:                       # (f427) a hand for someone in need at a stop, or a way past what blocks it
-                self.stop_step(intent, sum(1 for r in ledger.ROWS if r.get("kind") == "refused") > refused_before)
+                self.stop_step(intent, sum(1 for r in ledger.this_turn() if r.get("kind") == "refused") > refused_before)
             if intent.force and intent.kind != "attack":
                 self.after_force(intent, text)
             if self.pending_beats:
@@ -2665,7 +2662,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             from engine import refusals
             console.note(refusals.summary())
         elif name == "world":
-            if not config.DEBUG:
+            if not actor.prefs().debug:
                 console.note("#world is a debug command (run with --debug).")
             else:
                 self.show_world_state()
@@ -2705,16 +2702,19 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             console.note(f"Item box ({here}): {len(self.player.stash)}/{self.stash_cap()} slots")
             for i in self.player.stash:
                 console.note(f"  {inv.label(i)}")
-        elif name == "dialogue":
-            config.NARRATED_DIALOGUE = not config.NARRATED_DIALOGUE
-            console.note(f"Conversations {'narrated' if config.NARRATED_DIALOGUE else 'shown as plain dialogue'}.")
+        elif name == "dialogue":                            # (f636) the three preferences are the player's whose turn it is
+            mine = actor.prefs()
+            mine.dialogue = not mine.dialogue
+            console.note(f"Conversations {'narrated' if mine.dialogue else 'shown as plain dialogue'}.")
         elif name == "numbers":
-            config.COMBAT_NUMBERS = not config.COMBAT_NUMBERS
-            console.note(f"Combat numbers {'shown' if config.COMBAT_NUMBERS else 'hidden'}.")
+            mine = actor.prefs()
+            mine.numbers = not mine.numbers
+            console.note(f"Combat numbers {'shown' if mine.numbers else 'hidden'}.")
         elif name == "debug":
-            config.DEBUG = not config.DEBUG
-            console.note(f"Debug mode {'on' if config.DEBUG else 'off'}.")
-        elif name.split()[0] == "levelup" and config.DEBUG:
+            mine = actor.prefs()
+            mine.debug = not mine.debug
+            console.note(f"Debug mode {'on' if mine.debug else 'off'}.")
+        elif name.split()[0] == "levelup" and actor.prefs().debug:
             c = self.player.character
             count = int(name.split()[1]) if len(name.split()) > 1 and name.split()[1].isdigit() else 1
             leveling.level_up(c, count)
@@ -3551,7 +3551,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             console.debug(f"ignored gift '{reply.gives.name}' - not a story object, or offered for sale")
         speaker = npc.label(self.acting) if reply.told_own_name else label_before
         self.flush(text)
-        if config.NARRATED_DIALOGUE:
+        if actor.prefs().dialogue:
             self.narrate_dialogue(npc, label_before, speaker, text, reply, first_time,
                                   reasons=self.frame_reasons(npc, reply, revealed, check_note))     # (f347) the engine decides if there is a frame
         else:

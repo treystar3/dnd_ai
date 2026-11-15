@@ -6,18 +6,19 @@ Two mends, made in place, without asking the model again:
 - a NAME the model was told, written wrong: every name an answer may use is in its request, so a word in the answer that is not one of
   them, is no English word, and is one or two letters off a name in the request is that name (mend_answer, at the gateway);
 - a PRONOUN for someone whose pronoun the game knows: a gesture's 'their' for a he or a she, and 'Odly lowers his blade' for a she
-  (mend_pronouns, on the way to the screen, with the cast the scene keeps in CAST)."""
+  (mend_pronouns, on the way to the screen, with the cast the scene keeps: set_cast)."""
 from __future__ import annotations
 
 import collections
 import re
 from pathlib import Path
 
+from engine import actor
+
 REPAIRS: collections.Counter = collections.Counter()
 BY_TASK: collections.Counter = collections.Counter()     # (f587) the names mended in answers the game took, by task (A1 counts them)
 CAP = re.compile(r"\b[A-Z][a-z]{3,}\b")
 WORD = re.compile(r"\b[a-z]+\b")
-CAST: dict[str, str] = {}                 # first name -> 'he' | 'she' | 'they': the player's companions, set by the scene each turn
 _VOCAB: set[str] = set()
 
 
@@ -130,8 +131,12 @@ def cap_first(text: str) -> str:
 
 
 def set_cast(cast: dict[str, str]) -> None:
-    CAST.clear()
-    CAST.update({k: v for k, v in cast.items() if k and v in ("he", "she")})
+    """The companions' pronouns, by first name, set by the scene each turn: those who are he or she (they needs no mending)."""
+    actor.caches().cast = {k: v for k, v in cast.items() if k and v in ("he", "she")}
+
+
+def cast() -> dict[str, str]:
+    return dict(actor.caches().cast)
 
 
 def gesture(text: str, pronoun: str) -> str:
@@ -148,10 +153,11 @@ def gesture(text: str, pronoun: str) -> str:
 def mend_pronouns(text: str) -> str:
     """'Odly lowers his blade' for a she: the possessive right after the subject's own verb is the subject's. Only the unambiguous turns
     are mended: 'his' and 'himself' for a she, 'herself' for a he ('her' after a verb can be someone else: 'Bram pushes her back')."""
-    if not CAST or not text:
+    known = actor.caches().cast
+    if not known or not text:
         return text
     out = text
-    for name, p in CAST.items():
+    for name, p in known.items():
         if name not in out:
             continue
         wrong = r"(?:his|himself)" if p == "she" else r"herself"
@@ -168,3 +174,6 @@ def mend_pronouns(text: str) -> str:
             REPAIRS["pronoun"] += 1
             out = new
     return out
+
+
+actor.moved(__name__, {"CAST": "names.set_cast(cast) or names.cast()"})

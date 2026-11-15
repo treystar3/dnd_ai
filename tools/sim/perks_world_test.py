@@ -13,7 +13,7 @@ STUB = simlib.Stub("warrior", 5)
 simlib.install(STUB)
 import ui.console as uc
 NOTES = []
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 from core.models import Passive, PowerTier
 from engine import checks, combat, inventory as inv, items, law, needs, standing, world_perks as WP
 from npc.traits import load_traits

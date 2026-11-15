@@ -7,7 +7,7 @@ import sys
 sys.path.insert(0, ".")
 import simlib
 simlib.install(simlib.Stub("warrior", 3))
-from engine import ledger, operation, session, streams
+from engine import actor, ledger, operation, session, streams
 from storage import campaign as cs, statehash
 bad = []
 
@@ -36,7 +36,7 @@ rec = store.load_operations()
 check("the record holds the commit, its rows stamped with the operation, its facts kept, its revision bumped",
       rec["revision"] == 1 and len(rec["ops"]) == 1 and rec["ops"][0]["id"] == op.id and rec["ops"][0]["kind"] == "action:buy"
       and rec["ops"][0]["rows"][0]["op"] == op.id and rec["ops"][0]["rows"][0]["facts"] == {"what": "a worn knife"} and entry["revision"] == 1, rec)
-check("the ledger's row carries the operation, and the operation keeps the row", ledger.ROWS and ledger.ROWS[0]["op"] == op.id and op.rows == ledger.ROWS, ledger.ROWS)
+check("the ledger's row carries the operation, and the operation keeps the row", ledger.this_turn() and ledger.this_turn()[0]["op"] == op.id and op.rows == ledger.this_turn(), ledger.this_turn())
 check("its held lines wait in the presentation entry", store.unshown() == {op.id: {"lines": ["You buy the knife."], "steps": store.meta.steps, "kind": "action:buy", "calls": [], "actor": ""}}, store.unshown())   # calls: f467; actor: f629, none bound here
 check("find_operation finds it, and nothing else", store.find_operation(op.id) == rec["ops"][0] and store.find_operation("nope") is None)
 check("the operation is closed", operation.current() is None and op.state == "committed")
@@ -141,7 +141,7 @@ check("disarmed, the store is as it was", store.load_player().location == player
 
 # ---- ledger.rollback_op takes back one operation's rows and totals
 ledger.begin()
-ledger.TOTALS.clear()
+actor.registers().totals.clear()
 a = operation.begin("a", 1, 0, 0)
 ledger.add("gained", what="x")
 ledger.add("paid", who="y", amount=3)
@@ -149,9 +149,9 @@ operation.end("committed")
 b = operation.begin("b", 1, 1, 0)
 ledger.add("gained", what="z")
 operation.end("committed")
-check("rows under two operations are told apart", [r["op"] for r in ledger.ROWS] == [a.id, a.id, b.id] and a.id != b.id)
+check("rows under two operations are told apart", [r["op"] for r in ledger.this_turn()] == [a.id, a.id, b.id] and a.id != b.id)
 ledger.rollback_op(a.id)
-check("rollback_op removes only that operation's rows and totals", [r.get("what") for r in ledger.ROWS] == ["z"] and dict(ledger.TOTALS) == {"gained": 1}, (ledger.ROWS, dict(ledger.TOTALS)))
+check("rollback_op removes only that operation's rows and totals", [r.get("what") for r in ledger.this_turn()] == ["z"] and ledger.totals() == {"gained": 1}, (ledger.this_turn(), ledger.totals()))
 
 # ---- the ids: decided by the input and their place in it, from a stream of their own
 streams.begin(7, 3, "a line")
@@ -172,7 +172,7 @@ check("the six tables are still the digest's", list(statehash.TABLES) == ["kv", 
 check("the record's rows are named as not state", statehash.NOT_STATE_ROWS == {("kv", "operations"), ("kv", "presentation")})
 dumped = statehash.dump(store)
 check("...and the dump leaves them out though they are in the save", not any(r[0] in ("operations", "presentation") for r in dumped["kv"]) and store._kv("operations") is not None)
-check("the session owns the open operation", "operation.CURRENT" in [n for n, *_ in session._owned()])
+check("the session owns the open operation", "registers.operation" in [n for n, *_ in session._owned()])
 operation.begin("left open", 1, 0, 0)
 g.close()
 check("...and closing the campaign closes it", operation.current() is None and simlib.residue() == {}, simlib.residue())

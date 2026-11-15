@@ -8,10 +8,10 @@ simlib.install(stub)
 import config
 import ui.console as uc
 SAID = []
-uc.say = lambda t, s="": SAID.append((s, t))
-uc.dialogue = lambda before, who, speech, after="": SAID.append((who, speech))     # a hire's reply comes framed (console.dialogue)
-uc.narrate = lambda t: None
-uc.note = lambda m, *a, **k: None
+uc.put("say", lambda t, s="": SAID.append((s, t)))
+uc.put("dialogue", lambda before, who, speech, after="": SAID.append((who, speech)))     # a hire's reply comes framed (console.dialogue)
+uc.put("narrate", lambda t: None)
+uc.put("note", lambda m, *a, **k: None)
 import llm.gateway as gw
 from engine import convo, mentor, quirks
 from engine.prompt import Prompt, copied, grams

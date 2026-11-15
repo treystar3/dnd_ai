@@ -12,8 +12,8 @@ simlib.install(simlib.Stub("warrior", 27))
 import ui.console as uc
 SHOWN = []
 for fn in ("narrate", "say", "note", "ledger"):
-    setattr(uc, fn, lambda *a, _fn=fn, **k: SHOWN.append((_fn, str(a[0]) if a else "")))
-uc.panel = lambda name, data: False
+    uc.put(fn, lambda *a, _fn=fn, **k: SHOWN.append((_fn, str(a[0]) if a else "")))
+uc.put("panel", lambda name, data: False)
 import scenes.road_actions as ra
 from llm.contracts import ActionIntent, RoadEvent
 from pydantic import ValidationError

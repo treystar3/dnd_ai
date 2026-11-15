@@ -22,9 +22,9 @@ simlib.install(stub)
 import ui.console as uc
 SHOWN = []
 for fn in ("narrate", "say", "note", "ledger"):
-    setattr(uc, fn, lambda *a, _fn=fn, **k: SHOWN.append(f"{_fn}:{a[0] if a else ''}"))
-uc.dialogue = lambda before, speaker, speech, after="", *a, **k: SHOWN.append(f"dialogue:{speaker}:{speech}")
-uc.panel = lambda name, data: False
+    uc.put(fn, lambda *a, _fn=fn, **k: SHOWN.append(f"{_fn}:{a[0] if a else ''}"))
+uc.put("dialogue", lambda before, speaker, speech, after="", *a, **k: SHOWN.append(f"dialogue:{speaker}:{speech}"))
+uc.put("panel", lambda name, data: False)
 from engine import streams
 streams.STRICT = True
 from storage import statehash
@@ -61,7 +61,7 @@ def ask(*a, main=False, **k):
     LAST["text"] = text
     return text
 LAST = {"text": "I look around."}
-uc.ask = ask
+uc.put("ask", ask)
 ws.run()
 print("RESULT " + json.dumps({"all": statehash.digest(store)["all"], "after": AFTER, "steps": store.meta.steps, "turn": store.meta.turn,
                               "shown": hashlib.sha256("\n".join(SHOWN).encode()).hexdigest(), "lines": len(SHOWN),

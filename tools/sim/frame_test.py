@@ -80,9 +80,9 @@ def fake(task, system, request, schema, **kw):
     asked.append(request)
     return DialogueFrame(before="A look.", after="")
 voice.generate = fake
-console.npc_says = lambda label, speech, gesture="": printed.append(("says", label, speech, gesture))
-console.dialogue = lambda before, who, speech, after="": printed.append(("frame", who, speech, before))
-console.narrate = lambda text: None
+console.put("npc_says", lambda label, speech, gesture="": printed.append(("says", label, speech, gesture)))
+console.put("dialogue", lambda before, who, speech, after="": printed.append(("frame", who, speech, before)))
+console.put("narrate", lambda text: None)
 ws = WorldScene(store, world, load_traits(), store.load_player()); ws.enter("parth")
 npc = next(n for n in ws.residents if n.role == "smith")
 ws.present = [npc] + [n for n in ws.present if n.id != npc.id]

@@ -31,7 +31,7 @@ stub.extract = lambda u: {"facts": [
     F(speaker="Bram Voss", claim="My father ran a forge in the Great River country."),
 ]}
 got = canon.extract(lines, {"Bram Voss": [], "Tamsin Reed": [], "Isel Quill": []})
-canon.EVENTS.clear()
+canon.clear_events()
 verdicts = {}
 check("'We are still in Parth' is a fact of the scene, not a belief: dropped", "world" not in got.get("Bram Voss", {}), got.get("Bram Voss"))
 check("'The guild exists' is common knowledge: dropped", not any("guild exists" in t for t in sum((v for k, v in got.get("Bram Voss", {}).items() if k != "_weight" and isinstance(v, list) and v and isinstance(v[0], str)), [])))
@@ -80,7 +80,7 @@ ch, _ = simlib.make_character("warrior", random.Random(2))
 st.save_player(PlayerState(character=ch, location="parth"))
 w = WorldScene(st, load_world(), load_traits(), st.load_player())
 tam["opinions"] = [{"about_id": "c2", "about": "Isel Quill", "text": "I'd rather have Isel's hands on my wounds than anyone else's.", "day": 1, "gravity": "light"}]
-canon.IDS = {m["name"]: m["id"] for m in (bram, isel, tam)}
+canon.set_ids({m["name"]: m["id"] for m in (bram, isel, tam)})
 seen = []
 import llm.gateway as gw
 _g = gw._generate

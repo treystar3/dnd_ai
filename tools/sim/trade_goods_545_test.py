@@ -13,8 +13,8 @@ import simlib
 simlib.install(simlib.Stub("warrior", 8))
 import ui.console as uc
 for fn in ("note", "narrate", "say", "npc_says", "dialogue", "ledger"):
-    setattr(uc, fn, lambda *a, **k: None)
-uc.panel = lambda name, data: False
+    uc.put(fn, lambda *a, **k: None)
+uc.put("panel", lambda name, data: False)
 import yaml
 from engine import data_check, inventory as inv, pulse, quests, retrieval, situations, streams
 from llm.contracts import ActionIntent as A, QuestOffer, SituationParts

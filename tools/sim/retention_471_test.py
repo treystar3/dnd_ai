@@ -85,7 +85,7 @@ def ask(*a, **k):
     return text
 
 
-uc.ask = ask
+uc.put("ask", ask)
 stub.plan = [{"kind": "look"}]
 ws.run()
 rows = [json.loads(l) for l in pathlib.Path(config.TURN_LOG_PATH).read_text(encoding="utf-8").splitlines() if l.strip()]
@@ -120,7 +120,7 @@ g = simlib.campaign(NAME, cls="warrior", seed=3, location="parth", fresh=False)
 ws, store = g.scene, g.store
 config.TURN_LOG_PATH = f"saves/{NAME}/turns.jsonl"
 SCRIPT[:] = ["I look around.", "quit"]
-uc.ask = lambda *a, **k: SCRIPT.pop(0) if SCRIPT else "quit"
+uc.put("ask", lambda *a, **k: SCRIPT.pop(0) if SCRIPT else "quit")
 OUT = pathlib.Path(f"saves/{NAME}_rec")
 shutil.rmtree(OUT, ignore_errors=True)
 g.session.record(folder=OUT)

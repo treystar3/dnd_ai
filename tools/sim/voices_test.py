@@ -102,10 +102,10 @@ shutil.rmtree("saves/voices_test", ignore_errors=True)
 world = load_world(); store = CampaignStore.open_or_create("voices_test"); store.meta.seed = 3; store.save_meta()
 char, _ = simlib.make_character("warrior", random.Random(2))
 store.save_player(PlayerState(character=char, location="parth"))
-console.narrate = lambda text: None
-console.note = lambda text: None
-console.npc_says = lambda *a, **k: None
-console.dialogue = lambda *a, **k: None
+console.put("narrate", lambda text: None)
+console.put("note", lambda text: None)
+console.put("npc_says", lambda *a, **k: None)
+console.put("dialogue", lambda *a, **k: None)
 ws = WorldScene(store, world, load_traits(), store.load_player()); ws.player.mentor["never"] = True
 ws.enter("parth")
 from npc import life

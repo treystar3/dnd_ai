@@ -18,8 +18,8 @@ import config
 from ui import console
 SHOWN = []
 for fn in ("narrate", "say", "note", "ledger", "out"):
-    setattr(console, fn, lambda *a, _fn=fn, **k: SHOWN.append((_fn, str(a[0]) if a else "")))
-console.panel = lambda *a, **k: False
+    console.put(fn, lambda *a, _fn=fn, **k: SHOWN.append((_fn, str(a[0]) if a else "")))
+console.put("panel", lambda *a, **k: False)
 from core.interrupts import Interrupt
 from llm import gateway
 from llm.contracts import ActionIntent, ActionPlan
@@ -157,7 +157,7 @@ def broken_cmd(text):
     raise ValueError("a pane button's fault")
 ws.command = broken_cmd
 script = ["#stats", "quit"]
-console.ask = lambda *a, **k: script.pop(0) if script else "quit"
+console.put("ask", lambda *a, **k: script.pop(0) if script else "quit")
 SHOWN.clear()
 try:
     ws.run()

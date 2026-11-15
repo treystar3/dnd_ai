@@ -10,17 +10,18 @@ allow() before a call's first attempt and charge()s after every attempt (a retry
 or its passage is told by a stand-in); an optional task that does not fit after the reserve kept for the required calls still ahead is
 deferred (Deferred, a later turn's: f469) or dropped (Dropped: the site's fallback stands now), as the table says. deadline() is what a
 required call still running may take: the remainder, never under the floor; the gateway sets it on the client's own timeout.
-Calls from other threads (the backfill's) are neither charged nor refused. The session owns CURRENT and LAST (engine/session.py).
+Calls from other threads (the backfill's) are neither charged nor refused. (f633) The open budget and the last one's summary are the
+turn's registers (engine/actor.py Registers), and the thread a budget belongs to is the one that plays the turn.
 
 This module imports no clock (an AST fence in tools/sim/budget_468_test.py keeps it so): a second here is an estimate, the same in every
 process."""
 from __future__ import annotations
 
-import threading
 from pathlib import Path
 
 import yaml
 from core import yamlio
+from engine import actor
 from llm.errors import LLMError                     # (f514) from the module that imports no model client
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -119,7 +120,6 @@ class Budget:
         self.reserve = float(B["reserve_seconds"] if reserve is None else reserve)
         self.spent = 0.0                       # estimated seconds charged so far, every attempt counted
         self.required_seconds = 0.0            # ...of which the required path's (the understanding, the outcome, its passage, their embeds)
-        self.owner = threading.get_ident()     # the turn's thread: another thread's calls are not this budget's
         self.passage_ahead = True              # the reserve is kept while a required passage is still to come (scenes/world.py passage_shown)
         self.charges: list[tuple[str, float]] = []
         self.deferred: list[str] = []
@@ -127,7 +127,10 @@ class Budget:
         self.refused: list[str] = []
 
     def mine(self) -> bool:
-        return threading.get_ident() == self.owner
+        """Whether the calling thread plays the turn: another thread's calls are not this budget's. One that is not the open
+        budget (closed, and still held by whoever opened it) answers its holder."""
+        mine = actor.registers()
+        return mine.budget is not self or mine.mine()
 
     def remaining(self) -> float:
         return self.limit - self.margin - self.spent
@@ -186,40 +189,44 @@ class Budget:
                 "dropped": list(self.dropped), "refused": list(self.refused), "calls": len(self.charges)}
 
 
-CURRENT: Budget | None = None
-LAST: dict = {}                    # the last closed budget's summary, with the stand-ins the line showed (the turn log and the night tool read it)
-
-
 def open(**kw) -> Budget:
-    global CURRENT
-    CURRENT = Budget(**kw)
-    return CURRENT
+    """A new input's budget. One left open is dropped, and the turn is the calling thread's unless an operation is open."""
+    b, mine = Budget(**kw), actor.registers()
+    mine.budget = None
+    mine.release()
+    mine.claim()
+    mine.budget = b
+    return b
+
+
+def opened() -> Budget | None:
+    """The budget open now, whichever thread asks."""
+    return actor.registers().budget
 
 
 def close(stand_ins: list | None = None) -> dict:
-    """The input is done: its budget closes and its summary is kept as LAST."""
-    global CURRENT
-    b, CURRENT = CURRENT, None
-    LAST.clear()
-    if b is not None:
-        LAST.update(b.summary(), stand_ins=list(stand_ins or []))
-    return dict(LAST)
+    """The input is done: its budget closes and its summary is kept as the last one's (last())."""
+    mine = actor.registers()
+    b, mine.budget = mine.budget, None
+    mine.release()
+    mine.budget_last = {**b.summary(), "stand_ins": list(stand_ins or [])} if b is not None else {}
+    return dict(mine.budget_last)
 
 
-def reset() -> None:
-    """(engine/session.py) A campaign opened or closed: no budget stays open, nothing of the last is kept."""
-    global CURRENT
-    CURRENT = None
-    LAST.clear()
+def last() -> dict:
+    """The last closed budget's summary, with the stand-ins the line showed (the turn log and the night tool read it)."""
+    return dict(actor.registers().budget_last)
 
 
 def allow(task: str, prompt_chars: int) -> None:
-    if CURRENT is not None:
-        CURRENT.allow(task, prompt_chars)
+    b = actor.registers().budget
+    if b is not None:
+        b.allow(task, prompt_chars)
 
 
 def charge(task: str, prompt_chars: int, answer_chars: int | None = None, cached: float = 0.0) -> float:
-    return CURRENT.charge(task, prompt_chars, answer_chars, cached) if CURRENT is not None else 0.0
+    b = actor.registers().budget
+    return b.charge(task, prompt_chars, answer_chars, cached) if b is not None else 0.0
 
 
 def cached_share(usage: dict | None) -> float:
@@ -233,7 +240,8 @@ def cached_share(usage: dict | None) -> float:
 
 
 def embed(texts: int) -> float:
-    return CURRENT.embed(texts) if CURRENT is not None else 0.0
+    b = actor.registers().budget
+    return b.embed(texts) if b is not None else 0.0
 
 
 def deadline() -> float | None:
@@ -241,10 +249,15 @@ def deadline() -> float | None:
     machine below the minimum card, where only the hang guard cuts a call."""
     if SLOW:
         return None
-    return CURRENT.deadline() if CURRENT is not None and CURRENT.mine() else None
+    b = actor.registers().budget
+    return b.deadline() if b is not None and b.mine() else None
 
 
 def passage_shown() -> None:
     """The line's required passage has been shown (or stood in for): the reserve is no longer kept from the optional calls after it."""
-    if CURRENT is not None:
-        CURRENT.passage_ahead = False
+    b = actor.registers().budget
+    if b is not None:
+        b.passage_ahead = False
+
+
+actor.moved(__name__, {"CURRENT": "budget.opened()", "LAST": "budget.last()"})

@@ -59,11 +59,11 @@ def _note(m, *a, **k):
     NOTE_COUNTS[s.split(":")[0][:36]] += 1
 
 
-uc.note = _note
+uc.put("note", _note)
 for _n in ("narrate", "wait", "debug", "combat_panel", "show_status", "show_header"):
     if hasattr(uc, _n):
-        setattr(uc, _n, lambda *a, **k: None)
-uc.ask = lambda *a, **k: "y"
+        uc.put(_n, lambda *a, **k: None)
+uc.put("ask", lambda *a, **k: "y")
 sys.stdout = io.StringIO()   # the game prints a lot; the bot reads state, not the screen
 
 from core.models import Character

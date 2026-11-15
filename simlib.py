@@ -583,7 +583,7 @@ def install(stub: Stub) -> Held:
     from storage import worldrow
     worldrow.WATCH_STALE = True      # (f589) the suite notes a world state saved over a newer one (storage/worldrow.py)
     from ui import console as _c
-    _c.ledger = lambda m: _c.note(m)     # (f325) under the stub, a ledger line is a note: the tests that watch notes see it
+    _c.put("ledger", lambda m: _c.note(m))     # (f325) under the stub, a ledger line is a note: the tests that watch notes see it
     from npc import life
     life.FIRST_BATCH = None          # tests see a place's whole population at once unless they turn the split on
     return held
@@ -809,8 +809,8 @@ def quiet_console(kinds=("narrate", "say", "note", "ledger")) -> list:
     from ui import console
     shown: list = []
     for fn in kinds:
-        setattr(console, fn, lambda *a, _fn=fn, **k: shown.append((_fn, str(a[0]) if a else "")))
-    console.panel = lambda *a, **k: False
+        console.put(fn, lambda *a, _fn=fn, **k: shown.append((_fn, str(a[0]) if a else "")))
+    console.put("panel", lambda *a, **k: False)
     return shown
 
 

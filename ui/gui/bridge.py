@@ -56,6 +56,18 @@ class _Out:
         return False
 
 
+class Page(console.Stdout):
+    """(f635) The window as the console's channel. Its text goes where sys.stdout points, which is the window's own while it is up
+    (install), and every name of the seam is answered by the bridge's method of that name."""
+
+    width = WRAP_WIDTH              # the page wraps text to its own width, so the game must not wrap it first
+    windowed = True
+
+    def __init__(self, bridge) -> None:
+        for name in console.SEAM:
+            setattr(self, name, getattr(bridge, name))
+
+
 class Bridge:
     def __init__(self):
         self.cv = threading.Condition()
@@ -78,6 +90,7 @@ class Bridge:
         self.saved = {}
         self.depth = 0
         self.lock = threading.RLock()
+        self.page = Page(self)       # (f635) this window as the console's channel
 
     # ---------- events ----------
     def emit(self, **ev) -> None:
@@ -186,9 +199,8 @@ class Bridge:
             self.emit(k="side_end")
 
     def status_block(self, when, weather, place_line, spot_line, vitals, level, points, coins, xp=(0, 0), needs=None) -> None:
-        from engine import money
-        import config
-        self.emit(k="status", debug=bool(config.DEBUG), when=when, weather=weather, place=place_line, spot=spot_line,
+        from engine import actor, money
+        self.emit(k="status", debug=bool(actor.prefs().debug), when=when, weather=weather, place=place_line, spot=spot_line,
                   vitals={k: [round(v[0]), v[1]] for k, v in vitals.items()}, level=level, points=points,
                   coins=money.fmt(coins), xp=list(xp), needs=needs or {})
 
@@ -261,19 +273,11 @@ class Bridge:
                     self.busy(False)
 
     def install(self) -> None:
+        """(f635) The window's page is the process's channel while it is up, and stdout is the window's; both are put back as found."""
         from llm import backend
-        self.saved = {"stdout": sys.stdout, "ask": console.ask, "scope": console.scope,
-                      "status_block": console.status_block, "kind": console.kind, "panel": console.panel, "busy_text": console.busy_text, "combat_state": console.combat_state, "setup_progress": console.setup_progress, "home": console.home, "home_done": console.home_done, "creation": console.creation, "creation_done": console.creation_done, "damage_tags": console.damage_tags, "width": console.WIDTH,
+        self.saved = {"stdout": sys.stdout, "channel": console.install(self.page),
                       "unwrap": backend.wrap(self.busy_layer, rank=backend.BUSY)}         # (f517) a layer, no longer a patch on the client
         sys.stdout = _Out(self)
-        console.ask, console.scope, console.status_block, console.kind = self.ask, self.scope, self.status_block, self.kind
-        console.busy_text = self.busy_text
-        console.panel = self.panel
-        console.setup_progress = self.setup_progress
-        console.home, console.home_done = self.home, self.home_done
-        console.creation, console.creation_done = self.creation, self.creation_done
-        console.combat_state, console.damage_tags = self.combat_state, True
-        console.WIDTH = WRAP_WIDTH      # the page wraps text to its own width, so the game must not wrap it first
 
     def uninstall(self) -> None:
         s = self.saved
@@ -281,13 +285,6 @@ class Bridge:
             return
         self.flush_text()
         sys.stdout = s["stdout"]
-        console.ask, console.scope, console.status_block, console.kind = s["ask"], s["scope"], s["status_block"], s["kind"]
-        console.busy_text = s["busy_text"]
-        console.panel = s["panel"]
-        console.setup_progress = s["setup_progress"]
-        console.home, console.home_done = s["home"], s["home_done"]
-        console.creation, console.creation_done = s["creation"], s["creation_done"]
-        console.combat_state, console.damage_tags = s["combat_state"], s["damage_tags"]
-        console.WIDTH = s["width"]
+        console.install(s["channel"])
         s["unwrap"]()                   # (f517) the busy light's layer, and only it, off the interface
         self.saved = {}

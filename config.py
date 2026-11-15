@@ -29,7 +29,6 @@ BOT_TASKS = ("player_line",)
 DEFAULT_TEMPERATURE = 0.8
 LOG_PATH = "logs/llm_calls.jsonl"
 PULSE_LOG_PATH = "logs/pulse.jsonl"   # (f355) what the world did: every pulse event and every one the player met (engine/pulselog.py, tools/world_report.py)
-DEBUG = False
 MAX_TOKENS = 800
 # (f375) The most one narration or one reply may run to, so a runaway generation stops. It is never told to the model and nothing is
 # measured against it: no narrator or speaker is given a length any more.
@@ -41,8 +40,6 @@ REQUEST_TIMEOUT = 120
 # live server.
 BACKEND = (__import__("os").environ.get("DND_BACKEND", "") or "runtime").strip().lower()
 CLOSE_WAIT_SECONDS = 2      # (f453) how long a closing campaign waits for its background work (a creation call, people being written) before leaving it behind
-COMBAT_NUMBERS = True  # show the numbers under each narrated round (#numbers toggles it in game)
-NARRATED_DIALOGUE = True  # wrap conversations in narration (#dialogue toggles it in game)
 LOG_MAX_MB = float(__import__("os").environ.get("DND_LOG_MAX_MB", "5") or 5)   # past this, logs/llm_calls.jsonl is trimmed; (f575) a measuring run raises it
 LOG_KEEP_ENTRIES = 300    # how many of the most recent entries survive a trim
 LOG_FULL_PROMPTS = False  # True stores every system prompt in full (large); False keeps the first part

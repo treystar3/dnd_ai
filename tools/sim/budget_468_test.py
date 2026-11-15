@@ -130,7 +130,7 @@ class Fake:
         self.seen.append(k["options"].get("temperature"))
         if self.other is None and threading.current_thread() is threading.main_thread():
             self.other = {}
-            t = threading.Thread(target=lambda: self.other.update(got=gateway.generate("interpret_action", "s", "u", Tiny), charges=len(budget.CURRENT.charges)))
+            t = threading.Thread(target=lambda: self.other.update(got=gateway.generate("interpret_action", "s", "u", Tiny), charges=len(budget.opened().charges)))
             t.start(); t.join()
         text = self.answers.pop(0) if self.answers else '{"ok": true}'
         return types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content=text))
@@ -149,7 +149,7 @@ got = gateway.generate("interpret_action", "system words", "user words", Tiny)
 check("a call from another thread while the turn's call runs is neither charged nor refused", isinstance(fake.other.get("got"), Tiny) and fake.other.get("charges") == 2
       and len(fake.seen) == 4, fake.other)
 summary = budget.close()
-check("the budget closes with its summary, and open again starts from nothing", summary["calls"] == 3 and budget.CURRENT is None and budget.LAST["calls"] == 3, summary)
+check("the budget closes with its summary, and open again starts from nothing", summary["calls"] == 3 and budget.opened() is None and budget.last()["calls"] == 3, summary)
 undo_fake()
 
 
@@ -164,7 +164,7 @@ class Named:
         if self.other is None and threading.current_thread() is threading.main_thread():
             self.other = {}
             t = threading.Thread(target=lambda: self.other.update(got=gateway.generate("interpret_action", "s", "u", Tiny),
-                                                                  charges=len(budget.CURRENT.charges)))
+                                                                  charges=len(budget.opened().charges)))
             t.start(); t.join()
         return types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content='{"ok": true}'))
 
@@ -212,7 +212,7 @@ def cutting_chat(**k):
 
 cut_held = simlib.stand_in(chat=cutting_chat, embed=None)
 SCRIPT = ["I look around.", "I look around.", "quit"]
-uc.ask = lambda *a, **k: SCRIPT.pop(0) if SCRIPT else "quit"
+uc.put("ask", lambda *a, **k: SCRIPT.pop(0) if SCRIPT else "quit")
 budget.PROFILE.update(read_tps=1e9, write_tps=0.15)              # nearly seven seconds a token: the understanding leaves less than the floor
 OUT = pathlib.Path("saves/budget_468_rec_out")
 shutil.rmtree(OUT, ignore_errors=True)

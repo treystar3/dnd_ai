@@ -7,9 +7,9 @@ stub = simlib.Stub("warrior", 3)
 simlib.install(stub)
 import config
 import ui.console as uc
-uc.say = lambda t, s="": None
-uc.narrate = lambda t: None
-uc.note = lambda m, *a, **k: None
+uc.put("say", lambda t, s="": None)
+uc.put("narrate", lambda t: None)
+uc.put("note", lambda m, *a, **k: None)
 from engine import clock
 from npc import life, backfill
 from scenes.world import WorldScene

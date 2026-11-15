@@ -7,7 +7,7 @@ from core.models import Ability
 from engine import arcs, quests, field
 from ui import console as uc
 NOTES = []
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 bad = []
 def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x)

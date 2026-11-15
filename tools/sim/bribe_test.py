@@ -5,7 +5,7 @@ import simlib
 simlib.install(simlib.Stub("warrior", 5))
 import ui.console as uc
 NOTES = []
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 from engine import checks
 from llm.contracts import ActionIntent
 from npc.models import NPC

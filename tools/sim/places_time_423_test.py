@@ -9,8 +9,8 @@ import simlib
 simlib.install(simlib.Stub("warrior", 13))
 import ui.console as uc
 for fn in ("narrate", "say", "note", "ledger"):
-    setattr(uc, fn, lambda *a, **k: None)
-uc.panel = lambda name, data: False
+    uc.put(fn, lambda *a, **k: None)
+uc.put("panel", lambda name, data: False)
 from engine import doings, road_prompts, roads, stay, towns
 from npc.traits import load_traits
 from scenes import voice

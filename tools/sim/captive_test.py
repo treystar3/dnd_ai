@@ -15,8 +15,8 @@ spy = simlib.stand_in(chat=chat)
 import ui.console as uc
 NOTES = []
 for f in ("narrate", "say", "npc_says", "dialogue", "ledger"):
-    setattr(uc, f, lambda *a, **k: None)
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+    uc.put(f, lambda *a, **k: None)
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 from engine import combat as C, entities
 from engine.arcs import A
 from npc.traits import load_traits

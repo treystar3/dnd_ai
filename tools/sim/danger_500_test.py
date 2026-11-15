@@ -27,8 +27,8 @@ NAME = "danger_500"
 game = simlib.campaign(NAME, cls="warrior", seed=3, location="south_fields")
 ws, store = game.scene, game.store
 ws.enter("south_fields")
-console.combat_state = lambda data: False
-console.combat_panel = lambda lines: None
+console.put("combat_state", lambda data: False)
+console.put("combat_panel", lambda lines: None)
 SIMS = []
 real_simulate = combat.simulate
 

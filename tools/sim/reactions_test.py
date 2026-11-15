@@ -10,7 +10,7 @@ simlib.install(STUB)
 import config
 import ui.console as uc
 NOTES = []
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 from engine import clock, domain_events as de, law, reactions, standing
 from engine.domain_events import (Bribe, ContractDone, Deed, Persuaded, Rested, Theft, publish)
 from llm.contracts import ActionIntent as A

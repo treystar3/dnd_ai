@@ -46,9 +46,9 @@ ok = consequences.tick(store, world, catalog, state, start, random.Random(2))
 th2 = state["threads"][-1]
 check("...and the watch starts asking, by word of mouth", ok and th2["template"] == "social_watch" and th2["door"] == "word" and not th2.get("summons_force"), (th2["template"], th2["door"]))
 store.save_world_state(state)
-console.narrate = lambda text: None
-console.note = lambda text: None
-console.ledger = lambda text: None
+console.put("narrate", lambda text: None)
+console.put("note", lambda text: None)
+console.put("ledger", lambda text: None)
 ws = WorldScene(store, world, load_traits(), store.load_player()); ws.player.mentor["never"] = True
 ws.enter("parth")
 state = store.load_world_state()

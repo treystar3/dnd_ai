@@ -21,7 +21,7 @@ b = simbot.Bot(); ws = b.ws; c = ws.player.character
 c.level = 20; c.coins = 100000; ws.player.guild_rank = "D"
 ws.player.mentor["never"] = True
 notes, narrated = [], []
-console.note = lambda t, *a, **k: notes.append(t)
+console.put("note", lambda t, *a, **k: notes.append(t))
 ws._narrate_now = lambda event, player_text="": narrated.append(event)
 arcs.roll_scale = lambda *a, **k: ("arc", "forced")
 _roll = checks.roll

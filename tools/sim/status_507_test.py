@@ -244,7 +244,7 @@ def texts():
 def load(fresh=False):
     g = simlib.campaign(NAME, cls="warrior", seed=7, location="south_fields", fresh=fresh)
     SHOWN.clear()
-    uc.ask = lambda *a, **k: "quit"
+    uc.put("ask", lambda *a, **k: "quit")
     g.scene.run()
     return g
 g = load(fresh=True)

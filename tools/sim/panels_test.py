@@ -49,18 +49,18 @@ check("a key item says what it is, where it came from and who it is for", keys a
 
 # the pane gets the data; the terminal gets the text
 panels = []
-_panel = console.panel
-console.panel = lambda name, data: (panels.append((name, data)), True)[1]
+_panel = console.now("panel")
+console.put("panel", lambda name, data: (panels.append((name, data)), True)[1])
 console.show_inventory(char)
 check("the window is handed the pack, its size and the key items", panels and panels[-1][0] == "inventory" and panels[-1][1]["count"] == 5 and panels[-1][1]["cap"] == inv.RULES["pack_slots"]
       and len(panels[-1][1]["items"]) == 5 and panels[-1][1]["keys"] and panels[-1][1]["groups"][-1] == "Materials")
-console.panel = lambda name, data: False
+console.put("panel", lambda name, data: False)
 import io, contextlib
 buf = io.StringIO()
 with contextlib.redirect_stdout(buf):
     console.show_inventory(char)
 check("...and the terminal still prints the numbered pack with what is worn", "PACK" in buf.getvalue() and "EQUIPPED" in buf.getvalue() and " 3. healing draught x3" in buf.getvalue(), buf.getvalue()[:300])
-console.panel = lambda name, data: (panels.append((name, data)), True)[1]
+console.put("panel", lambda name, data: (panels.append((name, data)), True)[1])
 
 # ---- 3. the character pane's worn pieces, in slot order, only for the window
 store.save_player(PlayerState(character=char, location="trading_square"))
@@ -68,19 +68,19 @@ ws = WorldScene(store, world, load_traits(), store.load_player())
 ws.ensure_discoveries(); ws.ensure_homes(); ws.ensure_road_place(); ws.ensure_dungeons(); ws.ensure_field_uses()
 ws.enter("trading_square")
 c = ws.player.character
-console.damage_tags = True
+console.channel().windowed = True
 buf = io.StringIO()
 with contextlib.redirect_stdout(buf):
     console.show_player_block(c, "the trading square", "Day 1 · 9:40", [("health", 10, 10)])
 worn = [w["slot"] for w in panels[-1][1]["worn"]]
 check("the window gets the worn pieces as rows, main hand first", panels[-1][0] == "character" and worn and worn == sorted(worn, key=lambda s: console._slot_rank(s.replace(" ", "_"))) and console.EQUIP_MARK in buf.getvalue(), worn)
-console.damage_tags = False
-console.panel = lambda name, data: False
+console.channel().windowed = False
+console.put("panel", lambda name, data: False)
 buf = io.StringIO()
 with contextlib.redirect_stdout(buf):
     console.show_player_block(c, "the trading square", "Day 1 · 9:40", [("health", 10, 10)])
 check("...and the terminal prints them as lines", console.EQUIP_MARK not in buf.getvalue() and "EQUIPMENT" in buf.getvalue())
-console.panel = lambda name, data: (panels.append((name, data)), True)[1]
+console.put("panel", lambda name, data: (panels.append((name, data)), True)[1])
 
 # ---- 4. contracts in hand
 ws.player.guild_rank = "D"
@@ -107,12 +107,12 @@ ws.player.guild_rank = "D"
 
 # the pane's Abandon: the same as the board's, and the pane is drawn again
 scopes = []
-_scope = console.scope
+_scope = console.now("scope")
 import contextlib as _cl
 @_cl.contextmanager
 def scope(cmd):
     scopes.append(cmd); yield
-console.scope = scope
+console.put("scope", scope)
 ws.command("#questabandon q2")
 check("Abandon from the Quests pane drops the contract and draws the pane again", not any(q["id"] == "q2" for q in ws.player.quests) and scopes[-1:] == ["#quests"] and panels[-1][0] == "quests", (scopes[-2:], [q["id"] for q in ws.player.quests]))
 check("the pane's commands are never echoed as typed lines", all(h in bridge.HIDDEN for h in ("#useitem", "#correct", "#questabandon")))
@@ -126,7 +126,7 @@ ws.command("#useitem healing draught")
 check("Use on a draught drinks it: one fewer, the effect told, the pack drawn again", inv.count_of(c.inventory, "healing_draught") == had - 1 and narrated and "healing draught" in narrated[-1] and scopes[-1] == "#inventory" and panels[-1][0] == "inventory", (had, inv.count_of(c.inventory, "healing_draught"), narrated[-1:]))
 ws.command("#useitem moonpetal")
 check("...and a herb is refused, as it would be if said", inv.count_of(c.inventory, "moonpetal") == 6)
-console.scope = _scope
+console.put("scope", _scope)
 
 # ---- 6. the item box
 ws.player.stash = [inv.make_good("venison", 3)]
@@ -178,8 +178,8 @@ ws.enter("trading_square")
 
 # ---- 10. the shop pane names who trades here before you have met them (f328)
 notes = []
-_note = console.note
-console.note = lambda t, *a, **k: notes.append(t)
+_note = console.now("note")
+console.put("note", lambda t, *a, **k: notes.append(t))
 ws.enter("trading_square")
 sellers = [n for n in ws.present if ws.world.roles[n.role].sells or ws.world.roles[n.role].stock or ws.world.roles[n.role].relics]
 for n in sellers:
@@ -188,8 +188,8 @@ ws.show_shop()
 check("with no seller spoken to, the pane names the traders here and what they deal in", sellers and notes and notes[-1].startswith("No one you have spoken to sells here yet. Trading here: ")
       and all(n.label("player") in notes[-1] for n in sellers) and "(" in notes[-1], (len(sellers), notes[-1:]))
 check("...and the worn rows and shop rows carry rarity too", all("rarity" in w for w in panels[-1][1]["worn"]) if panels[-1][0] == "character" else True)
-console.note = _note
-console.panel = _panel
+console.put("note", _note)
+console.put("panel", _panel)
 shutil.rmtree("saves/panels_test", ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad), bad if bad else "")
 sys.exit(1 if bad else 0)

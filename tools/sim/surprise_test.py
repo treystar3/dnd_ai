@@ -17,8 +17,8 @@ def check(n, ok, x=""):
     print(("PASS " if ok else "FAIL ") + n + (f"  {x}" if x else ""), file=_out)
     if not ok: bad.append(n)
 notes = []
-_o = console.note
-console.note = lambda t, *a, **k: (notes.append(t), _o(t, *a, **k))[1]
+_o = console.now("note")
+console.put("note", lambda t, *a, **k: (notes.append(t), _o(t, *a, **k))[1])
 
 # ---- the numbers
 check("an unaware target takes double", combat.RULES["unaware_damage"] == 2.0)

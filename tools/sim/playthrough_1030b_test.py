@@ -8,8 +8,8 @@ import simlib
 simlib.install(simlib.Stub("mage", 5))
 import ui.console as uc
 NOTES, SAID = [], []
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
-uc.panel = lambda name, data: False
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
+uc.put("panel", lambda name, data: False)
 from engine import combat, party
 from npc.traits import load_traits
 from scenes.world import WorldScene
@@ -167,7 +167,7 @@ check("...a short one is not", "Say little of the road" in asked[-1], asked[-1:]
 
 # ---- Maren's farewell, a lead's name, a hire's pronoun
 said = []
-uc.say = lambda text, speaker="": said.append((speaker, text))
+uc.put("say", lambda text, speaker="": said.append((speaker, text)))
 ws.mentor_narrate('Whatever doubt she had about you seems to have passed. She gives you a small nod.\n\n"Good hunting."')
 check("a quoted line in her scene text is her speaking, under her name", said and said[-1][1] == "Good hunting.", said)
 check("a thing's name inside a sentence is not capitalised mid-sentence", ws.mid_sentence("Four pieces of a map to a dragon's hoard")

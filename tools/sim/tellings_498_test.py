@@ -57,8 +57,8 @@ def begin(*a, **k):
 operation.begin = begin
 real_commit = store.commit_operation
 store.commit_operation = lambda op, *a, **k: (SHOWN.append(("commit", op.kind)), real_commit(op, *a, **k))[1]
-console.combat_state = lambda data: (SHOWN.append(("pane", "")), False)[1]          # the terminal's: no pane, so the text panel follows
-console.combat_panel = lambda lines: SHOWN.append(("panel", ""))
+console.put("combat_state", lambda data: (SHOWN.append(("pane", "")), False)[1])          # the terminal's: no pane, so the text panel follows
+console.put("combat_panel", lambda lines: SHOWN.append(("panel", "")))
 
 
 def ops_of_input():
@@ -212,7 +212,7 @@ from engine import inventory
 inventory.add(ws.player.character.inventory, inventory.make_good("healing_draught", 2), 99)     # the player as the scene holds them now (reloaded since the death)
 store.save_player(ws.player)
 script = ["#useitem healing draught", "quit"]
-uc.ask = lambda *a, **k: script.pop(0) if script else "quit"
+uc.put("ask", lambda *a, **k: script.pop(0) if script else "quit")
 reset()
 ws.run()
 k = kinds()
@@ -222,7 +222,7 @@ check("a pane command in a fight (#useitem) is an operation of its own, restarta
       and ("command:useitem", ) in {(kk,) for kk, i in BEGUN}, (k, after[:6], [kk for kk, i in BEGUN]))
 
 check("the ratchet holds none of the four tellings: nothing of them is asked inside an operation",
-      not ({"combat_opening", "combat_narrate", "combat_aftermath", "goddess_line"} & set(operation.LEGACY)), operation.LEGACY)
+      not ({"combat_opening", "combat_narrate", "combat_aftermath", "goddess_line"} & set(operation.legacy())), operation.legacy())
 
 check("every telling was asked of the test's own stand-in", spy.live() and spy.src.calls["Narration"] >= 4, dict(spy.src.calls))
 operation.begin, store.commit_operation = real_begin, real_commit

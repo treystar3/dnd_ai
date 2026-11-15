@@ -15,7 +15,7 @@ def chat(*a, **k):
 SPY = simlib.stand_in(chat=chat, embed=None)
 import ui.console as uc
 for f in ("narrate", "say", "npc_says", "dialogue", "ledger", "note"):
-    setattr(uc, f, lambda *a, **k: None)
+    uc.put(f, lambda *a, **k: None)
 from engine import domain_events, entities, party, quirks, truth
 from npc.traits import load_traits
 from scenes.world import WorldScene

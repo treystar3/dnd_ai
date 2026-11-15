@@ -9,9 +9,9 @@ stub = simlib.Stub("mage", 3)
 simlib.install(stub)
 import ui.console as uc
 NOTES = []
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 for f_ in ("narrate", "say", "npc_says", "dialogue", "ledger"):
-    setattr(uc, f_, lambda *a, **k: None)
+    uc.put(f_, lambda *a, **k: None)
 from engine import ability_traits as AT, combat, healing, loadout, party, pools, spells, techniques
 from world.loader import load_world
 bad = []

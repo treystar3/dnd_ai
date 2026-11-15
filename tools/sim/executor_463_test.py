@@ -68,7 +68,7 @@ with ws.operation("test", "a failing test") as op:
     store.save_player(ws.player)
     raise LLMError("the model failed")
 check("a rolled-back operation shows nothing, writes nothing and keeps no row", shown == [] and op.state == "rolled_back" and statehash.digest(store) == d0
-      and store.find_operation(op.id) is None and not any(r.get("op") == op.id for r in ledger.ROWS) and ws.player.character.coins == coins0
+      and store.find_operation(op.id) is None and not any(r.get("op") == op.id for r in ledger.this_turn()) and ws.player.character.coins == coins0
       and store.load_player().character.coins == coins0, (shown, op.state, ws.player.character.coins, coins0))
 check("...the fault is the model's, and the line is halted", ws.last_failure == "the model failed" and not ws.last_crash and ws.halted)
 with ws.operation("test", "a crashing test") as op:
@@ -92,9 +92,9 @@ check("a line whose second step fails stands in part: the first action, the pass
       stood == "part" and kinds == ["action:look", "passage", "world", "arrival", "law", "tail"] and [o.kind for o in ws.line_failed] == ["action:wait"] and ws.line_done == ["look"],
       (stood, kinds, [o.kind for o in ws.line_failed], ws.line_done))
 check("...the passage tells what stood", any(k == "narrate" for k, t in shown), shown[:3])
-check("...and no row of the failed step remains", not any(r.get("op") == ws.line_failed[0].id for r in ledger.LAST))
+check("...and no row of the failed step remains", not any(r.get("op") == ws.line_failed[0].id for r in ledger.last()))
 script = ["I look around, then wait a while.", "quit"]
-uc.ask = lambda *a, **k: script.pop(0) if script else "quit"
+uc.put("ask", lambda *a, **k: script.pop(0) if script else "quit")
 shown.clear()
 ws.run()
 del ws.on_wait
@@ -147,7 +147,7 @@ kinds = [o["kind"] for o in ops_of_input()]
 check("an intercepted line is the first operation whole, its passage, then the tail", stood is True and kinds == ["line", "passage", "tail"] and ws.player.location == "south_fields",
       (stood, kinds, ws.player.location))
 script = ["#stats", "quit"]
-uc.ask = lambda *a, **k: script.pop(0) if script else "quit"
+uc.put("ask", lambda *a, **k: script.pop(0) if script else "quit")
 ws.run()
 kinds = [o["kind"] for o in ops_of_input()]
 check("a pane command is an operation of its own", kinds == ["command:stats"], kinds)
@@ -157,7 +157,7 @@ g.close()
 r = simlib.campaign("executor_463_rec", cls="warrior", seed=3, location="parth")
 wr = r.scene
 SCRIPT = ["I look around.", "quit"]
-uc.ask = lambda *a, **k: SCRIPT.pop(0) if SCRIPT else "quit"
+uc.put("ask", lambda *a, **k: SCRIPT.pop(0) if SCRIPT else "quit")
 OUT = pathlib.Path("saves/executor_463_rec_out")
 shutil.rmtree(OUT, ignore_errors=True)
 r.session.record(folder=OUT)

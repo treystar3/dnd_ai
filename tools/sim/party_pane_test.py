@@ -5,8 +5,8 @@ import simlib
 simlib.install(simlib.Stub("mage", 5))
 import ui.console as uc
 NOTES, PANELS = [], []
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
-uc.panel = lambda name, data: (PANELS.append((name, data)) or True)
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
+uc.put("panel", lambda name, data: (PANELS.append((name, data)) or True))
 from core.models import Companion
 from npc.traits import load_traits
 from scenes.world import WorldScene
@@ -61,7 +61,7 @@ check("hired adventurers cannot be renamed", ws.player.party[0]["name"] == "Bran
 c.companions[0].fallen = True; c.companions[0].recover_at = ws.minutes + 120
 PANELS.clear(); ws.command("#party")
 check("a fallen companion shows when it returns", "Fallen" in PANELS[-1][1]["companions"][0]["state"] and not PANELS[-1][1]["companions"][0]["ok"], PANELS[-1][1]["companions"][0])
-uc.panel = lambda name, data: False
+uc.put("panel", lambda name, data: False)
 NOTES.clear(); ws.command("#party")
 check("the terminal prints companions as text", any("Stonewall" in n and "health" in n for n in NOTES), NOTES)
 print("\nFAILED:" if bad else "\nALL PASS", bad or "")

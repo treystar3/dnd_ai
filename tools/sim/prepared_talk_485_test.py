@@ -99,8 +99,8 @@ check("a first talk tried again opens the conversation it would have, kept in th
       rec.get("speaker") == tid and len(rec.get("lines") or []) == 2 and rec.get("stance", None) == (getattr(ws, "stance", "") or ""), rec)
 check("the talk's calls were all made with no operation open (the reply, the profile, the frame)",
       held.live() and any(t == "NPCReply" for t, _ in LOG) and all(op is None for t, op in LOG if t in ("NPCReply", "NPCProfile", "DialogueFrame")), LOG)
-check("...and none of the five is in the ratchet's residue", not (set(operation.LEGACY) & {"npc_conversation", "npc_profile", "dialogue_frame",
-      "work_offer_read", "npc_parting"}), operation.LEGACY)
+check("...and none of the five is in the ratchet's residue", not (set(operation.legacy()) & {"npc_conversation", "npc_profile", "dialogue_frame",
+      "work_offer_read", "npc_parting"}), operation.legacy())
 check("the night's partner is the open conversation's", (store.load_talk() or {}).get("speaker") == tid)
 
 # ---- the hand-in before a reply that fails stands: its own operation

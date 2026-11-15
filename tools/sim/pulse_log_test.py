@@ -6,9 +6,9 @@ simlib.install(simlib.Stub("mage", 5))
 import config
 import ui.console as uc
 NOTES, PANELS = [], []
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
-uc.panel = lambda name, data: (PANELS.append((name, data)) or True)
-from engine import pulse, pulselog
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
+uc.put("panel", lambda name, data: (PANELS.append((name, data)) or True))
+from engine import actor, pulse, pulselog
 from npc import land, prompts
 from npc.life import populate_place
 from npc.traits import load_traits
@@ -54,15 +54,15 @@ check("quiet pulses merge into one row", kinds == ["thread", "quiet"] and pulsel
 
 shutil.rmtree("saves/pulse_log_test_b", ignore_errors=True)
 ws = WorldScene(store, world, cat, store.load_player())
-config.DEBUG = False
+actor.prefs().debug = False
 PANELS.clear(); NOTES.clear(); ws.command("#pulse")
 check("without --debug the pane refuses", not PANELS and any("debug" in n for n in NOTES), NOTES)
-config.DEBUG = True
+actor.prefs().debug = True
 PANELS.clear(); ws.command("#pulse")
 name, d = PANELS[-1]
 check("with --debug the pulse pane opens, newest first", name == "pulse" and d["rows"][0]["kind"] == "quiet" and d["rows"][1]["kind"] == "thread", [r["kind"] for r in d["rows"]])
 check("the pane carries the effects of an event", len(d["rows"][1]["effects"]) == 4)
-config.DEBUG = False
+actor.prefs().debug = False
 
 lines = land.land_lines(world, "parth")
 silver = next(l for l in lines if l.startswith("silverleaf"))

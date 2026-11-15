@@ -6,7 +6,7 @@ simlib.install(simlib.Stub("warrior", 5))
 import config
 import ui.console as uc
 NOTES = []
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 from core.models import Ability
 from engine import law, locks, intent_audit as ia, clock
 from llm.contracts import ActionIntent as A, ObjectVerdict

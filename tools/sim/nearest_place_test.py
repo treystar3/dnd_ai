@@ -14,7 +14,7 @@ bad = []
 def check(name, ok, extra=""):
     print(("PASS " if ok else "FAIL ") + name + (f"  {extra}" if extra else ""))
     if not ok: bad.append(name)
-console.note = lambda m: None
+console.put("note", lambda m: None)
 
 shutil.rmtree("saves/nearest_place_test", ignore_errors=True)
 world = load_world()

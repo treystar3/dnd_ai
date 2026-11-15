@@ -92,7 +92,7 @@ class Load:
         self.closed = True
 
 
-screen = launch.Screen(say=console.out, ask=console.ask, progress=lambda f: console.setup_progress(f, LOADING),
+screen = launch.Screen(say=console.now("out"), ask=console.now("ask"), progress=lambda f: console.setup_progress(f, LOADING),
                        uncover=lambda: console.creation_done())     # as main.py makes it
 screen.rt = Load()
 OUT = {}

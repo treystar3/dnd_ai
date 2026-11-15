@@ -10,8 +10,8 @@ simlib.install(stub)
 import ui.console as uc
 NOTES = []
 for f_ in ("narrate", "say", "npc_says", "dialogue", "ledger"):
-    setattr(uc, f_, lambda *a, **k: None)
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+    uc.put(f_, lambda *a, **k: None)
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 from engine import ability_slots, combat, inventory as inv, leveling, spells, spellcraft
 from world.loader import load_world
 bad = []

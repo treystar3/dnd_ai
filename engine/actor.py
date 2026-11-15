@@ -17,15 +17,39 @@ HOMES declares where every name a failed operation puts back belongs once a scen
 M1): the turn's, one character's view, or the scene's, shared by everyone in it. Only the turn's have moved; the rest are still
 attributes of the scene, and this is the list that split starts from.
 
-One actor a scene, and one turn's context, while a scene has one character; M1 makes it one for each."""
+(f633) Registers is what a turn keeps while it is played, which five modules each held under names of their own: the operation
+open now, what reached the page and the calls made inside a transaction (engine/operation.py), the ledger's rows, the last
+turn's and the totals (engine/ledger.py), the input's budget and the last one's summary (engine/budget.py), the turn log's open
+turn and its count of things shown (engine/turnlog.py), and the answers served to an operation that runs again
+(engine/asked.py). Those modules' functions are still how it is read and written; each reaches the registers of the actor
+bound (`registers()`). `owner` is the thread that plays the turn, the one field where there were three: off it there is no
+turn (a call from the people written behind the scenes is not charged, filed under the operation or served an answer).
+
+(f634) Caches is what a scene keeps for its character between lines, which five more modules held the same way: the journal
+the canon writes to, the ids behind names, what became of each claim and the drafts under review (engine/canon.py), the
+companions' pronouns (engine/names.py), the stand-in and dropped-question lines said last (engine/failures.py,
+engine/questions.py) and the enchanter's discount (engine/enchanting.py). Read and written through those modules' functions,
+which reach the caches of the actor bound (`caches()`).
+
+(f636) Prefs is what a player chose for their own screen: the engine's debug lines and commands (#debug, --debug at the
+start), the numbers under a narrated round (#numbers) and whether conversations are narrated (#dialogue). Read where it
+matters as `prefs()`, the actor's bound. The player's for the run: no campaign's close puts one back.
+
+One actor a scene, one turn's context, and one set of registers, of caches and of preferences for the process, while a scene
+has one character; M1 makes it one for each."""
 from __future__ import annotations
 
+import collections
 import contextlib
 import contextvars
 import functools
+import sys
+import threading
+import types
 from dataclasses import dataclass, field
 from typing import Callable
 
+import config
 from engine import clock as calendar
 from engine import streams
 
@@ -135,6 +159,89 @@ class Clock:
         return meta.minutes
 
 
+class Held:
+    """A set of named fields, each as a new set holds it (FRESH). The session puts the process's back when a campaign opens or
+    closes (engine/owned.py, engine/session.py)."""
+
+    FRESH: dict[str, Callable] = {}
+
+    def __init__(self) -> None:
+        self.reset()
+
+    def reset(self) -> None:
+        for name, fresh in self.FRESH.items():
+            setattr(self, name, fresh())
+
+    def held(self) -> dict[str, str]:
+        """Every field that is not as a new set holds it, by name, with what it holds."""
+        return {name: repr(getattr(self, name))[:80] for name, fresh in self.FRESH.items() if getattr(self, name) != fresh()}
+
+
+class Registers(Held):
+    """(f633) The turn's registers."""
+
+    FRESH: dict[str, Callable] = {
+        "owner": lambda: None,                 # the thread playing the turn; none between turns
+        "operation": lambda: None,             # the operation open now
+        "presented": list,                     # what reached the page, in order: {"op": id, "how": shown | stand_in | recovered}
+        "legacy": list,                        # the tasks asked for while an operation held the save's transaction open
+        "rows": list,                          # the ledger: this turn's rows
+        "last": list,                          # ...the last turn's, once it has ended
+        "totals": collections.Counter,         # ...and how many of each kind stand
+        "budget": lambda: None,                # the input's budget, while it is open
+        "budget_last": dict,                   # the last closed budget's summary, with the stand-ins the line showed
+        "open_turn": lambda: None,             # the turn log's rows of the turn being played, waiting for what it showed
+        "shown": int,                          # things shown since the start: a turn that moved it not at all said nothing
+        "serving": lambda: None,               # the answers of the operation that runs again
+    }
+
+    def claim(self) -> None:
+        """A budget, an operation or a serving opens: the turn is the calling thread's. While an operation or a serving is
+        open the turn stays its thread's. A budget alone never holds it: one left open by a line that never closed it goes
+        to the thread that opens next, and charges that thread's calls from then on."""
+        if self.operation is None and self.serving is None:
+            self.owner = threading.get_ident()
+
+    def release(self) -> None:
+        """One of the three closed: with none left open, the turn is nobody's."""
+        if self.operation is None and self.budget is None and self.serving is None:
+            self.owner = None
+
+    def mine(self) -> bool:
+        """Whether the calling thread is the one playing the turn. With nothing open, no thread is."""
+        return self.owner == threading.get_ident()
+
+
+class Caches(Held):
+    """(f634) What a scene keeps for the character it plays, between lines."""
+
+    FRESH: dict[str, Callable] = {
+        "journal": lambda: None,               # where the canon's facts go: fn(kind, actor, target, text, data), bound by the scene
+        "ids": dict,                           # name -> stable id for the people the game knows: the party, the mentor, the character
+        "events": list,                        # what became of each claim: kept, same, contradicts, given (the live check reads it)
+        "sink": list,                          # while a draft is under review its events wait here, kept only if it is committed
+        "cast": dict,                          # first name -> 'he' | 'she': the companions, for what reaches the screen
+        "said_failure": dict,                  # the stand-in line said last, by kind: never the same one twice running
+        "said_question": str,                  # ...and the line for a dropped question
+        "discount": int,                       # the enchanter's fee taken off, in percent, from the character's passives
+    }
+
+
+class Prefs(Held):
+    """(f636) What a player chose for their own screen."""
+
+    FRESH: dict[str, Callable] = {
+        "debug": bool,                         # the engine's decisions shown, and the debug commands open
+        "numbers": lambda: True,               # the numbers under each narrated round of a fight
+        "dialogue": lambda: True,              # conversations wrapped in narration; off, the words alone
+    }
+
+
+SHARED = Registers()                           # the process's one set, every actor's while there is one actor
+SHARED_CACHES = Caches()                       # (f634) ...and its one set of caches
+SHARED_PREFS = Prefs()                         # (f636) ...and of preferences: the first player's
+
+
 @dataclass(eq=False)
 class ActorContext:
     player: object = None                      # the character's record (PlayerState); none for the process's own
@@ -142,6 +249,9 @@ class ActorContext:
     out: object = None                         # the console's channel while it is bound; None: the channel as it stands
     clock: Clock | None = None
     turn: TurnContext = field(default_factory=TurnContext)
+    registers: Registers = SHARED              # (f633) the turn's registers: the process's one, until a second actor has its own
+    caches: Caches = SHARED_CACHES             # (f634) what is kept for the character between lines: the process's, likewise
+    prefs: Prefs = SHARED_PREFS                # (f636) what the player chose for their screen: the process's, likewise
 
     @property
     def character_id(self) -> str:
@@ -157,6 +267,40 @@ def current() -> ActorContext:
     return _bound.get()
 
 
+def registers() -> Registers:
+    """(f633) The turn's registers of the actor bound on this thread: the process's one outside every entry, and on a thread
+    no entry runs on, where `owner` says the turn is not that thread's."""
+    return current().registers
+
+
+def caches() -> Caches:
+    """(f634) The caches of the actor bound on this thread; the process's one outside every entry."""
+    return current().caches
+
+
+def prefs() -> Prefs:
+    """(f636) The preferences of the actor bound on this thread; the process's one outside every entry."""
+    return current().prefs
+
+
+def moved(module_name: str, names: dict[str, str]) -> None:
+    """(f633) Names a module once held its state under, now held elsewhere: reading one or setting one raises and says what
+    to call. Setting is refused too, or `module.NAME = ...` would quietly make a dead name nothing reads."""
+    def gone(name: str) -> AttributeError:
+        return AttributeError(f"{module_name}.{name} is no longer the module's (engine/actor.py): use {names[name]}")
+
+    class Moved(types.ModuleType):
+        def __getattr__(self, name):
+            raise gone(name) if name in names else AttributeError(f"module {module_name!r} has no attribute {name!r}")
+
+        def __setattr__(self, name, value):
+            if name in names:
+                raise gone(name)
+            super().__setattr__(name, value)
+
+    sys.modules[module_name].__class__ = Moved
+
+
 def who() -> str:
     """(f629) The id of the character whose entry is running on this thread, for a log's row or a record; "" when none is (a
     load, the people written behind the scenes, a harness outside every entry). The one source of who acted: three of the logs
@@ -168,8 +312,8 @@ def who() -> str:
 @contextlib.contextmanager
 def bind(mine: ActorContext):
     """This actor is the current one until the block ends, its dice with it; the one before is back after, a fault or not. Both
-    are this thread's. A channel of its own takes the console's text for the whole process (ui/console.py use), every thread's
-    with it, until the output seam is the channel's (f635)."""
+    are this thread's. (f635) So is a channel of its own: everything the game shows or asks on this thread goes to it
+    (ui/console.py use), and another thread keeps its own, or the process's."""
     from ui import console
     token = _bound.set(mine)
     try:
@@ -238,3 +382,6 @@ def install(cls) -> None:
     """Give a scene class its name for every field."""
     for name in FIELDS:
         setattr(cls, name, TurnField(name))
+
+
+moved("config", {"DEBUG": "actor.prefs().debug", "COMBAT_NUMBERS": "actor.prefs().numbers", "NARRATED_DIALOGUE": "actor.prefs().dialogue"})   # (f636)

@@ -491,7 +491,7 @@ def possessive(f: Fighter) -> str:
     if f.side == "player":
         return "your"
     from engine import names
-    pron = names.CAST.get(f.name.split()[0]) if f.side == "ally" and f.name else None
+    pron = names.cast().get(f.name.split()[0]) if f.side == "ally" and f.name else None
     if pron is None and f.side == "ally" and f.name == "Maren Holt":
         pron = "she"
     if pron in names.POSSESSIVE:

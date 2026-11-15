@@ -8,8 +8,8 @@ import simlib
 simlib.install(simlib.Stub("warrior", 4))
 import ui.console as uc
 NARR = []
-uc.narrate = lambda t, *a, **k: NARR.append(str(t))
-uc.panel = lambda name, data: False
+uc.put("narrate", lambda t, *a, **k: NARR.append(str(t)))
+uc.put("panel", lambda name, data: False)
 from engine import combat, context, hygiene, names, quirks
 from llm.contracts import Narration
 from npc.traits import load_traits

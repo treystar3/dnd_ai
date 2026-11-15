@@ -7,8 +7,8 @@ simlib.install(simlib.Stub("warrior", 5))
 import config
 import ui.console as uc
 NOTES = []
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
-uc.show_lessons = lambda *a, **k: None
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
+uc.put("show_lessons", lambda *a, **k: None)
 from core.models import Passive, Ability
 from engine import lessons
 from llm.contracts import LessonNames, LessonWant, ActionIntent as A

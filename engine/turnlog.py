@@ -19,7 +19,9 @@ passage written twice (`rewrites`: why, and whether the draft or the rewrite was
 could not say what the player saw: notes, coins and refusals were missing, and a turn with two narration calls did not say which one
 was printed. A # command or pane button that changed something (the clock, the place, the coin) or told the player anything in the
 story's column is a row too, `handled_by: "command"`; a pane that only redraws a view is not: a pinned pane re-runs its command after
-every turn, and those are not things the player did."""
+every turn, and those are not things the player did.
+
+(f633) The turn being played and the count of things shown are the turn's registers (engine/actor.py Registers)."""
 from __future__ import annotations
 
 import json
@@ -34,8 +36,6 @@ from engine import actor
 COUNTS: dict[str, int] = {}          # handled_by -> lines this session
 _writes = 0
 _lock = threading.Lock()
-_open: dict | None = None            # (f385) the turn being played: its rows wait here for what it showed
-SHOWN = 0                            # (f385) things shown since the start: a turn that moved it not at all said nothing
 SHOWN_KINDS = {"narrate": "narration", "say": "speech", "npc_says": "speech", "dialogue": "speech", "note": "note", "wait": "wait",
                "ledger": "ledger", "combat_numbers": "numbers"}
 
@@ -60,8 +60,9 @@ def record(turn: int, text: str, handled_by: str, **fields) -> None:
     if not enabled():
         return
     entry = {**_head(), "turn": turn, "handled_by": handled_by, "text": text, **fields}
-    if _open is not None:
-        _open["rows"].append(entry)
+    playing = actor.registers().open_turn
+    if playing is not None:
+        playing["rows"].append(entry)
         return
     _write(entry)
 
@@ -81,13 +82,12 @@ def _write(entry: dict) -> None:
         pass
 
 
-def begin(console=None) -> None:
-    """(f385) A turn starts: rows wait for its end, and what the console prints is kept for them."""
-    global _open
-    if console is not None:
-        tap(console)
-    _open = {"started": datetime.now(timezone.utc).isoformat(timespec="seconds"), "t0": time.perf_counter(), "rows": [], "shown": [],
-             "rewrites": []}
+def begin(taps: bool = False) -> None:
+    """(f385) A turn starts: rows wait for its end, and (taps) what the console prints is kept for them."""
+    if taps:
+        tap()
+    actor.registers().open_turn = {"started": datetime.now(timezone.utc).isoformat(timespec="seconds"), "t0": time.perf_counter(), "rows": [],
+                                   "shown": [], "rewrites": []}
 
 
 def end(rolled_back: bool = False, command: dict | None = None, failure: str = "", crash: str = "", stood: str = "", stand_in: bool = False,
@@ -98,13 +98,13 @@ def end(rolled_back: bool = False, command: dict | None = None, failure: str = "
     failed, which is never a refusal of what the player typed. (f449) `crash`: the turn rolled back because the game itself raised; the
     row says so (crashed), apart from the model's failures, and logs/crash.log holds the traceback. (f466) `world_failed`: the world's
     own operations of the line that did not stand (kind, error, crash), rolled back alone with the player told nothing; the night's
-    counts read them here, apart from the line's own failures. (f468) `budget`: the input's budget as it closed (engine/budget.py LAST):
+    counts read them here, apart from the line's own failures. (f468) `budget`: the input's budget as it closed (engine/budget.py last):
     the model time it estimated (budget_seconds, whole), the required path's (required_seconds), the optional tasks it deferred or
     dropped, and the passages told by a stand-in (stand_ins), apart from hesitations and refusals. (f471) `ops`: the line's operations
     [{id, kind, index, state: stood | rolled_back | stand_in}] (scenes/world.py line_record), the key that joins the row to the save's
     record and to the audit log; `recovered`: outcomes told at the load before this input (recover_unshown), never hesitations."""
-    global _open
-    t, _open = _open, None
+    mine = actor.registers()
+    t, mine.open_turn = mine.open_turn, None
     if t is None or not enabled():
         return
     rows = t["rows"]
@@ -151,32 +151,40 @@ def end(rolled_back: bool = False, command: dict | None = None, failure: str = "
 
 def shown(kind: str, text: str) -> None:
     """(f385) Something the player was shown this turn."""
-    global SHOWN
     if not (text or "").strip():
         return
-    SHOWN += 1
-    if _open is not None:
-        _open["shown"].append({"kind": kind, "text": text.strip()})
+    mine = actor.registers()
+    mine.shown += 1
+    if mine.open_turn is not None:
+        mine.open_turn["shown"].append({"kind": kind, "text": text.strip()})
+
+
+def shown_count() -> int:
+    """(f385) Things shown since the start: a turn that moved it not at all said nothing (scenes/world.py turn_ticks)."""
+    return actor.registers().shown
 
 
 def rewrite(task: str, why: list[str], kept: str) -> None:
     """(f385) A passage was written twice: why, and which one the player read ('draft' or 'rewrite')."""
-    if _open is not None:
-        _open["rewrites"].append({"task": task, "why": why, "shown": kept})
+    playing = actor.registers().open_turn
+    if playing is not None:
+        playing["rewrites"].append({"task": task, "why": why, "shown": kept})
 
 
-def tap(console) -> None:
-    """(f385) Wraps the console's story-column functions so what they print is kept for the turn's row. Whatever is installed now is
-    wrapped (the terminal's, a test's, a night run's), and only once."""
+def tap() -> None:
+    """(f385) Wraps the story column's outputs so what they print is kept for the turn's row. (f635) On the channel in use: whatever
+    answers there now is wrapped (the terminal's, a window's, a test's, a night run's), and only once."""
+    from ui import console
+    ch = console.channel()
     for name, kind in SHOWN_KINDS.items():
-        fn = getattr(console, name, None)
-        if fn is None or getattr(fn, "_turnlog", False):
+        fn = ch.get(name)
+        if getattr(fn, "_turnlog", False):
             continue
         def wrapped(*a, _fn=fn, _name=name, _kind=kind, **k):
             shown(_kind, _shown_text(_name, a, k))
             return _fn(*a, **k)
         wrapped._turnlog = True
-        setattr(console, name, wrapped)
+        ch.set(name, wrapped)
 
 
 def _shown_text(name: str, a: tuple, k: dict) -> str:
@@ -236,3 +244,6 @@ def write_session_stats() -> None:
         _trim(p)
     except OSError:
         pass
+
+
+actor.moved(__name__, {"_open": "the functions here (begin, end, record, shown)", "SHOWN": "turnlog.shown_count()"})

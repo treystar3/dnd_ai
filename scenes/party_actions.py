@@ -15,7 +15,7 @@ from engine.party import P
 from llm.contracts import ActionIntent, CompanionReply, PartyIntent
 from llm.gateway import LLMError, generate
 from scenes import party_prompts as ppr
-from engine import actions, clock, ledger, money
+from engine import actions, actor, clock, ledger, money
 from ui import console
 
 G = quests.G
@@ -631,7 +631,7 @@ class PartyActions:
         self.note_party_said(1)                                        # (f386)
         if speech and why is None:
             why = self.hire_frame_reasons(m, reply_to, in_fight)
-        if speech and why and getattr(config, "NARRATED_DIALOGUE", True) and getattr(config, "VOICED_MENTOR", True):
+        if speech and why and actor.prefs().dialogue and getattr(config, "VOICED_MENTOR", True):
             from llm.contracts import DialogueFrame
             from scenes import world_prompts as wp
             from scenes.voice import fresh

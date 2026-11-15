@@ -9,7 +9,7 @@ simlib.install(STUB)
 import config
 import ui.console as uc
 NOTES = []
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 from engine import actions, exits, mentor
 from engine import party as party_rules
 from llm.contracts import ActionIntent as A

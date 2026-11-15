@@ -6,7 +6,7 @@ sys.path.insert(0, ".")
 import simlib
 simlib.install(simlib.Stub("warrior", 3))
 import ui.console as uc
-uc.note = lambda m, *a, **k: None; uc.narrate = lambda t: None; uc.say = lambda *a, **k: None; uc.wait = lambda *a, **k: None
+uc.put("note", lambda m, *a, **k: None); uc.put("narrate", lambda t: None); uc.put("say", lambda *a, **k: None); uc.put("wait", lambda *a, **k: None)
 from storage.campaign import CampaignStore, PlayerState
 from npc import life
 from npc.traits import load_traits

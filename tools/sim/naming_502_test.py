@@ -27,9 +27,9 @@ NAME = "naming_502"
 game = simlib.campaign(NAME, cls="warrior", seed=3, location="south_fields")
 ws, store = game.scene, game.store
 ws.enter("south_fields")
-console.combat_state = lambda data: (SHOWN.append(("pane", "")), False)[1]
-console.combat_panel = lambda lines: None
-console.legendary_reveal = lambda item: SHOWN.append(("reveal", item.name))
+console.put("combat_state", lambda data: (SHOWN.append(("pane", "")), False)[1])
+console.put("combat_panel", lambda lines: None)
+console.put("legendary_reveal", lambda item: SHOWN.append(("reveal", item.name)))
 LOG, FAIL, REQ = [], {"titles": set()}, []
 real = simlib.below()                                           # (f518) the stub's own answer, taken before the spy goes in over it
 
@@ -115,7 +115,7 @@ check("...the Found line bears the model's name", rare is not None and rare.name
 told = next((r for r in REQ if "THE PLAYER FINDS" in r), "")
 check("...and the aftermath's THE PLAYER FINDS names the final names", told and rare.name in told and legend.name in told
       and "Rare " not in told.split("THE PLAYER FINDS:")[1].split("\n")[0], told.split("THE PLAYER FINDS:")[1].split("\n")[0] if told else told)
-gained = [r for r in ledger.LAST if r.get("kind") == "gained"]
+gained = [r for r in ledger.last() if r.get("kind") == "gained"]
 check("...the turn's record (the ledger the narrator and the turn log read) names them as the pack does",
       gained and all(any(i.name in (r.get("say") or "") for i in new) for r in gained), [r.get("say") for r in gained])
 
@@ -147,9 +147,9 @@ new = [i for i in ws.pack if i.uid not in pack0]
 check("...reopened, the pack holds both finds under the engine's own names, the legendary's name in the taken list",
       len(new) >= 2 and any(i.name.startswith("Rare ") for i in new) and any(i.rarity == "legendary" and i.title.startswith("the ") and "of awakened shrub" in i.title for i in new)
       and all(i.name in store.legendary_names() for i in new if i.rarity == "legendary"), [(i.rarity, i.name, i.title) for i in new])
-console.combat_state = lambda data: (SHOWN.append(("pane", "")), False)[1]
-console.combat_panel = lambda lines: None
-console.legendary_reveal = lambda item: SHOWN.append(("reveal", item.name))
+console.put("combat_state", lambda data: (SHOWN.append(("pane", "")), False)[1])
+console.put("combat_panel", lambda lines: None)
+console.put("legendary_reveal", lambda item: SHOWN.append(("reveal", item.name)))
 store.commit_operation = lambda op, *a, **k: (SHOWN.append(("commit", op.kind)), store.__class__.commit_operation(store, op, *a, **k))[1]
 
 # ---- a naming whose call fails every try leaves the engine's name and the item kept, its Found line showing that name
@@ -165,7 +165,7 @@ found_line = next((t for k, t in SHOWN if k == "ledger" and t.startswith("Found:
 check("a naming whose call fails every try leaves the engine's name, the item kept, the Found line showing that name, the win standing",
       stood is True and rare is not None and rare.name.startswith("Rare ") and rare.name in found_line and "naming" in ops_of_input(), (stood, rare and rare.name, found_line, ops_of_input()))
 
-check("the ratchet holds none of the five naming tasks", not ({"loot_name", "legendary_name", "accessory_name", "named_spell", "spell_rank"} & set(operation.LEGACY)), operation.LEGACY)
+check("the ratchet holds none of the five naming tasks", not ({"loot_name", "legendary_name", "accessory_name", "named_spell", "spell_rank"} & set(operation.legacy())), operation.legacy())
 
 loot.boss_drops = real_drops
 SPY()

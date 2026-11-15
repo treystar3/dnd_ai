@@ -5,9 +5,9 @@ import simlib
 simlib.install(simlib.Stub("warrior", 3))
 import ui.console as uc
 SAID = []
-uc.say = lambda t, s="": SAID.append(("say", t))
-uc.narrate = lambda t: SAID.append(("narrate", t))
-uc.note = lambda *a, **k: None
+uc.put("say", lambda t, s="": SAID.append(("say", t)))
+uc.put("narrate", lambda t: SAID.append(("narrate", t)))
+uc.put("note", lambda *a, **k: None)
 from scenes.goddess import ThresholdScene, Step
 from llm.contracts import PlayerTurn
 bad = []

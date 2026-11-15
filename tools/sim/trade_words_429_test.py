@@ -9,8 +9,8 @@ simlib.install(simlib.Stub("warrior", 29))
 import ui.console as uc
 SHOWN = []
 for fn in ("narrate", "say", "note", "ledger"):
-    setattr(uc, fn, lambda *a, _fn=fn, **k: SHOWN.append((_fn, str(a[0]) if a else "")))
-uc.panel = lambda name, data: False
+    uc.put(fn, lambda *a, _fn=fn, **k: SHOWN.append((_fn, str(a[0]) if a else "")))
+uc.put("panel", lambda name, data: False)
 from engine import inventory as inv, items, ledger
 from llm.contracts import ActionIntent
 from npc.traits import load_traits
@@ -64,7 +64,7 @@ ledger.begin()
 SHOWN.clear()
 ws.on_retrieve(ActionIntent(kind="retrieve", item=name), f"I pocket the {name}")
 check("pocketing what is already in the pack is a yes, never 'There's no item box here'", any("already in your pack" in t for _, t in SHOWN)
-      and not any(r["kind"] == "refused" for r in ledger.ROWS), (SHOWN, ledger.ROWS))
+      and not any(r["kind"] == "refused" for r in ledger.this_turn()), (SHOWN, ledger.this_turn()))
 
 store.close()
 shutil.rmtree("saves/trade_words_429_test", ignore_errors=True)

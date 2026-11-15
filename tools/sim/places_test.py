@@ -15,8 +15,8 @@ def check(name, ok, extra=""):
     print(("PASS " if ok else "FAIL ") + name + (f"  {extra}" if extra else ""))
     if not ok: bad.append(name)
 lines, panels = [], []
-console.note = lambda m: lines.append(m)
-console.panel = lambda name, data: panels.append((name, data)) or True
+console.put("note", lambda m: lines.append(m))
+console.put("panel", lambda name, data: panels.append((name, data)) or True)
 
 shutil.rmtree("saves/places_test", ignore_errors=True)
 world = load_world()

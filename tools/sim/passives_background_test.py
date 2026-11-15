@@ -5,11 +5,11 @@ import simlib
 simlib.install(simlib.Stub("warrior", 3))
 import ui.console as uc
 LOG = []
-uc.wait = lambda m, *a, **k: LOG.append(("wait", m))
-uc.note = lambda m, *a, **k: LOG.append(("note", m))
-uc.debug = lambda m, *a, **k: None
-uc.show_actives = lambda a: LOG.append(("show_actives",))
-uc.show_passives = lambda a: LOG.append(("show_passives",))
+uc.put("wait", lambda m, *a, **k: LOG.append(("wait", m)))
+uc.put("note", lambda m, *a, **k: LOG.append(("note", m)))
+uc.put("debug", lambda m, *a, **k: None)
+uc.put("show_actives", lambda a: LOG.append(("show_actives",)))
+uc.put("show_passives", lambda a: LOG.append(("show_passives",)))
 from character import creation
 from llm.contracts import PlayerTurn, ClassInterpretation
 from llm.gateway import LLMError

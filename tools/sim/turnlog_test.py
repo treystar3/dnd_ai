@@ -9,7 +9,7 @@ simlib.install(STUB)
 import config
 import ui.console as uc
 NOTES = []
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 from engine import turnlog
 from llm import gateway
 from npc.traits import load_traits

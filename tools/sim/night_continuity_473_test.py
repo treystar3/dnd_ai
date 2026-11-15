@@ -15,8 +15,8 @@ stub = simlib.Stub("warrior", 7)
 simlib.install(stub)
 import ui.console as uc
 for fn in ("narrate", "say", "note", "ledger"):
-    setattr(uc, fn, lambda *a, **k: None)
-uc.panel = lambda name, data: False
+    uc.put(fn, lambda *a, **k: None)
+uc.put("panel", lambda name, data: False)
 from pathlib import Path
 import nightbot
 import nightrun

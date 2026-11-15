@@ -4,8 +4,8 @@ sys.path.insert(0, ".")
 import simlib
 simlib.install(simlib.Stub("mage", 5))
 import ui.console as uc
-uc.note = lambda *a, **k: None
-uc.panel = lambda name, data: False
+uc.put("note", lambda *a, **k: None)
+uc.put("panel", lambda name, data: False)
 from npc.life import note_mentions, populate_place
 from npc.traits import load_traits
 from scenes.world import WorldScene

@@ -16,14 +16,14 @@ stub.a_MentorReply = lambda u, k: (ASKED.append(u) or {"speech": "The board is i
 import config
 import ui.console as uc
 SAID, NOTES, ANSWERS = [], [], []
-uc.say = lambda t, s="": SAID.append((s, t))
-uc.dialogue = lambda b, s, t, a: SAID.append((s, t))        # her words framed by the narrator (f274) count as said by her
-uc.npc_says = lambda s, t, g="": SAID.append((s, t))        # ...and so do her words alone, once the moment has had its frame (f374)
-uc.narrate = lambda t: SAID.append(("narrate", t))
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+uc.put("say", lambda t, s="": SAID.append((s, t)))
+uc.put("dialogue", lambda b, s, t, a: SAID.append((s, t)))        # her words framed by the narrator (f274) count as said by her
+uc.put("npc_says", lambda s, t, g="": SAID.append((s, t)))        # ...and so do her words alone, once the moment has had its frame (f374)
+uc.put("narrate", lambda t: SAID.append(("narrate", t)))
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 def no_ask(*a, **k):
     raise AssertionError("the world asked in the middle of a turn (f460/f461: a question ends the turn; the next line answers it)")
-uc.ask = no_ask
+uc.put("ask", no_ask)
 def answer_all(w, default="go on", cap=30):
     """(f461) Each of Maren's questions ends the line; the lines in ANSWERS are typed next, then 'go on' until she lets them go."""
     n = 0
@@ -257,13 +257,13 @@ CHOICE[0] = {"kind": "item", "item": "healing draught"}
 hp2 = me.hp; me.hp = min(me.hp, 5)
 ws.combat.turn("drink the healing draught")
 check("the next turn another item can be used", any(h["outcome"] == "heal" for h in ft.hits) and me.hp > 5)
-uc.damage_tags = True
+uc.channel().windowed = True
 me.hp = 5
 ws.to_pack(inventory.make_good(M["hunt"]["potion"]))
 ft.item_round = 0
 SAID.clear(); CHOICE[0] = {"kind": "item", "item": "healing draught"}
 ws.combat.turn("drink")
-uc.damage_tags = False
+uc.channel().windowed = False
 check("in the window the healing figure is a hoverable token", any("⟦" in t and "|(+" in t for k, t in SAID if k == "narrate"), SAID[-2:])
 ASKED.clear(); SAID.clear(); rnd = ft.round
 CHOICE[0] = {"kind": "other", "summary": "asks a question"}

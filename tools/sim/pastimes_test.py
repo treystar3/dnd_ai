@@ -32,8 +32,8 @@ store.save_player(PlayerState(character=char, location="parth_temple"))
 ws = WorldScene(store, world, load_traits(), store.load_player())
 narrated, notes, deeds = [], [], []
 ws._narrate_now = lambda event, player_text="": narrated.append(event)
-_note = console.note
-console.note = lambda t, *a, **k: notes.append(t)
+_note = console.now("note")
+console.put("note", lambda t, *a, **k: notes.append(t))
 ws.deed = lambda d: deeds.append(d)
 ws.store.meta.minutes = 4 * 60                                          # noon
 priest = NPC(id="pr1", name="Brother Aldo", people="human", role="priest", location="parth_temple", tier="known"); store.save_npc(priest)
@@ -95,7 +95,7 @@ ws.resolve = lambda check, npc=None, talking=False, text="", extra=(): "failure"
 ws.on_haggle(ActionIntent(kind="haggle", target="in1", ware=room.id, summary="haggle"), "I haggle")
 check("a haggle that fails buys nothing, and the seller is a little cooler", not bought and simlib.view(inn).trust == trust0 + pa.PT["haggle"]["annoyed_trust"] and "gets nowhere" in narrated[-1], (bought, simlib.view(inn).trust))
 
-console.note = _note
+console.put("note", _note)
 shutil.rmtree("saves/pastimes_test", ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad), bad if bad else "")
 sys.exit(1 if bad else 0)

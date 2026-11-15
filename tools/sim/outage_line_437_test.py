@@ -8,10 +8,10 @@ import simlib
 simlib.install(simlib.Stub("warrior", 37))
 import ui.console as uc
 NOTES = []
-uc.note = lambda t, *a, **k: NOTES.append(str(t))
+uc.put("note", lambda t, *a, **k: NOTES.append(str(t)))
 for fn in ("narrate", "say", "ledger"):
-    setattr(uc, fn, lambda *a, **k: None)
-uc.panel = lambda name, data: False
+    uc.put(fn, lambda *a, **k: None)
+uc.put("panel", lambda name, data: False)
 from engine import data_check, failures, refusals, turnlog
 from llm.gateway import LLMError
 
@@ -42,7 +42,7 @@ turnlog._write = lambda r: ROWS.append(r)
 refused_before = [r["kind"] for r in refusals.SESSION]
 where, clock, coins = ws.player.location, store.meta.minutes, ws.player.character.coins
 script = ["I look around the square", "I look around the square", "#fail", "quit"]
-uc.ask = lambda *a, **k: script.pop(0) if script else "quit"
+uc.put("ask", lambda *a, **k: script.pop(0) if script else "quit")
 ws.run()
 held(); turnlog._write = real_write
 

@@ -149,7 +149,7 @@ for p in (rec_a, rec_b):
     shutil.rmtree(p, ignore_errors=True)
 g2 = simlib.campaign("budget_459_shown", seed=59)
 import ui.console as uc
-uc.ask = (lambda script: (lambda *a, main=False, **k: (script.pop(0) if main and script else "quit") if main else "yes"))(["I look around."])
+uc.put("ask", (lambda script: (lambda *a, main=False, **k: (script.pop(0) if main and script else "quit") if main else "yes"))(["I look around."]))
 simlib.quiet_console()
 OUT = pathlib.Path("saves/budget_459_shown_out"); shutil.rmtree(OUT, ignore_errors=True)
 g2.session.record(folder=OUT)

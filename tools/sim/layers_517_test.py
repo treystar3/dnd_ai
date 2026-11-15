@@ -87,7 +87,7 @@ def night_dir(name):
 from ui.gui.bridge import Bridge
 import nightrun
 import rerun
-CONSOLE = {k: getattr(console, k) for k in dir(console) if not k.startswith("__")}
+CONSOLE = {k: console.now(k) for k in console.NAMES}
 src0 = backend.source()                                  # (f518) the source answering (the stub's stand-in)
 orders_ok, nest_ok, own_ok, combos = True, True, True, 0
 for on in itertools.permutations(("recorder", "counter", "busy")):
@@ -107,7 +107,7 @@ for on in itertools.permutations(("recorder", "counter", "busy")):
             own_ok &= backend.layers() == [left[n] for n in ("recorder", "counter", "busy") if n in left]   # its own, and only it
         orders_ok &= backend.layers() == [] and backend.source() is src0
         for k, v in CONSOLE.items():
-            setattr(console, k, v)                       # the console's own bindings are still put back by setattr (not this test's)
+            console.put(k, v)                       # what answered on the terminal's channel before, put back (not this test's)
         sys.stdout = sys.__stdout__
 check(f"the three layers put on in every order and taken off in every order leave none, the source untouched and the client never reached "
       f"({combos} orders)", orders_ok and combos == 36 and isinstance(src0, backend.StandIn) and src0.name == "stub", (src0, combos))
@@ -305,7 +305,7 @@ def background(title="Slow"):
     return t
 
 
-real_ask = console.ask
+real_ask = console.now("ask")
 
 
 def ask(*a, **k):
@@ -313,7 +313,7 @@ def ask(*a, **k):
     return "I look around."
 
 
-console.ask = ask                                        # the recorder wraps the console's ask, which marks the asking thread
+console.put("ask", ask)                                        # the recorder wraps the console's ask, which marks the asking thread
 gate = Gate()
 undo = backend.use(gate)
 rec = recorder().install()
@@ -329,7 +329,7 @@ t.join(5)
 chat("After")
 rec.close()
 undo()
-console.ask = real_ask
+console.put("ask", real_ask)
 rs = rows(rec.dir)
 meta = json.loads((rec.dir / "meta.json").read_text())
 titles = [r["title"] for r in rs]
@@ -445,7 +445,7 @@ for label, e in very.items():
     finally:
         undo(); bridge.uninstall(); run.unwrap(); rec.close()
         for k, v in CONSOLE.items():
-            setattr(console, k, v)
+            console.put(k, v)
         sys.stdout = sys.__stdout__
     same.append(caught is e)
 check("through the recorder, the counter and the busy light, a failed call's exception is the very one the source raised", all(same) and len(same) == 2, same)
@@ -475,7 +475,7 @@ lit_load = list(events)
 undo()
 bridge.uninstall()
 for k, v in CONSOLE.items():
-    setattr(console, k, v)
+    console.put(k, v)
 sys.stdout = sys.__stdout__
 check("the busy light lights for a foreground chat, on then off", lit_chat == [True, False], lit_chat)
 check("...never for an embedding (which was made, through the layer)", lit_embed == [] and vec_embed.vectors == [[1.0]] and held.src.calls == {"": 1},

@@ -3,8 +3,9 @@ pins hold behaviour and must pass unchanged while the code moves: tools/sim/turn
 tools/sim/output_seam_628_test.py for what the window is sent. This test is the other half. It reads how the code does it today,
 so that until each part moves nothing new can join it without being pinned first:
 - every field the turn's table says a new line resets is one the line pin holds (engine/actor.py FIELDS);
-- every console attribute the window swaps is one the seam pin calls, and the window puts each back (f635 replaces these);
-- every place the game's code assigns a console attribute is recorded, and the list only shrinks (f635 brings it to none).
+- (f635) every name the seam pin calls is one the channel answers (ui/console.py SEAM, and a channel's `windowed` and `width`
+  for the two the window used to set), and a window's page answers each with the window's own. That nothing assigns a console
+  attribute any more is held by tools/sim/output_channel_635_test.py, over every file.
 Each feature that moves a part replaces its check here with the fence over what took its place.
 Run: python tools/sim/moving_parts_628_test.py"""
 import ast
@@ -41,22 +42,6 @@ def self_fields(fn) -> set:
     return out
 
 
-def console_targets(node) -> set:
-    """The console attributes a statement assigns: `console.x = ...`, a tuple of them, or setattr(console, name, ...)."""
-    out = set()
-    targets = node.targets if isinstance(node, ast.Assign) else [node.target] if isinstance(node, (ast.AugAssign, ast.AnnAssign)) else []
-    for t in targets:
-        out |= {x.attr for x in ast.walk(t) if isinstance(x, ast.Attribute) and isinstance(x.value, ast.Name) and x.value.id in ("console", "_c")}
-    if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "setattr" and node.args
-            and isinstance(node.args[0], ast.Name) and node.args[0].id in ("console", "_c")):
-        out.add("*" if not isinstance(node.args[1], ast.Constant) else str(node.args[1].value))
-    return out
-
-
-def assigned_in(path: Path) -> set:
-    return set().union(set(), *(console_targets(n) for n in ast.walk(ast.parse(path.read_text(encoding="utf-8")))))
-
-
 # ---- a line's fields: the turn's table (f631) names the ones a new line resets, and the scene's begin_line sets none by hand
 LINE = held_set("turn_fields_628_test.py", "LINE")
 from engine import actor
@@ -66,47 +51,24 @@ begin = next(f for f in ast.walk(tree) if isinstance(f, ast.FunctionDef) and f.n
 check("every field a new line resets is one the line pin holds (a field marked LINE in the turn's table is pinned there first)",
       declared == LINE and not self_fields(begin), (sorted(declared ^ LINE), sorted(self_fields(begin))))
 
-# ---- the window's swaps (until f635)
+# ---- the seam is the channel's (f635)
 SEAM = held_set("output_seam_628_test.py", "SEAM")
-tree = ast.parse((ROOT / "ui" / "gui" / "bridge.py").read_text(encoding="utf-8"))
-install = next(f for f in ast.walk(tree) if isinstance(f, ast.FunctionDef) and f.name == "install")
-swapped = set().union(*(console_targets(n) for n in ast.walk(install)))
-check("every console attribute the window swaps is one the seam pin calls (one added to install is pinned there first)",
-      swapped == SEAM, sorted(swapped ^ SEAM))
-before = {k: getattr(console, k) for k in SEAM}
+FIELDS = {"damage_tags": "windowed", "WIDTH": "width"}                   # the two the window set by hand: a channel's own fields
+check("every name the seam pin calls is one the channel answers (one added to the seam is pinned there first)",
+      SEAM == set(console.SEAM) | set(FIELDS) and all(callable(getattr(console.Channel, n)) for n in console.SEAM)
+      and all(hasattr(console.Channel, f) for f in FIELDS.values()), sorted(SEAM ^ (set(console.SEAM) | set(FIELDS))))
+before = {k: console.now(k) for k in console.SEAM}
 b = bridge_mod.Bridge()
 b.install()
 try:
-    up = {k: getattr(console, k) for k in SEAM}
+    up = {k: console.now(k) for k in console.SEAM}
+    flags = (console.damage_tags, console.WIDTH)
 finally:
     b.uninstall()
-check("while the window is up each of them is the window's own", all(up[k] is not before[k] for k in SEAM - {"damage_tags", "WIDTH"})
-      and up["damage_tags"] is True and up["WIDTH"] == bridge_mod.WRAP_WIDTH, [k for k in SEAM if up[k] is before[k]])
-check("when the window goes each is what it was before", all(getattr(console, k) is before[k] or getattr(console, k) == before[k] for k in SEAM),
-      [k for k in SEAM if getattr(console, k) is not before[k]])
-
-# ---- every place the game's code assigns a console attribute (until f635): the list only shrinks
-RECORDED = {
-    "engine/questions.py": {"ask"},                      # the fence round a question asked inside an operation
-    "engine/recording.py": {"ask", "*"},                 # the recorder's wrap of the line asked for and of what is told
-    "engine/turnlog.py": {"*"},                          # the turn log's tap on what is shown
-    "scenes/world.py": {"*"},                            # an operation holding its lines until it stands
-    "ui/gui/bridge.py": SEAM,                            # the window
-}
-found = {}
-for folder in ("engine", "scenes", "services", "npc", "storage", "llm", "ui", "core", "world"):
-    for path in sorted((ROOT / folder).rglob("*.py")):
-        if path == ROOT / "ui" / "console.py":
-            continue                                     # the module's own definitions
-        if assigned_in(path):
-            found[path.relative_to(ROOT).as_posix()] = assigned_in(path)
-for path in sorted(ROOT.glob("*.py")):
-    if path.name not in ("simlib.py", "simbot.py") and assigned_in(path):    # the harnesses mute or watch the console; they are not the game
-        found[path.name] = assigned_in(path)
-extra = {f: sorted(n - RECORDED.get(f, set())) for f, n in found.items() if n - RECORDED.get(f, set())}
-check("no code assigns a console attribute but the places recorded here (a new one goes through the channel instead)", not extra, extra)
-gone = {f: sorted(n - found.get(f, set())) for f, n in RECORDED.items() if n - found.get(f, set())}
-check("...and every recorded place still does (one that stopped is taken off the list)", not gone, gone)
+check("while the window is up each of them is the window's own", all(up[k] == getattr(b, k) and up[k] != before[k] for k in console.SEAM)
+      and flags == (True, bridge_mod.WRAP_WIDTH), ([k for k in console.SEAM if up[k] != getattr(b, k)], flags))
+check("when the window goes each is what it was before", all(console.now(k) == before[k] for k in console.SEAM)
+      and (console.damage_tags, console.WIDTH) == (False, 92), [k for k in console.SEAM if console.now(k) != before[k]])
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

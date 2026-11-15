@@ -8,7 +8,7 @@ import simbot
 from engine import domain_events as ev, party as rules
 from services.party import CannotAfford, PartyFull, PartyService
 from ui import console as _c
-_c.note = lambda t, *a, **k: None
+_c.put("note", lambda t, *a, **k: None)
 b = simbot.Bot(); ws = b.ws; c = ws.player.character; sys.stdout = sys.__stdout__
 c.level = 12; c.coins = 50000
 ws.store.meta.minutes = 1440 * 30 + 600

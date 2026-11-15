@@ -6,7 +6,7 @@ import simlib
 simlib.install(simlib.Stub("warrior", 3))
 import config
 import ui.console as uc
-uc.note = lambda m, *a, **k: None; uc.narrate = lambda t: None; uc.say = lambda *a, **k: None
+uc.put("note", lambda m, *a, **k: None); uc.put("narrate", lambda t: None); uc.put("say", lambda *a, **k: None)
 from scenes.world import WorldScene
 from storage.campaign import CampaignStore, PlayerState
 from npc.traits import load_traits

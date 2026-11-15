@@ -762,12 +762,12 @@ class CombatScene:
                                           looks=self.ability_looks(), allies=self.ally_looks(), gone=gone,                      # (f373, f385, f415)
                                           exemplars=self.ws.exemplars("fight")),
                        Narration, self.ws.recent_narration, max_tokens=config.PROSE_MAX_TOKENS, worn=self.ws.worn_words("prose"), said=text)
-        text_out = place_figures(result.text, f.hits, console.damage_tags, f.story)
+        text_out = place_figures(result.text, f.hits, console.windowed(), f.story)
         console.narrate(text_out)
         self.ws.remember_narration(TAG.sub("", result.text))
         self.note_ground_told()                                  # (f571) the telling stood: what it was given of the ground is told
         self.note_fight_shown(result.text)
-        if config.COMBAT_NUMBERS and not console.damage_tags:
+        if actor.prefs().numbers and not console.windowed():
             console.combat_numbers(f.log)
 
     ITEM_VERBS = r"\b(give|hand|toss|throw|pass|use|drink|feed|pour|apply|administer|let)\b"
@@ -817,7 +817,7 @@ class CombatScene:
         f.item_round = f.round
         p.counters["items_round"], p.counters["items_used"] = f.round, used + 1
         g = self.last_item
-        figs = " ".join((f"⟦{h['id']}|{h['figure']}⟧" if console.damage_tags and h["id"] else h["figure"]) for h in self.last_figures)
+        figs = " ".join((f"⟦{h['id']}|{h['figure']}⟧" if console.windowed() and h["id"] else h["figure"]) for h in self.last_figures)
         who = f"You give {ally.name.split()[0]} {g.name}" if ally else f"You use {g.name}"
         console.narrate(f"{who} ({g.description.lower().rstrip('.')}). {figs}".strip())
         self.sync_player()
@@ -1038,7 +1038,7 @@ class CombatScene:
                         if getattr(item, "spell", None):
                             held.spell = item.spell
         if renamed:
-            for r in ledger.ROWS:                                         # the turn's record follows the name
+            for r in ledger.this_turn():                                     # the turn's record follows the name
                 hit = renamed.get(r.get("item"))
                 if hit is not None and r.get("kind") == "gained":
                     r["say"] = f"{inventory.label(hit[1])} is in the player's pack now."

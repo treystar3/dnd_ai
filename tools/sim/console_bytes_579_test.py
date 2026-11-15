@@ -21,7 +21,7 @@ simlib.install(simlib.Stub("warrior", 3))
 import config
 import ui.console as console
 from core.models import Archetype
-from engine import items
+from engine import actor, items
 from llm.contracts import ClassInterpretation
 from storage import statehash
 
@@ -43,19 +43,21 @@ def shown(fn) -> str:
 
 
 def debug_on(message):
-    was, config.DEBUG = config.DEBUG, True
+    mine = actor.prefs()
+    was, mine.debug = mine.debug, True
     try:
         console.debug(message)
     finally:
-        config.DEBUG = was
+        mine.debug = was
 
 
 def debug_off(message):
-    was, config.DEBUG = config.DEBUG, False
+    mine = actor.prefs()
+    was, mine.debug = mine.debug, False
     try:
         console.debug(message)
     finally:
-        config.DEBUG = was
+        mine.debug = was
 
 
 # ---- arguments alone decide these
@@ -137,15 +139,12 @@ MISSING = object()
 
 def as_print(fn) -> str:
     """The function's print calls, taken in the console's own name and written by the built-in print."""
-    calls, had = [], console.__dict__.get("print", MISSING)
-    console.print = lambda *a, **k: calls.append((a, k))
+    calls, had = [], console.now("print")
+    console.put("print", lambda *a, **k: calls.append((a, k)))
     try:
         shown(fn)
     finally:
-        if had is MISSING:
-            del console.print
-        else:
-            console.print = had
+        console.put("print", had)
     buf = io.StringIO()
     for a, k in calls:
         builtins.print(*a, **{x: v for x, v in k.items() if x != "flush"}, file=buf)

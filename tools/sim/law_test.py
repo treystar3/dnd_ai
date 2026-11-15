@@ -6,11 +6,11 @@ simlib.install(simlib.Stub("warrior", 5))
 import config
 import ui.console as uc
 NOTES = []
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 ANSWERS = []
 def no_ask(*a, **k):
     raise AssertionError("the world asked in the middle of a turn (f460: a question ends the turn; the next line answers it)")
-uc.ask = no_ask
+uc.put("ask", no_ask)
 def answered(fn, *a, **k):
     """(f460) The watch's question ends the turn; the lines in ANSWERS are typed next, each answering the question that stands."""
     out = fn(*a, **k)

@@ -5,8 +5,8 @@ import simlib
 stub = simlib.Stub("warrior", 3)
 simlib.install(stub)
 import ui.console as uc
-uc.note = lambda *a, **k: None
-uc.narrate = lambda *a, **k: None
+uc.put("note", lambda *a, **k: None)
+uc.put("narrate", lambda *a, **k: None)
 from engine import combat
 from world.loader import load_world
 bad = []

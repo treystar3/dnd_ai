@@ -23,8 +23,8 @@ spy = simlib.stand_in(chat=chat, embed=None)    # (f518) the spy as the model's 
 import ui.console as uc
 NOTES = []
 for f in ("narrate", "say", "npc_says", "dialogue", "ledger"):
-    setattr(uc, f, lambda *a, **k: None)
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+    uc.put(f, lambda *a, **k: None)
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 from pydantic import ValidationError
 from core.models import Companion
 from engine import combat, intent_audit as ia, party, quests

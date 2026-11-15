@@ -99,9 +99,9 @@ if args.mode == "addressees":
     sys.exit(0)
 
 SAID, CALLS, REFUSED = [], [], []
-uc.say = lambda t, s="": SAID.append((s or "", t))
-uc.narrate = lambda t: SAID.append(("(narration)", t))
-uc.note = lambda m, *a, **k: SAID.append(("(game)", str(m)))          # what the game tells the player, shown so a scene with no talk is still readable
+uc.put("say", lambda t, s="": SAID.append((s or "", t)))
+uc.put("narrate", lambda t: SAID.append(("(narration)", t)))
+uc.put("note", lambda m, *a, **k: SAID.append(("(game)", str(m))))          # what the game tells the player, shown so a scene with no talk is still readable
 
 def timed(op, req, call):
     """(f518) A layer around every model call (llm/backend.py wrap), where it patched the client before: a refused draft sent back is kept,
@@ -350,7 +350,7 @@ def scenario(mode, title, fn, speakers_temper=None, maren_q=False, fixed=False):
             reset_state()
         SAID.clear(); CALLS.clear(); FALLBACKS.clear(); REFUSED.clear()
         from engine import canon as _canon
-        _canon.EVENTS.clear()
+        _canon.clear_events()
         t0 = time.time()
         err = ""
         w.last_plan = None
@@ -379,7 +379,7 @@ def scenario(mode, title, fn, speakers_temper=None, maren_q=False, fixed=False):
         if err:
             out.append(f"- **ERROR**: {err}"); flags.append(f"{title}: {err}")
         CANON_TALLY["calls"] += sum(1 for t, _, _ in CALLS if t == "Extracted")
-        for e in _canon.EVENTS:                           # what each claim about themselves became
+        for e in _canon.events():                         # what each claim about themselves became
             out.append(f"- canon ({e['who']}): {e['verdict']}: \"{e['claim']}\"" + (f" (against: \"{e['against']}\")" if e["against"] else ""))
             CANON_TALLY[e["verdict"]] += 1
         if FALLBACKS:

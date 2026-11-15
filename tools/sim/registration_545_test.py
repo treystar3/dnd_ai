@@ -13,7 +13,7 @@ stub = simlib.Stub("warrior", 3)
 simlib.install(stub)
 import ui.console as uc
 for fn in ("note", "narrate", "say", "npc_says", "dialogue", "ledger"):
-    setattr(uc, fn, lambda *a, **k: None)
+    uc.put(fn, lambda *a, **k: None)
 from engine import checks, clock, data_check, matters, memory, pulse, pulselog, retrieval, situation_parts, situations
 from llm.contracts import SituationParts
 

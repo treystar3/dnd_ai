@@ -8,10 +8,10 @@ import simlib
 simlib.install(simlib.Stub("mage", 6))
 import ui.console as uc
 NARR, SAID = [], []
-uc.narrate = lambda t, *a, **k: NARR.append(str(t))
-uc.say = lambda t, speaker="", *a, **k: SAID.append((speaker, str(t)))
-uc.dialogue = lambda before, speaker, speech, after="", *a, **k: SAID.append((speaker, str(speech)))
-uc.panel = lambda name, data: False
+uc.put("narrate", lambda t, *a, **k: NARR.append(str(t)))
+uc.put("say", lambda t, speaker="", *a, **k: SAID.append((speaker, str(t))))
+uc.put("dialogue", lambda before, speaker, speech, after="", *a, **k: SAID.append((speaker, str(speech))))
+uc.put("panel", lambda name, data: False)
 from engine import combat, quirks, road_prompts
 from llm.contracts import Narration
 from npc.traits import load_traits

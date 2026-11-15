@@ -5,7 +5,7 @@ import simlib
 simlib.install(simlib.Stub("mage", 5))
 import ui.console as uc
 NOTES, PANELS = [], []
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 from engine import mapview, clock
 from npc.traits import load_traits
 from scenes.world import WorldScene
@@ -54,10 +54,10 @@ store.meta.seed = 5; store.meta.turn = 1; store.meta.minutes = 600; store.save_m
 char, spec = simlib.make_character("mage", random.Random(2))
 store.save_player(PlayerState(character=char, location=start.id))
 ws = WorldScene(store, world, load_traits(), store.load_player())
-uc.panel = lambda name, data: (PANELS.append((name, data)) or True)
+uc.put("panel", lambda name, data: (PANELS.append((name, data)) or True))
 ws.command("#map")
 check("#map opens the map pane", PANELS and PANELS[-1][0] == "map" and PANELS[-1][1]["here"] == start.id, PANELS)
-uc.panel = lambda name, data: False
+uc.put("panel", lambda name, data: False)
 NOTES.clear(); ws.command("#map")
 check("without a pane it says where you are", any("You are in" in n for n in NOTES), NOTES)
 ws.player.heard.append(nb)

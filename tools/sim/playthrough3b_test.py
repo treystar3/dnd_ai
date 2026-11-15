@@ -26,8 +26,8 @@ import config
 import ui.console as uc
 NOTES = []
 for f in ("narrate", "say", "npc_says", "dialogue", "ledger"):
-    setattr(uc, f, lambda *a, **k: None)
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+    uc.put(f, lambda *a, **k: None)
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 from pathlib import Path
 from pydantic import ValidationError
 from core.models import Companion
@@ -60,7 +60,7 @@ def rows():
     return [json.loads(l) for l in LOG.read_text().splitlines()] if LOG.exists() else []
 
 # ---- 1. what each turn showed
-turnlog.begin(uc)
+turnlog.begin(taps=True)
 stub.plan = [{"kind": "look"}]
 ws.turn("I look around")
 uc.ledger("Found: a copper ring")
@@ -77,7 +77,7 @@ def gen(*a, **k):
                      else "The woodcutter looks up and points north.")
 _g = voice.generate
 voice.generate = gen
-turnlog.begin(uc)
+turnlog.begin(taps=True)
 voice.fresh("narrate", "sys", "req", Narration, [], said="ask about the wolves")
 turnlog.record(5, "ask about the wolves", "interpret")
 turnlog.end()
@@ -94,10 +94,10 @@ gw._log = real_log
 check("...and the rewrite's call in the model log is marked as replacing the draft", logged == [{"rewrite_of_draft": ["x"]}], logged)
 
 n = len(rows())
-turnlog.begin(uc)
+turnlog.begin(taps=True)
 turnlog.end(command=ws.command_row("#inventory", ws.player.location, ws.header_key()))
 check("a pane that only shows a view is no row", len(rows()) == n)
-turnlog.begin(uc)
+turnlog.begin(taps=True)
 before, bar = ws.player.location, ws.header_key()
 ws.enter("guild_house")
 turnlog.end(command=ws.command_row("#goto guild_house", before, bar))

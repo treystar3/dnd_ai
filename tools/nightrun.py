@@ -99,22 +99,22 @@ class Run:
     # ---- the console: everything the game prints goes to the transcript, and the first story line stamps the time
     def install_console(self) -> None:
         from ui import console
-        self.real = {k: getattr(console, k) for k in ("narrate", "say", "npc_says", "dialogue", "note", "wait", "ledger", "out",
+        self.real = {k: console.now(k) for k in ("narrate", "say", "npc_says", "dialogue", "note", "wait", "ledger", "out",
                                                      "combat_numbers", "combat_panel", "debug", "ask", "status_block", "header")}
-        console.narrate = lambda text: self.seen("", text)
-        console.say = lambda text, speaker="": self.seen(speaker or "says", text)
-        console.npc_says = lambda label, speech, gesture="": self.seen(label, speech + (f" ({gesture})" if gesture else ""))
-        console.dialogue = lambda before, speaker, speech, after: self.seen(speaker, " ".join(x for x in (before, f'"{speech}"', after) if x))
-        console.note = lambda message, *a, **k: self.noted(str(message))
-        console.wait = lambda message: self.noted(str(message))
-        console.ledger = lambda message: self.noted(str(message))
-        console.out = lambda text="": self.noted(str(text))
-        console.combat_numbers = lambda lines: self.noted("\n".join(f"    {l}" for l in lines))
-        console.combat_panel = lambda lines: None
-        console.status_block = lambda *a, **k: None
-        console.header = lambda text: None
-        console.debug = lambda message: None
-        console.ask = self.ask
+        console.put("narrate", lambda text: self.seen("", text))
+        console.put("say", lambda text, speaker="": self.seen(speaker or "says", text))
+        console.put("npc_says", lambda label, speech, gesture="": self.seen(label, speech + (f" ({gesture})" if gesture else "")))
+        console.put("dialogue", lambda before, speaker, speech, after: self.seen(speaker, " ".join(x for x in (before, f'"{speech}"', after) if x)))
+        console.put("note", lambda message, *a, **k: self.noted(str(message)))
+        console.put("wait", lambda message: self.noted(str(message)))
+        console.put("ledger", lambda message: self.noted(str(message)))
+        console.put("out", lambda text="": self.noted(str(text)))
+        console.put("combat_numbers", lambda lines: self.noted("\n".join(f"    {l}" for l in lines)))
+        console.put("combat_panel", lambda lines: None)
+        console.put("status_block", lambda *a, **k: None)
+        console.put("header", lambda text: None)
+        console.put("debug", lambda message: None)
+        console.put("ask", self.ask)
         console.guard_outputs()                      # (f391) the transcript gets what the player would see, through the output gate
 
     def seen(self, who: str, text: str) -> None:
@@ -203,10 +203,11 @@ class Run:
                    notes=self.turn_notes[-8:], state=self.state_now(),
                    outcomes=[{k: (str(v)[:160] if isinstance(v, str) else v) for k, v in o.items()} for o in self.last_outcomes()])
         from engine import budget as _budget                                               # (f468) the budget's own measures, apart from hesitations
-        row.update(budget_seconds=int(_budget.LAST.get("estimated") or 0), required_seconds=_budget.LAST.get("required") or 0,
+        spent = _budget.last()
+        row.update(budget_seconds=int(spent.get("estimated") or 0), required_seconds=spent.get("required") or 0,
                    budget_cached=bool(_budget.CACHED),                     # (f538) priced without the prompt the server reused
-                   deferred=list(_budget.LAST.get("deferred") or []), dropped=list(_budget.LAST.get("dropped") or []),
-                   stand_ins=list(_budget.LAST.get("stand_ins") or []),
+                   deferred=list(spent.get("deferred") or []), dropped=list(spent.get("dropped") or []),
+                   stand_ins=list(spent.get("stand_ins") or []),
                    recovered=int(getattr(getattr(self.bot, "ws", None), "recovered_at_load", 0) or 0) if row["n"] == 1 else 0)   # (f471)
         row["crashed"] = bool(row["hesitated"] and getattr(getattr(self.bot, "ws", None), "last_crash", False))   # (f492) the game's fault
         self.crash_streak = self.crash_streak + 1 if row["crashed"] else 0 if not row["hesitated"] else self.crash_streak
@@ -224,7 +225,7 @@ class Run:
         """(f394) The turn's record (engine/ledger.py): what the engine did, as typed rows."""
         try:
             from engine import ledger
-            return list(ledger.LAST)
+            return list(ledger.last())
         except Exception:
             return []
 

@@ -58,8 +58,8 @@ ws.explore_chance = lambda seek: 1.0
 stub.plan = [{"kind": "look"}]
 check("a first turn stands", ws.turn("I look around.") is True)
 anchor = ws.player.location
-last_before = ledger.LAST
-totals_before = dict(ledger.TOTALS)
+last_before = ledger.last()
+totals_before = ledger.totals()
 added_before = ws.world.added()                                       # its places, roads and ways, by anchor
 version_before = ws.world.version
 digest_before = statehash.digest(a.store)
@@ -82,7 +82,7 @@ check("the place found is on the campaign's map, in its routes and in the save",
 check("...the map's additions grew, and its version moved", ws.world.added() != added_before and ws.world.version > version_before, (ws.world.added(), added_before))
 check("...the save moved: a find is state, whatever became of its telling", statehash.digest(a.store) != digest_before)
 check("...the player stands at the place found", ws.player.location == pid, ws.player.location)
-check("...LAST is this turn's", ledger.LAST is not last_before)
+check("...LAST is this turn's", ledger.last() is not last_before)
 check("...no casting context is left anywhere: it lives on the fighter and ends with the cast (f499), no table to clear", not hasattr(spellcraft, "_CAST")
       and not any(getattr(f, "casting", None) for f in (ws.combat.fight.fighters if ws.combat else [])))
 check("...and the truth scene is built again on the next read", "_truth" not in ws.__dict__)
@@ -96,7 +96,7 @@ check("the player reads that what they did stands, in the narrator's words, neve
 SHOWN.clear()
 stood2 = ws.turn("I search the woods for a quiet hollow.")
 check("the same line typed again is a new input, and stands", stood2 is True, (stood2, len(made)))
-check("...and the ledger is the standing turn's", ledger.LAST is not last_before)
+check("...and the ledger is the standing turn's", ledger.last() is not last_before)
 a.close()
 
 # ---- the same shape recorded, then replayed in a child process: the rollback is deterministic as well as complete
@@ -122,7 +122,7 @@ def ask(*a_, main=False, **k):
     fail["on"] = state["n"] == 2                     # the second line's turn finds the place and then fails: it rolls back
     stub.plan = plan
     return text
-uc.ask = ask
+uc.put("ask", ask)
 OUT = pathlib.Path("saves/rollback_455_rec_out")
 r.session.record(folder=OUT)
 wr.run()

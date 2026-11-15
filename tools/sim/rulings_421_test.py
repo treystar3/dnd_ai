@@ -9,8 +9,8 @@ stub = simlib.Stub("mage", 11)
 simlib.install(stub)
 import ui.console as uc
 for fn in ("narrate", "say", "note", "ledger"):
-    setattr(uc, fn, lambda *a, **k: None)
-uc.panel = lambda name, data: False
+    uc.put(fn, lambda *a, **k: None)
+uc.put("panel", lambda name, data: False)
 from engine import checks, ruling, world_improv
 from llm.contracts import Ruling
 from npc.traits import load_traits

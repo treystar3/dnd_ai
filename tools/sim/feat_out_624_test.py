@@ -75,7 +75,7 @@ real_narrate, real_roll, real_odds, real_reading = ws.narrate, checks.roll, ruli
 ws.narrate = lambda event, text="": told.append(event)
 ruling.odds = lambda ws_, who, effect, r: rolled.append(dict(r)) or real_odds(ws_, who, effect, r)
 import ui.console as uc
-uc.ledger = lambda *a, **k: shown.append(str(a[0]) if a else "")
+uc.put("ledger", lambda *a, **k: shown.append(str(a[0]) if a else ""))
 def attempt(text, d, feat=None, roll="success"):
     stub.act_ruling = d
     body.reading = (lambda ws_, actor_id, text_: feat) if feat is not None else real_reading
@@ -105,7 +105,7 @@ ws.narrate, checks.roll, ruling.odds, body.reading = real_narrate, real_roll, re
 # ---- the road: the same reading
 noted = []
 for fn in ("note", "ledger"):
-    setattr(uc, fn, lambda *a, _fn=fn, **k: noted.append((_fn, str(a[0]) if a else "")))
+    uc.put(fn, lambda *a, _fn=fn, **k: noted.append((_fn, str(a[0]) if a else "")))
 hz = {"tier": "normal", "what": "A span of the bridge gone, the river loud below.", "behind": "parth"}
 def road_past(d, feat=None):
     stub.ruling = d

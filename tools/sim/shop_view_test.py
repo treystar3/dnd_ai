@@ -12,7 +12,7 @@ def check(n, ok):
     print(("ok   " if ok else "FAIL ") + n)
     if not ok: bad.append(n)
 lines = []
-console.note = lambda m: lines.append(m)
+console.put("note", lambda m: lines.append(m))
 def scene(ptype, npcs):
     met = [n for n in npcs if n.met_player]      # shop_data lists only people you have met
     s = NS(place=NS(type=ptype), present=npcs, world=w, BUSINESS_PLACES=cls.BUSINESS_PLACES,

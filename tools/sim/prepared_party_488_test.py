@@ -46,7 +46,7 @@ stub.plan = None
 del stub.a_CompanionReply
 asked = [c for c in LOG if c[0] in ("CompanionReply", "Extracted", "CanonCheck")]
 check("a hire's reply (and the canon calls it makes) are asked with no operation open", asked and all(op is None for _, op in asked), LOG)
-check("...and none is in the ratchet's residue", not ({"hire_chat", "canon_extract", "canon_check"} & set(operation.LEGACY)), operation.LEGACY)
+check("...and none is in the ratchet's residue", not ({"hire_chat", "canon_extract", "canon_check"} & set(operation.legacy())), operation.legacy())
 held = ws.store.load_player().party[0]
 check("a promise made to a hire is theirs to hold", any("pay double" in m.get("text", "") for m in held.get("memories", [])), held.get("memories"))
 picked = rules.pick_memories(held, "double pay", 3, day=ws.minutes // 1440 + 3)

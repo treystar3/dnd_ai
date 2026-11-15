@@ -10,7 +10,7 @@ import simbot
 from engine import battlefield as bf, battlefield_builder as bb, combat
 from engine import effects as fx
 from ui import console as _c
-_c.note = lambda t, *a, **k: None
+_c.put("note", lambda t, *a, **k: None)
 bad = []
 def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x)

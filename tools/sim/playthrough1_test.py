@@ -10,7 +10,7 @@ STUB = simlib.Stub("warrior", 5)
 simlib.install(STUB)
 import ui.console as uc
 NOTES, SAID = [], []
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 from core.models import UseContext
 from engine import combat, martial as MA, mentor
 from llm.contracts import ActionIntent as A

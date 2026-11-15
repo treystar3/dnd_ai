@@ -134,7 +134,7 @@ class Recorder:
         self.turns = (self.dir / "turns.jsonl").open("w", encoding="utf-8", newline="\n")
         self.n_input, self.n_call, self.shown, self.open_input, self.inside = 0, 0, [], False, False
         self.asking = None
-        self.undo = []                       # the console's bindings this recorder replaced, put back at close
+        self.undo = []                       # what answered on the channel before this recorder, put back at close
         self.unwrap = None                   # (f517) the handle that takes the recorder's layer off the model interface
         self._lock = threading.Lock()        # (f517) the call's number, the calls on their way and each row written, together; never
         self.in_flight, self.overlapped, self.closed = 0, 0, False   # held across a call (a call may wait on another thread's)
@@ -152,7 +152,8 @@ class Recorder:
         from ui import console
         if self.unwrap is None:
             self.unwrap = backend.wrap(self._layer, rank=backend.RECORDER)       # (f517) a layer, no longer a patch on the client
-        real_ask = console.ask
+        ch = console.channel()                   # (f635) the channel in use is the one recorded, and put back at close
+        real_ask = ch.get("ask")
 
         def ask(*a, **k):
             main = bool(k.get("main", a[0] if a else False))
@@ -171,12 +172,10 @@ class Recorder:
                 self.open_input = True
             return text
 
-        self.undo.append((console, "ask", real_ask))
-        console.ask = ask
+        self.undo.append((ch, "ask", real_ask))
+        ch.set("ask", ask)
         for name in STORY:
-            fn = getattr(console, name, None)
-            if fn is None:
-                continue
+            fn = ch.get(name)
 
             def told(*a, _fn=fn, **k):
                 if self.inside:                          # one function passing its words to another (a ledger line shown as a note)
@@ -187,8 +186,8 @@ class Recorder:
                     return _fn(*a, **k)
                 finally:
                     self.inside = False
-            self.undo.append((console, name, fn))
-            setattr(console, name, told)
+            self.undo.append((ch, name, fn))
+            ch.set(name, told)
         return self
 
     def _apart(self, real_ask, a, k) -> str:
@@ -271,9 +270,9 @@ class Recorder:
         from storage import statehash
         ops = [{"id": o["id"], "kind": o["kind"], "rows": o["rows"]}                                 # (f463) the operations the input committed
                for o in self.store.load_operations()["ops"] if o.get("steps") == self.store.meta.steps]
-        presented, operation.PRESENTED[:] = list(operation.PRESENTED), []                           # (f467) what reached the page, and how
+        presented = operation.take_presented()                                                      # (f467) what reached the page, and how
         row = {"i": self.n_input, "turn": self.store.meta.turn, "steps": self.store.meta.steps,
-               "state": statehash.digest(self.store), "outcomes": ledger.LAST, "operations": ops, "presented": presented,
+               "state": statehash.digest(self.store), "outcomes": ledger.last(), "operations": ops, "presented": presented,
                "shown": hashlib.sha256("\n".join(self.shown).encode("utf-8")).hexdigest(), "lines": len(self.shown),
                "shown_text": list(self.shown)}                       # (f459) the lines, for a re-bless to name the one that moved
         if self.rows:                                                # (f476) the rows and keys this input changed
@@ -289,8 +288,8 @@ class Recorder:
         if self.unwrap is not None:
             self.unwrap()                                # (f517) this recorder's layer, and only it, off the interface
             self.unwrap = None
-        for obj, name, fn in reversed(self.undo):
-            setattr(obj, name, fn)
+        for ch, name, fn in reversed(self.undo):
+            ch.set(name, fn)
         self.undo = []
         with self._lock:
             self.closed = True

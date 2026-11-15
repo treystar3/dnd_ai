@@ -8,8 +8,8 @@ import simlib
 simlib.install(simlib.Stub("mage", 5))
 import ui.console as uc
 NOTES = []
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
-uc.panel = lambda name, data: False
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
+uc.put("panel", lambda name, data: False)
 from engine import hygiene
 from npc.life import populate_place
 from npc.traits import load_traits

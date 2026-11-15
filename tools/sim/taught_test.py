@@ -7,7 +7,7 @@ simlib.install(simlib.Stub("warrior", 5))
 import config
 import ui.console as uc
 NOTES = []
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 from core.models import Ability
 from engine import combat, field, lessons, taming, clock
 from engine import ability_traits as AT

@@ -16,8 +16,8 @@ spy = simlib.stand_in(chat=chat)
 import ui.console as uc
 LEDGER = []
 for f in ("narrate", "note", "say", "npc_says", "dialogue"):
-    setattr(uc, f, lambda *a, **k: None)
-uc.ledger = lambda m, *a, **k: LEDGER.append(str(m))
+    uc.put(f, lambda *a, **k: None)
+uc.put("ledger", lambda m, *a, **k: LEDGER.append(str(m)))
 from engine import quests, truth
 from npc.traits import load_traits
 from scenes.world import WorldScene

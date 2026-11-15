@@ -111,14 +111,14 @@ try:
 except TypeError:
     defaulted = False
 check("a memory has no default subject: whoever keeps one says whom it is about", not defaulted)
-journal_was = canon.JOURNAL
+journal_was = canon.journal_bound()
 rows = []
-canon.JOURNAL = lambda kind, actor, target, text, data: rows.append((kind, actor, target))
+canon.bind_journal(lambda kind, actor, target, text, data: rows.append((kind, actor, target)))
 try:
     m = {"id": "h1", "name": "Bram Voss", "bond": 20, "memories": [], "quirks": {"likes": "harvest", "dislikes": "flee", "reacted": {}, "deeds_seen": {}}}
     quirks.react(m, "flee", "disapprove", 3, by="vessa")
 finally:
-    canon.JOURNAL = journal_was
+    canon.bind_journal(journal_was)
 check("a companion's reaction to a deed is journaled against the character who did it", rows == [("deed_reaction", "vessa", "h1")], rows)
 g.session.close()
 shutil.rmtree("saves/acting_character_630", ignore_errors=True)

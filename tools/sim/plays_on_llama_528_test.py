@@ -92,7 +92,7 @@ lines: list[str] = []
 seen: list[float] = []
 at_home: list[bool] = []
 choices: list[tuple] = []
-real = {k: getattr(console, k) for k in ("out", "note", "ask", "setup_progress")}
+real = {k: console.now(k) for k in ("out", "note", "ask", "setup_progress")}
 real_choose = home.choose
 
 
@@ -104,16 +104,16 @@ def choose(world):
 
 
 def quiet_console():
-    console.out = lambda text="": said.append(str(text))
-    console.note = lambda message, *a, **k: said.append(str(message))
-    console.ask = lambda main=False, menu=False: lines.pop(0) if lines else "quit"
-    console.setup_progress = lambda f, t: seen.append(f)
+    console.put("out", lambda text="": said.append(str(text)))
+    console.put("note", lambda message, *a, **k: said.append(str(message)))
+    console.put("ask", lambda main=False, menu=False: lines.pop(0) if lines else "quit")
+    console.put("setup_progress", lambda f, t: seen.append(f))
     home.choose = choose
 
 
 def loud_console():
     for k, v in real.items():
-        setattr(console, k, v)
+        console.put(k, v)
     home.choose = real_choose
 
 

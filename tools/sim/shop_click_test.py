@@ -17,7 +17,7 @@ def check(name, ok, extra=""):
     print(("PASS " if ok else "FAIL ") + name + (f"  {extra}" if extra else ""))
     if not ok: bad.append(name)
 lines = []
-console.note = lambda m: lines.append(m)
+console.put("note", lambda m: lines.append(m))
 
 shutil.rmtree("saves/shop_click_test", ignore_errors=True)
 world = load_world()

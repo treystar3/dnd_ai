@@ -9,10 +9,10 @@ import simlib
 simlib.install(simlib.Stub("warrior", 10))
 import ui.console as uc
 NOTES = []
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 for fn in ("narrate", "say", "npc_says", "dialogue", "ledger"):
-    setattr(uc, fn, lambda *a, **k: None)
-uc.panel = lambda name, data: False
+    uc.put(fn, lambda *a, **k: None)
+uc.put("panel", lambda name, data: False)
 from engine import actions, candidates, intent_audit as ia, inventory as inv, mentor
 from llm.contracts import ActionIntent as A, WorkOffer
 from npc.traits import load_traits

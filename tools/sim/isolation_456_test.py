@@ -32,9 +32,9 @@ def fresh_stub():
     return stub, held
 
 for fn in ("narrate", "say", "note", "ledger"):
-    setattr(uc, fn, lambda *a, **k: None)
-uc.dialogue = lambda *a, **k: None
-uc.panel = lambda name, data: False
+    uc.put(fn, lambda *a, **k: None)
+uc.put("dialogue", lambda *a, **k: None)
+uc.put("panel", lambda name, data: False)
 
 def play(name, n, fail_at, record_to=None):
     stub, held = fresh_stub()
@@ -62,7 +62,7 @@ def play(name, n, fail_at, record_to=None):
         text, kind = bot.decide()
         LAST["text"] = text
         return text
-    uc.ask = ask
+    uc.put("ask", ask)
     if record_to:
         game.session.record(folder=pathlib.Path(record_to))
     ws.run()

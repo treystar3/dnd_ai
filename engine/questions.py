@@ -25,12 +25,11 @@ from pathlib import Path
 
 import yaml
 from core import yamlio
-from engine import streams
+from engine import actor, streams
 from engine.failures import DASH, MACHINERY
 
 Q = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "questions.yaml").read_text(encoding="utf-8"))
 TRIES: int = int(Q.get("tries") or 3)
-_last = ""
 
 
 def _norm(text: str) -> str:
@@ -56,11 +55,11 @@ def yes_no(text: str) -> bool | None:
 
 def dropped(rng: random.Random | None = None) -> str:
     """The line read when a yes-or-no question was met with something else: the question is let go. Never the one shown last."""
-    global _last
+    mine = actor.caches()
     lines_ = Q["dropped"]
-    pick = [l for l in lines_ if l != _last] or lines_
-    _last = (rng or streams.get("scene")).choice(pick)
-    return _last
+    pick = [l for l in lines_ if l != mine.said_question] or lines_
+    mine.said_question = (rng or streams.get("scene")).choice(pick)
+    return mine.said_question
 
 
 class AskedInsideTurn(RuntimeError):
@@ -72,20 +71,22 @@ class AskedInsideTurn(RuntimeError):
 def fence():
     """(f461) While a turn is open (scenes/world.py turn, and a #command), any console.ask that is not the game loop's own raises
     AskedInsideTurn: the turn rolls back and the fault is written down, so no site slips back to reading an answer in the middle of a
-    turn. Whatever console.ask is at the time (the window's, a recording's, a test's) is wrapped and put back."""
+    turn. (f635) On the channel in use: whatever answers its ask at the time (the window's, a recording's, a test's) is wrapped and
+    put back."""
     from ui import console
-    real = console.ask
+    ch = console.channel()
+    real = ch.get("ask")
 
     def fenced(*a, **k):
         main = bool(k.get("main", a[0] if a else False))
         if not main:
             raise AskedInsideTurn("a line was asked for in the middle of a turn; a question ends the turn (engine/questions.py)")
         return real(*a, **k)
-    console.ask = fenced
+    ch.set("ask", fenced)
     try:
         yield
     finally:
-        console.ask = real
+        ch.set("ask", real)
 
 
 def problems(data: dict | None = None) -> list[str]:
@@ -120,3 +121,6 @@ def problems(data: dict | None = None) -> list[str]:
         if "?" in l:
             bad.append(f"questions.yaml dropped: '{l}' asks something; it lets a question go")
     return bad
+
+
+actor.moved(__name__, {"_last": "questions.dropped()"})

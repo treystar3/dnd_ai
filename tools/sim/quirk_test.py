@@ -8,10 +8,10 @@ simlib.install(stub)
 import config
 import ui.console as uc
 SAID, NARR, NOTES = [], [], []
-uc.say = lambda t, s="": SAID.append((s, t))
-uc.dialogue = lambda b, s, t, a: SAID.append((s, t))          # (f325) a companion's framed words count as said under their name
-uc.narrate = lambda t: NARR.append(t)
-uc.note = lambda m, *a, **k: NOTES.append(m)
+uc.put("say", lambda t, s="": SAID.append((s, t)))
+uc.put("dialogue", lambda b, s, t, a: SAID.append((s, t)))          # (f325) a companion's framed words count as said under their name
+uc.put("narrate", lambda t: NARR.append(t))
+uc.put("note", lambda m, *a, **k: NOTES.append(m))
 from engine import quirks, mentor
 from engine import party as rules
 from llm.contracts import CompanionReply

@@ -52,7 +52,7 @@ def failing_chat(**k):
 
 fail_held = simlib.stand_in(chat=failing_chat, embed=None)
 SCRIPT = ["I look around.", "I look around again.", "quit"]
-console.ask = lambda *a, **k: SCRIPT.pop(0) if SCRIPT else "quit"
+console.put("ask", lambda *a, **k: SCRIPT.pop(0) if SCRIPT else "quit")
 entries = []                                              # each presentation entry as the save was handed it
 real_put = store._put
 

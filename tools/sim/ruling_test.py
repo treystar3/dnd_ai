@@ -17,9 +17,9 @@ import config
 import ui.console as uc
 NOTES = []
 for f in ("narrate", "say", "npc_says", "dialogue"):
-    setattr(uc, f, lambda *a, **k: None)
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
-uc.ledger = lambda m, *a, **k: NOTES.append(str(m))
+    uc.put(f, lambda *a, **k: None)
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
+uc.put("ledger", lambda m, *a, **k: NOTES.append(str(m)))
 config.REFUSALS_LOG = False
 from engine import exits, features, ledger, refusals, ruling
 from llm.contracts import ActionIntent, Ruling

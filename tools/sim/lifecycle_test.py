@@ -17,8 +17,8 @@ SPY = simlib.stand_in(chat=chat, embed=None)
 import ui.console as uc
 NOTES = []
 for f in ("narrate", "say", "npc_says", "dialogue", "ledger"):
-    setattr(uc, f, lambda *a, **k: None)
-uc.note = lambda m, *a, **k: NOTES.append(str(m))
+    uc.put(f, lambda *a, **k: None)
+uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 from engine import entities, party, quirks, truth
 from npc.traits import load_traits
 from scenes.world import WorldScene

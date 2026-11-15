@@ -25,8 +25,8 @@ def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x, file=sys.__stdout__)
     if not ok: bad.append(n)
 
-console.combat_state = lambda data: False
-console.combat_panel = lambda lines: None
+console.put("combat_state", lambda data: False)
+console.put("combat_panel", lambda lines: None)
 EVENTS = []
 FIGHT_KINDS = ("fight_begun", "round_fought", "fight_ended", "player_fell")
 

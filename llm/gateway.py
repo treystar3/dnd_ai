@@ -374,7 +374,8 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
 
 def _debug(message: str) -> None:
     """A rejection, shown in debug mode as it happens (the audit log keeps the whole of it)."""
-    if not getattr(config, "DEBUG", False):
+    from engine import actor
+    if not actor.prefs().debug:
         return
     try:
         from ui import console

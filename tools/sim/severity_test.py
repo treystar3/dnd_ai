@@ -9,9 +9,9 @@ simlib.install(stub)
 import config
 import ui.console as uc
 SAID = []
-uc.say = lambda t, s="": SAID.append((s, t))
-uc.narrate = lambda t: None
-uc.note = lambda m, *a, **k: None
+uc.put("say", lambda t, s="": SAID.append((s, t)))
+uc.put("narrate", lambda t: None)
+uc.put("note", lambda m, *a, **k: None)
 from engine import party as rules, party_director as director, quirks, severity
 from scenes.world import WorldScene
 from storage.campaign import CampaignStore, PlayerState

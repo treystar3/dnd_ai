@@ -16,8 +16,8 @@ def check(name, ok, extra=""):
     print(("PASS " if ok else "FAIL ") + name + (f"  {extra}" if extra else ""))
     if not ok: bad.append(name)
 lines, panels = [], []
-console.note = lambda m: lines.append(m)
-console.panel = lambda name, data: panels.append((name, data)) or True
+console.put("note", lambda m: lines.append(m))
+console.put("panel", lambda name, data: panels.append((name, data)) or True)
 
 shutil.rmtree("saves/board_click_test", ignore_errors=True)
 world = load_world()
@@ -185,13 +185,13 @@ for k in [k for k in ws.player.mentor if k != "never"]:
 store.save_player(ws.player)
 offer = next((h for h in ws.board_data()["hires"] if h["ok"]), None)
 bars, script = [], [f"#boardhire {offer['id']}" if offer else "#stats", "#stats", "quit"]
-_ask, _bar = console.ask, console.status_block
-console.ask = lambda *a, **k: script.pop(0) if script else "quit"
-console.status_block = lambda *a, **k: bars.append(a[7])                       # the coins, as the bar shows them
+_ask, _bar = console.now("ask"), console.now("status_block")
+console.put("ask", lambda *a, **k: script.pop(0) if script else "quit")
+console.put("status_block", lambda *a, **k: bars.append(a[7]))                       # the coins, as the bar shows them
 try:
     ws.run()
 finally:
-    console.ask, console.status_block = _ask, _bar
+    console.put("ask", _ask); console.put("status_block", _bar)
 check("after a Hire on the board the top bar is drawn again with the purse the fee left", offer is not None and len(bars) >= 2 and bars[-1] < bars[0]
       and bars[-1] == ws.player.character.coins, (bars, offer and offer["fee"]))
 check("...and a button that changes nothing on it does not redraw it", len(bars) == 2, bars)

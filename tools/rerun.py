@@ -372,12 +372,12 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
     from ui import console
     for name in recording.STORY:
         if hasattr(console, name):
-            setattr(console, name, lambda *a, _n=name, **k: state["shown"].append(" ".join(str(x) for x in a) + "".join(f" {v}" for v in k.values())))
-    console.panel = lambda name, data: False
+            console.put(name, lambda *a, _n=name, **k: state["shown"].append(" ".join(str(x) for x in a) + "".join(f" {v}" for v in k.values())))
+    console.put("panel", lambda name, data: False)
     if quiet:
         for name in ("out", "status_block", "combat_state", "show_header", "debug"):
             if hasattr(console, name):
-                setattr(console, name, lambda *a, **k: None)
+                console.put(name, lambda *a, **k: None)
 
     # the save as the session opened, under a scratch name
     name = f"rerun_{folder.name}_{os.getpid()}"             # (f529) this process's own: two replays of one recording at once (the suite
@@ -402,7 +402,7 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
         if got["all"] != want["state"]["all"]:
             tables = [t for t in got if t != "all" and got[t] != want["state"].get(t)]
             raise Parted(f"after input {i} ({inputs_main[i - 1]['text']!r}) the state differs, in: {', '.join(tables)}")
-        if json.loads(json.dumps(ledger.LAST, default=str)) != want["outcomes"]:
+        if json.loads(json.dumps(ledger.last(), default=str)) != want["outcomes"]:
             raise Parted(f"after input {i} ({inputs_main[i - 1]['text']!r}) the turn recorded other outcomes")
         if "operations" in want:                                                       # (f463) the operations committed, their ids, kinds and rows
             ops = [{"id": o["id"], "kind": o["kind"], "rows": o["rows"]} for o in store.load_operations()["ops"] if o.get("steps") == store.meta.steps]
@@ -410,7 +410,7 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
                 raise Parted(f"after input {i} ({inputs_main[i - 1]['text']!r}) the line committed other operations "
                              f"({[o['kind'] for o in ops]} against {[o['kind'] for o in want['operations']]})")
         from engine import operation
-        presented, operation.PRESENTED[:] = json.loads(json.dumps(operation.PRESENTED, default=str)), []
+        presented = json.loads(json.dumps(operation.take_presented(), default=str))
         if "presented" in want and presented != want["presented"]:                     # (f467) what reached the page and how: shown, a stand-in, recovered at the load
             raise Parted(f"after input {i} ({inputs_main[i - 1]['text']!r}) the page was given other outcomes "
                          f"({[p['how'] for p in presented]} against {[p['how'] for p in want['presented']]})")
@@ -438,7 +438,7 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
             state["input"] += 1
         return row["text"]
 
-    console.ask = ask
+    console.put("ask", ask)
     try:
         ws.run()
         if state["input"]:
@@ -555,11 +555,11 @@ def make_stub_recording(folder: Path, n: int = 40, seed: int = 39, persona: str 
     store.save_player(player)
     for name in recording.STORY:
         if hasattr(console, name):
-            setattr(console, name, lambda *a, **k: None)
-    console.panel = lambda name, data: False
+            console.put(name, lambda *a, **k: None)
+    console.put("panel", lambda name, data: False)
     for name in ("out", "status_block", "combat_state", "show_header", "debug"):
         if hasattr(console, name):
-            setattr(console, name, lambda *a, **k: None)
+            console.put(name, lambda *a, **k: None)
     fail = {"on": False}
 
     def chat(**k):
@@ -587,7 +587,7 @@ def make_stub_recording(folder: Path, n: int = 40, seed: int = 39, persona: str 
         text, _kind = bot.decide()
         last["text"] = text
         return text
-    console.ask = ask
+    console.put("ask", ask)
     with _NoServer():                                       # (f518) nothing it does can reach a real model
         session.record(folder=folder, rows=rows)            # (f476) a kept recording names the rows each input changed
         try:

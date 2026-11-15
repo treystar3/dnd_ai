@@ -136,8 +136,8 @@ world = load_world(); store = CampaignStore.open_or_create("townsfolk_test"); st
 char, _ = simlib.make_character("warrior", random.Random(2))
 store.save_player(PlayerState(character=char, location="parth"))
 printed = []
-console.npc_says = lambda label, speech, gesture="": printed.append(("says", label, speech, gesture))
-console.dialogue = lambda before, who, speech, after="": printed.append(("frame", who, speech, before))
+console.put("npc_says", lambda label, speech, gesture="": printed.append(("says", label, speech, gesture)))
+console.put("dialogue", lambda before, who, speech, after="": printed.append(("frame", who, speech, before)))
 ws = WorldScene(store, world, load_traits(), store.load_player()); ws.enter("parth")
 ws.player.mentor["never"] = True                    # Maren does not step in: this is about the townsfolk
 smith = next(n for n in ws.residents if n.role == "smith")

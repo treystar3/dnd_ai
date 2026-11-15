@@ -92,7 +92,7 @@ def spy(name, real):
 
 
 ENTRIES = ("open_world", "run", "turn", "handle", "command", "run_pulse")
-real_catch_up, real_ask = pulse.catch_up, console.ask
+real_catch_up, real_ask = pulse.catch_up, console.now("ask")
 simlib.quiet_console()
 try:
     pulse.catch_up = spy("run_pulse", real_catch_up)
@@ -109,10 +109,10 @@ try:
     store.find_operation = spy("open_world", store.find_operation)
     ws.open_world()
     del store.find_operation
-    console.ask = spy("run", lambda *a, **k: "quit")
+    console.put("ask", spy("run", lambda *a, **k: "quit"))
     ws.run()
 finally:
-    pulse.catch_up, console.ask = real_catch_up, real_ask
+    pulse.catch_up = real_catch_up; console.put("ask", real_ask)
     del ws.begin_line, ws.read_line, ws.show_stats
 for name in ENTRIES:
     check(f"the actor is bound while {name} runs", seen.get(name) and all(a is mine for a in seen[name]), seen.get(name))

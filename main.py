@@ -23,6 +23,7 @@ from core.version import VERSION
 
 if paths.FROZEN:
     os.chdir(paths.APP)          # saves/ and logs/ live beside the exe
+from engine import actor
 from engine.session import CampaignSession
 from npc.traits import load_traits
 from scenes.goddess import ThresholdScene
@@ -43,14 +44,20 @@ def utf8_streams() -> None:
             s.reconfigure(encoding="utf-8", errors="replace")
 
 
-def main():
+def options(argv=None):
+    """The command line, read. (f636) --debug is the first player's preference."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--new", action="store_true", help="start a new game")
     parser.add_argument("--debug", action="store_true", help="show engine decisions")
     parser.add_argument("--gui", action="store_true", help="play in a window instead of the terminal")
     parser.add_argument("--terminal", action="store_true", help="play in the terminal (the built app opens a window by default)")
-    args = parser.parse_args()
-    config.DEBUG = args.debug
+    args = parser.parse_args(argv)
+    actor.prefs().debug = args.debug
+    return args
+
+
+def main():
+    args = options()
     utf8_streams()
     import atexit
     from engine import turnlog
@@ -83,7 +90,7 @@ def play(args):
     else:                                          # (f528) the game as it ships: its own llama-server (f522), loaded behind the home page
         from llm import launch, runtime
         if launch.screen_on():                     # (f526) the owner's lines are in: the load runs behind the home page
-            screen = launch.Screen(say=console.out, ask=console.ask,
+            screen = launch.Screen(say=console.now("out"), ask=console.now("ask"),
                                    progress=lambda f: console.setup_progress(f, launch.line("loading") or ""),   # only while it waits
                                    uncover=lambda: console.creation_done())    # (f539) creation's page, over the could-not-wake page
             if not screen.begin():
@@ -91,7 +98,7 @@ def play(args):
             launch.SCREEN["screen"] = screen
             import atexit
             atexit.register(launch.stop)
-        elif not runtime.start_for_game(say=console.out):   # a tree without the lines (the dormant case): the load before the page
+        elif not runtime.start_for_game(say=console.now("out")):   # a tree without the lines (the dormant case): the load before the page
             return
 
     from engine import data_check                  # the character data, checked as one system before anything uses it
