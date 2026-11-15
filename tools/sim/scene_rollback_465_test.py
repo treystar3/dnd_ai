@@ -89,12 +89,12 @@ check("at a fight's end what it remembered of itself goes with its row", stood i
 from engine import session
 owned = [n for n, *_ in session._owned()]
 check("the session owns the live check's lists, and no table of the fight's marks (f499: the row carries them)",
-      all(x in owned for x in ("canon.EVENTS", "canon._SINK", "severity.REACTIONS"))
+      all(x in owned for x in ("caches.events", "caches.sink", "severity.REACTIONS"))
       and not any(x in owned for x in ("combat_perks.QUARRY", "combat_perks.WITHER", "healing.LAST", "spellcraft._CAST")), owned)
-canon.EVENTS.append({"claim": "left over"})
+canon._event("Bram Voss", "left over", "kept")
 severity.REACTIONS.append(("sobered", False))
 g.close()
-check("nothing of it stays in the process once the campaign closes", simlib.residue() == {} and not canon.EVENTS, simlib.residue())
+check("nothing of it stays in the process once the campaign closes", simlib.residue() == {} and not canon.events(), simlib.residue())
 import shutil
 shutil.rmtree("saves/scene_465", ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))

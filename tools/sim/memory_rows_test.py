@@ -60,14 +60,14 @@ tail = st.journal_tail(10, actor="n2")
 check("the journal answers for one person, oldest first", [r["text"][-2:] for r in tail] == ["45", "37"] and all(r["target"] == "n2" for r in tail), tail)
 check("...and for a kind", len(st.journal_tail(10, kind="deed_reaction")) == 1)
 # through the engine's hook, as the game writes it
-canon.JOURNAL = lambda kind, actor, target, text, data: st.journal(400, kind, actor, target, text, data, "I run")
+canon.bind_journal(lambda kind, actor, target, text, data: st.journal(400, kind, actor, target, text, data, "I run"))
 from engine import quirks
 m = {"id": "h1", "name": "Bram Voss", "bond": 20, "memories": [], "quirks": {"likes": "harvest", "dislikes": "flee", "reacted": {}, "deeds_seen": {}}}
 quirks.roll(m, random.Random(1)); m["quirks"].update(likes="harvest", dislikes="flee", reacted={})
 quirks.react(m, "flee", "disapprove", 3, by="player")
 last = st.journal_tail(1)[-1]
 check("a deed reaction is journaled with what the player typed as the action", last["kind"] == "deed_reaction" and last["data"]["deed"] == "flee" and last["action"] == "I run", last)
-canon.JOURNAL = None
+canon.bind_journal(None)
 st.export_json(root / "export")
 check("an export carries every memory and the journal", json.loads((root / "export" / "event_log.json").read_text()) != [] and (root / "export" / "npcs" / "n2.json").exists())
 st.close(); shutil.rmtree(root, ignore_errors=True)

@@ -14,19 +14,14 @@ from pathlib import Path
 
 import yaml
 from core import yamlio
-from engine import streams
+from engine import actor, streams
 
 F = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "failures.yaml").read_text(encoding="utf-8"))
 MACHINERY = re.compile(r"\b(model|llm|json|error|errors|answer|server|crash|failed|failure|llama|gpu|vulkan|cuda|slot)\b", re.I)
-_last: dict[str, str] = {}
 
 
 def _pick(key: str, rng: random.Random | None) -> str:
-    lines_ = F[key]
-    pick = [l for l in lines_ if l != _last.get(key)] or lines_
-    line = (rng or streams.get("scene")).choice(pick)
-    _last[key] = line
-    return line
+    return _pick_from(key, F[key], rng)
 
 
 def not_taken(rng: random.Random | None = None) -> str:
@@ -69,10 +64,7 @@ def _fill(key: str, lines_: list[str], facts: dict, rng: random.Random | None) -
     fit = [l for l in lines_ if _placeholders(l) <= set(facts)]
     if not fit:
         return ""
-    pick = [l for l in fit if l != _last.get(key)] or fit
-    line = (rng or streams.get("scene")).choice(pick)
-    _last[key] = line
-    return line.format_map(facts)
+    return _pick_from(key, fit, rng).format_map(facts)
 
 
 def stood_lines(rows: list[dict], rng: random.Random | None = None) -> list[str]:
@@ -152,9 +144,11 @@ def opening_untold(rng: random.Random | None = None) -> str | None:
 
 
 def _pick_from(key: str, lines_: list, rng: random.Random | None) -> str:
-    pick = [l for l in lines_ if l != _last.get(key)] or lines_
+    """One of the lines, never the one said last for this key (the acting character's: engine/actor.py Caches)."""
+    said = actor.caches().said_failure
+    pick = [l for l in lines_ if l != said.get(key)] or lines_
     line = (rng or streams.get("scene")).choice(pick)
-    _last[key] = line
+    said[key] = line
     return line
 
 
@@ -232,3 +226,6 @@ def problems(data: dict | None = None) -> list[str]:
         for kind in sorted(set(stood) - set(ledger.KINDS)):
             bad.append(f"failures.yaml stood.{kind}: no such kind of ledger row")
     return bad
+
+
+actor.moved(__name__, {"_last": "the functions here (the line said last is the actor's)"})

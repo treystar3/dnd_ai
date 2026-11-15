@@ -11,7 +11,7 @@ its answer would have been written down as that session's.
 - CampaignSession.open(name) resets what it owns, opens the store (SaveTooNew propagates to the caller, who tells the player, as before)
   and presents the map: a CampaignWorld over the one authored World (world/campaign.py). (f633) What it owns is declared in
   engine/owned.py STATE, the one table of every piece of state outside a save: the rows that say how they are put back (the turn's
-  registers, the acting character's module names, the campaign's) are reset at open (a session never closed, after a crash, leaves
+  registers, the acting character's caches, the campaign's) are reset at open (a session never closed, after a crash, leaves
   nothing behind) and at close, never at adopt.
 - adopt(store, world) wraps a store and a world a scene was built on the old way (a test's fixture, a harness, the hundred and twenty
   constructor sites the ratchet of f450 counts down): every scene has a session either way, and nothing is reset under the test's feet.

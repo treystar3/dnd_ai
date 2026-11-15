@@ -5,7 +5,8 @@ one's summary; the turn log's open turn and its count of things shown; the servi
 of saying which thread the turn belonged to. Held here:
 - every register written through its module's functions is named by the session's residue and gone after its reset;
 - the old names are gone: reading one or setting one raises and says what to call, and no file in the repository (the game,
-  the tools the suite never runs, the tests) loads or stores one, under any name the module was imported by;
+  the tools the suite never runs, the tests) loads or stores one, under any name the module was imported by. (f634) The same
+  for the names the actor's caches were held under;
 - one field says whose the turn is: the first of a budget, an operation or a serving to open takes it for its thread, the last
   to close gives it up, an open operation or serving keeps it, and a budget a thread left open does not;
 - off that thread there is no turn: a call there is not charged, not filed under the operation and not served an answer;
@@ -119,6 +120,9 @@ session.reset()
 # ---- the old names are gone, for a reader and for a writer
 MOVED = {"engine.operation": ("CURRENT", "PRESENTED", "LEGACY"), "engine.ledger": ("ROWS", "LAST", "TOTALS"), "engine.budget": ("CURRENT", "LAST"),
          "engine.turnlog": ("_open", "SHOWN"), "engine.asked": ("_LOCAL",)}
+REGISTERS = tuple(MOVED)
+MOVED.update({"engine.canon": ("JOURNAL", "IDS", "EVENTS", "_SINK"), "engine.names": ("CAST",), "engine.failures": ("_last",),        # (f634) the
+              "engine.questions": ("_last",), "engine.enchanting": ("DISCOUNT",)})                    # actor's caches (actor_caches_634_test.py)
 for mod_name, names in MOVED.items():
     mod = importlib.import_module(mod_name)
     for name in names:
@@ -178,6 +182,10 @@ CAUGHT = {
     "the name imported": "from engine.ledger import TOTALS\n",
     "the name handed to setattr": "from engine import budget\nsetattr(budget, 'CURRENT', None)\n",
     "an import inside a function": "def f():\n    from engine import asked as a\n    return a._LOCAL\n",
+    "(f634) a name map put in whole": "from engine import canon\ncanon.IDS = {'Bram': 'h1'}\n",
+    "(f634) a key set in it": "from engine import canon\ncanon.IDS['Bram'] = 'h1'\n",
+    "(f634) the discount's key set": "from engine import enchanting\nenchanting.DISCOUNT['percent'] = 10\n",
+    "(f634) a private name read": "from engine import failures, questions\nx = failures._last, questions._last\n",
 }
 PASSED = {
     "another module's name": "from storage import migrations\nfrom engine import pulse\nv = migrations.CURRENT\nw = pulse.LAST\n",
@@ -195,7 +203,7 @@ check("no file in the repository loads or stores a moved name: the game, the too
       {p: u[:3] for p, u in list(found.items())[:12]})
 
 # ---- one field says whose the turn is
-sources = {m: Path(m.replace(".", "/") + ".py").read_text(encoding="utf-8") for m in MOVED}
+sources = {m: Path(m.replace(".", "/") + ".py").read_text(encoding="utf-8") for m in REGISTERS}
 check("the three ways a thread owned a turn are one field: no thread id and no thread-local in the five modules",
       "thread" not in operation.Operation.__dataclass_fields__ and "owner" not in vars(budget.Budget())
       and not any("get_ident" in s or "threading.local" in s for s in sources.values()),

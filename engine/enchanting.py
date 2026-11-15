@@ -12,7 +12,7 @@ from core import yamlio
 from pydantic import BaseModel
 
 from core.models import Character, Enchantment, Item, ItemProperty
-from engine import items
+from engine import actor, items
 
 RULES = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "enchanting.yaml").read_text(encoding="utf-8"))
 
@@ -59,14 +59,20 @@ def slots(item: Item) -> int:
     return RULES["slots"].get(item.rarity, 0)
 
 
-DISCOUNT = {"percent": 0}   # set from the player's passives (arcane appraiser) before showing or paying fees
+def set_discount(percent: float) -> None:
+    """What comes off the enchanter's fee, set from the character's passives (arcane appraiser) before a fee is shown or paid."""
+    actor.caches().discount = percent
+
+
+def discount() -> float:
+    return actor.caches().discount
 
 
 def fee(item: Item, option: Option) -> int:
     used = len(item.enchantments)
     from engine import quests
     return math.ceil(quests.contract_reward(item.item_level) * RULES["fee_share"] * option.fee_multiplier
-                     * (1 + RULES["extra_per_used"] * used) * (1 - DISCOUNT["percent"] / 100))
+                     * (1 + RULES["extra_per_used"] * used) * (1 - discount() / 100))
 
 
 def success_chance(item: Item) -> int:
@@ -149,3 +155,6 @@ def enchant(c: Character, item: Item, option: Option, rng: random.Random) -> tup
     if item.title:
         return True, f"The enchantment takes. {items.display_name(item)} now carries {option.name}."
     return True, f"The enchantment takes. Your item is now the {items.display_name(item)}."
+
+
+actor.moved(__name__, {"DISCOUNT": "enchanting.set_discount(percent) or enchanting.discount()"})

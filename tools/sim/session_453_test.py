@@ -42,8 +42,8 @@ stub.plan = [{"kind": "look"}]
 for line in ("I look around.", "I wait a while.", "I look again."):
     ws.turn(line)
 check("three turns played: the ledger holds the last, the journal and the ids are bound, the dice are keyed",
-      ledger.last() is not None and canon.JOURNAL is not None and "player" in canon.IDS.values() and streams.key() != "unseeded", simlib.residue())
-enchanting.DISCOUNT["percent"] = 10
+      ledger.last() is not None and canon.journal_bound() is not None and "player" in canon.ids().values() and streams.key() != "unseeded", simlib.residue())
+enchanting.set_discount(10)
 names.set_cast({"Maren": "she"})
 life.FIRST_BATCH = 4
 ws.enter("guild_house")
@@ -63,7 +63,7 @@ own_thread.start()
 check("a thread handed to the session is its own", a.session.own(own_thread) is own_thread and own_thread in a.session.threads() and job_thread in a.session.threads())
 ledger.add("gained", say="a coin, for the test")             # a look turn records nothing: a row by hand, so the ledger is in the residue
 before = simlib.residue()
-check("before the close, the residue names what A set", {"canon.JOURNAL", "canon.IDS", "names.CAST", "enchanting.DISCOUNT", "registers.rows", "streams.DEFAULT"} <= set(before), before)
+check("before the close, the residue names what A set", {"caches.journal", "caches.ids", "caches.cast", "caches.discount", "registers.rows", "streams.DEFAULT"} <= set(before), before)
 a_rows = a.store._db.execute("SELECT count(*) FROM event_log").fetchone()[0]
 rs_calls = stub.calls.get("ResidentSet", 0)
 
@@ -95,7 +95,7 @@ own_thread.join(10); job_thread.join(10)
 check("the orphans ran to the end once let go, each making its call", not own_thread.is_alive() and not job_thread.is_alive() and made["calls"] == 1
       and stub.calls.get("ResidentSet", 0) == rs_calls + 2, (stub.calls.get("ResidentSet", 0), rs_calls))
 check("...and B's recording has no row for either", rec.n_call == n_before, (rec.n_call, n_before))
-check("...and B's residue is B's own, not empty while it plays", "canon.JOURNAL" in simlib.residue())
+check("...and B's residue is B's own, not empty while it plays", "caches.journal" in simlib.residue())
 b.close()
 check("B closed: the recorder is put back and the bindings are clean", simlib.residue() == {} and not streams.STRICT and (pathlib.Path("saves/session_453_rec") / "turns.jsonl").exists())
 db = sqlite3.connect("saves/session_453_a/campaign.db")
@@ -105,12 +105,12 @@ check("the dead orphans are forgotten at the next close", own_thread not in reco
 
 # ---- a scene built the old way adopts a session; nothing is reset under it
 from storage.campaign import CampaignStore, PlayerState
-canon.IDS["someone"] = "x"
+canon.set_ids({**canon.ids(), "someone": "x"})
 st = CampaignStore.open_or_create("session_453_b")
 old = WorldScene(st, authored(), a.catalog, st.load_player())
 check("a scene built the old way has a session of its own, adopted, over the store and a wrapped world", old.session.adopted and old.session.store is st
       and old.world is old.session.world and type(old.world).__name__ == "CampaignWorld")
-check("...and adopting resets nothing a test set up", canon.IDS.get("someone") == "x" or "player" in canon.IDS.values())
+check("...and adopting resets nothing a test set up", canon.ids().get("someone") == "x" or "player" in canon.ids().values())
 st.close()
 
 # ---- the sources

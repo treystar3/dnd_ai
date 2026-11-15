@@ -7,8 +7,8 @@ nobody added to it was found only when two campaigns in one process met it. Held
   `global`, a container changed in place, an attribute set on a module-level object, and a name of another module set or
   changed through any name that module was imported by, `setattr` with a computed name included;
 - the scan itself is held on an example of each way a name is written, and of what is not a write;
-- the table holds no dead row (each names a module-level binding that is there, or one of the turn's registers), and what the
-  session puts back at a campaign's open and close is the table's rows, in its order;
+- the table holds no dead row (each names a module-level binding that is there, or one of the turn's registers or, f634, of
+  the actor's caches), and what the session puts back at a campaign's open and close is the table's rows, in its order;
 - every place the game ties something to a thread (a thread id, a thread-local, the current thread, a context variable) is
   one of those listed below, each with its reason.
 What the scan cannot see: a container handed to a function that changes it, an object changed through its own methods, a
@@ -226,19 +226,23 @@ check("(the scan read the game: its packages and the two modules at the root, ne
 undeclared = {f"{m}.{n}": sorted(how) for (m, n), how in sorted(written.items()) if f"{m}.{n}" not in owned.STATE}
 check("every module-level name the game writes after import is declared in the table", not undeclared, undeclared)
 
-REGISTER = "engine.actor.Registers."
+REGISTER, CACHE = "engine.actor.Registers.", "engine.actor.Caches."
+HELD = {REGISTER: actor.Registers, CACHE: actor.Caches}
 dead = []
 for key, row in owned.STATE.items():
-    if key.startswith(REGISTER):
-        if key[len(REGISTER):] not in actor.Registers.FRESH:
+    if key.startswith(owned.HELD) and key.count(".") == 3:
+        if key.rsplit(".", 1)[1] not in HELD.get(key.rsplit(".", 1)[0] + ".", actor.Held).FRESH:
             dead.append(key)
         continue
     mod, _, name = key.rpartition(".")
     if mod not in TREES or (name not in bindings(TREES[mod]) if name != "*" else (mod, "*") not in written):
         dead.append(key)
-check("the table holds no dead row: each names a module-level binding that is there, or one of the turn's registers", not dead, dead)
+check("the table holds no dead row: each names a module-level binding that is there, or one of the registers or the caches", not dead, dead)
 check("every one of the turn's registers is a row, the turn's", all(owned.STATE.get(REGISTER + f) and owned.STATE[REGISTER + f].scope == owned.TURN
                                                                    for f in actor.Registers.FRESH), sorted(actor.Registers.FRESH))
+check("(f634) every one of the actor's caches is a row, the actor's, and nothing else is the actor's any more",
+      {k for k, r in owned.STATE.items() if r.scope == owned.ACTOR} == {CACHE + f for f in actor.Caches.FRESH} and len(actor.Caches.FRESH) == 8,
+      sorted(k for k, r in owned.STATE.items() if r.scope == owned.ACTOR))
 shape = [k for k, r in owned.STATE.items() if r.scope not in owned.SCOPES or not r.resets.strip()
          or len({r.put_back is None, r.clean is None, r.what is None}) != 1]
 check("every row says whose it is and what puts it back, and one the session puts back says how, when it is clean and what it holds", not shape, shape)

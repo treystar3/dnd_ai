@@ -3,7 +3,7 @@
 Written 2026-11-14 against `main` at 84fc7cd (f627, with the prose branch merged). Approved by the owner the same day ("Approve as
 recommended"), with the recommendations of section 7 taken.
 
-**Built so far:** f628, f630, f631, f632, f629 and f633. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
+**Built so far:** f628, f630, f631, f632, f629, f633 and f634. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
 "Yes, move it"), because three of its logs are written where there is no scene to ask who acted (see f629 below).
 
 This is not a new design. Two designs the owner has already taken stand behind it:
@@ -183,6 +183,26 @@ same commit, the tools the suite never runs among them (tools/rerun.py, nightrun
 **f634: the actor's caches.** The journal sink, the name map and the events of engine/canon.py, the cast's pronouns, the last
 failure, the last question and the price discount move to an object on the actor, shared with the process's default while there
 is one actor. The fence of f633 covers assignment, so `canon.IDS = {...}` cannot quietly make a dead name again.
+
+As built:
+- `Caches` beside `Registers` in engine/actor.py, the two sharing one base (`Held`: the fields as a new set holds them, put
+  back, and what is held). Eight fields: `journal`, `ids`, `events`, `sink`, `cast`, `said_failure`, `said_question`,
+  `discount`. Every actor points at the process's one set (`actor.SHARED_CACHES`); `actor.caches()` is the bound actor's.
+- The modules' functions are still how they are read and written, with a setter and a reader where a name was assigned or
+  read raw: `canon.bind_journal(fn)`, `journal_bound()`, `set_ids(known)`, `ids()`, `events()`, `clear_events()`;
+  `names.cast()` beside `set_cast`; `enchanting.set_discount(percent)`, `discount()`. A reader gives a copy. The two lines
+  said last have no reader: only their own functions use them.
+- The old names are gone the way f633's are (`actor.moved`): `canon.JOURNAL`, `IDS`, `EVENTS`, `_SINK`; `names.CAST`;
+  `failures._last`; `questions._last`; `enchanting.DISCOUNT`. tools/sim/registers_633_test.py holds the fence for them with
+  f633's, over every file in the repository. Users changed: scenes/world.py (who is who, the journal, the discount),
+  engine/combat.py, tools/live_check.py and seven tests.
+- The table (engine/owned.py): the eight are rows of their own, `engine.actor.Caches.<field>`, and no module name is the
+  actor's any more (a check holds that). 102 rows still: 12 registers, 8 caches and 82 module names in 37 modules. The
+  session's names for them in its residue are `caches.<field>` (were `canon.IDS`, `names.CAST` and so on).
+- Nothing changes in play: with one actor every read and write lands where it did. The cast and the name map are replaced
+  when set where they were emptied and refilled, and the discount is the number itself, where it was a dict with one key.
+- Campaign scope stays on the session, as the design said: `pulse.LAST`, `severity.REACTIONS`, `life._ANCHOR_SLOTS`, the
+  embeddings' cache and the bus are the campaign's rows and were not moved.
 
 **f635: the whole output seam under the channel (doc 17).** The line asked for, the scope, the status block, the busy light, the
 panes, the home page, creation and the fight's pane become methods of the channel. The window's bridge supplies a channel and no

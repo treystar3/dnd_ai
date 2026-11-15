@@ -41,7 +41,7 @@ check("...and the line is not sent back as contradicting", sent_back == [], sent
 check("...the check was asked of the source that is down (f518: it reached the planted one)", checks.live() and checks.src.calls["CanonCheck"] >= 1,
       dict(checks.src.calls))
 down_calls = checks.src.calls["CanonCheck"]
-check("...the record says it went unverified", any(e["claim"] == claim and e["verdict"] == "unverified" for e in canon.EVENTS[-5:]), canon.EVENTS[-3:])
+check("...the record says it went unverified", any(e["claim"] == claim and e["verdict"] == "unverified" for e in canon.events()[-5:]), canon.events()[-3:])
 check("...it is never offered back as true", not any(claim in r["text"] for r in canon.records(member, 5)))
 check("...nor weighed against as a fact", claim not in canon.known(member, details))
 check("...but the extractor knows it was said", claim in canon.said_about_self(member))

@@ -1125,10 +1125,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def name_ids(self) -> None:
         """Who is who, for anything kept under a stable id instead of a name (engine/canon.py opinions): the hires, Maren, the player."""
         from engine import canon, mentor
-        canon.IDS = {m["name"]: m["id"] for m in self.player.party if m.get("name") and m.get("id")}
-        canon.IDS[mentor.NAME] = "maren"
-        canon.IDS[self.player.character.name] = self.player.character.id      # (f480) the character by their id ("player" with one)
-        canon.JOURNAL = lambda kind, actor, target, text, data: self.store.journal(self.minutes, kind, actor, target, text, data, self.last_text[:80])
+        canon.set_ids({**{m["name"]: m["id"] for m in self.player.party if m.get("name") and m.get("id")}, mentor.NAME: "maren",
+                       self.player.character.name: self.player.character.id})      # (f480) the character by their id ("player" with one)
+        canon.bind_journal(lambda kind, actor, target, text, data: self.store.journal(self.minutes, kind, actor, target, text, data, self.last_text[:80]))
         from engine import names, party as rules                # (f412) each companion's pronoun, for what reaches the screen
         names.set_cast({m["name"].split()[0]: rules.pronoun_of(m) for m in self.player.party if m.get("name") and m.get("permanent")})
 
@@ -1830,7 +1829,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def enchant_command(self, args: str, confirmed: bool = False) -> None:
         from engine import enchanting
         c = self.player.character
-        enchanting.DISCOUNT["percent"] = self.has("arcane_appraiser") or 0
+        enchanting.set_discount(self.has("arcane_appraiser") or 0)
         enchanter = next((n for n in self.present if n.role == "enchanter"), None)
         own_hands = self.owns("enchanter") and bool(self.place.stations)
         if not enchanter and not own_hands and not config.DEBUG:
@@ -1838,7 +1837,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                          + (" Or a workshop: you can do the work yourself." if self.owns("enchanter") else ""))
             return
         if not enchanter and own_hands:
-            enchanting.DISCOUNT["percent"] = 100        # Enchanter: your own hands at a workshop, no fee
+            enchanting.set_discount(100)                # Enchanter: your own hands at a workshop, no fee
             console.note("No enchanter here, but a workshop and your own hands will do (Enchanter).")
         gear = list(c.equipment.values()) + [i for i in c.inventory if items.base_of(i).slot != "none"]
         if not args:

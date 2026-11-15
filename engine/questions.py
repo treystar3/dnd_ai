@@ -25,12 +25,11 @@ from pathlib import Path
 
 import yaml
 from core import yamlio
-from engine import streams
+from engine import actor, streams
 from engine.failures import DASH, MACHINERY
 
 Q = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "questions.yaml").read_text(encoding="utf-8"))
 TRIES: int = int(Q.get("tries") or 3)
-_last = ""
 
 
 def _norm(text: str) -> str:
@@ -56,11 +55,11 @@ def yes_no(text: str) -> bool | None:
 
 def dropped(rng: random.Random | None = None) -> str:
     """The line read when a yes-or-no question was met with something else: the question is let go. Never the one shown last."""
-    global _last
+    mine = actor.caches()
     lines_ = Q["dropped"]
-    pick = [l for l in lines_ if l != _last] or lines_
-    _last = (rng or streams.get("scene")).choice(pick)
-    return _last
+    pick = [l for l in lines_ if l != mine.said_question] or lines_
+    mine.said_question = (rng or streams.get("scene")).choice(pick)
+    return mine.said_question
 
 
 class AskedInsideTurn(RuntimeError):
@@ -120,3 +119,6 @@ def problems(data: dict | None = None) -> list[str]:
         if "?" in l:
             bad.append(f"questions.yaml dropped: '{l}' asks something; it lets a question go")
     return bad
+
+
+actor.moved(__name__, {"_last": "questions.dropped()"})

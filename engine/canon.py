@@ -17,6 +17,7 @@ import yaml
 from core import yamlio
 
 import config
+from engine import actor as _actor
 
 MAX_CANON = 60
 MAX_BELIEFS = 30
@@ -276,19 +277,33 @@ def release_commitments(member: dict, cause: str, day: int) -> int:
     return n
 
 
-JOURNAL = None                # bound by the scene: fn(kind, actor, target, text, data) -> None (storage event_log); None in tools without a game
+def bind_journal(fn) -> None:
+    """Where facts go from now on: fn(kind, actor, target, text, data) -> None (the scene binds the save's event log); None for nowhere."""
+    _actor.caches().journal = fn
+
+
+def journal_bound():
+    """The journal bound now; None in a tool without a game."""
+    return _actor.caches().journal
 
 
 def journal(kind: str, actor: str = "", target: str = "", text: str = "", **data) -> None:
     """An authoritative fact, for the campaign's event journal (storage.campaign.journal). Nothing when no game is bound."""
-    if JOURNAL is not None:
+    to = _actor.caches().journal
+    if to is not None:
         try:
-            JOURNAL(kind, actor, target, text, data)
+            to(kind, actor, target, text, data)
         except Exception:
             pass
 
 
-IDS: dict[str, str] = {}      # name -> stable id for the people a game knows (set by the scene: party members, Maren, 'the player'); names are display
+def set_ids(known: dict[str, str]) -> None:
+    """Who is who: name -> stable id for the people a game knows (the scene sets it: the party, Maren, the character). Names are display."""
+    _actor.caches().ids = dict(known)
+
+
+def ids() -> dict[str, str]:
+    return dict(_actor.caches().ids)
 
 
 def about_id(name: str) -> str:
@@ -298,7 +313,7 @@ def about_id(name: str) -> str:
     if name == "the player":
         return "player"
     low = name.lower()
-    for n, i in IDS.items():
+    for n, i in _actor.caches().ids.items():
         if n.lower() == low or n.split()[0].lower() == low:
             return i
     return name
@@ -429,8 +444,9 @@ class Pending:
         for k, v in self.after.items():
             if v or k in self.member:
                 self.member[k] = v
-        EVENTS.extend(self.events)
-        del EVENTS[:-200]
+        kept = _actor.caches().events
+        kept.extend(self.events)
+        del kept[:-EVENTS_KEEP]
 
 
 def review(member: dict, about_me, about_world, day: int, details: list[str] | None = None, given_facts: list[str] | None = None,
@@ -439,11 +455,12 @@ def review(member: dict, about_me, about_world, day: int, details: list[str] | N
     import copy
     shadow = {k: copy.deepcopy(member[k]) for k in HELD if k in member}
     shadow.update({k: v for k, v in member.items() if k not in HELD})     # read-only context (details, memories, name...) as it is
-    _SINK.append([])
+    sink = _actor.caches().sink
+    sink.append([])
     try:
         bad = _keep_into(shadow, about_me, about_world, day, details, given_facts, who, now, buckets)
     finally:
-        events = _SINK.pop()
+        events = sink.pop()
     return Pending(member, {k: shadow.get(k, []) for k in HELD}, bad, events)
 
 
@@ -483,19 +500,27 @@ def worth_reading(prompted: str) -> bool:
     return bool((prompted or "").strip()) and bool(relevance.pick(prompted, [ABOUT_THEM], 1, floor=config.SIM_TOPIC))
 
 
-EVENTS: list[dict] = []          # what happened to each claim: kept, same, contradicts, given (the live check reads this)
+EVENTS_KEEP = 200
 
 
-_SINK: list[list[dict]] = []    # while a draft is under review, its events wait here, and reach EVENTS only if it is committed
+def events() -> list[dict]:
+    """What happened to each claim, the last EVENTS_KEEP of them: kept, same, contradicts, given (the live check reads this)."""
+    return list(_actor.caches().events)
+
+
+def clear_events() -> None:
+    _actor.caches().events.clear()
 
 
 def _event(who: str, claim: str, verdict: str, against: str = "") -> None:
+    """One claim's outcome. While a draft is under review it waits in the sink, and is kept only if the draft is committed."""
     e = {"who": who, "claim": claim, "verdict": verdict, "against": against}
-    if _SINK:
-        _SINK[-1].append(e)
+    mine = _actor.caches()
+    if mine.sink:
+        mine.sink[-1].append(e)
         return
-    EVENTS.append(e)
-    del EVENTS[:-200]
+    mine.events.append(e)
+    del mine.events[:-EVENTS_KEEP]
 
 
 EXTRACT_SYSTEM = ("You read lines a person in a fantasy world just said and list any NEW, CONCRETE facts they stated as true about "
@@ -645,3 +670,7 @@ def settle(pending: Pending | None, attempt: int, tries: int = 2) -> str:
         return conflict_rule(pending.bad)
     pending.commit()
     return ""
+
+
+_actor.moved(__name__, {"JOURNAL": "canon.bind_journal(fn) or canon.journal_bound()", "IDS": "canon.set_ids(known) or canon.ids()",
+                        "EVENTS": "canon.events() or canon.clear_events()", "_SINK": "canon.review(...)"})

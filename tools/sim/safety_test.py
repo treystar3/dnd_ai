@@ -98,7 +98,7 @@ check("...a road stop, a bought house and a discovered place are the game's own,
 check("...and nothing was repaired", st.load_place("parth").residents == ["ghost_1"])
 
 # ---- stable ids: opinions by id, the last fight's hurt and carried by id
-canon.IDS = {"Isel Quill": "h2", "Tamsin Reed": "h3"}
+canon.set_ids({"Isel Quill": "h2", "Tamsin Reed": "h3"})
 m = {"id": "h3", "name": "Tamsin Reed"}
 canon.keep_opinions(m, [("Isel", "I would trust Isel's hands over anyone's."), ("the player", "You fight like a mule."), ("Odo", "Odo is a liar.")], 1)
 check("an opinion of a known person is kept under their id, the name only for display", m["opinions"][0]["about_id"] == "h2" and m["opinions"][0]["about"] == "Isel", m["opinions"])

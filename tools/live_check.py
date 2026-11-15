@@ -350,7 +350,7 @@ def scenario(mode, title, fn, speakers_temper=None, maren_q=False, fixed=False):
             reset_state()
         SAID.clear(); CALLS.clear(); FALLBACKS.clear(); REFUSED.clear()
         from engine import canon as _canon
-        _canon.EVENTS.clear()
+        _canon.clear_events()
         t0 = time.time()
         err = ""
         w.last_plan = None
@@ -379,7 +379,7 @@ def scenario(mode, title, fn, speakers_temper=None, maren_q=False, fixed=False):
         if err:
             out.append(f"- **ERROR**: {err}"); flags.append(f"{title}: {err}")
         CANON_TALLY["calls"] += sum(1 for t, _, _ in CALLS if t == "Extracted")
-        for e in _canon.EVENTS:                           # what each claim about themselves became
+        for e in _canon.events():                         # what each claim about themselves became
             out.append(f"- canon ({e['who']}): {e['verdict']}: \"{e['claim']}\"" + (f" (against: \"{e['against']}\")" if e["against"] else ""))
             CANON_TALLY[e["verdict"]] += 1
         if FALLBACKS:

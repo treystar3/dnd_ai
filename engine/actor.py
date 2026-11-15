@@ -25,8 +25,14 @@ turn and its count of things shown (engine/turnlog.py), and the answers served t
 bound (`registers()`). `owner` is the thread that plays the turn, the one field where there were three: off it there is no
 turn (a call from the people written behind the scenes is not charged, filed under the operation or served an answer).
 
-One actor a scene, one turn's context and one set of registers for the process, while a scene has one character; M1 makes it
-one for each."""
+(f634) Caches is what a scene keeps for its character between lines, which five more modules held the same way: the journal
+the canon writes to, the ids behind names, what became of each claim and the drafts under review (engine/canon.py), the
+companions' pronouns (engine/names.py), the stand-in and dropped-question lines said last (engine/failures.py,
+engine/questions.py) and the enchanter's discount (engine/enchanting.py). Read and written through those modules' functions,
+which reach the caches of the actor bound (`caches()`).
+
+One actor a scene, one turn's context, and one set of registers and of caches for the process, while a scene has one
+character; M1 makes it one for each."""
 from __future__ import annotations
 
 import collections
@@ -148,9 +154,26 @@ class Clock:
         return meta.minutes
 
 
-class Registers:
-    """(f633) The turn's registers, each as a new one holds it (FRESH). The session puts them back when a campaign opens or
+class Held:
+    """A set of named fields, each as a new set holds it (FRESH). The session puts the process's back when a campaign opens or
     closes (engine/owned.py, engine/session.py)."""
+
+    FRESH: dict[str, Callable] = {}
+
+    def __init__(self) -> None:
+        self.reset()
+
+    def reset(self) -> None:
+        for name, fresh in self.FRESH.items():
+            setattr(self, name, fresh())
+
+    def held(self) -> dict[str, str]:
+        """Every field that is not as a new set holds it, by name, with what it holds."""
+        return {name: repr(getattr(self, name))[:80] for name, fresh in self.FRESH.items() if getattr(self, name) != fresh()}
+
+
+class Registers(Held):
+    """(f633) The turn's registers."""
 
     FRESH: dict[str, Callable] = {
         "owner": lambda: None,                 # the thread playing the turn; none between turns
@@ -166,17 +189,6 @@ class Registers:
         "shown": int,                          # things shown since the start: a turn that moved it not at all said nothing
         "serving": lambda: None,               # the answers of the operation that runs again
     }
-
-    def __init__(self) -> None:
-        self.reset()
-
-    def reset(self) -> None:
-        for name, fresh in self.FRESH.items():
-            setattr(self, name, fresh())
-
-    def held(self) -> dict[str, str]:
-        """Every register that is not as a new one holds it, by name, with what it holds."""
-        return {name: repr(getattr(self, name))[:80] for name, fresh in self.FRESH.items() if getattr(self, name) != fresh()}
 
     def claim(self) -> None:
         """A budget, an operation or a serving opens: the turn is the calling thread's. While an operation or a serving is
@@ -195,7 +207,23 @@ class Registers:
         return self.owner == threading.get_ident()
 
 
+class Caches(Held):
+    """(f634) What a scene keeps for the character it plays, between lines."""
+
+    FRESH: dict[str, Callable] = {
+        "journal": lambda: None,               # where the canon's facts go: fn(kind, actor, target, text, data), bound by the scene
+        "ids": dict,                           # name -> stable id for the people the game knows: the party, the mentor, the character
+        "events": list,                        # what became of each claim: kept, same, contradicts, given (the live check reads it)
+        "sink": list,                          # while a draft is under review its events wait here, kept only if it is committed
+        "cast": dict,                          # first name -> 'he' | 'she': the companions, for what reaches the screen
+        "said_failure": dict,                  # the stand-in line said last, by kind: never the same one twice running
+        "said_question": str,                  # ...and the line for a dropped question
+        "discount": int,                       # the enchanter's fee taken off, in percent, from the character's passives
+    }
+
+
 SHARED = Registers()                           # the process's one set, every actor's while there is one actor
+SHARED_CACHES = Caches()                       # (f634) ...and its one set of caches
 
 
 @dataclass(eq=False)
@@ -206,6 +234,7 @@ class ActorContext:
     clock: Clock | None = None
     turn: TurnContext = field(default_factory=TurnContext)
     registers: Registers = SHARED              # (f633) the turn's registers: the process's one, until a second actor has its own
+    caches: Caches = SHARED_CACHES             # (f634) what is kept for the character between lines: the process's, likewise
 
     @property
     def character_id(self) -> str:
@@ -227,11 +256,16 @@ def registers() -> Registers:
     return current().registers
 
 
+def caches() -> Caches:
+    """(f634) The caches of the actor bound on this thread; the process's one outside every entry."""
+    return current().caches
+
+
 def moved(module_name: str, names: dict[str, str]) -> None:
     """(f633) Names a module once held its state under, now held elsewhere: reading one or setting one raises and says what
     to call. Setting is refused too, or `module.NAME = ...` would quietly make a dead name nothing reads."""
     def gone(name: str) -> AttributeError:
-        return AttributeError(f"{module_name}.{name} is no longer the module's (engine/actor.py Registers): use {names[name]}")
+        return AttributeError(f"{module_name}.{name} is no longer the module's (engine/actor.py): use {names[name]}")
 
     class Moved(types.ModuleType):
         def __getattr__(self, name):

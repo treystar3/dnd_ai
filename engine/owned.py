@@ -1,22 +1,22 @@
 """(f633) Whose every piece of state outside a save is, and what puts it back (docs/design/20_phase3_plan.md).
 
-STATE declares every module-level name in the game's code that is written after import, and each of the turn's registers
-(engine/actor.py Registers): whose it is (`scope`) and what puts it back (`resets`, in words). A row the session puts back when
-a campaign opens or closes also says how (`put_back`), when it is clean and what it holds: engine/session.py reset() and
-residue() are those rows and nothing else. tools/sim/owned_state_633_test.py reads the syntax tree of the game's code and fails
+STATE declares every module-level name in the game's code that is written after import, and each of the turn's registers and
+of the actor's caches (engine/actor.py Registers, Caches): whose it is (`scope`) and what puts it back (`resets`, in words). A
+row the session puts back when a campaign opens or closes also says how (`put_back`), when it is clean and what it holds:
+engine/session.py reset() and residue() are those rows and nothing else. tools/sim/owned_state_633_test.py reads the syntax tree of the game's code and fails
 on a written name that is not a row here, so the next one cannot arrive unnoticed.
 
 The scopes:
 - TURN: one line's, or one input's. The registers are where it belongs; a row of this scope on a module name is one still to
   move there.
-- ACTOR: one character's. They are module names today, shared while a scene has one character (f634 moves them to the actor).
+- ACTOR: one character's. The caches are where it belongs, the process's one set while a scene has one character.
 - CAMPAIGN: the save's that is open, put back when it closes.
 - PROCESS: this run of the program's: a data file read once, a tally written out at the end, a switch the player set, a seam
   something installed and takes out itself.
 - CALL: one call's own on its thread, put back as the call returns.
 
-A scope says whose a name is, not where it lives: only the turn's registers have moved, and this is the list the rest start
-from."""
+A scope says whose a name is, not where it lives: the turn's registers and the actor's caches have moved, and this is the list
+the rest start from."""
 from __future__ import annotations
 
 import importlib
@@ -60,36 +60,27 @@ def rebound(key: str, scope: str, value) -> Row:
     return Row(scope, SESSION, lambda: setattr(importlib.import_module(mod), name, value), lambda: _at(key) == value, lambda: repr(_at(key)))
 
 
-def register(name: str) -> Row:
-    """One of the turn's registers, the process's set: put back as a new set holds it."""
-    from engine import actor
-    fresh = actor.Registers.FRESH[name]
-    return Row(TURN, SESSION, lambda: setattr(actor.SHARED, name, fresh()), lambda: getattr(actor.SHARED, name) == fresh(),
-               lambda: repr(getattr(actor.SHARED, name))[:80])
+def field(held, scope: str, name: str) -> Row:
+    """One field of the process's registers or caches: put back as a new set holds it."""
+    fresh = held.FRESH[name]
+    return Row(scope, SESSION, lambda: setattr(held, name, fresh()), lambda: getattr(held, name) == fresh(), lambda: repr(getattr(held, name))[:80])
 
 
-def _registers() -> dict[str, Row]:
+HELD = "engine.actor."                                 # a row for a field of the registers or the caches: engine.actor.<Class>.<field>
+
+
+def _fields() -> dict[str, Row]:
     from engine import actor
-    return {f"engine.actor.Registers.{name}": register(name) for name in actor.Registers.FRESH}
+    return {f"{HELD}{type(held).__name__}.{name}": field(held, scope, name)
+            for held, scope in ((actor.SHARED, TURN), (actor.SHARED_CACHES, ACTOR)) for name in held.FRESH}
 
 
 CONSOLE = "the window's bridge, which installs its own and puts back what it found (ui/gui/bridge.py); the output seam goes under the channel in f635"
 
 STATE: dict[str, Row] = {
-    # ---- the turn's registers (engine/actor.py): the operation, the ledger, the budget, the turn log's open turn, the serving, the owner
-    **_registers(),
-
-    # ---- one character's, still module names (f634)
-    "engine.canon.JOURNAL": rebound("engine.canon.JOURNAL", ACTOR, None),
-    "engine.canon.IDS": emptied("engine.canon.IDS", ACTOR),
-    "engine.names.CAST": Row(ACTOR, SESSION, lambda: _call("engine.names.set_cast", {}), lambda: not _at("engine.names.CAST"),
-                             lambda: repr(dict(_at("engine.names.CAST")))),
-    "engine.enchanting.DISCOUNT": Row(ACTOR, SESSION, lambda: _at("engine.enchanting.DISCOUNT").update(percent=0),
-                                      lambda: not _at("engine.enchanting.DISCOUNT").get("percent"), lambda: repr(dict(_at("engine.enchanting.DISCOUNT")))),
-    "engine.failures._last": emptied("engine.failures._last", ACTOR),
-    "engine.questions._last": rebound("engine.questions._last", ACTOR, ""),
-    "engine.canon.EVENTS": emptied("engine.canon.EVENTS", ACTOR, "events"),
-    "engine.canon._SINK": emptied("engine.canon._SINK", ACTOR, "drafts under review"),
+    # ---- the turn's registers (the operation, the ledger, the budget, the turn log's open turn, the serving, the owner) and the
+    # actor's caches (the journal, the ids, the claims' events and sink, the cast, the lines said last, the discount)
+    **_fields(),
 
     # ---- the open campaign's
     "engine.pulse.LAST": Row(CAMPAIGN, SESSION, lambda: _at("engine.pulse.LAST").update(made_by="", attempted=""),
@@ -185,7 +176,8 @@ STATE: dict[str, Row] = {
 
 
 def label(key: str) -> str:
-    """A row's name in the session's residue: the module and the name, or `registers.<name>`."""
-    if key.startswith("engine.actor.Registers."):
-        return "registers." + key.rsplit(".", 1)[1]
+    """A row's name in the session's residue: the module and the name, or `registers.<name>`, `caches.<name>`."""
+    if key.startswith(HELD) and key.count(".") == 3:
+        cls, name = key[len(HELD):].split(".")
+        return f"{cls.lower()}.{name}"
     return key.split(".", 1)[1]
