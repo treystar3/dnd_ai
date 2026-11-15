@@ -3,7 +3,7 @@
 Written 2026-11-14 against `main` at 84fc7cd (f627, with the prose branch merged). Approved by the owner the same day ("Approve as
 recommended"), with the recommendations of section 7 taken.
 
-**Built so far:** f628, f630, f631 and f632. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
+**Built so far:** f628, f630, f631, f632 and f629. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
 "Yes, move it"), because three of its logs are written where there is no scene to ask who acted (see f629 below).
 
 This is not a new design. Two designs the owner has already taken stand behind it:
@@ -135,6 +135,13 @@ crash log gain it too. The call log, the gateway's refusals and the crash log ar
 every one of them reads who acted from the actor f632 binds, the one source. A row without one reads as the save's one
 character. No recording moves: the replay compares id, kind and rows, and both kept rows are outside the state digest. The
 fields first appear in the goldens at f640. The lines of f628's log pin that say "no actor yet" are the ones this changes.
+- As built (tools/sim/who_acted_629_test.py, on a character whose id is not the usual one): the one source is
+  `actor.who()`, the bound actor's character, and it is "" when none is bound. So a row written outside every entry or on a
+  thread beside the turn names no one: a call the people written behind the scenes make, a fault while the game loads, a
+  harness's own step. The crash log leaves an empty name out, as it leaves out everything empty; the audit says "no actor".
+  The recorder's turn rows are unchanged (an operation there is still its id, kind and rows), so no recording moves. A fresh
+  recording's input rows carry the name and the three kept ones do not until f640: tools/sim/layers_517_test.py, which
+  compares the two line for line, sets the name aside on a row whose kept one has none, and compares whole once it has.
 
 **f633: the turn's registers, one owner, and no state without a home.** The operation's, the ledger's, the budget's, the turn
 log's and the asked call's module state go onto one `Registers` object the context points at (one for the process while there is

@@ -37,6 +37,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import config
+from engine import actor
 from llm.errors import Failure                  # (f527) the interface's own failure kinds, no model client
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -163,7 +164,7 @@ class Recorder:
             finally:
                 self.asking = None
             self.inputs.write(json.dumps({"i": self.n_input + (1 if main else 0), "main": main, "text": text, "turn": self.store.meta.turn,
-                                          "steps": self.store.meta.steps}, ensure_ascii=False) + "\n")
+                                          "steps": self.store.meta.steps, "actor": actor.who()}, ensure_ascii=False) + "\n")   # (f629) whose line
             self.inputs.flush()
             if main:
                 self.n_input += 1

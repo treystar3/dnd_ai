@@ -157,6 +157,14 @@ def current() -> ActorContext:
     return _bound.get()
 
 
+def who() -> str:
+    """(f629) The id of the character whose entry is running on this thread, for a log's row or a record; "" when none is (a
+    load, the people written behind the scenes, a harness outside every entry). The one source of who acted: three of the logs
+    are written where there is no scene to ask."""
+    mine = current()
+    return mine.character_id if mine.player is not None else ""
+
+
 @contextlib.contextmanager
 def bind(mine: ActorContext):
     """This actor is the current one until the block ends, its dice with it; the one before is back after, a fault or not. Both
