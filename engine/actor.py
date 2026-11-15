@@ -83,6 +83,7 @@ FIELDS: dict[str, Field] = {
     "line_losses": _f(LINE, ROLLED, fresh=int),            # deaths this line
     # ---- the step being done
     "step": _f(ROLLED, default=None),                      # the plan's step, while one is
+    "plan_now": _f(ROLLED, default=()),                    # ...and the plan it is a step of (f645)
     "ran": _f(ROLLED),                                     # the kinds of action the line has run
     "interpret_calls": _f(ROLLED),                         # the interpreter's calls, for the turn log
     "buffering": _f(ROLLED),                               # several actions told in one passage

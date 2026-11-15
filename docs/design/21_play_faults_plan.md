@@ -112,6 +112,44 @@ has the companion drink.
 - The class: every consumable used "on" someone. One path with giving (`give_to_hire` already heals the hire).
 - A target the item cannot be used on is refused in a line, never used on the player instead.
 - Test first: a draught on a hurt hire, on a townsperson, on a foe, on someone not here; a bandage the same way.
+- **As built (f645, tools/sim/used_on_645_test.py, written first).** Outside a fight, using a thing asks whom it is for
+  (scenes/inventory_actions.py `used_on`), and the engine acts for someone else only when two things agree: the reading's target
+  for that step, and the line's own words naming that same one here (scenes/world.py `those_named`). Then (`use_on`): a companion
+  who is hurt takes what restores health, by the one path with giving (`give_to_hire`, whose words now say "uses", a bandage not
+  being drunk); what it cannot do is refused in a line and the thing kept (not hurt, not with the player, a thing that would do
+  nothing for them); someone of the town who is here is handed it, as giving does.
+- **When they do not agree, the engine does not guess.** A line that names someone here whom the reading does not confirm is
+  asked about in a line and the thing is kept: it is never used on the player in their place (the fault found), and never handed
+  to someone who was only named ("I use a bandage on my cut while Elerina watches"). The same when the reading names someone
+  here and the line names nobody ("I pour it down her throat", "my companion", "the fighter": a companion is matched by name,
+  not by trade). A line that names nobody is the player's when the reading names nobody here. A line that says in the first person that the player takes it ("I drink", "I'll eat", "on myself";
+  engine/actions.py `takes_oneself`) is the player's, unless another thing is used in the same line, when the words could be
+  that one's; and when the reading and a name agree on someone and the words say that too, the line says both and is asked
+  about ("I tend Odly's wound myself with a bandage"). Someone known who is elsewhere is told as not here when the reading names
+  them, and asked about when it does not, unless the line walks to them or speaks to them in another step (`rest_of_plan`: the
+  step now knows the plan it is part of, engine/actor.py `plan_now`).
+- **The lines a refusal says (new, each one line, as every refusal in that file is):** "Odly is not hurt." / "Odly is not with
+  you." / "Mana tonic would do nothing for Odly." / "Hude is not here." / "Is the healing draught for you or for someone else? Say
+  that you take it yourself, or give it to the one you mean."
+- **What this costs until the reading names whom a thing is used on.** The interpreter is told what `target` is for talk, attack
+  and buy, and not for use. Where it leaves the target empty, the very line found in play ("I use a healing draught on Raerei")
+  is now asked about instead of healing the player: right, and one line more than it should take. "I give Raerei a healing
+  draught" does it in one, as it always did. One line in the field's description ("for use, whom it is used on, when not
+  themself") makes the first line work; it is a prompt line, so it is group B's and the owner's yes (question below), and it
+  is measured on the real model before it is kept.
+- **Left, and why.** A pronoun alone ("pour it between her lips") names nobody: where the reading names her it is asked about,
+  and where the reading is silent it is the player's own (the fault as found, for that wording, until the prompt line; and
+  after it, such a line is still asked about, the line itself naming nobody). Asked about, where a person would not need to
+  ask: "I use a healing draught" when the reading aims it at someone here (whether it does so by habit is not known: the real
+  model's readings of a use are not measured, the logs of the two plays being closed to this session); "I use my draught, then ask the clerk about work" (the clerk is named
+  and "use" is not a word of taking it oneself; "I drink my draught, then ask the clerk" is not asked); a way of taking it the
+  list does not hold ("I take a swig of my draught and tell Odly I am fine"); a name that is there for another reason ("the
+  draught Bram gave me"); "I drink a draught and nod to Odly" when the reading aims the draught at Odly. The question's way
+  out, "give it to the one you mean", reads a companion's name from the line; for someone of the town it goes by the reading's
+  target, as giving always has. In a fight a thing given to a companion by name was already read
+  (scenes/combat_scene.py `ally_for_item`); a thing used on a foe is not refused there, the fight's reading filling `target` with
+  a foe for every kind of step, so the plan's "on a foe" case is not built and not tested. `give_to_hire` takes the thing by its
+  name again: of two of one name and different origin, it may take the other.
 
 **A4. A count and an hour asked for are kept or refused (6.1, 7).** Buying reads no count; "until eight" becomes one of eight
 named periods.

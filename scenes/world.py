@@ -1152,7 +1152,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     #                                             kept off the record's presentation entry and the turn log's lines
     ROLLED = ("recent_narration", "convo", "last_spoken", "wildlife", "recently_fled", "resume_pending", "held_yield", "orenna_fight", "camp_fight",
               "last_social", "weight_hint", "exits_due", "last_plan", "journey_event_factor", "haggle_factor", "craft_boost", "camp_bonus",
-              "dungeon_fight", "rank_options", "learn_options", "step", "interpret_calls", "ran",
+              "dungeon_fight", "rank_options", "learn_options", "step", "plan_now", "interpret_calls", "ran",
               "partner", "stance", "pending_check", "pending_beats", "buffering",
               "last_hits",                            # (f489) how a beat hit each of the party goes back with the banter that measured it
               "sneaking", "queued_buffs", "fight_text", "surrender_took",
@@ -2262,6 +2262,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         console.debug(f"intent {i + 1}/{len(plan)}: {intent.model_dump(exclude_defaults=True)}")
         self.pending_check, self.pending_beats = "", []
         self.step = intent                                 # (f416) what a refusal says did not happen
+        self.plan_now = plan
         if not self.run_checks(intent, text):
             from engine import actions
             if intent.kind not in actions.BY_KIND:
@@ -2531,6 +2532,17 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def named_here(self, text: str) -> str:
         """The id of the one person here the line names, by name or by trade ("the guard", "Bram"); '' when none or several. A hire in
         the party counts as here."""
+        hits = self.those_named(text)
+        return hits[0] if len(hits) == 1 else ""
+
+    def rest_of_plan(self) -> list:
+        """(f645) The line's other steps, while one is being done: a handler that reads the whole line's words for a name asks here
+        whether that name is there for another step."""
+        plan = self.plan_now or ()
+        return [p for p in plan if p is not self.step] if any(p is self.step for p in plan) else []
+
+    def those_named(self, text: str) -> list[str]:
+        """(f645) The ids of everyone here the line names, by name or by trade, the party's hires among them."""
         low = text.lower()
         hits = []
         for n in self.present:
@@ -2540,7 +2552,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         for m in self.player.party:
             if m.get("permanent") and m.get("name") and re.search(rf"\b{re.escape(m['name'].split()[0].lower())}\b", low):
                 hits.append(f"hire:{m['id']}")
-        return hits[0] if len(hits) == 1 else ""
+        return hits
 
     def local_building(self, text: str, plan: list) -> None:
         """(f333) "Let's head to the inn": a building named by its kind, with no town named, is this town's when it has one; the model is

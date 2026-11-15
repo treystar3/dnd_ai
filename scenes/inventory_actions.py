@@ -245,6 +245,10 @@ class InventoryActions:
         if not item or not item.good or inv.GOODS[item.good].kind in ("herb", "trade"):        # (f545) a trade good is carried, never used
             self.refuse("You have nothing like that you can use." if not item else f"{items.display_name(item)} can't be used like that.")
             return
+        whom = self.used_on(intent, text)
+        if whom is not None:                                       # (f645) it is theirs or it is refused: never the player's in their place
+            self.use_on(whom, item, intent, text)
+            return
         used = inv.take(self.pack, inv.GOODS[item.good].name, 1)
         effect = self.consume(used)
         if self.frugal_save():
@@ -252,6 +256,62 @@ class InventoryActions:
             effect += " - and somehow there is still one left (Frugal Hands)"
         self.store.save_player(self.player)
         self.narrate(f"The player uses {inv.GOODS[used.good].name} ({inv.GOODS[used.good].description}), {effect}.", text)
+
+    def used_on(self, intent, text: str) -> tuple | None:
+        """(f645) Whom a thing from the pack is used on when not its user: ("hire", row), ("person", npc), ("away", name), or
+        ("ask", ...) when the line and the reading do not agree on someone; None for the user's own (docs/design/21, A3)."""
+        from engine import actions
+        names, target, rest = self.those_named(text), getattr(intent, "target", ""), self.rest_of_plan()
+        own = actions.takes_oneself(text)
+        if target in names:
+            if own:
+                return ("ask", names)                               # the line says both: theirs, and that the user takes it
+            hire = self.hire_by_id(target)
+            return ("hire", hire) if hire is not None else ("person", next(n for n in self.present if n.id == target))
+        if own and not any(p.kind == "use" for p in rest):
+            return None
+        if names or self.hire_by_id(target) is not None or any(n.id == target for n in self.present):
+            return ("ask", names or [target])                       # one says someone here, the other does not: it is not guessed
+        away = None if any(p.kind == "move" for p in rest) else self.named_away(text, {p.target for p in rest if p.target})
+        if away:
+            return ("away", away[1]) if target == away[0] else ("ask", [away[0]])
+        return None
+
+    def named_away(self, text: str, but: set = frozenset()) -> tuple | None:
+        """(f645) Someone of this town the acting character knows by name, named in the line and not in `but`: (id, first name)."""
+        from engine import mapview, retrieval
+        top = mapview.top_of(self.world, self.player_of(self.acting).location)
+        if not top:
+            return None
+        low = text.lower()
+        for r in retrieval.people_in_town(self.store, self.world, top):
+            first = r.name.split()[0] if r.name else ""
+            if first and r.id not in but and re.search(rf"\b{re.escape(first.lower())}\b", low) \
+                    and regard.of(self.store.load_npc(r.id), self.acting).name_known:
+                return r.id, first
+        return None
+
+    def use_on(self, whom: tuple, item: Item, intent, text: str) -> None:
+        """(f645) A thing used on someone else: theirs by the one path with giving, or refused in a line and kept."""
+        g, (kind, who) = inv.GOODS[item.good], whom
+        if kind == "away":
+            self.refuse(f"{who} is not here.")
+        elif kind == "ask":
+            self.refuse(f"Is the {g.name} for you or for someone else? Say that you take it yourself, or give it to the one you mean.")
+        elif kind == "hire":
+            first = who["name"].split()[0]
+            if self.player_of(self.acting).party_mode != "with":
+                self.refuse(f"{first} is not with you.")
+            elif not g.restores.get("health"):
+                self.refuse(f"{cap_first(g.name)} would do nothing for {first}.")
+            elif who.get("hp_frac", 1.0) >= 1.0:
+                self.refuse(f"{first} is not hurt.")
+            else:
+                intent.item = g.name
+                self.give_to_hire(who, intent, text)
+        else:
+            intent.item = g.name
+            self.on_give(intent, text)
 
     def frugal_save(self) -> bool:
         """Frugal Hands: a consumable that is not used up, some of the time (the mechanic's value is the percent)."""
@@ -491,8 +551,8 @@ class InventoryActions:
         return True
 
     def give_to_hire(self, m: dict, intent, text: str) -> None:
-        """(f420) Coin or a thing from the pack handed to a companion: it is theirs, they remember it, and a draught given to one who is
-        hurt is drunk. Before, only townsfolk could be given anything: 'I hand Odly the silver' was refused, there being no one here."""
+        """(f420) Coin or a thing from the pack handed to a companion: it is theirs, they remember it, and what restores health, given
+        to one who is hurt, is used at once."""
         from engine import party as rules
         c, first, day = self.player.character, m["name"].split()[0], clock.day(self.minutes)
         if self.coin_word(intent.item or "") and not inv.find(self.pack, intent.item or ""):
@@ -506,26 +566,26 @@ class InventoryActions:
             c.coins -= amount
             console.ledger(f"Gave {first} {money.fmt(amount)}. Purse: {money.fmt(c.coins)}")
             rules.remember(m, day, f"The player gave me {money.words(amount)}.", 2)
-            what, drunk = "some coin", False
+            what, used = "some coin", False
         else:
             item = inv.take(self.pack, intent.item or text, 1)
             if not item:
                 self.refuse("You aren't carrying that.")
                 return
             g = inv.GOODS.get(item.good) if item.good else None
-            drunk = bool(g and g.restores.get("health") and m.get("hp_frac", 1.0) < 1.0)
-            if drunk:
+            used = bool(g and g.restores.get("health") and m.get("hp_frac", 1.0) < 1.0)
+            if used:
                 m["hp_frac"] = min(1.0, m.get("hp_frac", 1.0) + g.restores["health"] / 100)
             else:
                 m.setdefault("given", []).append(inv.label(item))
                 del m["given"][:-10]
             console.ledger(f"Gave {first} {inv.label(item)}.")
-            rules.remember(m, day, f"The player gave me {inv.label(item)}" + (" when I was hurt, and I drank it." if drunk else "."), 2)
+            rules.remember(m, day, f"The player gave me {inv.label(item)}" + (" when I was hurt, and I used it." if used else "."), 2)
             what = inv.label(item)
         m["bond"] = m.get("bond", 0) + 1
         self.store.save_player(self.player)
-        ledger.add("given", to=m["id"], say=f"The player has handed {first} {what}" + (", and they drink it." if drunk else "; it is theirs now."))
-        self.narrate(f"The player hands {first} {what}." + (f" {first} drinks it down." if drunk else ""), text)
+        ledger.add("given", to=m["id"], say=f"The player has handed {first} {what}" + (", and they use it at once." if used else "; it is theirs now."))
+        self.narrate(f"The player hands {first} {what}." + (f" {first} uses it at once." if used else ""), text)
 
     def on_give(self, intent, text: str) -> None:
         if self.tithe_box(intent, text):

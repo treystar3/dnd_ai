@@ -237,3 +237,12 @@ def problems(scene_class, interpreter_text: str) -> list[str]:
     for k in described - set(KINDS):
         out.append(f"the interpreter's instructions describe '{k}', which is not a declared action")
     return out
+
+
+TAKEN_ONESELF = re.compile(r"\bi(?:'ll|'d|\u2019ll|\u2019d)?(?:\s+\w+)?\s+(?:drink|eat|quaff|swallow|sip|gulp|chew|down|swig)\b|\bmyself\b")
+
+
+def takes_oneself(text: str) -> bool:
+    """(f645) Does the line say, in the first person, that its speaker takes a thing themself ("I drink", "I quickly eat", "on
+    myself")? "I have Odly drink it" does not."""
+    return bool(TAKEN_ONESELF.search(text.lower()))
