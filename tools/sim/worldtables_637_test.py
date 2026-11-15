@@ -391,6 +391,8 @@ check("after every step the loaded world is the same, as text, keys and lists in
 check("every other table of the save holds the same", all(a["other"][t] == b["other"][t] for t in a["other"] if t not in ("kv", "all")) and len(a["other"]) >= 7,
       [t for t in a["other"] if a["other"][t] != b["other"][t]])
 check("...and so does every other row of the small ones", a["rest"] == b["rest"])
+check("...the player's record among them, the same text at the end", a["player"] == b["player"] and len(a["player"] or "") > 1000,
+      world_script.first_difference(a["player"] or "{}", b["player"] or "{}"))
 check("the same lines were shown", a["shown"] == b["shown"] and len(a["shown"]) > 5,
       next(((x, y) for x, y in zip(a["shown"], b["shown"]) if x != y), (len(a["shown"]), len(b["shown"]))))
 check("the same operations stood, with the same outcomes", a["ops"] == b["ops"] and len(a["ops"]) > 3, (len(a["ops"]), len(b["ops"])))

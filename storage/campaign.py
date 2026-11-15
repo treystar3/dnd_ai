@@ -28,6 +28,8 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from storage.playerstable import FIRST, RowPlayers
+
 from core.models import Item, Character
 from npc.models import NPC, Memory
 
@@ -251,6 +253,7 @@ class CampaignStore:
         self._later: list = []         # (f470) people a read filled in outside any operation, saved by the next (save_npc_later)
         from storage.worldrow import RowWorld
         self._world = RowWorld(self)   # (f589) the world's state behind one seam (engine/worldstate.py reads through it)
+        self._players = RowPlayers(self)   # (f638) where the characters' records are kept (storage/playerstable.py)
 
     # ---------- opening ----------
 
@@ -453,10 +456,14 @@ class CampaignStore:
         self._put("discoveries", json.dumps(data))
 
     def player_exists(self) -> bool:
-        return self._kv_text("player") is not None
+        return self._players.exists()
+
+    def player_text(self, who: str = FIRST) -> str | None:
+        """(f638) A character's record as it is stored, or None: for a caller that asks only whether it changed."""
+        return self._players.text(who)
 
     def load_player(self) -> PlayerState:
-        player = PlayerState.model_validate_json(self._kv_text("player") or "")
+        player = PlayerState.model_validate_json(self._players.text() or "")
         if self._memory_typed():                     # (f479) each hire's window, from their rows
             from engine import memory
             for m in player.party:
@@ -473,7 +480,7 @@ class CampaignStore:
                         self._save_hire_memories(m, player.character.id)
                     out.pop("memories", None)
                     out.pop("memories_unsaved", None)
-            self._put("player", json.dumps(body, ensure_ascii=False))
+            self._players.put(body)
             self.save_meta()
 
     def _save_hire_memories(self, member: dict, owner: str) -> None:

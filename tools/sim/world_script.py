@@ -39,7 +39,7 @@ PLACE = "trading_square"
 class Run:
     def __init__(self, game):
         self.game, self.steps, self.cover, self.other, self.calls = game, [], {}, {}, {}
-        self.wrote, self.rest, self.ops, self.stale = [], "", [], []
+        self.wrote, self.rest, self.ops, self.stale, self.player = [], "", [], [], ""
 
 
 def world_text(store) -> str:
@@ -309,7 +309,8 @@ def play(name: str, stub, seed: int = SEED, prepare=None) -> Run:
     snap("a last line")
     run.other = {k: v for k, v in statehash.digest(store).items()}
     run.calls = dict(sorted(stub.calls.items()))
-    run.rest = statehash._h([r for r in statehash.dump(store)["kv"] if r[0] != store._world.KEY])
+    run.rest = statehash._h([r for r in statehash.dump(store)["kv"] if r[0] not in (store._world.KEY, "player")])
+    run.player = store.player_text() or ""
     run.ops = [[o["kind"], o["steps"], o["index"], o["text"], o["rows"], o["actor"]] for o in store.load_operations()["ops"]]
     run.stale = list(store._world.stale)
     return run
@@ -336,19 +337,19 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--seed", type=int, default=SEED)
     ap.add_argument("--out", required=True)
     ap.add_argument("--world", choices=("row", "tables"), default="row")
+    ap.add_argument("--players", choices=("row", "table"), default="row")
     a = ap.parse_args(argv)
     stub = simlib.Stub("warrior", 3)
     simlib.install(stub)
     shown = simlib.quiet_console()
-    prepare = None
-    if a.world == "tables":
-        from storage import worldtables
-        prepare = lambda g: worldtables.adopt(g.store)
+    from storage import playerstable, worldtables
+    adopted = [fn for on, fn in ((a.world == "tables", worldtables.adopt), (a.players == "table", playerstable.adopt)) if on]
+    prepare = lambda g: [fn(g.store) for fn in adopted]
     run = play(a.name, stub, seed=a.seed, prepare=prepare)
-    kept = type(run.game.store._world).__name__
+    kept, held = type(run.game.store._world).__name__, type(run.game.store._players).__name__
     run.game.session.close()
     Path(a.out).write_text(json.dumps({"steps": run.steps, "cover": run.cover, "other": run.other, "calls": run.calls, "wrote": run.wrote,
-                                       "rest": run.rest, "ops": run.ops, "stale": run.stale, "shown": shown, "world": kept}, ensure_ascii=False),
+                                       "rest": run.rest, "ops": run.ops, "stale": run.stale, "shown": shown, "world": kept, "player": run.player, "players": held}, ensure_ascii=False),
                            encoding="utf-8")
     return 0
 

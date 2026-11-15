@@ -3,7 +3,7 @@
 Written 2026-11-14 against `main` at 84fc7cd (f627, with the prose branch merged). Approved by the owner the same day ("Approve as
 recommended"), with the recommendations of section 7 taken.
 
-**Built so far:** f628, f630, f631, f632, f629, f633, f634, f635, f636 and f637. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
+**Built so far:** f628, f630, f631, f632, f629, f633, f634, f635, f636, f637 and f638. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
 "Yes, move it"), because three of its logs are written where there is no scene to ask who acted (see f629 below).
 
 This is not a new design. Two designs the owner has already taken stand behind it:
@@ -342,6 +342,40 @@ As built (tools/sim/worldtables_637_test.py, tools/sim/worldtables_caps_637_test
 
 **f638: the players table, built and proven, not yet used.** One row for each character, holding today's player record; the
 first keeps the id `player`. A port with load, save, exists and the raw text.
+
+As built (tools/sim/players_638_test.py):
+- storage/playerstable.py holds the port and its two answers. `RowPlayers` is today's one row of the small table, and is
+  what a store has. `TablePlayers` is `players(character_id, place, json)`: a row for each character, the json the
+  record as the row would have written it, the place read from it at the write. No index: a save holds a party's worth
+  of rows and the key finds one. `playerstable.adopt(store)` is what f640's migration will do: the record moved in as it
+  was, byte for byte, under the first character's id, and the old row taken away.
+- The store's `load_player`, `save_player`, `player_exists` and the new `player_text` reach the record through the port
+  (`store._players`). What a record is stays the store's and is written once: a hire's memories are rows, and the
+  clock is written with the player in one transaction. So f640's switch for the player is one line.
+- Nothing uses the table: `migrations.CURRENT` is 16, a new save has no players table, a store's players are the row's.
+- **Moved here from f640:** the scene's raw compare of the player's row around the pulse (scenes/world.py `run_pulse`)
+  asks `store.player_text()`. Over the table both raw reads were nothing, so the scene would not have seen the pulse
+  write the player (f466), and the world script could not have been played over the table to prove it.
+- Proven on the four saves kept at version 16 (two with hires): the player loads the same from the table as from the
+  row, saves the same text, and leaves every other table the same, a hire's new memories among them. A fault between
+  the player and the clock leaves neither; a failed transaction leaves the record as it was, and so does an operation
+  of the scene's that wrote the player and did not stand. The seeded world script
+  over the row and over the table, a process each: the same world after every step, other tables, lines shown,
+  operations, model calls, and the same player's record at the end.
+- The table holds a second character beside the first, each under its id. The row refuses one. `player_text` takes
+  an id; the store's other three still ask for the first: `load_player(id)` is M1's, as doc 13 left it.
+- The campaign's check names a place that is not what its record says, a record that cannot be read, and the old row
+  left beside the table, in a save that has the table.
+- **Left for f640, as planned:** the readers of the old row outside the store (storage/migrations.py v6, v8 and v11,
+  storage/saves.py, the export and the legacy import, tools/sim/hire_rows_479_test.py), and the players table in
+  `statehash.TABLES`.
+- **For f640:** `adopt` does not write the old row over a record the table already holds; it leaves the row for the
+  check to name. The migration meets an empty table, so it moves every save's record.
+- **For M1:** the table has no cap of its own: a save writes the first character's row and no other. How many
+  characters a save may hold is M1's number, and the table's cap with it.
+- **For M1:** a row's key is the slot it was saved under, not the id inside its record. They are the same in every
+  save the game makes; a test that gives the one character another id still saves it as the first. When
+  `save_player` takes an id, the check should hold the two together.
 
 **f639: only a story input takes a dice step.** The owner's answer of 2026-11-12 (doc 17, question 17): a pane's command no
 longer counts as an input for the dice (scenes/world.py:1121). This changes the dice that follow a pane click, so it is the one
