@@ -1287,3 +1287,17 @@
   scene: {place: trading_square, present: [{id: p1, name: Sister Ama, role: priest}, {id: g1, name: Garran Holt, role: guard}]}
   plan: [{kind: talk, target: p1, speech: "The work is done."}, {kind: talk, target: g1, speech: "Which way?"}, {kind: give, item: receipt}]
   expect: {handled_by: interpret, kinds: [talk, talk, give]}
+- name: a_companion_told_then_the_players_own_spell_is_the_spell
+  text: '"Pae, hold it off!" I cast Chilling Touch at the bear.'
+  scene: {place: greywood, party: [{name: Pae Tamalaga}]}
+  plan: [{kind: other, summary: casting Chilling Touch at the bear}]
+  expect: {handled_by: interpret, not_by: [hire]}
+- name: a_companion_asked_with_a_speech_tag_is_theirs
+  text: '"Pae, are you hurt?" I ask.'
+  scene: {place: greywood, party: [{name: Pae Tamalaga}]}
+  expect: {handled_by: hire}
+- name: a_companion_told_then_a_walk_of_the_party_is_the_walk
+  text: '"Pae, keep watch behind us." We walk back to Parth.'
+  scene: {place: greywood, party: [{name: Pae Tamalaga}]}
+  plan: [{kind: move, destination: parth}]
+  expect: {handled_by: interpret, not_by: [hire]}

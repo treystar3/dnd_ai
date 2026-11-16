@@ -138,6 +138,8 @@ RAISED = {                 # {file: (how many more, "fNNN: the guard it adds ove
                                  "choice holding the line); f654: four more, the player's own deed before a telling ('I charge and tell')"),
     "scenes/world.py": (1, "f656: the time of day a rest is asked until ('till dawn'), read once for the rest a line or a room asks for"),
     "scenes/arc_actions.py": (1, "f657: a blow at a foe who yielded, by the action table's verbs and the acting character's own abilities"),
+    "scenes/party_actions.py": (3, "f674: a sentence of the player's own beside words to a companion (it starts with what they do, or names an ability; "
+                                   "a speech tag is not one)"),
     "scenes/inventory_actions.py": (2, "f660: coin handed over read for the deed with a price it is for (the words that name the fee)"),
     "scenes/pastime_actions.py": (3, "f660: a haggle that only asks (a question with no word of buying) is a word with the seller, not a purchase"),
     "scenes/combat_scene.py": (6, "f659: the player's acts in a fight line beyond a draught (its parts, the consumable named) and the one foe "

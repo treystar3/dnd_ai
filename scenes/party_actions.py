@@ -524,7 +524,21 @@ class PartyActions:
             return None                                  # (f654) named, not spoken to: "Raerei is still white as a sheet. We sit..."
         if any(self.pack_thing_in(a.said or a.clause) for a in found) or any(a.mine for a in found):
             return None                                  # (f654) something handed over, or the player's own deed: the interpreter reads it
+        spoken = {a.clause for a in found}
+        if any(self.own_deed(c) for c in addressing.clauses(text) if c not in spoken):
+            return None                                  # (f674) '"Pae, hold it off!" I cast Chilling Touch': the cast is the player's
         return m
+
+    SAYING = re.compile(r"^(?:and\s+)?i\s+(?:ask|say|said|tell|told|whisper|call|shout|yell|reply|answer|add|mutter|murmur|laugh|sigh|grin|smile|nod)\b")
+
+    def own_deed(self, clause: str) -> bool:
+        """(f674) A sentence of the player's own deed, said to no one: one that starts with what the player does ("I cast", "we go"), or
+        names one of the acting character's abilities; never the words that only tag speech ("I ask", "I say")."""
+        low = " ".join((clause or "").lower().split()).strip(" .!?,;:\"'")
+        if not low or self.SAYING.match(low):
+            return False
+        names = [a.name.lower() for a in getattr(self.player_of(self.acting).character, "actives", []) or [] if a.name]
+        return bool(re.match(r"(?:and\s+|then\s+)?(?:i|we|let's|let us)\b", low)) or any(re.search(rf"\b{re.escape(n)}\b", low) for n in names)
 
     HANDING = re.compile(r"\b(give|hand|take|here|toss|throw|pass|offer|feed|share|lend|drink|use|pour|apply|tip|eat|wear)\b")
 
