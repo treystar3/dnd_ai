@@ -3806,7 +3806,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if not ware:
             self.refuse(f"{seller.label(self.acting)} sells: " + ", ".join(f"{w.name} ({money.words(self.quote_ware(seller, w).price)})" for w in wares))
             return
-        self.buy_ware(seller, ware, text, count=self.count_asked(intent))
+        bought = self.buy_ware(seller, ware, text, count=self.count_asked(intent))
+        from engine import world_improv
+        if bought and ware.kind == "room" and world_improv.is_rest(text) and not any(a.kind == "wait" for a in (self.plan_now or ())):
+            self.on_wait(self.rest_asked(text), text)       # (f656) the buy claims the sleep: the room bought to sleep in is slept in
 
     def on_ability(self, intent: ActionIntent, text: str) -> None:
         c = self.player.character
@@ -4198,12 +4201,20 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     e.starts_far = True
             self.combat = CombatScene.begin(self, creature, enemies, "While you wait,")
 
+    def rest_asked(self, text: str) -> ActionIntent:
+        """(f656) The rest a line asks for: until the time of day it names, else at night until morning, else an hour."""
+        labels = sorted({label for _, label in clock.PERIODS}, key=len, reverse=True)
+        m = re.search(r"\b(?:until|till|til)\s+(?:the\s+)?(" + "|".join(map(re.escape, labels)) + r")\b", (text or "").lower())
+        if m:
+            return ActionIntent(kind="wait", wait_until=m.group(1))
+        late = clock.period(self.minutes) in ("evening", "night", "deep night")
+        return ActionIntent(kind="wait", wait_until="morning" if late else "", wait_minutes=0 if late else 60)
+
     def on_other(self, intent: ActionIntent, text: str) -> None:
         """(f321) What the interpreter could not name is an improvisation: read for what it is after, rolled, and made true either way."""
         from engine import world_improv
         if world_improv.is_rest(text) and len(re.findall(r"[a-z']+", text.lower())) <= 12:
-            late = clock.period(self.minutes) in ("evening", "night", "deep night")
-            self.on_wait(ActionIntent(kind="wait", wait_until="morning" if late else "", wait_minutes=0 if late else 60), text)
+            self.on_wait(self.rest_asked(text), text)
             return                                          # (f386) a line that only goes to sleep is a rest, not a gamble rolled as hiding
         spot = features.spot_of(self)
         if spot is not None and spot.data.get("clue") and not spot.data.get("read") and \

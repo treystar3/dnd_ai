@@ -362,6 +362,16 @@ repair, so a repair that catches too much passes. These are the tests of the eng
   hold back") no longer hides it and stays the player's own (in a fight, the charge and the order are both done). A telling
   with no "to" ("I tell Kennard cover me") is read as telling of, not an order: left as it was before, untested in play. The last three
   cases B0 owed are right and their marks are off: none is owed now. tools/sim/intercept_words_654_test.py.
+- **As built (f655): naming a ware.** A ware asked for is named by the head of what is asked, before a phrase that says for whom,
+  how long, where or why ("a room for tonight", "a meal for two", "some rope to climb with", "a mug of ale for the road"); a word
+  only in that phrase names nothing ("a lamp for the room" is no room). The ware's own name is read the same way ("a room for the
+  night" is a room). The buy reads a ware as on a seller's list by the same rule before it looks at their stock.
+  engine/inventory.py asked_part/asked_head; tools/sim/ware_head_655_test.py. Left: a word the ware is not called by ("a bed").
+- **As built (f656): the verbs a purchase covers.** The buy kind claims "sleep" and "rest" (a room is bought to sleep in), so a
+  line that buys a room and sleeps was read as one buy and the sleep lost (4.9), and "I sleep at the inn" paid and never slept. A
+  room bought by a line that says the player sleeps is now slept in, when the plan has no wait of its own: until the time of day
+  the line names, else at night until morning, else an hour (the rest a line asks for, one rule with an improvised rest).
+  tools/sim/room_sleep_656_test.py.
 - A foe who has yielded and is then attacked, in any words or by any ability, is attacked. He is not let go (2.7).
 - An answer to the game's own question is read against that question (4.10: "Both at once").
 - Test first: B0's corpus, both halves, for each repair.
