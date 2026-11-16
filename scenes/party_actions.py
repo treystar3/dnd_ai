@@ -91,6 +91,8 @@ class PartyActions:
         except LLMError:
             return PartyIntent(kind=keyword_party(text) or "none")
 
+    AT_HALL = {"promote": "A promotion", "hire": "Hiring"}     # (f666) the party's acts done at a guild hall, before its clerk
+
     def party_turn(self, text: str) -> bool:
         """Handle hiring and directing a party. False means it is not about the party."""
         if self.combat or text.lstrip().startswith(("#", "/")):
@@ -113,6 +115,10 @@ class PartyActions:
         if kind == "with" and self.player.party_mode == "with" and not self.held_alone():
             return False                                    # (f386) they are already with you: the line is about something else ("head back to
                                                             # the guild house" was answered seven times with "your party moves beside you")
+        if kind in self.AT_HALL and not (self.at_guild_hall() and self.clerk_here()):
+            from engine import told
+            console.note(told.say("at_hall", self.store.meta.turn, act=self.AT_HALL[kind]))     # (f666) as hiring is
+            return True
         getattr(self, f"party_{kind}")(intent.target, text, offered)
         self.store.save_player(self.player)
         if kind in ("with", "hold") and self.party_proposal(text):

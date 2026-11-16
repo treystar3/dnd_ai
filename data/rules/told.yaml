@@ -31,3 +31,7 @@ foe_flees:           # (f663) a foe breaks and runs: gone from the fight
   - "{foe} breaks and runs, out of the fight."
   - "{foe} turns and flees the fight."
   - "{foe} has had enough and runs."
+at_hall:             # (f666) a party act done only at a guild hall, before its clerk, asked for elsewhere
+  - "{act} is done at a guild hall, before its clerk. It will wait until you are there."
+  - "{act} is the guild's business, done at a hall with the clerk at the desk; not here."
+  - "That needs a guild hall with its clerk at the desk; it can be done there and nowhere else."
