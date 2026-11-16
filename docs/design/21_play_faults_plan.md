@@ -472,6 +472,8 @@ Each is tested on its own class: D2 on every writer of a leaving, D4 on every pa
 - **As built (f664): D2.** One writer of a leaving (pulse.journal_gone), which always says whether it was a death; remove_npc
   cannot be called without saying it; Maren's leaving is written alive; a model's own words for a leaving are read once, where they
   are written. The town's grief reads the written death alone: a row that says nothing is no death. tools/sim/leaving_said_664_test.py.
+- **As built (f665): D3.** A place under the ground (a dungeon) fights on the underground family whatever the land above, and the
+  hour told to the narrator says "under the ground" with no weather there (Q14). tools/sim/under_ground_665_test.py.
 
 ## 7. Group E: a passage is checked against what the turn did
 

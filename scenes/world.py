@@ -213,6 +213,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def time_label(self) -> str:
         light = " (dark)" if clock.is_dark(self.minutes) else ""
+        from engine import battlefield_builder
+        if self.place.type in battlefield_builder.UNDER:
+            return f"{clock.period(self.minutes)}{light}, under the ground"   # (f665) no weather with no open sky (Q14)
         _, sky = weather.describe(self.store.meta.seed, self.minutes)
         return f"{clock.period(self.minutes)}{light}, weather: {sky.lower()}"           # (f423) no "day N": a passage wrote "on day 42"
 
