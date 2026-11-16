@@ -43,6 +43,10 @@ none_here:           # (f677) one of the game's own goods taken up where none li
   - "No {thing} lies here to take."
   - "There is no {thing} here for the taking."
   - "You find no {thing} here to pick up."
+arc_contact:         # (f679) an arc's step at a place: who there should know more, by their trade, never what they know
+  - "Someone in {place} should know more: {who}."
+  - "In {place}, {who} is the one to ask."
+  - "{who} in {place} is said to know something of it."
 at_hall:             # (f666) a party act done only at a guild hall, before its clerk, asked for elsewhere
   - "{act} is done at a guild hall, before its clerk. It will wait until you are there."
   - "{act} is the guild's business, done at a hall with the clerk at the desk; not here."

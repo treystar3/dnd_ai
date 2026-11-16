@@ -241,6 +241,22 @@ class ArcActions:
             n["status"] = "active"
             self.store.save_arcs(data)
         self.refresh_present()
+        if not n["clue_given"]:                              # (f679) who here should know more, by their trade: never their secret (f486)
+            console.note(self.contact_words(n))
+
+    def contact_words(self, n: dict) -> str:
+        """(f679) Whom to ask at a contact's place, by their trade."""
+        from engine import told
+        return told.say("arc_contact", self.store.meta.turn, who=f"the {n['role'].replace('_', ' ')}", place=self.pname(n["place"]))
+
+    def open_contact(self) -> str:
+        """(f679) The contact whose step is open where the acting character stands: there at any hour until they have told what
+        they know. "" when there is none."""
+        data, arc = self.my_arc()
+        n = arcs.current(arc) if arc else None
+        if not n or n["kind"] != "contact" or n["clue_given"] or n["place"] != self.player_of(self.acting).location:
+            return ""
+        return n.get("npc") or ""
 
     def spawn_cast(self, arc: dict, n: dict) -> NPC:
         sn = self.story_node(arc, n["id"])
@@ -876,7 +892,7 @@ class ArcActions:
             console.note(f"  - {line}")
         n = arcs.current(arc)
         if n:
-            console.note(f"Next: {self.pname(n['place'])}.")
+            console.note(f"Next: {self.pname(n['place'])}." + (f" {self.contact_words(n)}" if n["kind"] == "contact" and not n["clue_given"] else ""))
         camp = n.get("camp") if n else None
         if camp:
             mood = ("on its guard" if camp["alert"] >= 2 else "wary" if camp["alert"] else "unaware of you")

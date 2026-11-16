@@ -553,9 +553,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         seed = self.store.meta.seed
         street, cast = self.streets_now()                                                               # (f357)
         on_stop = (self.player.road or {}).get("id") == self.player.location         # (f427) whoever the road stopped the player beside is
+        contact = self.open_contact()                                                 # (f679) an arc's contact, while their step is open
         self.present = [n for n in self.residents                                     # there, whatever the hour: no shift or routine on a road
                         if not n.gone                                                                     # (f422) the dead and departed are not here
-                        and (on_stop or clock.in_hours(self.minutes, self.world.roles[n.role].hours) and n.away_until <= self.minutes
+                        and (on_stop or n.id == contact or clock.in_hours(self.minutes, self.world.roles[n.role].hours) and n.away_until <= self.minutes
                              and court.visible(self, n) and not routines.away(self.world, seed, n, self.minutes, cast))]   # (f352)
         if self.__dict__.get("_talk_saved") and self.present:
             self.restore_talk()
