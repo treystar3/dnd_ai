@@ -286,7 +286,7 @@ approach:
   topic_ranks_intro: "There are seven ranks, F at the bottom to S at the top. Everyone starts at F. To move up you need a character level and a number of finished contracts at the rank below or higher:"
   topic_ranks_outro: "Each rank pays better, shows you harder work, and brings small perks: cheaper rooms, discounts, more contracts at once."
   lesson_ranks: "The guild ranks go from F at the bottom to S at the top, and everyone starts at F. Each rank pays better, shows you harder work, and brings small perks."   # (f293) the lesson: no thresholds unless asked
-  topic_board: "Every guild hall keeps a board of contracts: hunts, bounties, gathering, deliveries, delves into dungeons. Each one is marked with the letter of the rank it is written for, so you can see at a glance what is beyond you; those are greyed out. You can hold {active} at a time. Take one at the board, do the work, and bring it back to the clerk for coin and experience. Type #board to read it and #quests to see what you are holding."
+  topic_board: "Every guild hall keeps a board of contracts: hunts, bounties, gathering, deliveries, delves into dungeons. Each one is marked with the letter of the rank it is written for, so you can see at a glance what is beyond you; those are greyed out. You can hold {active} at a time. Take one at the board, do the work, and bring it back to the clerk for coin and experience. The Board tab shows it, and Quests what you are holding."
   topic_joining: "The clerk at the guild hall signs you into the register. It costs {fee}. That is all. You start at rank F."
   close:
     - "Here's what I'll do. Go to the guild hall and get the clerk to sign you in. Then come find me, and I'll come along on your first contract."

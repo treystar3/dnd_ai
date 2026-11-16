@@ -32,6 +32,12 @@ class ShopActions:
         return round(base * max(0, 1 - off / 100) * pulse.price_factor(self.store, self.world, self.player.location, self.minutes, good)
                      * self.heat_price() * getattr(self, "haggle_factor", 1.0))                  # (f332) a price a haggle won
 
+    @staticmethod
+    def with_level(item, text: str) -> str:
+        """(f672) A row's words with the item's level written once: the summary's own when it has one, else put first. The page sets the
+        dot after it (app.js tidy): "lv 6 · · lv 6" was the level written by the shop, the summary and the page."""
+        return text if text.startswith("lv ") else f"lv {item.item_level} {text}"
+
     def wares_of(self, npc) -> list:
         """(f545) What this person sells: their trade's list, and what they really hold of a good (a situation's stock, sold until it is
         gone). Every reader of a seller's wares asks here."""
@@ -324,7 +330,7 @@ class ShopActions:
                 note = f"needs you at level {need} to equip" if c.level < need else ""
                 relic = i.uid.startswith("relic_")
                 lines.append({"kind": "stock", "key": i.uid, "name": f"{i.name}, {i.title}" if relic else quality_name(i), "rarity": i.rarity,
-                              "detail": f"lv {i.item_level} · {i.description if relic else items.summary(i)[:90]}",
+                              "detail": self.with_level(i, i.description if relic else items.summary(i)[:90]),
                               "price": price, "price_text": money.fmt(price), "price_short": money.short(price), "afford": c.coins >= price, "note": note})
             sellers.append({"id": n.id, "name": n.label(self.acting), "wares": lines,
                             "buys": [b for b in role.buys if b != "any"] or (["anything"] if "any" in role.buys else [])})

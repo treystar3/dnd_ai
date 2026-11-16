@@ -349,7 +349,8 @@ class GuildActions:
         self.notice(JoinedGuild(minute=self.minutes, place=self.player.location, witnesses=(clerk.id,), npc=clerk.id, name=clerk.label(self.acting)), clerk)
         self.store.save_player(self.player)
         console.note(f"You join the adventurers' guild at rank F. Paid {money.fmt(G['joining_fee'])}. "
-                     "Type #board to see the contracts, #quests for yours.")
+                     + ("The Board tab shows the contracts; Quests, the ones you hold." if console.windowed()       # (f672) the page's own names
+                        else "Type #board to see the contracts, #quests for yours."))
         self.narrate(f"The player pays {clerk.label(self.acting)} the joining fee and signs the guild register. They are given a "
                      "rank-F guild badge.", text)
 

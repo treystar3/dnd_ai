@@ -148,7 +148,8 @@ function tickerDraw() {
   const box = $("ticker"); if (!box) return;
   box.textContent = "";
   for (const t of ticker.lines.slice(-8)) box.appendChild(el("span", "tk" + (/^\+/.test(t) ? " gain" : ""), t));
-  box.hidden = !ticker.lines.length;
+  box.hidden = false;                                         // (f672) the strip keeps its one row's height, filled or not: notices coming
+  box.classList.toggle("empty", !ticker.lines.length);         // or going never move the tabs or a pane's buttons under the pointer
 }
 function addText(text, kind) {
   if (kind === "ledger") { tickerAdd(text); return; }
@@ -923,6 +924,9 @@ function renderButtons() {
   pin.title = state.current && state.prefs.pinned === state.current ? "Pinned: this view refreshes after every turn (click to unpin)" : "Pin this view: it refreshes after every turn";
   pin.disabled = !state.current || !PINNABLE.has(state.current);
 }
+// (f672) a view's command, typed or clicked: the panes' own (COMMANDS) and the ones they name another way
+const isViewCmd = (t) => /^#\S+$/.test((t || "").trim()) && [...COMMANDS.map((c) => c[1]), "#places", "#pulse", "#book", "#map", "#quests", "#inventory", "#i", "#inv", "#j"]
+  .includes((t || "").trim().toLowerCase());
 async function runView(cmd) {
   if (!canRun(cmd)) return;
   if (cmd === "#settings") { showSettings(); return; }           // the window's own view: nothing for the game to do
@@ -1097,6 +1101,7 @@ $("form").onsubmit = async (e) => {
     return;
   }
   if (text) { history.push(text); hpos = history.length; }
+  if (isViewCmd(text)) combat.mode = "view";                    // (f672) a view typed is a view, as one clicked: the pane leaves the fight
   state.prompt = false; updateInput();
   const r = await api("/input", { text });
   if (!r.ok) { state.prompt = true; updateInput(); }

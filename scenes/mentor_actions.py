@@ -323,7 +323,7 @@ class MentorActions:
             return ""
         f = self.combat.fight
         def line(x):
-            states = ", ".join(f"{k} ({v} more rounds)" if v < 99 else k for k, v in x.statuses.items())
+            states = ", ".join(f"{k} ({v} more round{'' if v == 1 else 's'})" if v < 99 else k for k, v in x.statuses.items())   # (f672)
             return f"{x.name} ({combat.condition(x)}{', ' + states if states else ''})"
         foes = "; ".join(line(e) for e in f.fighters if e.side == "enemy" and e.alive) or "none left"
         return f"round {f.round}. You: {line(f.player)}. Enemies: {foes}."
@@ -736,7 +736,7 @@ class MentorActions:
         for f in foes:
             f.yields_at = 0                       # these wolves fight to the end: the hunt is for killing all three
             f.behaviors = {**f.behaviors, "fearless": 1}          # ...and a pack that loses heart is still a wolf the hunt has not killed
-        scene = CombatScene.begin(self, creature, foes, M["arrive"]["fight_how"])
+        scene = CombatScene.begin(self, creature, foes, M["arrive"]["fight_how"], told=M["arrive"]["found_narrate"].strip())   # (f672) told once
         self.combat = scene
         scene.fight.mentor = True
         self.store.save_combat(scene.to_json())

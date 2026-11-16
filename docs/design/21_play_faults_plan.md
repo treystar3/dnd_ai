@@ -557,6 +557,15 @@ a view, a pane's button, the home page's and every creation page's choice show n
 without their prefix; the save's path is the debug view's; the bracketed class card is the terminal's. Held by a test over every
 line app.js can send. tools/sim/page_echo_671_test.py.
 
+**As built (f672): the rest of F that is built.** A view typed leaves the fight's pane as one clicked does (8.4); the notice strip
+keeps one row's height, filled or empty, so notices never move the tabs or a pane's buttons under the pointer (8.5); an item's
+level is written once, the page's dot after it (8.6); the Continue card says when the game was last played (stamped as it is
+left), not when it was opened (8.7); the wolves' arrival is told once (8.8); and the small words (8.9): a check's label
+has no dash, "1 more round", the page's own names on joining (the Board tab; the typed command only in a terminal), a felled tree
+is offered for its wood, not its hide. Left: abilities offered at creation that differ only by name (8.2) and the weapon asked for
+(8.3), both character creation's to design; "raw yew" from a pine and "the captured bandit isn't here" (8.9, causes not found).
+tools/sim/page_small_672_test.py.
+
 Group F in short, each a class: the page echoes no machinery (one list of what is never shown, held by a test over every input
 the page can send: `create:` lines, "Character saved", the bracketed card); a card's parts are written once (the level three
 times, 8.6); a pane's mode follows the view shown, typed or clicked (8.4); notices do not move what is under the pointer (8.5,

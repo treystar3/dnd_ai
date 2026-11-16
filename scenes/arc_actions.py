@@ -106,7 +106,7 @@ class ArcActions:
         self.narrate(f"The player kills {names}, who had yielded and lay beaten. [THE GAME HAS DECIDED: {'it is' if one else 'they are'} "
                      "dead.] Tell it plainly, as it happens.", text)
         if skinnable:
-            console.note(f"The fallen can be skinned or butchered for {'their' if skinnable > 1 else 'its'} hide and meat - say so if you want to.")
+            console.note(f"The fallen can be {loot.remains_words([e for e in foes if loot.has_remains(e)])} - say so if you want to.")   # (f672)
 
     # ---------- the story's state ----------
 

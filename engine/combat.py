@@ -1795,7 +1795,7 @@ def can_use(f: Fighter, move: Move, combat: Combat | None = None) -> str | None:
         return f"{move.name} has given all it has this fight."
     from engine import combat_perks
     if f.cooldowns.get(move.id, 0) > 0 and not combat_perks.may_overcast(combat, f, move):
-        return f"{move.name} isn't ready yet ({f.cooldowns[move.id]} more rounds)."
+        return f"{move.name} isn't ready yet ({f.cooldowns[move.id]} more round{'' if f.cooldowns[move.id] == 1 else 's'})."     # (f672)
     have = f.stamina if move.resource == "stamina" else f.mana
     if move.resource == "mana":
         blood = mechanics(f, combat).get("overchannel", 0)

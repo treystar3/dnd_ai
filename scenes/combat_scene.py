@@ -1140,8 +1140,8 @@ class CombatScene:
             console.note(f"LEVEL UP! You are now level {c.level}. {c.unspent_points} points to spend - #allocate")
             self.ws.ranks_in_reach(c.level - levels)                          # (f397) a new rank of spells, when one comes within reach
         if skinnable:
-            console.note(f"The fallen can be skinned or butchered for {'their' if skinnable > 1 else 'its'} hide and meat - "
-                         "say so if you want to.")
+            from engine import loot
+            console.note(f"The fallen can be {loot.remains_words([e for e in dead if loot.has_remains(e)])} - say so if you want to.")   # (f672)
 
     @staticmethod
     def name_of(i) -> str:

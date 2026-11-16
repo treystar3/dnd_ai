@@ -172,6 +172,7 @@ def play(args):
         finally:
             session.close()                            # the recorder, the background work, the database (written through as it goes;
                                                        # closing folds the write-ahead log in) and every binding this campaign set
+            saves.touch(name)                          # (f672) the Continue card's "played" is when it was last played, not opened
         if getattr(scene, "to_menu", False):
             choice = None                              # the main menu: New game, Load and the rest are there; the server stays loaded
         else:

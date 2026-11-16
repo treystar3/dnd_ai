@@ -108,4 +108,4 @@ def roll(odds: float, rng: random.Random | None = None, c: Character | None = No
 
 
 def label(check: str, degree: str) -> str:
-    return f"{check.capitalize()} — {degree}"
+    return f"{check.capitalize()}: {degree}"                # (f672) no dash in what the player reads
