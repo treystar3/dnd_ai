@@ -55,6 +55,10 @@ effects:
   pose:    {about: "a gesture or a pose that changes nothing: leaning, sitting, standing, watching, waiting, nodding, shrugging, stretching, sighing, wiping one's hands, pulling a cloak tight, tightening a grip, settling in", roll: false}
 
 pose_words: "\\b(lean|leans|leaning|sit|sits|sitting|stand|stands|standing|watch|watching|wait|waiting|nod|nodding|shrug|shrugging|stretch|stretching|sigh|sighing|wipe|wiping|pull my cloak|pulling my cloak|tighten|tightening|grip|settle|settling|cross my arms|crossing my arms|gaze|gazing|stare|staring|smile|smiling|frown|frowning|yawn|yawning|crack my knuckles|spit|spitting|scratch|scratching|rub|rubbing|adjust|adjusting|straighten|straightening|keep (?:my|an) eye|look around|looking around|scan|scanning|ready|readying|brace|bracing)\\b"
+# (f697) A line that opens with one of the character's own abilities is that ability ("Twin Flare at the wisps"), after one of these
+# words or none ("I cast Twin Flare"); a one-word ability counts only when aimed by one of the aiming words ("Guard on Pae").
+ability_opening: [cast, use, unleash, loose, throw, fire, call]
+ability_aiming: ["at", "on", "upon", "against", "toward", "towards", "into"]
 # (f695) A sleep that asks to take a room: where rooms are let and none is held, the room is taken first. A taking word must govern
 # the room or bed ("take a room", "get a bed for the night"); one named and not asked for ("the common room", "a bed of straw", "make
 # room") or said with a no ("I don't want a room") buys none.

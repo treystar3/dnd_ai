@@ -314,13 +314,28 @@ class PlanRepairs:
     # ---------- things and abilities
 
     def use_to_ability(self, text: str, plan: list) -> None:
-        """"I use Mending Light on myself": an ability named as if it were an item in the pack is the ability."""
-        from engine import inventory as inv, loadout
+        """"I use Mending Light on myself": an ability named as if it were an item in the pack is the ability. (f697) "Twin Flare at the
+        wisps", read as words to a companion: a talk whose words are the line's own, unquoted, and open with a prepared ability is it."""
+        from engine import inventory as inv, loadout, world_improv
+        prepared = loadout.prepared(self.player_of(self.acting).character)
+        verbs = "|".join(map(re.escape, world_improv.W["ability_opening"]))
+        aims = "|".join(map(re.escape, world_improv.W["ability_aiming"]))
+
+        def opens_with(words: str, ab) -> bool:                     # the words themselves open with it: no quote, name or colon before
+            name = re.escape(ab.name)
+            aimed = "" if " " in ab.name.strip() else rf"(?=\s+(?:{aims})\b)"
+            return bool(re.match(rf"\s*(?:I\s+(?:{verbs})\s+)?{name}\b{aimed}", words or "", re.I))
+
+        line_hit = next((ab for ab in prepared if opens_with(text, ab)), None)
         for a in plan:
+            if a.kind == "talk":
+                if line_hit is not None and opens_with((a.speech or "").strip(), line_hit):
+                    a.kind, a.ability, a.speech = "ability", line_hit.id, ""
+                continue
             if a.kind != "use" or not a.item.strip():
                 continue
             named = a.item.strip().lower()
-            hit = next((ab for ab in loadout.prepared(self.player.character) if named in (ab.name.lower(), ab.id.lower())), None)
+            hit = next((ab for ab in prepared if named in (ab.name.lower(), ab.id.lower())), None)
             if hit is not None and inv.find(self.pack, a.item) is None:
                 a.kind, a.ability, a.item = "ability", hit.id, ""
 

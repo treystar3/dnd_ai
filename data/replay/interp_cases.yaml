@@ -1321,3 +1321,13 @@
   scene: {place: greywood}
   plan: [{kind: other, summary: "The player plucks the griffon's down carefully."}]
   expect: {handled_by: interpret, kinds: [other], not_by: [carcass_part]}
+- name: an_ability_read_as_words_to_a_companion_is_the_ability
+  text: "Fireball at the will-o'-wisps."
+  scene: {place: greywood, party: [{name: Pae Tamalaga, role: fighter}], abilities: [{id: fireball, name: Fireball, effect: damage}]}
+  plan: [{kind: talk, target: "hire:h0", speech: "Fireball at the will-o'-wisps."}]
+  expect: {handled_by: interpret, kinds: [ability], first: {ability: fireball}, repairs: [use_to_ability]}
+- name: an_ability_named_in_words_said_aloud_stays_words
+  text: '"Fireball is my best spell," I tell Pae.'
+  scene: {place: greywood, party: [{name: Pae Tamalaga, role: fighter}], abilities: [{id: fireball, name: Fireball, effect: damage}]}
+  plan: [{kind: talk, target: "hire:h0", speech: "Fireball is my best spell"}]
+  expect: {handled_by: interpret, kinds: [talk], not_by: [use_to_ability]}
