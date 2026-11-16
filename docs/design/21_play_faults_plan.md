@@ -552,6 +552,11 @@ commit. Recordings: A1, A2 and B change what the three recordings hold only wher
 read line by line under the rebless rules, and none is expected for A3 to A5, C's notes aside (a note is a new line a recording
 may show).
 
+**As built (f671): the page echoes no machinery (8.1).** One rule for what the page shows of a line sent (ui/gui/bridge.py echoed):
+a view, a pane's button, the home page's and every creation page's choice show nothing; a creation box's own words show as said,
+without their prefix; the save's path is the debug view's; the bracketed class card is the terminal's. Held by a test over every
+line app.js can send. tools/sim/page_echo_671_test.py.
+
 Group F in short, each a class: the page echoes no machinery (one list of what is never shown, held by a test over every input
 the page can send: `create:` lines, "Character saved", the bracketed card); a card's parts are written once (the level three
 times, 8.6); a pane's mode follows the view shown, typed or clicked (8.4); notices do not move what is under the pointer (8.5,

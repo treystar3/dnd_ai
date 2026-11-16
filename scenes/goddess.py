@@ -456,7 +456,10 @@ class ThresholdScene:
             self.tell(failures.creation_line("concept") or "The model couldn't read that concept this time. Nothing is lost - describe it again.")
             self.step = Step.CONCEPT
             return
-        console.show_class(self.interp)
+        if console.windowed():                              # (f671) the page's own card shows it; the bracketed card is the terminal's
+            console.debug(f"class: {self.interp.custom_class} | {self.interp.archetype.value} | focus: {self.interp.focus}")
+        else:
+            console.show_class(self.interp)
         self.step = Step.CONFIRM_CLASS
         self.speak(
             f"You perceive the player's nature as: {self.interp.custom_class}. {self.interp.summary} "
@@ -581,5 +584,5 @@ class ThresholdScene:
         path = creation.save_character(self.character)
         self.step = Step.DONE
         console.creation_done()                             # (f388) the pages close; the send-off is told in the story
-        console.note(f"Character saved to {path}")
+        console.debug(f"Character saved to {path}")         # (f671) machinery: the debug view's, never the story's
         self.play(SEND_OFF_PATH, name=self.name)
