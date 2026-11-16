@@ -510,10 +510,25 @@ class PartyActions:
         m = self.hire_named(text)
         if not m:
             return self.hire_followup(text)
+        from engine import addressing
         first = m["name"].split()[0].lower()
         low = text.strip().lower()
-        direct = "?" in text or low.startswith((first, f"ask {first}", f"tell {first}", f"say to {first}"))
-        return m if direct or not self.action_line(text) else None
+        found = [a for a in addressing.addressed(text, {m["id"]: [m["name"].lower(), first]}) if m["id"] in a.who]
+        if not found and not re.fullmatch(rf"\W*{re.escape(first)}\W*", low):
+            return None                                  # (f654) named, not spoken to: "Raerei is still white as a sheet. We sit..."
+        if any(self.pack_thing_in(a.said or a.clause) for a in found) or any(a.mine for a in found):
+            return None                                  # (f654) something handed over, or the player's own deed: the interpreter reads it
+        return m
+
+    HANDING = re.compile(r"\b(give|hand|take|here|toss|throw|pass|offer|feed|share|lend|drink|use|pour|apply|tip|eat|wear)\b")
+
+    def pack_thing_in(self, words: str) -> bool:
+        """(f654) Is a thing from the pack handed over or used ("take this healing draught", "I make Odly drink it")? Then it is a deed. The thing is
+        named as a given thing is named everywhere (listening.said)."""
+        from engine import inventory as inv
+        from scenes.listening import said
+        low = (words or "").lower()
+        return bool(self.HANDING.search(low)) and any(said(inv.label(i), low) for i in self.player_of(self.acting).character.inventory)
 
     @staticmethod
     def hurt_words(h: float) -> str:

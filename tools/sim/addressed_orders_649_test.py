@@ -229,6 +229,9 @@ for line, want in (("I have Kennard guard me.", (["Kennard"], "guard", "")), ("I
     check(f"read as said: {line!r}", order(line) == want, order(line))
 check("...and the player's own act after the quote is theirs", sc.own_part('"Hold back," I tell Kennard, and I charge wolf 1.', [kennard]) == "I charge wolf 1",
       sc.own_part('"Hold back," I tell Kennard, and I charge wolf 1.', [kennard]))
+for line, mine in (("I charge and tell Kennard to hold back", "I charge"), ("I strike wolf 1 and order Kennard to guard me", "I strike wolf 1")):
+    check(f"(f654) the player's deed before a telling is kept, and the order given: {line!r}",
+          order(line) is not None and sc.own_part(line, [kennard]) == mine, (order(line), sc.own_part(line, [kennard])))
 check("a name said alone, then the player's own deed, tells the companion nothing", order('"Kennard!" I yell, and charge wolf 1.') is None,
       order('"Kennard!" I yell, and charge wolf 1.'))
 check("a him with no one named, before or after, is no order at all: never the player", order("Raerei, heal him!") is None, order("Raerei, heal him!"))

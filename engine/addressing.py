@@ -19,7 +19,7 @@ PARTY = "*"                                          # who a line speaks to when
 APOS, DASH, QUOTES = chr(0x2019), chr(0x2014), '"' + chr(0x201C) + chr(0x201D)
 GROUP = r"everyone|everybody|all of you|you all|y'all|party|team|you two|you both|you three|both of you|the both of you"
 LEAD = r"(?:and\s+|now\s+|then\s+|so\s+|quick,?\s+)?"
-TELLING = (r"(?:i\s+)?(?:tell|order|ask|have|get|command|urge|beg|shout|yell|call|cry|whisper|hiss|bark)(?:s|ed)?(?:\s+out)?\s+"
+TELLING = (r"(?:i\s+)?(?:tell|order|ask|command|urge|beg|shout|yell|call|cry|whisper|hiss|bark|say)(?:s|ed)?(?:\s+out)?\s+"
            r"(?:(?:for|to|at|over to|towards?)\s+)?")
 SIGNING = r"(?:i\s+)?(?:signal|nod|gesture|motion|wave|beckon|point|turn|look|glance)(?:s|ed)?\s+(?:(?:for|to|at|over to|towards?)\s+)?"
 CAUSING = r"(?:i\s+)?(?:have|has|get|gets|let|lets|make|makes)\s+"     # "I have Kennard guard me", "I let Kennard take wolf 1"
@@ -132,14 +132,18 @@ def addressed(text: str, people: dict, others=(), asks=None) -> list[Address]:
             if m:
                 found = (who_in(m.group(1)), m.group(2))
         if found is None:
-            m = (re.match(rf"^{TELLING}({told})(?![\w'])\s*(?:(?:to\b|:|,)\s*(.*?)|{ASKED_OF}\b(.*?))?[\s.!;?]*$", low)
+            telling = rf"^{TELLING}({told})(?![\w'])\s*(?:(?:to\b|:|,)\s*(.*?)|({ASKED_OF}\b.*?|(?!to\b)\w.*?))?[\s.!;?]*$"
+            lead = next((x for x in re.finditer(r"\s*,?\s+and\s+", low) if re.match(r"^i\s", low) and re.match(telling, low[x.end():])), None)
+            m = lead and re.match(telling, low[lead.end():])  # (f654) "I charge wolf 1 and tell Kennard to hold back": the charge is the player's
+            before = low[:lead.start()] if m else ""
+            m = (m or re.match(telling, low)
                  or re.match(rf"^{CAUSING}({told})(?![\w'])\s+(.*?)[\s.!;]*$", low)
                  or re.match(rf"^{SIGNING}({told})(?![\w'])\s*(?::|to\b|,(?!\s*(?:and|then|so|before)\b)(?!\s*{FIRST}))\s*(.*?)[\s.!;]*$", low))
             if m:                                         # told "to" do it; a sign needs its words ("I look at Kennard, then take" is the player's)
                 said = m.group(2) or ""
                 quote = last_quote                        # '"Cover Raerei," I tell Kennard.'
                 asked = m.group(3) if m.re.groups >= 3 else None
-                found = (who_in(m.group(1)), said, asked)     # asked of ("if she is hurt"): nothing to do, the player's part kept
+                found = (who_in(m.group(1)), said, asked, before)     # asked of ("if she is hurt"): nothing to do, the player's part kept
         if found is None:
             m = re.match(rf"^(.*?\S)\s*,\s*({many})\s*,\s*(.*)$", low)
             if m and not STATE.match(m.group(3)):
@@ -171,7 +175,11 @@ def addressed(text: str, people: dict, others=(), asks=None) -> list[Address]:
             mine = mine.strip(" .,;:!")
             typed = " ".join(clause.split())
             at = typed.lower().rfind(mine) if mine else -1
-            out.append(Address(found[0], said, clause, typed[at:at + len(mine)] if at >= 0 else mine))
+            mine = typed[at:at + len(mine)] if at >= 0 else mine
+            before = found[3] if len(found) > 3 else ""
+            if before:                                    # (f654) the deed before the telling, as typed
+                mine = typed[:len(before)] + (" . " + mine if mine else "")
+            out.append(Address(found[0], said, clause, mine))
     return out
 
 

@@ -953,7 +953,6 @@
   scene: {place: trading_square, pack: [bandage, healing_draught], party: [{name: Bram Voss}]}
   plan: [{kind: give, target: 'hire:h0', item: healing draught}]
   expect: {handled_by: interpret, kinds: [give], not_by: [hire]}
-  owed: {fix: "B2: talking to a hire is decided by who the line speaks to and what it does", now: {handled_by: hire}}
 - name: a_nod_read_as_words_is_a_gesture
   text: "I nod to the guard"
   scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}]}
@@ -974,7 +973,6 @@
   scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}]}
   plan: [{kind: talk, target: g1, speech: "The road north is clear"}]
   expect: {handled_by: interpret, kinds: [talk], not_by: [exit]}
-  owed: {fix: "B2: a way out by road is decided by a deed that goes, not by a road named in what is said", now: {handled_by: exit}}
 - name: words_for_the_guard_go_to_the_guard
   text: "I ask the guard who he serves"
   scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}], party: [{name: Bram Voss}], last_spoken: 'hire:h0'}
@@ -1030,7 +1028,6 @@
   scene: {place: greywood, party: [{name: Raerei Wynn, role: priest}]}
   plan: [{kind: wait, wait_minutes: 120, summary: resting under the pines}]
   expect: {handled_by: interpret, kinds: [wait], not_by: [hire]}
-  owed: {fix: "B2 4.7: talking to a hire is decided by who the line speaks to", now: {handled_by: hire}}
 - name: asking_who_was_hired_is_talk
   text: "Who did you hire to mend the roof, Hollis?"
   scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}], party: [{name: Bram Voss}]}
@@ -1243,3 +1240,40 @@
   scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
   plan: [{kind: talk, target: i1, speech: "Deal me in again", summary: "he won the last hand from me"}]
   expect: {handled_by: interpret, kinds: [gamble]}
+- name: goodbye_said_then_a_gate_taken_is_the_way_out
+  text: "I tell the innkeeper goodbye and head out the north gate"
+  scene: {place: trading_square, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: talk, target: i1, speech: "Goodbye."}]
+  expect: {handled_by: exit}
+- name: a_road_asked_of_is_not_taken
+  text: "I ask the guard whether the King's Road south is safe"
+  scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}]}
+  plan: [{kind: talk, target: g1, speech: "Is the King's Road south safe?"}]
+  expect: {handled_by: interpret, kinds: [talk], not_by: [exit]}
+- name: a_companion_spoken_of_beside_a_meal_bought_is_not_their_talk
+  text: "Bram looks dead on his feet. I buy him a hot meal."
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}], party: [{name: Bram Voss}]}
+  plan: [{kind: buy, target: i1, ware: meal}]
+  expect: {handled_by: interpret, kinds: [buy], not_by: [hire]}
+- name: a_companion_asked_how_they_are_is_theirs
+  text: "How are you holding up, Bram?"
+  scene: {place: trading_square, party: [{name: Bram Voss}]}
+  expect: {handled_by: hire}
+- name: a_companion_called_with_the_players_own_deed_is_the_deed
+  text: "Bram, I'll take the first watch."
+  scene: {place: greywood, party: [{name: Bram Voss}]}
+  plan: [{kind: other, summary: taking the first watch}]
+  expect: {handled_by: interpret, kinds: [other], not_by: [hire]}
+- name: a_companion_called_alone_is_theirs
+  text: "Bram!"
+  scene: {place: trading_square, party: [{name: Bram Voss}]}
+  expect: {handled_by: hire}
+- name: a_bandage_handed_to_a_companion_spoken_to_is_given
+  text: "Bram, here is a bandage for that arm."
+  scene: {place: trading_square, pack: [bandage, healing_draught], party: [{name: Bram Voss}]}
+  plan: [{kind: give, target: 'hire:h0', item: bandage}]
+  expect: {handled_by: interpret, kinds: [give], not_by: [hire]}
+- name: a_companion_asked_of_their_healing_is_theirs
+  text: "Bram, are you healing up?"
+  scene: {place: trading_square, pack: [bandage, healing_draught], party: [{name: Bram Voss}]}
+  expect: {handled_by: hire}

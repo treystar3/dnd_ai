@@ -351,6 +351,17 @@ repair, so a repair that catches too much passes. These are the tests of the eng
   a choice; its table is re-based on the code before f653 (291 places in 51 files), and the repair file falls 25 to 21.
   tools/sim/talk_deed_653_test.py. Left (wrong before and still): a deed told of in the present ("my brother likes to play dice"),
   "never teach me again" (no negation for a lesson), and acts against a holy thing read as prayer ("I smash the altar").
+- **As built (f654): the hire and exit intercepts.** The hire intercept takes a line spoken to a companion (engine/addressing.py,
+  as the fight's orders are read) or their name called alone ("Bram!"); a line that only names them ("Bram looks dead on his
+  feet. I buy him a hot meal"), hands them a thing from the pack (a verb of handing and a pack thing named as a given thing is
+  named everywhere: "Bram, are you healing up?" is still theirs), or carries the player's own deed beside their name ("Bram,
+  I'll take the first watch") goes to the reading. The exit intercept reads only the player's own deeds: the clauses said to no one,
+  and the player's own part of those said to someone. "I nod and tell the guard the road north is clear" and "I ask the guard
+  whether the King's Road south is safe" stay; "I tell the innkeeper goodbye and head out the north gate" leaves. Telling is
+  no longer "have" or "get" (those are causing), and a deed before it ("I nod and tell", "I charge wolf 1 and tell Kennard to
+  hold back") no longer hides it and stays the player's own (in a fight, the charge and the order are both done). A telling
+  with no "to" ("I tell Kennard cover me") is read as telling of, not an order: left as it was before, untested in play. The last three
+  cases B0 owed are right and their marks are off: none is owed now. tools/sim/intercept_words_654_test.py.
 - A foe who has yielded and is then attacked, in any words or by any ability, is attacked. He is not let go (2.7).
 - An answer to the game's own question is read against that question (4.10: "Both at once").
 - Test first: B0's corpus, both halves, for each repair.
