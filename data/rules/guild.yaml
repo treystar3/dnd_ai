@@ -106,3 +106,7 @@ recipient_words:
 # finding the one name a delivery's words give.
 recipient_titles: [captain, lady, lord, mother, father, old, young, sister, brother, master, mistress, sir, dame, goodwife, goodman,
                    aunt, uncle, elder, granny, gran]
+# (f682) Words a line uses to take a posting that name none: what is left names the posting asked for, and a number is read as a place
+# on the board only when nothing is left.
+taking_words: [take, takes, taking, accept, accepts, contract, contracts, posting, postings, board, want, would, like, please, sign,
+               that, this, them, those, with, from, have, will, also, just, then, number, there, here, clerk, notice, paper, slip, sheet]

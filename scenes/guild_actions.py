@@ -373,16 +373,23 @@ class GuildActions:
         """The posting the words mean: by its title's words first ("the ogres one", "hunt 4 ogres in the badlands"), and by a bare number
         only when the words name nothing: "Hunt 4 ogres" is the ogres, not the fourth posting (f368)."""
         best, score = None, 0
+        named = {inv._stem(w) for w in re.findall(r"[a-z]+", words.lower()) if len(w) > 3 and w not in G.get("taking_words", ())}
+
+        def hits(q) -> int:                          # (f682) by the word as one of its kind: "wolf" names "Hunt 3 wolves"
+            title = {inv._stem(t) for t in re.findall(r"[a-z]+", q["title"].lower())}
+            return sum(1 for w in named if any(t[:5] == w[:5] for t in title))
         for q in board:
-            hit = sum(1 for w in re.findall(r"[a-z]+", words.lower()) if len(w) > 3 and w[:5] in q["title"].lower())
+            hit = hits(q)
             if hit > score:
                 best, score = q, hit
-        if score >= 2:
+        if score >= 2 or (best is not None and len(named) - score <= 1):
             return best
+        if named:                                    # (f682) words that name a posting not on the board: none, never a number in its title
+            return None
         m = re.search(r"\b(\d+)\b", words)
         if m and 1 <= int(m.group(1)) <= len(board):
             return board[int(m.group(1)) - 1]
-        return best
+        return None
 
     def on_accept_quest(self, intent, text: str) -> None:
         npc = next((n for n in self.present if n.id == intent.target and self.request_of(n)), None) or \
