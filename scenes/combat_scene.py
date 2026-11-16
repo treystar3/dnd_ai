@@ -575,6 +575,7 @@ class CombatScene:
         if self.ally_for_item(text):
             from llm.contracts import CombatIntent
             self.free_item(CombatIntent(kind="item", item=text), text)
+            self.after_free(text)
             return
         orders = self.orders_in(text)
         if orders:
@@ -658,7 +659,9 @@ class CombatScene:
             return
         if intent.kind == "item":
             self.free_item(intent, text)
+            self.after_free(text)
             return
+        intent = self.aim(intent, text)
         effect = ""
         if intent.kind == "other":                             # (f503) an improvisation's effect: read by the helper model's embeddings when
             words = intent.summary or text                     # it is there (the scene's read, a proposal), kept across a restart (f500),
@@ -832,6 +835,65 @@ class CombatScene:
             console.combat_numbers(f.log)
 
     ITEM_VERBS = r"\b(give|hand|toss|throw|pass|use|drink|feed|pour|apply|administer|let)\b"
+
+    def foe_named(self, text: str):
+        """(f659) The one foe the player's words name ("wolf 2", "the troll"), standing or not; None when none or several."""
+        import re
+        low = " ".join((text or "").lower().split())
+        hits = [e for e in self.fight.fighters if e.side == "enemy" and e.name
+                and re.search(rf"(?<![\w']){re.escape(e.name.lower())}(?![\w'])", low)]
+        return hits[0] if len(hits) == 1 else None
+
+    def aim(self, intent, text: str):
+        """(f659) The foe the player names is the target, whatever the reading said ("Guard Breaker on wolf 2" struck wolf 3); one already
+        down or gone is said to be, with the foe turned on instead. A step aimed at a companion or the player is left alone."""
+        f = self.fight
+        aimed = f.get(intent.target) if intent.target else None
+        named = self.foe_named(text)
+        move = next((m for m in f.player.moves if m.id == (intent.ability or intent.move)), None)
+        if named is None or (aimed is not None and aimed.side != "enemy") or intent.kind not in ("attack", "ability", "move", "other") \
+                or (move is not None and str(getattr(move.effect, "value", move.effect)) in ("healing", "buff", "defense", "mobility", "summon")):
+            return intent                                   # a ward, a heal or a step is the player's own, whoever is near
+        if named.alive and not named.fled:
+            return intent if intent.target == named.id else intent.model_copy(update={"target": named.id})
+        from engine import battlefield
+        other = battlefield.closest(f, f.player, f.enemies())
+        if other is None:
+            return intent
+        console.note(f"{named.name[:1].upper() + named.name[1:]} is already {'gone' if named.fled else 'down'}: you turn on {other.name} instead.")
+        return intent.model_copy(update={"target": other.id})
+
+    def past_item(self, text: str) -> str:
+        """(f659) The player's own acts in a line beyond the part that uses a draught or other consumable ("I drink the draught, then
+        strike wolf 1": the strike)."""
+        import re
+        from engine import addressing
+        moves = [m.name.lower() for m in self.fight.player.moves if m.name]
+        out = []
+        for clause in addressing.clauses(text):
+            for c in re.split(r",?\s+(?:and then|then|while|and)\s+", clause, flags=re.I):
+                c = (c or "").strip(" .,;:!")
+                low = c.lower()
+                if not low or (re.search(self.ITEM_VERBS, low) and self.names_consumable(low)):
+                    continue
+                if re.match(r"(i|i'll|i'm|i will|let me|now i|use|attack|strike)\b", low) or any(m in low for m in moves):
+                    out.append(c)
+        return ". ".join(out)
+
+    def names_consumable(self, low: str) -> bool:
+        """(f659) Do these words name a consumable used in a fight (by its name, or a draught's)? Read from the goods, not the pack: the
+        last draught drunk is still the draught the line names."""
+        import re
+        return bool(re.search(r"\b(draught|draft|potion|elixir|tonic|salve|philtre)\b", low)) or \
+            any(g.combat and g.name.lower() in low for g in inventory.GOODS.values())
+
+    def after_free(self, text: str) -> None:
+        """(f659) A draught does not use the action: the rest of the line is the player's act this turn, read and done."""
+        rest = self.past_item(text)
+        if rest and self.ws.combat is self and not self.fight.over:
+            nxt = self.interpret(rest)
+            if nxt.kind != "item":
+                self.act(nxt, rest)
 
     def ally_for_item(self, text: str):
         """The party member a consumable is meant for, when the line names one ('give Maren a healing draught'), else None."""

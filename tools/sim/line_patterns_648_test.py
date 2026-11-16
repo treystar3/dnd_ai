@@ -138,6 +138,8 @@ RAISED = {                 # {file: (how many more, "fNNN: the guard it adds ove
                                  "choice holding the line); f654: four more, the player's own deed before a telling ('I charge and tell')"),
     "scenes/world.py": (1, "f656: the time of day a rest is asked until ('till dawn'), read once for the rest a line or a room asks for"),
     "scenes/arc_actions.py": (1, "f657: a blow at a foe who yielded, by the action table's verbs and the acting character's own abilities"),
+    "scenes/combat_scene.py": (6, "f659: the player's acts in a fight line beyond a draught (its parts, the consumable named) and the one foe "
+                                  "the player's words name, kept as the target"),
 }
 now = line_census.by_file(found)
 allowed = {f: CENSUS.get(f, 0) + RAISED.get(f, (0, ""))[0] for f in set(CENSUS) | set(RAISED)}

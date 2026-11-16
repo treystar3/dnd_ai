@@ -390,6 +390,13 @@ repair, so a repair that catches too much passes. These are the tests of the eng
 - This is the fight's side of pillar 2: "a line the game fails to act on is a bug. It is logged, counted and fixed."
 - Phase 4 moves the fight's improvised acts onto the one ruling (doc 02 step 5). B3 changes the reading of ordinary fight
   lines, which step 5 keeps, and is written so that an improvised part of a line is handed on as its own part.
+- **As built (f659).** A draught does not use the action, so the rest of the line is the player's act this turn: the parts of
+  the line beyond the one that uses the consumable are read and done, in either order of words ("I use Brutal Strike on wolf 1
+  and drink a healing draught"); a line of only the draught is only the draught. The one foe the player's own words name is the
+  target, whatever the reading said; a ward, a heal or a step is left alone, and a line naming two foes keeps the reading's. A
+  named foe already down or gone is said to be, with the foe turned on instead: one new line for the owner to read, "Wolf 2 is
+  already down: you turn on wolf 1 instead." tools/sim/fight_line_parts_659_test.py. Left: two acts that each use the action
+  ("I strike wolf 1, then wolf 2") are still one act; the second is not said to be lost.
 
 **B4. Coin and goods change hands only when the line asked for it (6.2, 6.3).**
 - A question about what is sold is not a haggle that ends in a purchase.
