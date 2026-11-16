@@ -49,6 +49,18 @@ voices:
   never_thanks:    {prompt: "never says thank you; shows it with a nod or by doing something useful instead", check: no_thanks, kind: persistent, weight: 1}
   one_sentence:    {prompt: "", check: "", kind: persistent, weight: 0}          # (f375) a length, not a voice: kept so an old hire's record still reads
 
+# (f670) why a hire calls the player by their nickname: given to the speaker with the name, so asked why, they have the answer
+nick_reasons:
+  Boots: "for the mud on the player's boots the day they met"
+  Captain: "half in jest, for the way the player gives orders"
+  Pup: "because the player seemed young and green to them when they met"
+  Greenhorn: "because the player was new to the work when they met"
+  Chief: "because the player is the one who hired them and pays them"
+  Sparrow: "for how quick and slight the player seemed the day they met"
+  Long-legs: "for the player's long stride on the road"
+  Trouble: "because trouble seems to follow the player wherever they go"
+  Badge: "for the guild badge the player wears"
+  the Hero: "dryly, for the player's habit of rushing in first"
 # ---- cursing. In-world curses always; real ones by config.PROFANITY: off | mild | strong.
 curses:
   world: ["ashes and rot", "Harl take it", "gutless tick", "salt in it", "black water", "rot and ruin", "by the bones"]

@@ -154,8 +154,9 @@ class DungeonActions:
                 self.to_pack(item)
                 found.append(item.name)
             console.ledger(f"Found: {', '.join(found)}.")
-            self.narrate(f"The player finds a cache in a chamber of {d['name']}: {', '.join(found)}. Describe where it was "
-                         f"hidden, fitting a {d['theme']}.", text)
+            self.narrate(f"The player finds a cache in a chamber of {d['name']} and takes it: {', '.join(found)}, now in their purse and "
+                         f"pack, nothing of it left lying there. Describe where it was hidden, fitting a {d['theme']}, and the player "
+                         "taking it.", text)                                # (f670) told as taken: a later 'take the pouch' found it empty
         elif kind == "rest":
             self.player.delve["rest"] = True
             self.narrate(f"The player reaches a quiet chamber in {d['name']} - nothing lives here, and it would be a "

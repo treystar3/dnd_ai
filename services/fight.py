@@ -571,6 +571,8 @@ class FightService:
         if not intent.step or intent.kind in ("move", "flee", "talk"):
             return False
         if intent.step == "advance":
+            if target is not None and bf.attack_access(f, p, target).ok:
+                return False                              # (f670) already in reach: no step to take, and the round is the blow's
             if p.pace == "slow":
                 story = (bf.approach(f, p, target) if target else "") or "moves up"
                 f.log.append(f"{p.name} {story}")

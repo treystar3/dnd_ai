@@ -123,7 +123,8 @@ def material(member: dict, rng: random.Random, recent: list[str] | None = None, 
     fresh = lambda w: w.lower()[:24] not in lately
     out = []
     if v == "nickname" and q.get("nick"):
-        out.append(f"what they call the player, always: '{q['nick']}'")
+        why = (Q.get("nick_reasons") or {}).get(q["nick"], "")
+        out.append(f"what they call the player, always: '{q['nick']}'" + (f", {why}; asked why, that is the reason" if why else ""))   # (f670)
     if v == "curses":
         mine = [c for c in my_curses(member) if fresh(c)]
         if mine and rng.random() < M.get("curse", 0.35):

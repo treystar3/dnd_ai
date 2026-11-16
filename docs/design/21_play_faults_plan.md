@@ -487,6 +487,11 @@ Each is tested on its own class: D2 on every writer of a leaving, D4 on every pa
   the place, the land it is part of, or the land above the dungeon the player is in. For gathering (goods and materials), a contract
   taken earlier has what it needs first; the next counts what is left, on the board, the window and at the hand-in.
   tools/sim/tally_669_test.py.
+- **As built (f670): D8, the smaller ones.** A nickname comes with its reason, given to the speaker with the name (ten reasons in
+  data/rules/quirks.yaml nick_reasons, for the owner to read); a cache is told as taken, nothing of it left lying there; the walk
+  back to Parth names no hour (data/world/mentor.yaml, one line reworded); a slow fighter already within reach does not spend the
+  round advancing. Left for the balance pass, by the owner's word: a hire's health falling at a level (5.8). And the road event at
+  "pre-dawn" at 1 PM is the model's, given the right period (group E). tools/sim/small_ones_670_test.py.
 
 ## 7. Group E: a passage is checked against what the turn did
 
