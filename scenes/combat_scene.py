@@ -662,6 +662,7 @@ class CombatScene:
             self.after_free(text)
             return
         intent = self.aim(intent, text)
+        standing = {e.id for e in f.fighters if e.side == "enemy" and e.alive}
         effect = ""
         if intent.kind == "other":                             # (f503) an improvisation's effect: read by the helper model's embeddings when
             words = intent.summary or text                     # it is there (the scene's read, a proposal), kept across a restart (f500),
@@ -678,6 +679,8 @@ class CombatScene:
             self.show()
             self.ws.store.save_combat(self.to_json())
             return
+        if f.over == "victory":
+            self.settle_yield(standing)                    # (f663) before the round is told: the one who yields is told alive
         self.narrate_round(text)
         self.sync_player()
         for m, _by in outcome.killed:                          # those who saw it react now, in the fight, not after it
@@ -1054,13 +1057,30 @@ class CombatScene:
                    "enemies recoiling or gone.")                                                   # (f415) no length (f375)
         return True
 
+    def yield_allowed(self) -> bool:
+        ws = self.ws
+        return not getattr(ws, "camp_fight", None) and ws.place.type not in ("dungeon", "road")
+
+    def settle_yield(self, standing: set) -> None:
+        """(f663) Who yields at a won fight's end, settled before the round's passage is written and only among those standing when
+        the round began: the passage tells them beaten and alive. It was rolled after it, among the dead, and a fanatic told felled
+        like a log then yielded and was both bound and dead."""
+        f = self.fight
+        self.yield_settled = True
+        before = {e.id for e in f.fighters if e.side == "enemy" and e.alive and e.surrendered}
+        self.service.yields(f, allowed=self.yield_allowed(), among=standing)
+        for e in f.fighters:
+            if e.side == "enemy" and e.alive and e.surrendered and e.id not in before:
+                combat.tell(f, f"{combat.who(e)} goes down beaten but alive, throws down {combat.whose(e)} weapon and yields")
+
     def victory(self) -> None:
         if self.fight.no_rewards:
             self.sync_player()
             return
         ws, f, svc = self.ws, self.fight, self.service
         c = ws.player.character
-        svc.yields(f, allowed=not getattr(ws, "camp_fight", None) and ws.place.type not in ("dungeon", "road"))
+        if not self.__dict__.get("yield_settled"):        # (f663) settled already when the round that won was told
+            svc.yields(f, allowed=self.yield_allowed())
         dead = [e for e in f.fighters if e.side == "enemy" and not e.alive]
         yielded = [e for e in f.fighters if e.side == "enemy" and e.alive and e.surrendered]
         if not dead and not yielded and self.tamed:

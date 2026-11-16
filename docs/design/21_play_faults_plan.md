@@ -464,6 +464,12 @@ Engine faults where two parts of the engine tell one event two ways. No model is
 
 Each is tested on its own class: D2 on every writer of a leaving, D4 on every party act, D7 on every kind of contract.
 
+- **As built (f663): D1.** In the round that wins, the one who yields is chosen before the round is told, only from those standing
+  when it began (never one told dead before), and the round's telling is handed their yielding; the win does not choose again. A
+  foe who yields or runs mid-fight is a line the player reads (six new lines for the owner, data/rules/told.yaml foe_yields,
+  foe_flees). stub_fight re-blessed: inputs 14 and 15 show a guard's yielding, and the saved fight row at 14 holds the line.
+  tools/sim/yield_settled_663_test.py.
+
 ## 7. Group E: a passage is checked against what the turn did
 
 The findings' mechanism 1, and the largest piece. A passage is bare text. Nothing compares it with who is present, who is alive,

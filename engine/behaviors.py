@@ -72,6 +72,9 @@ def _break(combat, f, surrender: bool) -> None:
     else:
         combat.log.append(f"{f.name} flees")
         C.tell(combat, f"{C.who(f)} breaks and runs")
+    if f.side == "enemy":                               # (f663) the player is told, not only the narrator: it leaves the foes' list
+        from engine import told
+        combat.told.append(told.say("foe_yields" if surrender else "foe_flees", combat.round, foe=f.name))
 
 
 def morale(combat, source, rng: random.Random) -> None:

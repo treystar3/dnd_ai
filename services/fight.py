@@ -404,11 +404,11 @@ class FightService:
         if not f.over and not f.enemies() and not combat.muster(f):
             f.over = "victory"
         p.counters.pop("moved_now", None)
-        notes += f.told                                   # (f661) what the engine did beside what was asked, said to the player
         if p.counters.pop("free_action", None) and not f.over:   # a movement on its own did not use the action - the player acts again
-            return RoundOutcome("free", notes, [])
+            return RoundOutcome("free", notes + f.told, [])     # (f661) what the engine did beside what was asked, said to the player
         if not f.over:
             combat.finish_round(f, self.dice)
+        notes += f.told                                   # (f661, f663) the round's lines for the player, the foes' turns among them
         killed = self.hires_down(f)
         self._publish(RoundFought(minute=self.now(), serial=f.serial, round=f.round, over=f.over))
         return RoundOutcome("round", notes, killed, over=f.over)
@@ -788,7 +788,7 @@ class FightService:
             self.store.save_player(self.player)
         return notes
 
-    def yields(self, fight: combat.Combat, allowed: bool = True) -> None:
+    def yields(self, fight: combat.Combat, allowed: bool = True, among: set | None = None) -> None:
         """(f392) A won fight against outlaws can leave one who lives and yields (arcs.yaml prisoner.chance): chosen here among the fallen,
         before the after-fight passage is written, so the story and the captive agree. It used to be rolled afterwards, among the dead:
         a night's run had an outlaw narrated dead and then throwing down his weapon. An arc's camp has its leader's own way, and a dungeon
@@ -797,7 +797,8 @@ class FightService:
         f = fight
         if not allowed:
             return
-        fallen = [e for e in f.fighters if e.side == "enemy" and not e.alive and e.category in R["people_categories"]]
+        fallen = [e for e in f.fighters if e.side == "enemy" and not e.alive and e.category in R["people_categories"]
+                  and (among is None or e.id in among)]           # (f663) among: those standing when the winning round began
         if not fallen or any(e.alive and e.surrendered for e in f.fighters if e.side == "enemy"):
             return
         PR = R["prisoner"]

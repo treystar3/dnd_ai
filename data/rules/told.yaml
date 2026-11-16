@@ -23,3 +23,11 @@ rest_no_bed:         # a sleep with no room, camp or temple: a rest, not a full 
   - "With no bed of your own here, that was a rest, not a full night's sleep. A room at an inn, a camp or a temple would restore you fully."
   - "A night without a room is only a rest. Take a room, make camp or sleep at a temple to wake fully restored."
   - "You rested, but not as you would in a bed: a room, a camp or a temple gives the full night's recovery."
+foe_yields:          # (f663) a foe gives up mid-fight: out of the fight, waiting on the player once it ends
+  - "{foe} throws down their weapon and yields. They wait on you once the fight is over."
+  - "{foe} gives up the fight and yields; what becomes of them is yours to say when it ends."
+  - "{foe} yields, out of the fight now, and waits to learn what you will do with them."
+foe_flees:           # (f663) a foe breaks and runs: gone from the fight
+  - "{foe} breaks and runs, out of the fight."
+  - "{foe} turns and flees the fight."
+  - "{foe} has had enough and runs."
