@@ -554,6 +554,8 @@ def check() -> list[str]:
     need(isinstance(RD_.get("landmarks_kept"), int) and RD_["landmarks_kept"] > 0
          and isinstance(RD_.get("landmark_margin"), (int, float)) and 0 <= RD_["landmark_margin"] < 0.5,
          "road.yaml: landmarks_kept, a count above 0, and landmark_margin, a share under a half (f702)")
+    need(isinstance(RD_.get("ambush_above"), int) and not isinstance(RD_.get("ambush_above"), bool) and RD_["ambush_above"] >= 0,
+         "road.yaml ambush_above: a whole number of levels, 0 or more (f705)")
     for k_, r_ in (RD_.get("stop_roles") or {}).items():
         need(r_ in _roles, f"road.yaml stop_roles.{k_}: '{r_}' is not a role")
     import string as _string                                                                  # (f541) the barrier's lines and where it lies

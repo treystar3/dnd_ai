@@ -30,6 +30,9 @@ stops: [find, meeting, hazard, aid]
 # (f702) A sight does not stop the walk, but it stays where it was seen: a landmark of that road the player can go back to, the most
 # recent this many kept.
 landmarks_kept: 12
+# (f705) A road is a way through, not a place sought out for its danger: an ambush's foes are at most this many levels above the party's
+# leader (a level 32 pudding on an ordinary road met a level 17 mage).
+ambush_above: 3
 landmark_margin: 0.05      # never kept nearer either end of its road than this part of it
 # Who is there when the writer names nobody: someone in need, someone met on the way.
 stop_roles: {aid: wanderer, meeting: wanderer}

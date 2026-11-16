@@ -311,10 +311,17 @@ class RoadActions:
                 deterred, hostile, hit = True, False, None
             elif not hit or self.temperament(hit[0], high) == "passive":
                 hostile, hit = False, None
-            elif hit[0].id == "bandit" and tier == "rare" and self.rng.random() < BR["camp_chance"]:
+            if hit and hit[0].id == "bandit" and tier == "rare" and self.rng.random() < BR["camp_chance"]:
                 camp = True
                 hit[1].append(encounters.add_member(self.world, wild, "bandit_captain", self.rng, "elite",
                                                     f"e{len(hit[1]) + 1}", "bandit captain"))
+            if hit and hostile:                                            # (f705) a road ambush is never far above the party
+                top = self.player_of(self.acting).character.level + int(R["ambush_above"])
+                from engine import combat
+                kinds = {f.id: self.world.bestiary.get(f.creature, hit[0]) if getattr(f, "creature", "") else hit[0] for f in hit[1]}
+                hit = (hit[0], [combat.fighter_from_creature(kinds[f.id], top, f.rank, f.id, f.name, "far" if f.starts_far else "near")
+                                if f.level > top and not getattr(f, "spawn", "") and not getattr(f, "boss", False) else f
+                                for f in hit[1]])          # a world event's own spawn is met as it is
         state = self.store.load_world_state()
         near = a if frac < 0.5 else b
         threads = [f"{t['title']} ({self.where_name(t['place']) if t.get('place') in self.world.places else t.get('place', '')})"   # (f423) a name,
