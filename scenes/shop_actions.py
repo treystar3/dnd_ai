@@ -44,10 +44,11 @@ class ShopActions:
         rope ladder", "grain alcohol")."""
         if not wanted:
             return None
-        asked = inv._plain_words(wanted)
-        return next((w for w in wares if w.id == wanted), None) or next((w for w in wares if wanted in w.name.lower()), None) or \
-            next((w for w in wares if asked and asked[-1] in inv.ware_words(w)
-                  and asked[-1] in {inv._head(w.name), inv._head(w.id.replace("_", " "))}
+        head = inv.asked_head(wanted)                    # (f655) "a room for the night" asks for a room, never the night
+        return next((w for w in wares if w.id == wanted), None) or \
+            next((w for w in wares if re.search(rf"\b{re.escape(inv.asked_part(wanted))}\b", inv.asked_part(w.name))), None) or \
+            next((w for w in wares if head and head in inv.ware_words(w)
+                  and head in {inv._head(w.name), inv.asked_head(w.name), inv._head(w.id.replace("_", " "))}
                   | ({inv._head(inv.GOODS[w.item].name)} if w.kind == "item" and w.item in inv.GOODS else set())), None)
 
     def quote_ware(self, seller, ware, announce: bool = False):

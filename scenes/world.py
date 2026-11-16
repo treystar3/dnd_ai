@@ -3792,11 +3792,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if self.property_buy(intent, text):
             return
         sellers = [n for n in self.present if self.wares_of(n)]
-        listed = any(w.id == intent.ware.lower().strip() or (intent.ware and intent.ware.lower() in w.name.lower())
-                     for n in sellers for w in self.wares_of(n))
+        wanted = intent.ware.lower().strip()
+        listed = any(self.ware_asked(self.wares_of(n), wanted) for n in sellers)     # (f655) as the ware is found below
         if not listed and self.buy_from_stock(intent, text):
             return
-        wanted = intent.ware.lower().strip()
         seller = next((n for n in sellers if n.id == intent.target), None) or \
             next((n for n in sellers if self.ware_asked(self.wares_of(n), wanted)), None) or (sellers[0] if sellers else None)   # (f545's review)
         if not seller:
