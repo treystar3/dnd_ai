@@ -4147,7 +4147,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 and self.has("safe_camp") is None and not (barrow and self.owns("tomb_sleeper")):
             self.refuse("It's too dangerous to rest here. Find a quiet chamber, or climb back out.")
             return
-        if intent.wait_until:
+        named = clock.hour_named(text)
+        if named:                                          # (f687) "until eight in the morning": the hour named, not the period's start
+            minutes = clock.minutes_until_hour(self.minutes, *named)
+        elif intent.wait_until:
             minutes = clock.minutes_until(self.minutes, intent.wait_until)
         else:
             minutes = intent.wait_minutes or clock.DEFAULT_WAIT_MINUTES

@@ -61,6 +61,42 @@ def minutes_until(minutes: int, target_period: str) -> int:
     return min(waits)
 
 
+HOUR_WORDS = {w: i or 12 for i, w in enumerate(("twelve", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+                                           "eleven"))}
+
+
+def hour_named(text: str) -> tuple[int, bool] | None:
+    """(f687) The clock hour a line waits for ("until eight in the morning", "till 3 pm", "until noon"), 0-23, or None. A bare hour
+    (no am or pm said) is the nearer of the two (minutes_until_hour). Returns (hour, bare)."""
+    import re
+    m = re.search(r"\b(?:until|till|til)\s+(?:about\s+)?(noon|midnight|\d{1,2}|" + "|".join(HOUR_WORDS) + r")\b(?::00)?"
+                  r"(?!\s+(?:of|minutes?|hours?|days?|more|or|bells?|turns?|rounds?)\b)\s*(?:o'?\s?clock)?\s*"
+                  r"(am|a\.m\.|pm|p\.m\.|in the morning|in the afternoon|in the evening|at night)?", (text or "").lower())
+    if not m:
+        return None
+    if m.group(1) in ("noon", "midnight"):
+        return (12 if m.group(1) == "noon" else 0), False
+    n = int(m.group(1)) if m.group(1).isdigit() else HOUR_WORDS[m.group(1)]
+    if not 0 <= n <= 23:
+        return None
+    half = m.group(2) or ""
+    late = half.startswith("p") or half in ("in the afternoon", "in the evening", "at night")
+    if n < 12 and late:
+        n += 12
+    elif n == 12 and (half.startswith("a") or half in ("in the morning", "at night")):
+        n = 0
+    return n, not half and n < 12
+
+
+def minutes_until_hour(minutes: int, target: int, bare: bool = False) -> int:
+    """(f687) Minutes from now until the clock next shows this hour; bare (no am/pm said), the nearer of it and twelve hours on."""
+    now = absolute(minutes) % MINUTES_PER_DAY
+    wait = (target * 60 - now) % MINUTES_PER_DAY or MINUTES_PER_DAY
+    if bare and target < 12:
+        wait = min(wait, (wait + 12 * 60) % MINUTES_PER_DAY or MINUTES_PER_DAY)
+    return wait
+
+
 def in_hours(minutes: int, hours: tuple[int, int]) -> bool:
     """hours=(start, end); end may exceed 24 for past midnight, e.g. (7, 25) is 7:00 to 1:00."""
     start, end = hours

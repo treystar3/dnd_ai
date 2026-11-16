@@ -143,6 +143,7 @@ RAISED = {                 # {file: (how many more, "fNNN: the guard it adds ove
                                    "a speech tag is not one)"),
     "scenes/inventory_actions.py": (2, "f660: coin handed over read for the deed with a price it is for (the words that name the fee)"),
     "scenes/pastime_actions.py": (3, "f660: a haggle that only asks (a question with no word of buying) is a word with the seller, not a purchase"),
+    "engine/clock.py": (1, "f687: the clock hour a wait is asked until ('until eight in the morning'), read once for the wait"),
     "scenes/plan_repairs.py": (1, "f683: a social act said of the player's own deed, outside what they say aloud ('I try to persuade him: ...'), "
                                   "read once for the check a talk rolls"),
     "scenes/combat_scene.py": (6, "f659: the player's acts in a fight line beyond a draught (its parts, the consumable named) and the one foe "
