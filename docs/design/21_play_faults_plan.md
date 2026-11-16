@@ -293,7 +293,28 @@ repair, so a repair that catches too much passes. These are the tests of the eng
   speaker. Misread before f649 and still (owed to a later pass of this reading): an order and another to a second companion in one
   sentence ("Kennard, guard Almund, Raerei, heal me!" gives only the first, unsaid); a need said of a companion before an order
   ("Kennard needs it too, heal him after"); "Kennard! Hold!" ("hold" alone is no order word); "Cover me, Kennard, I'm going for
-  wolf 1" keeps no part for the player. The rest of B1 (a talk out of a fight goes to who is addressed, one companion held back) follow as features of their own.
+  wolf 1" keeps no part for the player.
+- **As built (f650): a talk out of a fight.** The repair that turns a talk aimed at a companion to someone else here
+  (to_the_named, scenes/listening.py) reads who the line speaks to with engine/addressing.py, as the fight reads an order: a
+  person by their trade with its article ("the guard"), by the bare trade only when called ("Guard, ..."; "Guard the gate, I
+  tell Bram" is not to the guard), or by name once the acting character knows it; at the head of the line, called, or the one
+  the player asks or tells, now with what they are asked of ("I ask the guard who he serves", "I tell the guard that my
+  companion needs rest"). A talk aimed at anyone the line speaks to stays theirs, so a line that speaks to two keeps each with
+  its own ("I ask the guard who he serves, then I ask Bram what he thinks"); one aimed elsewhere goes to the first spoken to, and
+  of two of one trade, to the one already talking. When the line speaks to no one, the old rule stands (a name or trade it
+  holds, unless it names the companion), so nothing it reached is lost ("I talk to the guard about the road"). The case B0 owed
+  to B1 comes out right and its mark is off; six new cases and a test of the repair itself hold the class
+  (tools/sim/addressed_talk_650_test.py). In a fight, words asked or told of a companion ask them nothing to do; what follows
+  them in that sentence is the player's own when it is an act of theirs (an "I", or one of their abilities named: "I ask Raerei
+  if she is hurt, then Brutal Strike wolf 1"); a name called with a comma is spoken to whatever follows ("Kennard, has your
+  shield held? Take wolf 1!"); a sentence after one asked of a companion is carried to them when it asks ("I tell Kennard of
+  the trap. Guard me!"). The census counts one more place in engine/addressing.py, the trade only when called.
+- **Misread before and still (owed):** "my companion" with two companions; a name not yet known ("I ask Garran ..." before his
+  name is learned); "one of the guards", "the guards", "Guards, ..."; two of a trade with neither talking (the talk stays); "I ask
+  about the guard" goes to the guard by the old rule; "Guard the door tonight, my friend" goes to the guard; "Guard, Bram here
+  needs a bed" is taken by the hire intercept before any repair (B2's); in a fight, "I ask Raerei if she is hurt, then attack
+  wolf 1" drops the attack, the player's act having neither an "I" nor an ability's name.
+- **Left.** One companion held back out of a fight (1.6) is the last of B1, a feature of its own.
 
 **B2. A repair rewrites a deed by that deed's own words (4.1, 4.2, 4.5, 4.7 to 4.10, 2.7).**
 - Leaving a dungeon, praying, staying within a place, talking to a hire, naming a ware, the verbs a purchase covers, and

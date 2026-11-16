@@ -130,8 +130,9 @@ CENSUS = {
     "scenes/trial_actions.py": 5, "scenes/world.py": 36,
 }
 RAISED = {                 # {file: (how many more, "fNNN: the guard it adds over the line, and why")}
-    "engine/addressing.py": (12, "f649: who a line speaks to, read from where a name stands: it replaces the fight's searches for a name "
-                                 "anywhere (combat_scene 21 to 18), and what the orders read is now only what is said to someone"),
+    "engine/addressing.py": (13, "f649: who a line speaks to, read from where a name stands: it replaces the fight's searches for a name "
+                                 "anywhere (combat_scene 21 to 18), and what the orders read is now only what is said to someone; "
+                                 "f650: one more, a trade only when called ('Guard, ...', never 'Guard the gate')"),
 }
 now = line_census.by_file(found)
 allowed = {f: CENSUS.get(f, 0) + RAISED.get(f, (0, ""))[0] for f in set(CENSUS) | set(RAISED)}
@@ -150,13 +151,13 @@ rules = {d.split(":", 1)[1] for d in by_door if d.startswith(("intercept:", "rep
 reading = {d.split(":", 1)[1] for d, n in by_door.items() if n and d.startswith(("intercept:", "repair:"))}
 UNSTAGED = {"camp": "the bench has no arc's camp to stand at", "mentor_intercept": "the bench keeps Maren away; it reads only a command's mark",
             "yielded": "the bench has no fight that ended with a foe yielding; B2 tests it in a fight of its own"}
-OWED_ONLY = {"to_the_named": "every line it is near today it takes: owed to B1"}
+OWED_ONLY: dict = {}       # rules held off today only by a case they get wrong
 check("every intercept and repair that reads the line's words is seen acting on a case it gets right",
       not (reading - set(out["acted"]) - set(UNSTAGED)), sorted(reading - set(out["acted"]) - set(UNSTAGED)))
 check("...and is held off a case it gets right", not (reading - set(out["held_off"]) - set(UNSTAGED) - set(OWED_ONLY)),
       sorted(reading - set(out["held_off"]) - set(UNSTAGED) - set(OWED_ONLY)))
-check("the rules the bench cannot stage (3 when this was built) and those held off only by an owed case (1) only grow fewer, and each reads the line",
-      len(UNSTAGED) <= 3 and len(OWED_ONLY) <= 1 and set(UNSTAGED) | set(OWED_ONLY) <= reading, sorted((set(UNSTAGED) | set(OWED_ONLY)) - reading))
+check("the rules the bench cannot stage (3 when this was built) and those held off only by an owed case (1, none after f650) only grow fewer, and each reads the line",
+      len(UNSTAGED) <= 3 and len(OWED_ONLY) <= 0 and set(UNSTAGED) | set(OWED_ONLY) <= reading, sorted((set(UNSTAGED) | set(OWED_ONLY)) - reading))
 check("...and one held off by an owed case is still held off by one", all(any(r in ((by_name[n].get("expect") or {}).get("not_by") or []) for n in out["owed"])
                                                                          for r in OWED_ONLY), OWED_ONLY)
 held = {r for c in cases for r in (c.get("expect") or {}).get("not_by") or []}
@@ -164,7 +165,7 @@ check("every rule a case holds off is a rule the game has", held <= rules, sorte
 check("the corpus is right apart from what it owes", not out["wrong"], out["wrong"])
 
 # ---- what is owed
-check("the cases owed only grow fewer (8 when the corpus's other half was built)", len(out["owed"]) <= 8, out["owed"])
+check("the cases owed only grow fewer (8 when the corpus's other half was built, 7 after f650)", len(out["owed"]) <= 7, out["owed"])
 FIX = _re.compile(r"[A-H]\d?( \d\.\d+)?: \S")
 check("...each owed to a named fix of the plan, with what it does today", all(FIX.match(str(by_name[n]["owed"].get("fix", ""))) and by_name[n]["owed"].get("now")
                                                                              for n in out["owed"]),
@@ -181,10 +182,10 @@ mark = interp_eval.evaluate([right_now, wrong_as_owed, wrong_otherwise, unrepair
 check("a case marked owed that comes out right is wrong until the mark comes off; wrong as it is owed, owed; wrong another way, wrong",
       mark["wrong"] == ["marked_owed_but_right", "wrong_another_way", "owed_a_repair_that_did_not_act"] and mark["owed"] == ["wrong_as_owed"], mark)
 check("...and an owed case is counted wrong in the table by kind, not right", mark["by_kind"] == {"talk": "1/1", "intercept:exit": "0/3"}, mark["by_kind"])
-alone = interp_eval.evaluate([by_name["dice_lost_last_night_is_talk"], by_name["asking_a_companion_about_the_guard_stays_with_the_companion"]],
+alone = interp_eval.evaluate([by_name["dice_lost_last_night_is_talk"], by_name["a_companion_named_resting_with_the_party_is_a_wait"]],
                              quiet=True, save="line_patterns_648")
 check("a rule that acts or is held off only on a case it gets wrong is not seen acting or held off",
-      len(alone["owed"]) == 2 and "talk_to_deed" not in alone["acted"] and "to_the_named" not in alone["held_off"], alone)
+      len(alone["owed"]) == 2 and "talk_to_deed" not in alone["acted"] and "hire" not in alone["held_off"], alone)
 took = interp_eval.evaluate([by_name["telling_of_the_road_north_is_not_leaving_by_it"]], quiet=True, save="line_patterns_648")
 check("an intercept that takes an owed line is counted as taking a line not its own", took["intercept_took_wrongly"] == 1, took)
 walk = by_name["a_walk_over_before_an_order_is_no_journey"]

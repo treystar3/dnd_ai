@@ -985,7 +985,6 @@
   scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}], party: [{name: Bram Voss}]}
   plan: [{kind: talk, target: 'hire:h0', speech: "What do you make of the guard's story?"}]
   expect: {handled_by: interpret, kinds: [talk], first: {target: 'hire:h0'}, not_by: [to_the_named]}
-  owed: {fix: "B1: a talk goes to the one it is said to, not to a name anywhere in the line", now: {first: {target: g1}, repairs: [to_the_named]}}
 - name: a_question_about_another_inns_prices_is_not_a_haggle
   text: "Hollis, were the rooms at the Gull too dear when you stayed there?"
   scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
@@ -1060,3 +1059,35 @@
   scene: {place: tilted_plough, pack: [tome_second_circle], present: [{id: i1, name: Hollis, role: innkeeper}]}
   plan: [{kind: look, summary: opening the door to the back room}]
   expect: {handled_by: interpret, not_by: [spell_book]}
+# (f650) out of a fight, a talk goes to the one the line speaks to
+- name: asking_a_friend_about_the_guard_stays_with_the_friend
+  text: "I ask my friend whether the guard can be trusted"
+  scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}], party: [{name: Bram Voss}]}
+  plan: [{kind: talk, target: 'hire:h0', speech: "Can the guard be trusted?"}]
+  expect: {handled_by: interpret, kinds: [talk], first: {target: 'hire:h0'}, not_by: [to_the_named]}
+- name: the_cook_asked_what_is_in_the_pot_is_the_cook
+  text: "I ask the cook what is in the pot"
+  scene: {place: tilted_plough, present: [{id: c1, name: Jeth Croft, role: cook}], party: [{name: Bram Voss}], last_spoken: 'hire:h0'}
+  plan: [{kind: talk, target: 'hire:h0', speech: "What is in the pot?"}]
+  expect: {handled_by: interpret, kinds: [talk], first: {target: c1}}
+- name: of_two_guards_the_one_already_talking_is_spoken_to
+  text: "I ask the guard who he serves"
+  scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}, {id: g2, name: Tam Holt, role: guard}], party: [{name: Bram Voss}],
+          last_spoken: g2}
+  plan: [{kind: talk, target: 'hire:h0', speech: "Who do you serve?"}]
+  expect: {handled_by: interpret, kinds: [talk], first: {target: g2}}
+- name: talking_to_the_guard_about_the_road_is_the_guard
+  text: "I talk to the guard about the road"
+  scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}], party: [{name: Bram Voss}], last_spoken: 'hire:h0'}
+  plan: [{kind: talk, target: 'hire:h0', speech: "Tell me about the road."}]
+  expect: {handled_by: interpret, kinds: [talk], first: {target: g1}}
+- name: words_called_to_the_guard_go_to_the_guard
+  text: "Guard, what did my companion do last night?"
+  scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}], party: [{name: Bram Voss}]}
+  plan: [{kind: talk, target: 'hire:h0', speech: "What did my companion do last night?"}]
+  expect: {handled_by: interpret, kinds: [talk], first: {target: g1}}
+- name: telling_the_guard_of_a_companion_goes_to_the_guard
+  text: "I tell the guard that my companion needs rest"
+  scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}], party: [{name: Bram Voss}]}
+  plan: [{kind: talk, target: 'hire:h0', speech: "My companion needs rest."}]
+  expect: {handled_by: interpret, kinds: [talk], first: {target: g1}}

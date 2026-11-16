@@ -23,6 +23,7 @@ TELLING = (r"(?:i\s+)?(?:tell|order|ask|have|get|command|urge|beg|shout|yell|cal
            r"(?:(?:for|to|at|over to|towards?)\s+)?")
 SIGNING = r"(?:i\s+)?(?:signal|nod|gesture|motion|wave|beckon|point|turn|look|glance)(?:s|ed)?\s+(?:(?:for|to|at|over to|towards?)\s+)?"
 CAUSING = r"(?:i\s+)?(?:have|has|get|gets|let|lets|make|makes)\s+"     # "I have Kennard guard me", "I let Kennard take wolf 1"
+ASKED_OF = r"(?:who|what|where|when|why|how|if|whether|about|that|of)"   # (f650) "I ask the guard who he serves": spoken to, asked nothing to do
 STATE = re.compile(r"^(?:is|was|isn't|wasn't|has|had|hasn't|looks|seems|lies|lay|stands there|sits|sat|stays down|groans|gasps|bleeds|'s)\b")
 FIRST = (r"(?:i'll|i will|i shall|let me|myself|i(?!'m|'d|'ve)\s+(?!need\b|want\b|would\b|am\b|was\b|have\b|had\b|can'?t\b|cannot\b|"
          r"must\b|think\b|know\b|see\b|hope\b|beg\b|told\b|said\b|mean\b)\w+)")     # the player doing a thing; "I'm done for", "I need you to" are said
@@ -63,8 +64,11 @@ def without(text: str, names) -> str:
     return text
 
 
-def _alt(forms) -> str:
-    return "|".join(re.escape(f) for f in sorted({f.lower().replace(APOS, "'") for f in forms if f}, key=len, reverse=True))
+def _alt(forms, called: bool = False) -> str:
+    """The forms of a name as one pattern. (f650) A form marked "~" ("~guard") counts only when the name is called ("Guard, ..."), never
+    at the head of words that use it as a verb ("Guard the gate"); called=True gives those forms, else the others."""
+    pick = {f[1:] if called else f for f in forms if f and f.startswith("~") == called}
+    return "|".join(re.escape(f) for f in sorted({f.lower().replace(APOS, "'") for f in pick}, key=len, reverse=True))
 
 
 def _split_mine(said: str) -> tuple[str, str]:
@@ -88,13 +92,18 @@ def addressed(text: str, people: dict, others=(), asks=None) -> list[Address]:
     something (the fight's order words); a sentence that asks, after one said to someone, is said to them too ("Kennard, I'm hurt.
     Cover me!")."""
     names = "|".join(f"(?:{_alt(f)})" for f in people.values() if _alt(f))
-    if not names:
+    calls = "|".join(f"(?:{_alt(f, True)})" for f in people.values() if _alt(f, True))
+    if not names and not calls:
         return []
-    many = rf"(?:{names})(?:\s*(?:,|and|,\s*and)\s*(?:{names}))*"
+    names = names or "(?!x)x"
+    every = "|".join(x for x in (names, calls) if x)                    # a name, or one only called
+    many = rf"(?:{every})(?:\s*(?:,|and|,\s*and)\s*(?:{every}))*"
+    told = rf"(?:{names})(?:\s*(?:,|and|,\s*and)\s*(?:{names}))*"
     not_them = _alt(others)
 
     def who_in(s: str) -> tuple:
-        return tuple(pid for pid, forms in people.items() if _alt(forms) and re.search(rf"(?<![\w'])(?:{_alt(forms)})(?![\w'])", s))
+        alt = lambda forms: "|".join(x for x in (_alt(forms), _alt(forms, True)) if x)
+        return tuple(pid for pid, forms in people.items() if alt(forms) and re.search(rf"(?<![\w'])(?:{alt(forms)})(?![\w'])", s))
 
     out, waiting, carry, last_quote = [], None, None, None
     for clause, quoted in _parts(text):
@@ -105,9 +114,9 @@ def addressed(text: str, people: dict, others=(), asks=None) -> list[Address]:
             waiting = who_in(alone.group(1)) or (PARTY,)
             continue
         found, quote = None, None
-        m = None if foe_first else re.match(rf"^{LEAD}((?:{names}))(?![\w'])[\s,:;!{DASH}-]*(.*)$", low)
-        if m and m.group(2) and not STATE.match(m.group(2)):
-            heads, said = [m.group(1)], m.group(2)
+        m = None if foe_first else re.match(rf"^{LEAD}((?:{names}))(?![\w'])([\s,:;!{DASH}-]*)(.*)$", low)
+        if m and m.group(3) and (re.search(r"[,:;!]", m.group(2)) or not STATE.match(m.group(3))):   # "Raerei, is it dead?" is to her
+            heads, said = [m.group(1)], m.group(3)
             more = re.match(rf"^(?:and\s+)?((?:{names}))\s*[,:;!]\s*(.*)$", said)     # "Kennard, Raerei, hold back": a list ends at its comma
             while more:
                 heads.append(more.group(1))
@@ -118,14 +127,19 @@ def addressed(text: str, people: dict, others=(), asks=None) -> list[Address]:
                 heads.append(joined.group(1))
                 said = joined.group(2)
             found = (who_in(" , ".join(heads)), said)
+        if found is None and calls and not foe_first:     # (f650) a name only called: "Guard, who do you serve?", never "Guard the gate"
+            m = re.match(rf"^{LEAD}((?:{calls}))\s*[,:;!]\s*(.+)$", low)
+            if m:
+                found = (who_in(m.group(1)), m.group(2))
         if found is None:
-            m = (re.match(rf"^{TELLING}({many})(?![\w'])\s*(?:(?:to\b|:|,)\s*(.*?))?[\s.!;]*$", low)
-                 or re.match(rf"^{CAUSING}({many})(?![\w'])\s+(.*?)[\s.!;]*$", low)
-                 or re.match(rf"^{SIGNING}({many})(?![\w'])\s*(?::|to\b|,(?!\s*(?:and|then|so|before)\b)(?!\s*{FIRST}))\s*(.*?)[\s.!;]*$", low))
+            m = (re.match(rf"^{TELLING}({told})(?![\w'])\s*(?:(?:to\b|:|,)\s*(.*?)|{ASKED_OF}\b(.*?))?[\s.!;?]*$", low)
+                 or re.match(rf"^{CAUSING}({told})(?![\w'])\s+(.*?)[\s.!;]*$", low)
+                 or re.match(rf"^{SIGNING}({told})(?![\w'])\s*(?::|to\b|,(?!\s*(?:and|then|so|before)\b)(?!\s*{FIRST}))\s*(.*?)[\s.!;]*$", low))
             if m:                                         # told "to" do it; a sign needs its words ("I look at Kennard, then take" is the player's)
                 said = m.group(2) or ""
                 quote = last_quote                        # '"Cover Raerei," I tell Kennard.'
-                found = (who_in(m.group(1)), said)
+                asked = m.group(3) if m.re.groups >= 3 else None
+                found = (who_in(m.group(1)), said, asked)     # asked of ("if she is hurt"): nothing to do, the player's part kept
         if found is None:
             m = re.match(rf"^(.*?\S)\s*,\s*({many})\s*,\s*(.*)$", low)
             if m and not STATE.match(m.group(3)):
@@ -146,7 +160,12 @@ def addressed(text: str, people: dict, others=(), asks=None) -> list[Address]:
         carry = found[0] if found is not None else None
         last_quote = clause if quoted and found is None else None
         if found is not None and found[0]:
-            said, mine = _split_mine(found[1])
+            asked = found[2] if len(found) > 2 else None
+            if asked is not None:                         # what is asked of them is nothing to do; after it, the player's own (own_part judges it)
+                after = re.search(r"(?:,\s*|\s+)(?:and then|then|and|while)\s+|:\s*", asked)
+                said, mine = "", asked[after.end():] if after else ""
+            else:
+                said, mine = _split_mine(found[1])
             if not said.strip(" .!?;,") and quote is not None:          # the words told are the quote before: '"Hold back," I tell Kennard'
                 said = " ".join(quote.lower().split())
             mine = mine.strip(" .,;:!")

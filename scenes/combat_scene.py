@@ -609,8 +609,9 @@ class CombatScene:
         mine = []
         for clause in addressing.clauses(text):
             if clause in spoken:                             # said to a companion: only the part the player says they do themself
-                if spoken[clause]:
-                    mine.append(spoken[clause])
+                part = spoken[clause]
+                if part and (re.match(r"(i|i'll|i'm|i will|let me|now i|and i)\b", part.lower()) or any(m in part.lower() for m in moves)):
+                    mine.append(part)
                 continue
             for c in re.split(r"\s+(?:and then|then|while)\s+|\s+and\s+(?=i\b)", clause, flags=re.I):
                 c = (c or "").strip(" .,;:!")

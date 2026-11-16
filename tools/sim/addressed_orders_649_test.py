@@ -243,6 +243,17 @@ NOTES.clear()
 sc.turn("Kennard, fall back! Kennard, guard me!")
 check("a second order to the one already told is said to wait too", kennard.order == "back" and any("Kennard will have to wait" in n for n in NOTES), (kennard.order, NOTES))
 
+# ---- (f650) a companion asked or told of something: asked nothing to do, the player's own act after it kept, an ask after carried
+check("the player's act after what a companion is asked is the player's",
+      sc.own_part("Kennard, guard me. I ask Raerei if she is hurt, and I attack wolf 1.", [kennard]) == "I attack wolf 1",
+      sc.own_part("Kennard, guard me. I ask Raerei if she is hurt, and I attack wolf 1.", [kennard]))
+check("...and after what a companion is told of", sc.own_part("Kennard, guard me. I tell Raerei about the trap, then I attack wolf 1.", [kennard])
+      == "I attack wolf 1", sc.own_part("Kennard, guard me. I tell Raerei about the trap, then I attack wolf 1.", [kennard]))
+check("a companion called with a comma is spoken to, though what follows says how something is; the order after is theirs",
+      order("Kennard, has your shield held? Take wolf 1!") == (["Kennard"], "focus", w1.id), order("Kennard, has your shield held? Take wolf 1!"))
+check("a sentence that asks, after one told to a companion, is theirs", order("I tell Kennard of the trap. Guard me!") == (["Kennard"], "guard", ""),
+      order("I tell Kennard of the trap. Guard me!"))
+
 # ---- a companion named for its kind, beside foes of that kind
 pet = combat.companion_fighter(world.bestiary["wolf"], 3, "comp_w", "Wolf")
 pet.side = "ally"
