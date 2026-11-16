@@ -76,7 +76,12 @@ WITHIN = re.compile(r"\b(upstairs|downstairs|my room|the room|a room|our rooms?|
 CLIMB = re.compile(r"\b(climb|clamber|scale|scramble|haul (myself|me) up|pull (myself|me) up|get up onto)\b")
 HIGH = re.compile(r"\b(roof|rooftop|wall|tree|ledge|rafters|chimney|eaves|balcony|cliff|rocks?|boulder)\b")
 FISHING = re.compile(r"\b(fish|fishing|angling|angle for|cast (a|my) line|rod and line)\b")
-OUT_OF_DUNGEON = re.compile(r"\b(out|surface|climb|back up|leave|exit|daylight|open air|turn back)\b")
+OUT_OF_DUNGEON = re.compile(r"\b(out of|(get|climb|head|go|walk|back|way|make it|find our|find my) out|surface|climb up|back up|leave|exit|daylight|"
+                            r"open air|turn back)\b")          # (f652) a way out, never "point out", "check out", "look out"
+ONWARD = re.compile(r"\b(delve|descend|next (chamber|room|hall|passage|level|floor)|to the next|deeper|further in|farther in|press(ing)? on|"
+                    r"onward|on ahead|(go|going|head|heading|climb|take the stairs) down|down the stairs|lower level|below)\b")   # (f652) the delve's own words
+WALKING = re.compile(r"\b(go|goes|going|went|walk|walking|head|heading|travel|ride|make (my|our) way|making (my|our) way|climb|climbing|get|"
+                     r"turn|leave|leaving|exit|continue|press|descend|step|move|moving|run|take)\b")
 GAMBLE = re.compile(r"\b(deal me in|hands? of cards|game of (dice|cards|chance)|roll (the |some )?dice|throw (the |some )?dice|"
                     r"play (some |a few |a hand of |at )?(cards|dice)|a wager|place a bet|double or nothing|for small stakes)\b")
 HAGGLE = re.compile(r"\b(do better than that|come down (a bit|a little|on)|knock (something|a bit|a little) off|too (much|dear|steep|rich)|"
@@ -289,23 +294,39 @@ class PlanRepairs:
     # ---------- going nowhere
 
     def move_elsewhere(self, text: str, plan: list) -> None:
-        """A move that is not a journey: in a delve, out means leave_dungeon; a roof or a wall is a climb (other); upstairs, the bar, a
-        table, their room is within the place (look)."""
-        low = text.lower()
+        """A move that is not a journey: in a delve, out means leave_dungeon and on to the next chamber is the delve; a roof or a wall is
+        a climb (other); upstairs, the bar, a table, their room is within the place (look). (f652) Each read from the move's own words,
+        its destination and its summary, never a word elsewhere in the line ("I point out the wires, and we go on" is no way out)."""
         for a in plan:
             if a.kind != "move":
                 continue
             dest = a.destination.strip()
-            if self.player.delve and self.dungeon_here() and OUT_OF_DUNGEON.search(low):        # (f392) in one, standing at its mouth
-                a.kind, a.destination = "leave_dungeon", ""
-                continue
+            own = self.walk_words(text, a)
+            if self.dungeon_here():                                     # (f392) in one, or (f652) standing at its mouth
+                if ONWARD.search(own):
+                    a.kind, a.destination = "delve", ""
+                    continue
+                if self.player_of(self.acting).delve and OUT_OF_DUNGEON.search(own):
+                    a.kind, a.destination = "leave_dungeon", ""
+                    continue
             if dest in self.world.places or any(dest.lower() == pl.name.lower() or dest.lower() == pl.name.lower().removeprefix("the ")
                                                  for pl in self.world.places.values()):
                 continue
-            if HIGH.search(dest.lower()) and (CLIMB.search(low) or not GOING.search(low)):
+            if HIGH.search(dest.lower()) and (CLIMB.search(own) or not GOING.search(own)):
                 a.kind, a.destination, a.summary = "other", "", a.summary or text
-            elif WITHIN.search(dest.lower()) or WITHIN.search(low) and not self.local_person(dest):
+            elif WITHIN.search(own) and not self.local_person(dest):
                 a.kind, a.destination = "look", ""
+
+    @staticmethod
+    def walk_words(text: str, a) -> str:
+        """(f652) A walk's own words: its destination, its summary, and the part of the typed line that says the walk (a clause with a
+        verb of going or the destination's own words); the whole line only when no part of it does. "I point out the wires" is not."""
+        dest = (a.destination or "").lower()
+        named = {w for w in re.findall(r"[a-z]+", dest) if len(w) >= 4}
+        parts = [p for p in re.split(r"[.;!?,]|\s+(?:and then|then|and|but|while)\s+", (text or "").lower()) if p.strip()]
+        said = ([p for p in parts if named & set(re.findall(r"[a-z]+", p))]                  # the part naming where, else one that goes
+                or [p for p in parts if WALKING.search(p)] or parts)
+        return " ".join([dest, (a.summary or "").lower(), *said])
 
     def fishing(self, text: str, plan: list) -> list | None:
         """"I fish in the river for my supper" is one attempt where they stand: not a hunt for fish (search) and not a journey to the

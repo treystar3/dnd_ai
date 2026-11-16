@@ -105,9 +105,11 @@ FINDINGS = {"scenes/plan_repairs.py:move_elsewhere": "4.1, leaving a dungeon", "
             "scenes/party_actions.py:hire_wants_talk": "4.7, talk to a hire", "engine/intent_audit.py:risk_flags": "4.9, the audit's verbs",
             "engine/actions.py:takes_oneself": "f645, taking a thing oneself", "scenes/party_actions.py:party_dismiss": "a party dismissed by a name",
             "engine/partings.py:is_goodbye": "a goodbye", "scenes/law_actions.py:on_answer_law": "4.10, an answer to the game's question"}
-check("the census reaches every place the findings named", all(k in named for k in FINDINGS), {k: v for k, v in FINDINGS.items() if k not in named})
-check("...from the door each is reached by", all(by_door.get(d, 0) > 0 for d in ("repair:move_elsewhere", "fight:turn", "intercept:hire", "intercept:farewell", "answer:law", "on_use", "on_buy")),
-      {d: by_door.get(d) for d in ("repair:move_elsewhere", "fight:turn", "intercept:hire", "intercept:farewell", "answer:law", "on_use", "on_buy")})
+FIXED: dict = {}          # {place: "fNNN: the fix that took it out of the census"}
+check("the census reaches every place the findings named, but those a fix took out of it, each named with its fix",
+      all(k in named or k in FIXED for k in FINDINGS) and all(k not in named for k in FIXED), {k: v for k, v in FINDINGS.items() if k not in named and k not in FIXED})
+DOORS = ("fight:turn", "intercept:hire", "intercept:farewell", "answer:law", "on_use", "on_buy")
+check("...from the door each is reached by", all(by_door.get(d, 0) > 0 for d in DOORS), {d: by_door.get(d) for d in DOORS})
 
 # ---- the count, file by file: it only falls
 CENSUS = {
@@ -133,6 +135,8 @@ RAISED = {                 # {file: (how many more, "fNNN: the guard it adds ove
     "engine/addressing.py": (13, "f649: who a line speaks to, read from where a name stands: it replaces the fight's searches for a name "
                                  "anywhere (combat_scene 21 to 18), and what the orders read is now only what is said to someone; "
                                  "f650: one more, a trade only when called ('Guard, ...', never 'Guard the gate')"),
+    "scenes/plan_repairs.py": (3, "f652: a walk is read by its own words, among them the part of the typed line that says it (a clause "
+                                  "naming where, or with a verb of going); the whole line no longer"),
 }
 now = line_census.by_file(found)
 allowed = {f: CENSUS.get(f, 0) + RAISED.get(f, (0, ""))[0] for f in set(CENSUS) | set(RAISED)}
@@ -165,7 +169,7 @@ check("every rule a case holds off is a rule the game has", held <= rules, sorte
 check("the corpus is right apart from what it owes", not out["wrong"], out["wrong"])
 
 # ---- what is owed
-check("the cases owed only grow fewer (8 when the corpus's other half was built, 7 after f650)", len(out["owed"]) <= 7, out["owed"])
+check("the cases owed only grow fewer (8 when the corpus's other half was built, 6 after f652)", len(out["owed"]) <= 6, out["owed"])
 FIX = _re.compile(r"[A-H]\d?( \d\.\d+)?: \S")
 check("...each owed to a named fix of the plan, with what it does today", all(FIX.match(str(by_name[n]["owed"].get("fix", ""))) and by_name[n]["owed"].get("now")
                                                                              for n in out["owed"]),

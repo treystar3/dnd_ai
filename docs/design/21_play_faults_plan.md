@@ -333,6 +333,14 @@ repair, so a repair that catches too much passes. These are the tests of the eng
   the road north is clear"), and a talk read as a hand of cards, a haggle, a lesson or a job (talk_to_deed), which reads what
   the talk asks for, never a deed it tells of ("I lost a game of dice last night"). And a move onward within a delve, to
   the next chamber, is the delve, as that kind's own words say (with "point out the wires", B0's corpus expects it).
+- **As built (f652): a walk.** move_elsewhere (scenes/plan_repairs.py) reads a walk's own words: its destination, its summary,
+  and the part of the typed line that says it (a clause naming where, else one with a verb of going; the whole line only when no
+  part does). "Out" counts only as a way out ("get out", "out of", "climb out"), never "point out" or "check out". In a delve or
+  at its mouth, on to the next chamber, deeper or down the stairs is the delve (the delve kind's own words), read before any way
+  out; in a delve, a way out is the way out though only the line says it ("Let's get out of here"); a room, upstairs or the fire
+  in the walk is a look; a roof is a climb. The journal's line comes out right with the model's summary echoing it or not, and
+  its mark is off; at a dungeon's mouth "we take the stairs down" is the delve (4.5). The census counts three more places in
+  plan_repairs.py (a named raise): the part of the line that says the walk. tools/sim/deed_words_652_test.py.
 - A foe who has yielded and is then attacked, in any words or by any ability, is attacked. He is not let go (2.7).
 - An answer to the game's own question is read against that question (4.10: "Both at once").
 - Test first: B0's corpus, both halves, for each repair.

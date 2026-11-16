@@ -1013,7 +1013,6 @@
   scene: {delve: true, dungeon: cracked_plains}
   plan: [{kind: move, destination: next chamber, summary: going on to the next chamber}]
   expect: {handled_by: interpret, kinds: [delve]}
-  owed: {fix: "B2 4.1: leaving a dungeon is decided by the deed's own words", now: {kinds: [leave_dungeon], repairs: [move_elsewhere]}}
 - name: a_walk_back_to_a_chamber_stays_in_the_dungeon
   text: "I head back to the chamber with the dry well"
   scene: {delve: true, dungeon: cracked_plains}
@@ -1091,3 +1090,89 @@
   scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}], party: [{name: Bram Voss}]}
   plan: [{kind: talk, target: 'hire:h0', speech: "My companion needs rest."}]
   expect: {handled_by: interpret, kinds: [talk], first: {target: g1}}
+# (f652) a walk is rewritten by its own words: its destination and its summary, never a word elsewhere in the line
+- name: going_on_to_the_next_chamber_is_the_delve
+  text: "We go on to the next chamber."
+  scene: {delve: true, dungeon: cracked_plains}
+  plan: [{kind: move, destination: next chamber, summary: going on to the next chamber}]
+  expect: {handled_by: interpret, kinds: [delve]}
+- name: a_tripwire_pointed_out_does_not_leave_the_dungeon
+  text: "I point out the tripwire to the others, then we go deeper."
+  scene: {delve: true, dungeon: cracked_plains}
+  plan: [{kind: move, destination: the next chamber}]
+  expect: {handled_by: interpret, kinds: [delve]}
+- name: climbing_out_said_in_the_walk_still_leaves
+  text: "Enough of this place. I head back up to the surface."
+  scene: {delve: true, dungeon: cracked_plains}
+  plan: [{kind: move, destination: the surface, summary: heading back up to the surface}]
+  expect: {handled_by: interpret, kinds: [leave_dungeon]}
+- name: a_room_named_beside_a_walk_out_is_no_look
+  text: "I leave my things in the room and head out to the old mill."
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: move, destination: the old mill, summary: heading to the old mill}]
+  expect: {handled_by: interpret, kinds: [move], not_by: [move_elsewhere]}
+- name: going_up_to_the_room_is_still_a_look
+  text: "I head up to my room for the night."
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: move, destination: my room, summary: going up to my room}]
+  expect: {handled_by: interpret, kinds: [look]}
+- name: turning_in_said_in_the_walk_is_a_look
+  text: "I turn in for the night."
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: move, destination: bed, summary: going up to my room to sleep}]
+  expect: {handled_by: interpret, kinds: [look]}
+- name: getting_out_said_only_in_the_line_leaves
+  text: "Let's get out of here."
+  scene: {delve: true, dungeon: cracked_plains}
+  plan: [{kind: move, destination: outside}]
+  expect: {handled_by: interpret, kinds: [leave_dungeon]}
+- name: climbing_out_toward_town_leaves
+  text: "I climb out and head back to town."
+  scene: {delve: true, dungeon: cracked_plains}
+  plan: [{kind: move, destination: trading_square}]
+  expect: {handled_by: interpret, kinds: [leave_dungeon]}
+- name: the_wires_with_an_echoing_summary_go_on
+  text: "We step around the rigged stones, I point out the wires, and we go on to the next chamber."
+  scene: {delve: true, dungeon: cracked_plains}
+  plan: [{kind: move, destination: next chamber, summary: pointing out the wires and going on to the next chamber}]
+  expect: {handled_by: interpret, kinds: [delve]}
+- name: out_of_this_chamber_to_the_next_goes_on
+  text: "We continue to the next chamber."
+  scene: {delve: true, dungeon: cracked_plains}
+  plan: [{kind: move, destination: next chamber, summary: carefully making our way out of this chamber to the next}]
+  expect: {handled_by: interpret, kinds: [delve]}
+- name: the_stairs_down_at_the_mouth_is_the_delve
+  text: "We take the stairs down."
+  scene: {dungeon: cracked_plains}
+  plan: [{kind: move, destination: the stairs, summary: taking the stairs down into the warren}]
+  expect: {handled_by: interpret, kinds: [delve]}
+- name: going_deeper_at_the_mouth_is_the_delve
+  text: "We go deeper."
+  scene: {dungeon: cracked_plains}
+  plan: [{kind: move, destination: deeper}]
+  expect: {handled_by: interpret, kinds: [delve]}
+- name: upstairs_to_sleep_said_only_in_the_line_is_a_look
+  text: "I go upstairs to sleep."
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: move, destination: bed}]
+  expect: {handled_by: interpret, kinds: [look]}
+- name: sitting_by_the_fire_is_a_look
+  text: "I sit by the fire."
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: move, destination: hearth}]
+  expect: {handled_by: interpret, kinds: [look]}
+- name: checking_out_the_carvings_does_not_leave
+  text: "I check out the carvings, then we walk to the chamber with the altar."
+  scene: {delve: true, dungeon: cracked_plains}
+  plan: [{kind: move, destination: the chamber with the altar}]
+  expect: {handled_by: interpret, kinds: [move], not_by: [move_elsewhere]}
+- name: a_torch_held_out_on_a_walk_does_not_leave
+  text: "I walk to the altar chamber, my torch held out."
+  scene: {delve: true, dungeon: cracked_plains}
+  plan: [{kind: move, destination: the altar chamber, summary: walking to the altar chamber with my torch held out}]
+  expect: {handled_by: interpret, kinds: [move], not_by: [move_elsewhere]}
+- name: a_way_out_promised_beside_a_walk_does_not_leave
+  text: "I tell Raerei we will get out of here soon, then we walk to the altar chamber."
+  scene: {delve: true, dungeon: cracked_plains}
+  plan: [{kind: move, destination: the altar chamber}]
+  expect: {handled_by: interpret, kinds: [move], not_by: [move_elsewhere]}
