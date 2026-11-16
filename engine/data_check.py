@@ -580,6 +580,11 @@ def check() -> list[str]:
         re.compile(_load("data/rules/guild.yaml")["handin_words"])                     # (f691)
     except (KeyError, re.error) as e_:
         need(False, f"guild.yaml handin_words: {e_}")
+    for k_ in ("room_words", "room_refused"):                                             # (f695)
+        try:
+            re.compile(_load("data/rules/improv.yaml")[k_])
+        except (KeyError, re.error) as e_:
+            need(False, f"improv.yaml {k_}: {e_}")
     _pw = _load("data/rules/guild.yaml").get("payer_words") or {}                        # (f694)
     need(all(_pw.get(k) for k in ("guild", "asker")), "guild.yaml payer_words: needs guild and asker")
     for t_ in Q.get("in_need", {}).get("kind", []) + Q.get("in_need", {}).get("hard", []):

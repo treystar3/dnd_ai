@@ -146,6 +146,8 @@ RAISED = {                 # {file: (how many more, "fNNN: the guard it adds ove
     "engine/clock.py": (1, "f687: the clock hour a wait is asked until ('until eight in the morning'), read once for the wait"),
     "scenes/plan_repairs.py": (1, "f683: a social act said of the player's own deed, outside what they say aloud ('I try to persuade him: ...'), "
                                   "read once for the check a talk rolls"),
+    "engine/world_improv.py": (2, "f695: a sleep whose line asks to take a room or a bed, and does not say no to one, read once for "
+                                  "the room taken before it"),
     "scenes/guild_actions.py": (1, "f691: the listener a hand-in's line names by name, kept as the one handed to (else the one who pays)"),
     "scenes/combat_scene.py": (6, "f659: the player's acts in a fight line beyond a draught (its parts, the consumable named) and the one foe "
                                   "the player's words name, kept as the target"),

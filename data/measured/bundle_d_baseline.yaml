@@ -23,6 +23,10 @@
 #                 (2026-11-15, tools/latency.py --retold stub_fight --from 0) f640: a new recording on seed 147; on seed 18 the fight is
 #                 lost once f639 moves the dice after the draught, and the script's census refuses it. Its 19 inputs from 0 on set to
 #                 today's prices, none over the limit
+#                 (2026-11-16, tools/latency.py --retold stub_short --from 34) f695: input 34 'I take a room and sleep until morning.'
+#                 now takes the room it asks for (50 copper), so the night and the purse from there are another story; 35 and 37 were
+#                 kept over the limit before and are unchanged. Its 7 inputs from 34 on set to today's prices: kept over the limit,
+#                 plain inputs 35 (69.7 s), 37 (67.1 s)
 #   priced_at:    (f527) the speeds every estimate above was priced at, read tps, write tps and the embedder's seconds a text: the gate
 #                 (tools/latency.py gate, over_limit) prices today's goldens at these, whatever card_profile.yaml says now
 night: 'pod night 20261103_0520 at ed8fdf4, partial: four runs of 10 hours planned; the summoner (89 turns) and priest (204) stopped on two game
@@ -265,7 +269,7 @@ estimates:
     31: 18.6
     32: 19.0
     33: 67.4
-    34: 20.1
+    34: 20.2
     35: 69.7
     36: 42.1
     37: 67.1

@@ -4166,6 +4166,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             minutes = intent.wait_minutes or clock.DEFAULT_WAIT_MINUTES
         minutes = max(1, min(minutes, clock.MAX_WAIT_MINUTES))
         sleeping = minutes >= 360
+        from engine import world_improv
+        if sleeping and not self.has_room() and not camped and world_improv.asks_room(text):     # (f695) the room the sleep asks for
+            seller = next((n for n in self.present if any(w.kind == "room" for w in self.wares_of(n))), None)
+            if seller is not None:
+                self.__dict__.setdefault("repairs", []).append({"rule": "room_for_sleep", "before": "wait", "after": "buy room, wait"})
+                console.debug("room_for_sleep: the sleep asks for a room; one is taken first")
+                self.buy_ware(seller, next(w for w in self.wares_of(seller) if w.kind == "room"), text, quiet=True)   # no coin: told
         if sleeping and self.owns("restless"):
             minutes = max(180, minutes // 2)
         self.end_conversation()
@@ -4184,6 +4191,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     break
                 hit = None
         minutes = waited
+        bed = ""                                                    # (f695) where they slept, for the passage
         if not hit and sleeping:
             c = self.player.character
             c.last_rest = self.player.location
@@ -4195,18 +4203,22 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 for pool in ("health", "stamina", "mana"):
                     setattr(c, pool, pools.maximum(c, pool))
                 console.note(f"You slept safely in your camp and woke fully rested. If you die, you will wake at {self.place.name}.")
+                bed = " They sleep in their camp."
+            elif self.has_room():                              # (f695) a room held is slept in, wherever else they could sleep
+                for pool in ("health", "stamina", "mana"):
+                    setattr(c, pool, pools.maximum(c, pool))
+                console.note(f"You slept in your room and woke fully rested. If you die, you will wake at {self.place.name}.")
+                bed = " They sleep in their own room, in a bed."
             elif rough or temple:
                 for pool in ("health", "stamina", "mana"):
                     setattr(c, pool, pools.maximum(c, pool))
                 console.note("You slept well and woke fully rested" + (" in the temple's quiet." if temple else
                              ", as a soldier learns to on hard ground.") + f" If you die, you will wake at {self.place.name}.")
-            elif self.has_room():
-                for pool in ("health", "stamina", "mana"):
-                    setattr(c, pool, pools.maximum(c, pool))
-                console.note(f"You slept in your room and woke fully rested. If you die, you will wake at {self.place.name}.")
+                bed = " They sleep in the temple's quiet." if temple else " They sleep on hard ground, as a soldier does."
             else:
                 console.note(f"You rested here. If you die, you will wake at {self.place.name}.")
                 self.told("rest_no_bed")                       # (f661) why it was not a full night
+                bed = " They have no room and no bed here, and do not sleep in one."
         arrived = [n.label(self.acting) for n in self.present if n.id not in before]
         left = [n.label(self.acting) for n in self.residents if n.id in before and n not in self.present]
         changes = ""
@@ -4235,7 +4247,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if not hit:
             self.habits("rest")                                # (f412) told in the rest's passage, not after it
             self.mentor_rest_habit()                           # (f413) and Maren's with them
-        self.narrate(f"The player {how} at {self.place.name} for {clock.describe_duration(minutes)}. It is now {clock.period(self.minutes)}."
+        self.narrate(f"The player {how} at {self.place.name} for {clock.describe_duration(minutes)}.{bed} It is now {clock.period(self.minutes)}."
                      f"{changes}{interrupted}{feel} Describe the player resting and the passing of time, then the scene now, "
                      "mentioning at most two of the people present.", text)
         if not hit and sleeping:
