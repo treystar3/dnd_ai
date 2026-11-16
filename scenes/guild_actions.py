@@ -108,11 +108,11 @@ class GuildActions:
                 with self.operation("board", getattr(self, "last_text", ""), world=True):   # refresh is a `board` operation of its own
                     self.refresh_board(gid, state, day)
                 state = self.store.load_place(gid)
-            else:
-                self.refresh_board(gid, state, day)
-        return state.board
+            else:                                                     # (f673) inside an operation, posted without its stakes: their model
+                self.refresh_board(gid, state, day, stakes=_op.current() is None)   # call, made inside a hand-over that changes what it
+        return state.board                                            # reads, drifted and undid the hand-over
 
-    def refresh_board(self, gid: str, state, day: int) -> None:
+    def refresh_board(self, gid: str, state, day: int, stakes: bool = True) -> None:
         """The board posted anew: what was kept of the last one, the new postings, their stakes (who asked, and why), saved."""
         tier = quests.hall_tier(self.world, gid)
         size = G["board_size"] + self.guild_perks()["board"] + tier["size"]
@@ -129,8 +129,8 @@ class GuildActions:
         state.board = quests.post_board(self.world, self.store, self.minutes, size, rng, self.rank or "F", gid,
                                         existing=kept[:size])
         kept_ids = {q["id"] for q in kept}
-        from engine import stakes
-        stakes.plan(self, gid, [q for q in state.board if q["id"] not in kept_ids])       # (f322) who asked, and why
+        from engine import stakes as _stakes
+        _stakes.plan(self, gid, [q for q in state.board if q["id"] not in kept_ids], ask=stakes)   # (f322) who asked, and why
         state.board_day = day
         self.store.save_place(state)
 
