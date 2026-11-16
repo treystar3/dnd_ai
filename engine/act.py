@@ -743,6 +743,11 @@ def resolve(ws, actor_id: str, T, v: Checked, words: str, text: str, made: list[
         ws.notice(Acted(minute=ws.minutes, place=ws.player_of(actor_id).location, what=world_improv.what_of(own or words or text), degree=degree, by=actor_id,
                         changes=tuple(ch.becomes for ch in changes), heat=0.0 if worked else float(F.get("heat", 0) or 0),
                         considered=tuple(t.ref for t in T.rows if t.kind == "situation")))
+    elif worked:                                                               # (f703) a plain yes: the player reads what it came to
+        from engine import told as told_
+        comes_to = (r.works or "").strip().rstrip(" .!?")                      # the ruling's own words (f609), never the line's claim
+        what_done = comes_to[:1].lower() + comes_to[1:] if comes_to else world_improv.what_of(own or words or text)
+        console.note(told_.say("act_done", ws.store.meta.turn, what=what_done))
     seq = int((ws.store.load_world_state() or {}).get("seq") or 0)
     told = apply(ws, actor_id, T, changes, degree, seq, r.stakes.check) if changes else []
     room = (" THE WORLD NOW HOLDS (made for this, and real from now on; show it): " + "; ".join(made) + ".") if made else ""

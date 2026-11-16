@@ -39,6 +39,10 @@ give_short:          # (f676) too few of what a contract asks for, given to the 
   - "\"{title}\" asks for {count}, and you hold {held}: given now, it is a gift, not the contract. Give {goods} anyway? (y/n)"
   - "That is {held} of the {count} \"{title}\" asks for, so it cannot be handed in yet. Give {goods} to {name} as a gift? (y/n)"
   - "With {held} of {count}, \"{title}\" is not ready to hand in. Give {goods} to {name} for nothing? (y/n)"
+act_done:            # (f703) an improvised act that works with no roll and nothing changed: the player reads what it came to
+  - "It works: {what}."
+  - "Done, and this is what it comes to: {what}."
+  - "It works, and this is all it comes to: {what}."
 handin_away:         # (f694) finished work handed in where the one who pays for it is not here
   - "For {titles}, only {who} pays, and is not here: nothing is handed in yet."
   - "Nobody here can take {titles}. Only {who} pays, and is not here."
