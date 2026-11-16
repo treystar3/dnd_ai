@@ -32,11 +32,18 @@ class AuditActions:
             abilities={k: a.name for a in self.player.character.actives for k in (a.id.lower(), a.name.lower())},
             place=self.place.name, wildlife=bool(self.wildlife),
             partner=self.partner.label(self.acting) if self.partner else "",
-            workers={n.id for n in self.present if offer_open(self.store, n, self.acting)}, people_at=self.people_at)
+            workers={n.id for n in self.present if offer_open(self.store, n, self.acting)}, people_at=self.people_at,
+            hunts=self.hunted_here)
         sit.lines = [f"Place: {sit.place}.", "People here: " + (", ".join(sit.present.values()) or "no one") + ".",
                      "Talking with: " + (sit.partner or "no one") + ".",
                      "Pack: " + (", ".join(self.pack_names()) or "empty") + "."]
         return sit
+
+    def hunted_here(self, target: str) -> bool:
+        """(f698) Does a target name a creature the acting character's place holds (its roster, read and never written)?"""
+        from engine import encounters
+        roster = encounters.roster_of(self.store, self.world, self.player_of(self.acting).location)
+        return bool(roster and self.creature_named(roster, target))
 
     def people_at(self, place: str) -> set[str]:
         """(f384) Who is found at a place, by id, name, label and work, lower case: what a talk after a walk may be aimed at."""

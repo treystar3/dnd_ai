@@ -13,15 +13,13 @@ CREATURE_RULES = yamlio.safe_load((Path(__file__).resolve().parent.parent / "dat
 E = combat.RULES["encounters"]
 
 
-def ensure_roster(store, world, place_id: str) -> list[str]:
+def roster_of(store, world, place_id: str) -> list[str]:
+    """(f698) The creatures a place holds, as ensure_roster would keep them, read and never written: drawn from the seed when none
+    is kept yet."""
     state = store.load_place(place_id)
     anchors = world.places[place_id].anchors
     if state.roster:
-        missing = [a for a in anchors if a not in state.roster]
-        if missing:
-            state.roster = missing + state.roster
-            store.save_place(state)
-        return state.roster
+        return [a for a in anchors if a not in state.roster] + state.roster
     if not world.places[place_id].danger:
         return state.roster
     found = world.creature_candidates(place_id, CREATURE_RULES["rarity_weight"], CREATURE_RULES.get("fit"))   # peers before stragglers
@@ -32,8 +30,15 @@ def ensure_roster(store, world, place_id: str) -> list[str]:
         pick = rng.choices(pool, weights=[w for _, w in pool])[0]
         roster.append(pick[0].id)
         pool.remove(pick)
-    state.roster = roster
-    store.save_place(state)
+    return roster
+
+
+def ensure_roster(store, world, place_id: str) -> list[str]:
+    state = store.load_place(place_id)
+    roster = roster_of(store, world, place_id)
+    if roster != state.roster:
+        state.roster = roster
+        store.save_place(state)
     return roster
 
 

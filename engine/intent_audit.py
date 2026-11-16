@@ -41,6 +41,7 @@ class Situation:
     workers: set[str] = field(default_factory=set)            # ids of people here with a work offer standing
     lines: list[str] = field(default_factory=list)            # plain scene facts shown to the model
     people_at: object = None                                  # (f384) place -> the ids, names and roles of who is found there, or None
+    hunts: object = None                                      # (f698) target -> whether it names a creature this place holds, or None
 
     def knows_target(self, target: str) -> bool:
         t = target.strip().lower()
@@ -86,7 +87,8 @@ def problems(plan: list, sit: Situation) -> list[str]:
     for i, s in enumerate(plan, 1):
         if s.kind == "move" and getattr(s, "destination", ""):
             there = s.destination
-        if s.kind in TARGETED and s.target and not sit.knows_target(s.target) and not sit.found_at(there, s.target):
+        if s.kind in TARGETED and s.target and not sit.knows_target(s.target) and not sit.found_at(there, s.target) \
+                and not (s.kind in ("attack", "ability") and sit.hunts and sit.hunts(s.target)):    # (f698) gone looking for (f449)
             out.append(f"step {i} ({s.kind}) is aimed at '{s.target}', who is not here")
         if s.kind == "ability" and s.ability and sit.abilities and s.ability.strip().lower() not in sit.abilities:
             out.append(f"step {i} uses ability '{s.ability}', which the player does not have")
