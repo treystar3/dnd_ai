@@ -7,6 +7,7 @@ Haggle is the one that cuts across another system: a buy with a persuasion check
 social check into talk (scenes/check_actions.py run_checks); haggle rolls the check itself and then buys, so bargaining ends with a price."""
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import yaml
@@ -78,6 +79,15 @@ class PastimeActions:
 
     # ---------- haggle
 
+    def only_asks(self, text: str) -> bool:
+        """(f660) A line that asks about a deal and says nothing of making it: a question, with no word of buying (the buy kind's own,
+        "I'll take it", "I'll have")."""
+        from engine import actions
+        low = " ".join((text or "").lower().split())
+        buy = actions.BY_KIND["buy"].verbs + actions.BY_KIND["buy"].words + ("i'll take", "i will take", "take it", "i'll have", "deal")
+        asks = "?" in low or bool(re.match(r"(what|how|do|does|have|is|are|can|could|would|will)\b", low))
+        return asks and not any(re.search(rf"\b{re.escape(w)}\b", low) for w in buy if w not in ("sleep", "rest"))
+
     def on_haggle(self, intent, text: str) -> None:
         """Bargaining before a purchase: a persuasion check against the seller; a landing one buys at the price it won, a failing one buys nothing
         and the seller thinks a little less of the stranger."""
@@ -88,6 +98,9 @@ class PastimeActions:
             (sellers[0] if sellers else None)                         # (f545's review) the one who sells what is haggled over
         if seller is None:
             self.refuse("No one here is selling anything.")
+            return
+        if self.only_asks(text):                         # (f660) asking what is sold, or what it costs, buys nothing: it is a word with them
+            self.on_talk(intent.model_copy(update={"kind": "talk", "target": seller.id, "speech": intent.speech or text}), text)
             return
         if seller.tier == "background":
             from npc.life import promote

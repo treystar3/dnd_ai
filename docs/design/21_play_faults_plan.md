@@ -403,6 +403,15 @@ repair, so a repair that catches too much passes. These are the tests of the eng
 - Coin handed to a clerk for a thing with a price (the guild's fee) pays for that thing, or is refused. It is never taken as a
   gift and the fee asked again.
 - The class: a payment or a purchase made by a reading the line did not ask for.
+- **As built (f660).** A haggle whose line only asks (a question, with no word of buying: the buy kind's own, "I'll take it")
+  is a word with the seller, and nothing is bought; one that asks and says it takes the thing still buys at the price won. Coin
+  handed to someone who takes coin for a deed with a price is read against that deed: each scene part declares what it takes
+  coin for (FEES; the first is the clerk's joining fee, while the player is no member). Coin that meets the price and is said to
+  be for it, or is the price exactly, pays for that deed; coin short of it, or naming nothing they take coin for, is refused and
+  kept, with what it would pay for said (two new lines for the owner to read: "The guild's joining fee is three silver; that is
+  short of it, and you keep your coin." and "Odo Venn takes coin for the guild's joining fee (three silver), not as a gift. Say
+  it is for that, or say it is a gift; you keep your coin for now."). Words of a gift or a bribe are still those.
+  tools/sim/coin_asked_660_test.py. Left: lessons, fines and fares are paid by their own deeds and are not yet in FEES.
 
 After B, one short live play on the user's card reads the journal's own lines again. That is a check, not the test.
 

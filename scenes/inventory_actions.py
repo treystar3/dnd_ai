@@ -428,6 +428,14 @@ class InventoryActions:
             intent.target, intent.ware = npc.id, ware.id
             self.on_buy(intent, text)
             return
+        fee = self.fee_asked(npc, amount, f"{intent.item or ''} {text}".lower(), recent, intent)
+        if fee:                                               # (f660) coin for a deed with a price pays for it, or is refused: never a gift
+            kind, why = fee
+            if kind:
+                getattr(self, f"on_{kind}")(intent.model_copy(update={"kind": kind, "target": npc.id, "item": "", "ware": ""}), text)
+            else:
+                self.refuse(why)
+            return
         if not amount:
             self.refuse("How much? Say an amount, or what you're paying for.")
             return
@@ -473,6 +481,25 @@ class InventoryActions:
         if len(at_price) == 1:
             return at_price[0]
         return before[0] if len(before) == 1 and not amount else None
+
+    def fee_asked(self, npc, amount, said: str, recent: str, intent) -> tuple[str, str] | None:
+        """(f660) Coin handed to someone who takes coin for a deed with a price (each scene part's FEES: the clerk's joining fee): the
+        deed's kind when the coin meets its price and is said to be for it, or is that price exactly; else ("", why) to refuse it, the
+        coin kept. None when they take coin for nothing, or the words make it a gift or a bribe."""
+        if self.is_bribe(intent, said) or any(g in said for g in self.GIFT_WORDS):
+            return None
+        fees = [(kind, got) for cls in type(self).__mro__ for kind, fn in cls.__dict__.get("FEES", ()) if (got := getattr(self, fn)(npc))]
+        if not fees:
+            return None
+        for kind, (price, words, what) in fees:
+            named = any(re.search(rf"\b{re.escape(w)}", f"{said} {recent}") for w in words)
+            if price and amount and amount >= price and (named or amount == price):
+                return kind, ""
+        kind, (price, words, what) = fees[0]
+        short = bool(price and amount and amount < price)
+        return "", (f"{what[:1].upper() + what[1:]} is {money.words(price)}; that is short of it, and you keep your coin." if short else
+                    f"{npc.label(self.acting)} takes coin for {what}" + (f" ({money.words(price)})" if price else "") +
+                    ", not as a gift. Say it is for that, or say it is a gift; you keep your coin for now.")
 
     def is_bribe(self, intent, text: str) -> bool:
         low = f"{text} {intent.summary}".lower()

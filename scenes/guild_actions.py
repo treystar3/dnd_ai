@@ -69,6 +69,14 @@ class GuildActions:
     def clerk_here(self):
         return next((n for n in self.present if n.role == "guild_clerk"), None)
 
+    FEES = (("join_guild", "joining_fee_of"),)             # (f660) a deed this part takes coin for (inventory_actions.fee_asked)
+
+    def joining_fee_of(self, npc):
+        """(f660) The clerk takes coin for the joining fee, while the player is no member: (price, words that name it, what it is)."""
+        if npc.role != "guild_clerk" or self.rank:
+            return None
+        return G["joining_fee"], ("join", "fee", "guild", "regist", "member", "sign", "enrol"), "the guild's joining fee"
+
     def guild_place_id(self) -> str | None:
         """The hall you're standing in, or else the first one (the home hall)."""
         if self.place.type == "guild":
