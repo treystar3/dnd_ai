@@ -38,6 +38,18 @@ class ArcActions:
     YIELD_SPARE = re.compile(r"\b(spare|mercy|release|go free|let (it|them|him|her) (go|live|leave|be)|send (it|them|him|her) (off|away)|"
                              r"leave (it|them|him|her)|wave (it|them|him|her) (off|away)|shoo)\b", re.I)
     YIELD_NOT = re.compile(r"\b(don'?t|do not|never|won'?t|will not|no need to)\b", re.I)
+    BLOW = (r"attack|hit|swing|slash|smash|bash|cleave|hack|chop|shoot|fire at|loose at|club|bludgeon|pummel|kick|impale|skewer|"
+            r"strike(?!\s+(?:a\s+deal|a\s+bargain|camp|up|out|a\s+light|a\s+match))|bring (?:my|the|his|her) \w+ down")
+
+    def yield_blow(self, low: str):
+        """(f657) A blow at a foe who yielded: a word of a blow, an attack verb of the action table, or a damaging ability of the acting
+        character named. "Twin Hammer Strike on the centaur" let the centaur go."""
+        from core.models import Effect
+        from engine import actions, loadout
+        verbs = {v for k in ("attack", "ability") for v in actions.BY_KIND[k].verbs + actions.BY_KIND[k].words if v not in ("cast", "heal")}
+        names = [a.name.lower() for a in loadout.prepared(self.player_of(self.acting).character) if a.effect == Effect.DAMAGE]
+        words = "|".join([self.BLOW] + [re.escape(v) for v in sorted(verbs)] + [re.escape(n) for n in names])
+        return re.search(rf"\b(?:{words})", low)
 
     def hold_yielded(self, foes: list) -> None:
         """(f385) Foes who gave up the fight and are not taken as captives wait for the player to say: spare them, or finish them. A
@@ -59,7 +71,7 @@ class ArcActions:
             return False
         self.held_yield = None
         low = text.lower()
-        kill, spare = self.YIELD_KILL.search(low), self.YIELD_SPARE.search(low)
+        kill, spare = self.YIELD_KILL.search(low) or self.yield_blow(low), self.YIELD_SPARE.search(low)
         if kill and self.YIELD_NOT.search(low[:kill.start()].rsplit(".", 1)[-1]):     # "don't kill it"
             kill, spare = None, spare or kill
         one = len(foes) == 1
