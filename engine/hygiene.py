@@ -324,6 +324,8 @@ def undash_answer(task: str, value) -> None:
 
 def problems() -> list[str]:
     bad = []
+    if not (H.get("phantom") or {}).get("reason") or not (H.get("phantom") or {}).get("before"):          # (f701)
+        bad.append("hygiene.yaml: needs phantom.reason and phantom.before")
     for k in ("mine_after", "mine_opens", "ruler_titles"):                    # (f693)
         if not (H.get("first_person_senses") or {}).get(k):
             bad.append(f"hygiene.yaml: needs first_person_senses.{k}")

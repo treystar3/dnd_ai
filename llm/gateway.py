@@ -219,6 +219,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
     from llm import backend, sampling
     plan = sampling.resolve(task, temperature)                  # (f515) the task's sampling, its ceiling and its shifts, once
     said = []                                   # (f447) the complaints so far: the same one twice running ends the tries
+    phantom_sent = False                        # (f701) a passage sent back once already for a creature not here
     transport = False                           # (f449) whether the call itself failed (a timeout, the server), as against every answer refused
     failure = ""                                # (f516) the last try's failure kind, '' when it was answered (and the answer refused)
     from engine import budget
@@ -324,6 +325,11 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
                         kind, found = hygiene.problem(task, result)
                         if kind:
                             reason = f"{hygiene.reason(kind)} (not '{found}')"
+                        elif not phantom_sent and attempt < retries:     # (f701) a creature not here: sent back once, never the telling lost
+                            from engine import phantoms
+                            ghost = phantoms.found(task, " ".join(hygiene.prose_of(result)), str(messages[1]["content"]))
+                            if ghost:
+                                reason, phantom_sent = phantoms.reason(ghost), True
                     if cat:
                         reason = f"{guard.script_reason() if cat == 'script' else guard.reason(cat)} (not '{hit}')"   # (f370) the word named, or the model writes it again
                         try:

@@ -133,6 +133,8 @@ STATE: dict[str, Row] = {
     "engine.streams.BEGUN": Row(PROCESS, "nothing: how many inputs this run has begun; only whether it moved is read"),
     "engine.recording.ORPHANS": Row(PROCESS, "each thread's own end: the threads closed sessions left running, so their calls are never the next save's"),
     "llm.audit._path": Row(PROCESS, "nothing: this run's audit file, named when the first call is audited"),
+    "engine.phantoms._names": Row(PROCESS, "nothing: the bestiary's names, read once (f701)"),
+    "engine.phantoms._source": rebound("engine.phantoms._source", CAMPAIGN, None),     # (f701) the scene's place's creatures
     "llm.audit._count": Row(PROCESS, "nothing: the audit file's entry numbers"),
     "llm.audit._turn_written": Row(PROCESS, "nothing: the last heading the audit file was given"),
     "llm.audit._system_seen": Row(PROCESS, "nothing: where the audit file last wrote each task's system prompt in full"),

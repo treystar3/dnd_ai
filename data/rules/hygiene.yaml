@@ -12,6 +12,21 @@ prose_fields: [text, speech, gesture, before, after, line, scene, detail, paragr
 # Tasks whose prose is the narrator's: second person, so "I" and "my" belong only inside someone's quoted speech.
 narrator_tasks: [narrate, combat_opening, combat_narrate, combat_aftermath, dialogue_frame, moment, road_event]
 
+# (f701) A passage may not show a creature of this place the game does not have. A one-word creature counts as one only when written
+# as one: plural, or after one of these words ("the bat", "two wolves"); never a verb ("did not bat an eye").
+phantom:
+  reason: "only creatures the game has here may be shown; this one is not here: write the passage without it, or as signs or talk of it if the GAME EVENT names it"
+  before: [a, an, the, one, two, three, four, five, six, several, some, another, that, this, those, these, many, few, its, their, lone, single, giant, huge, great, young, old, wild, dead, dark]
+  window: 3            # how many words back one of those may stand
+  # a creature word that is no creature here: before "of" or a word of what is left of one ("the shadow of the ridge", "a wolf pelt",
+  # "wolf tracks"), as a likeness ("like a ghost"), owned ("the Wolf's Head") or done by someone ("he wolfs down the bread")
+  after_not: [of, s, pelt, pelts, hide, hides, skin, fur, tracks, track, prints, print, trail, spoor, droppings, skull, skulls, bone,
+              bones, carcass, carcasses, head, tooth, teeth, fang, fangs, claw, claws, den, lair, trap, traps, meat, feather, feathers,
+              down, scale, scales, horn, horns, howl, howls, call, cry]
+  before_not: [like, as, he, she, it, they, you, we, i]
+  # creature names that are common words first: never chased alone (a passage with "shadows" in it is no shadow come to life)
+  common: [shadow, ghost, skeleton, scout, nightmare, spy, guard, knight, veteran, priest, noble, commoner, thug, mage, acolyte, bandit,
+           cultist, gladiator, assassin, berserker, druid, tribal, warrior, specter]
 # (f693) The first-person words with another sense. "Mine" is a pit dug for ore and the digging of it, so it is the narrator's own
 # only in a possessive frame: after one of these words ("is mine", "a friend of mine", "his eyes meet mine"), "'s mine" closing a
 # clause ("this one's mine"), or "Mine is" opening a sentence. "I" after a ruler's title and name is a numeral ("King Harald I").

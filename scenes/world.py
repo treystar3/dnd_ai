@@ -128,6 +128,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.resume_pending = None
         self.wildlife = None
         self.wildlife_at = None                # (f700) the minute it was seen
+        from engine import phantoms
+        phantoms.use(self.creatures_here)      # (f701) what a passage may show of the place's creatures
         self.sneaking, self.queued_buffs, self.fight_text = False, [], ""     # a fight the player starts this turn (f248)
         self.recently_fled = False
         self.rng = streams.get("scene")  # (f439) reseeded at every input
@@ -2790,6 +2792,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def save(self) -> None:
         self.store.save_player(self.player)
         self.store.save_meta()
+
+    def creatures_here(self) -> list[str]:
+        """(f701) The creatures the acting character's place can hold (its roster, read and never written)."""
+        place = self.player_of(self.acting).location
+        return encounters.roster_of(self.store, self.world, place) if place in self.world.places else []
 
     def in_view(self) -> list[str]:
         """(f700) The creature the game holds in view here, as the scene's one list of who is present names it, for every passage while
