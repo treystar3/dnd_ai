@@ -27,6 +27,10 @@ tiers:
 # a stop is settled for the player: a find lies there until they pick it up, a hazard waits for how they get past it, someone in need is
 # helped only if the player helps (and walking past them is seen by the party).
 stops: [find, meeting, hazard, aid]
+# (f702) A sight does not stop the walk, but it stays where it was seen: a landmark of that road the player can go back to, the most
+# recent this many kept.
+landmarks_kept: 12
+landmark_margin: 0.05      # never kept nearer either end of its road than this part of it
 # Who is there when the writer names nobody: someone in need, someone met on the way.
 stop_roles: {aid: wanderer, meeting: wanderer}
 

@@ -522,6 +522,7 @@ function renderPlaces(d) {
   };
   block("IN " + d.town.toUpperCase(), d.local);
   block("FURTHER AFIELD", d.far);
+  if (d.sights && d.sights.length) block("ON THE ROADS", d.sights);          // (f702) what was seen on a road, kept where it was
   if (d.roads && d.roads.length) {
     side.appendChild(el("div", "h2", "ROADS OUT"));
     for (const r of d.roads) {

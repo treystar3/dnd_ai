@@ -2986,8 +2986,14 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         been, heard = mapview.known(w, self.player.visited, here, self.player.heard)
         far = [r for pid in (been | heard) if pid != top for r in [row(pid, "visited" if pid in been else "heard")] if r]
         key = lambda r: (r["minutes"], r["name"])
+        sights = []                                                             # (f702) what was seen on the roads, kept where it was
+        for m in reversed(self.landmarks()):
+            way = self.landmark_way(m)
+            if way:
+                sights.append({"id": m["id"], "name": f"{m['title']}, on {m['road'] or 'the road'}", "type": "sight", "minutes": way[1],
+                               "away": clock.describe_duration(way[1]), "state": "visited"})
         return {"here": here, "town": w.places[top].name, "here_name": w.places[here].name,
-                "local": sorted(local, key=key), "far": sorted(far, key=key), "roads": self.road_rows()}
+                "local": sorted(local, key=key), "far": sorted(far, key=key), "roads": self.road_rows(), "sights": sights}
 
     def show_places(self) -> None:
         data = self.places_data()
@@ -3009,7 +3015,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         from llm.contracts import ActionIntent
         parts = text.split()
         dest = parts[1] if len(parts) > 1 else ""
-        if dest not in self.world.places:
+        mark = next((m for m in self.landmarks() if m["id"] == dest), None)
+        if mark is not None:                                                    # (f702) a sight kept on a road
+            self.go_landmark(mark, "")
+            self.halted = False
+        elif dest not in self.world.places:
             console.note("You don't know a way there.")
         elif not any(r["id"] == dest for r in self.places_data()["local"] + self.places_data()["far"]):
             console.note("You don't know a way there from here.")
@@ -3291,6 +3301,15 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     self._following = True
                     intent.seek = ""
                     self.on_search(intent, text)
+                    return
+                named = self.landmark_named(dest or text)                               # (f702) back to a sight kept on a road
+                if named is not None and named[1]:
+                    self.go_landmark(named[0], text)
+                    return
+                if named is not None:                                                   # half named: a long walk is asked first (f428)
+                    m = named[0]
+                    self.refuse(f"Do you mean {m['title'][:1].lower() + m['title'][1:]}, on {m['road'] or 'the road'} "
+                                f"({clock.walk_words(self.landmark_way(m)[1]) if self.landmark_way(m) else 'a way off'})? Name it, or pick it under Places.")
                     return
                 if self.part_move(dest, text, adopt=True):                              # (f394) a part a place like this would have
                     return

@@ -139,19 +139,22 @@ def nearby_wilds(world, a: str, b: str) -> list[str]:
     return found
 
 
+def anchor(world, pid: str) -> str:
+    """(f366) The real place a road stop stands nearest to: a journey begun from a stop names the towns, not 'the way between the way
+    between...'. (f702) Lifted out for the landmarks a sight leaves."""
+    p = world.places.get(pid)
+    if p is not None and p.type == "road" and not p.parent and p.connects:
+        return anchor(world, min(p.connects, key=lambda k: p.connects[k]))
+    return pid
+
+
 def make_stop(world, a: str, b: str, frac: float, minutes: int, scene: str, role: str, title: str, detail: str = "", name: str = "") -> dict:
     """A place on the road between a and b where the player is left. Returned as the dict saved in the player's state."""
     from world.loader import Place
     near = a if frac < 0.5 else b
     ta = max(1, round(minutes * frac))
     tb = max(1, minutes - ta)
-
-    def anchor(pid: str) -> str:                      # (f366) a journey begun from a stop names the towns, not 'the way between the way between...'
-        p = world.places.get(pid)
-        if p is not None and p.type == "road" and not p.parent and p.connects:
-            return anchor(min(p.connects, key=lambda k: p.connects[k]))
-        return pid
-    aa, bb = anchor(a), anchor(b)
+    aa, bb = anchor(world, a), anchor(world, b)
     r = world.road_between(aa, bb)
     if aa == bb and not name:                         # (f423) a journey resumed from a stop near its end: never "between Hrimgard and Hrimgard"
         old = next((world.places[x] for x in (a, b) if x in world.places and world.places[x].type == "road" and not world.places[x].parent), None)

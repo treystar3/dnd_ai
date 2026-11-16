@@ -368,6 +368,8 @@ class RoadActions:
         self.road_effects(ev, tier, a, b, state)
         if matter and (hostile or not deterred):
             matters.road_shown(self, matter[0]["id"], carried=not hostile)
+        if kind == "sight" and not deterred:
+            self.keep_landmark(ev, a, b, frac)                  # (f702) passed by, never lost: after the world above is saved
         if stops:
             role = "" if hostile else ev.meets_role if ev.meets_role in self.world.roles else \
                 R["stop_roles"].get(kind, "") if kind in ("aid", "meeting") else ""      # (f427) someone in need is someone there
@@ -404,6 +406,97 @@ class RoadActions:
             self.show_exits()
             return "stopped"
         return "go"
+
+    # ---------- (f702) a sight passed on the road, kept where it was seen ----------
+
+    def road_spot(self, x: str) -> tuple[str, str, float] | None:
+        """(a, b, how far from a) of a point on a road: a real place is its own end; a stop stands between the two real places it
+        is joined to (f426), as far along as its walks to them say."""
+        p = self.world.places.get(x)
+        if p is None:
+            return None
+        if p.type == "road" and not p.parent and len(p.connects) == 2:
+            (ea, da), (eb, db) = sorted(p.connects.items())
+            return ea, eb, da / max(1, da + db)
+        return x, x, 0.0
+
+    def keep_landmark(self, ev, a: str, b: str, frac: float) -> None:
+        """A sight kept as a landmark of its road: the two real places the road joins, how far along it was seen, and its title (what
+        it is; the scene's own words belong to the hour it was seen)."""
+        from engine import streams
+        sa, sb = self.road_spot(a), self.road_spot(b)
+        if not sa or not sb:
+            return
+        ends = sorted({sa[0], sa[1], sb[0], sb[1]})
+        if len(ends) != 2:
+            return
+        ra, rb = ends
+        pos = lambda s: (0.0 if s[0] == ra else 1.0) if s[0] == s[1] else s[2]     # a stop's ends are sorted as the road's are
+        here = pos(sa) + frac * (pos(sb) - pos(sa))             # the stretch's own fraction, put on the real road
+        margin = float(R["landmark_margin"])
+        r = self.world.road_between(ra, rb)
+        state = self.store.load_world_state() or {}
+        marks = state.get("landmarks", [])
+        marks.append({"id": f"sight_{streams.new_id(6)}", "title": ev.title.strip(), "scene": ev.scene.strip(), "a": ra, "b": rb,
+                      "frac": round(min(1 - margin, max(margin, here)), 2), "road": r.name if r else "", "minute": self.minutes})
+        state["landmarks"] = marks[-int(R["landmarks_kept"]):]
+        self.store.save_world_state(state)
+
+    def landmarks(self) -> list[dict]:
+        return list((self.store.load_world_state() or {}).get("landmarks", []))
+
+    def landmark_named(self, words: str) -> tuple[dict, bool] | None:
+        """(the landmark the words name best, whether they name all of its title's own words) or None. Common words name nothing
+        ('the road', 'back', 'over': interpret.yaml generic_words)."""
+        from engine.candidates import GENERIC
+        from engine.inventory import _stem
+        def own(s: str) -> set[str]:
+            return {_stem(w) for w in re.findall(r"[a-z]+", (s or "").lower()) if len(w) >= 4 and w not in GENERIC and _stem(w) not in GENERIC}
+        said, best = own(words), None
+        for m in self.landmarks():
+            title = own(m["title"])
+            hit = len(title & said)
+            if hit and (best is None or hit >= best[1]):
+                best = (m, hit, hit == len(title))
+        return (best[0], best[2]) if best else None
+
+    def landmark_way(self, m: dict) -> tuple[dict, int] | None:
+        """(the ways the stop at a landmark is joined by, the walk from here) or None: its road's two ends, and the stop the player
+        stands at when it is on the same road (walked along, never round by a town)."""
+        edge = self.world.path(m["a"], m["b"])
+        if not edge:
+            return None
+        joins = {m["a"]: max(1, round(edge[1] * m["frac"])), m["b"]: max(1, round(edge[1] * (1 - m["frac"])))}
+        here = self.player_of(self.acting).location
+        spot = self.road_spot(here)
+        if spot and spot[0] != spot[1] and {spot[0], spot[1]} == {m["a"], m["b"]}:
+            mine = spot[2] if spot[0] == m["a"] else 1 - spot[2]
+            joins[here] = max(1, round(edge[1] * abs(mine - m["frac"])))
+        if here in joins:
+            return joins, joins[here]
+        ways = [(found[1] + joins[e]) for e in (m["a"], m["b"]) for found in [self.world.path(here, e)] if found]
+        return (joins, min(ways)) if ways else None
+
+    def go_landmark(self, m: dict, text: str) -> None:
+        """Back to a sight kept on a road: a stop made where it was seen, joined to the road's ends, and walked to as any journey is
+        (the road's happenings, a shut road, a mount, one passage on arrival). A walk stopped on the way leaves no stop behind."""
+        way = self.landmark_way(m)
+        if way is None:
+            self.refuse("You don't know a way there from here.")
+            return
+        joins, _ = way
+        edge = self.world.path(m["a"], m["b"])[1]
+        stop = roads.make_stop(self.world, m["a"], m["b"], m["frac"], edge, f"{m['title']} (seen here before, and still here)", "", m["title"])
+        stop["place"]["connects"] = joins
+        stop.update(log=[], text=text, resume="", bound=m["b"], kind="sight", tier="")
+        self.world.add_place(Place(**stop["place"]))
+        me = self.player_of(self.acting)
+        self.travel_route(stop["id"], text)
+        if me.location == stop["id"]:
+            me.road = stop                                      # tidied as any stop is, once they walk on
+            self.store.save_player(me)
+        elif stop["id"] in self.world.places:
+            self.world.remove_place(stop["id"])
 
     # ---------- (f427) what waits at a stop, for the player to do something about ----------
 
