@@ -995,19 +995,16 @@
   scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
   plan: [{kind: talk, target: i1, speech: "I lost a game of dice to a sailor last night."}]
   expect: {handled_by: interpret, kinds: [talk], not_by: [talk_to_deed]}
-  owed: {fix: "B2: a talk is read as a deed by what it asks for, never by a deed it tells of", now: {kinds: [gamble], repairs: [talk_to_deed]}}
 - name: kneeling_to_jam_a_plate_is_no_prayer
   text: "I kneel and jam the pressure plates with my dagger."
   scene: {delve: true, dungeon: cracked_plains}
   plan: [{kind: other, summary: jam the pressure plates with a dagger}]
   expect: {handled_by: interpret, kinds: [other], not_by: [talk_to_deed]}
-  owed: {fix: "B2 4.2: praying is decided by the deed's own words", now: {kinds: [pray], repairs: [talk_to_deed]}}
 - name: kneeling_to_jam_a_plate_said_so_is_no_prayer
   text: "I kneel and jam the pressure plates with my dagger."
   scene: {delve: true, dungeon: cracked_plains}
   plan: [{kind: other, summary: kneel and jam the pressure plates with a dagger}]
   expect: {handled_by: interpret, kinds: [other], not_by: [talk_to_deed]}
-  owed: {fix: "B2 4.2: kneeling to do a thing is no prayer, whoever's words say it", now: {kinds: [pray], repairs: [talk_to_deed]}}
 - name: pointing_out_the_wires_does_not_leave_the_dungeon
   text: "We step around the rigged stones, I point out the wires, and we go on to the next chamber."
   scene: {delve: true, dungeon: cracked_plains}
@@ -1176,3 +1173,73 @@
   scene: {delve: true, dungeon: cracked_plains}
   plan: [{kind: move, destination: the altar chamber}]
   expect: {handled_by: interpret, kinds: [move], not_by: [move_elsewhere]}
+- name: a_haggler_told_of_is_talk
+  text: "I tell Hollis my brother used to haggle for a better price at every stall"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: talk, target: i1, speech: "My brother used to haggle for a better price at every stall."}]
+  expect: {handled_by: interpret, kinds: [talk], not_by: [talk_to_deed]}
+- name: dice_asked_for_tonight_is_gamble
+  text: "Hollis, let's throw dice for a silver tonight"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: talk, target: i1, speech: "Let's throw dice for a silver tonight."}]
+  expect: {handled_by: interpret, kinds: [gamble]}
+- name: kneeling_to_bind_a_wound_is_no_prayer
+  text: "I kneel beside Raerei and bind her wound."
+  scene: {place: greywood}
+  plan: [{kind: other, summary: kneel and bind Raerei's wound}]
+  expect: {handled_by: interpret, kinds: [other], not_by: [talk_to_deed]}
+- name: kneeling_to_pray_is_a_prayer
+  text: "I kneel and pray for Raerei's recovery."
+  scene: {place: greywood}
+  plan: [{kind: other, summary: kneel and pray for Raerei's recovery}]
+  expect: {handled_by: interpret, kinds: [pray]}
+- name: a_prayer_said_beside_another_deed_is_not_that_deed
+  text: "I whisper a prayer under my breath and pry open the chest."
+  scene: {place: greywood}
+  plan: [{kind: other, summary: pry open the chest}]
+  expect: {handled_by: interpret, kinds: [other], not_by: [talk_to_deed]}
+- name: a_word_after_a_game_is_still_a_word
+  text: "I play a hand of cards with Pip, then tell Hollis the soup is good."
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}, {id: s2, name: Pip, role: server}]}
+  plan: [{kind: gamble, target: s2}, {kind: talk, target: i1, speech: "The soup is good."}]
+  expect: {handled_by: interpret, kinds: [gamble, talk]}
+- name: a_loss_told_beside_a_new_hand_asked_is_gamble
+  text: "I lost last time, deal me in again"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: talk, target: i1, speech: "I lost last time, deal me in again"}]
+  expect: {handled_by: interpret, kinds: [gamble]}
+- name: wont_you_deal_me_in_is_gamble
+  text: "Won't you deal me in, Hollis?"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: talk, target: i1, speech: "Won't you deal me in?"}]
+  expect: {handled_by: interpret, kinds: [gamble]}
+- name: a_spear_once_trained_with_beside_a_lesson_asked_is_train
+  text: "I used to train with a spear; teach me the sword"
+  scene: {place: guild_house, present: [{id: t1, name: Master Orrin, role: guild_instructor}], rank: F}
+  plan: [{kind: talk, target: t1, speech: "I used to train with a spear; teach me the sword"}]
+  expect: {handled_by: interpret, kinds: [train]}
+- name: a_game_asked_for_in_the_line_with_a_short_speech_is_gamble
+  text: "I ask Hollis for a game of dice"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: talk, target: i1, speech: "Fancy a game?"}]
+  expect: {handled_by: interpret, kinds: [gamble]}
+- name: a_price_called_too_dear_in_the_line_is_haggle
+  text: "I tell Hollis the room is too dear"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: talk, target: i1, speech: "Too dear.", summary: haggling with Hollis}]
+  expect: {handled_by: interpret, kinds: [haggle]}
+- name: kneeling_at_the_altar_with_a_short_summary_is_a_prayer
+  text: "I kneel at the altar and pray"
+  scene: {place: parth_temple, present: [{id: p1, name: Brother Aldo, role: priest}]}
+  plan: [{kind: other, summary: kneel down}]
+  expect: {handled_by: interpret, kinds: [pray]}
+- name: kneeling_before_a_shrine_is_a_prayer
+  text: "I kneel before the shrine of the river god"
+  scene: {place: greywood}
+  plan: [{kind: other, summary: kneel before the shrine}]
+  expect: {handled_by: interpret, kinds: [pray]}
+- name: a_summary_telling_of_a_loss_beside_a_new_hand_asked_is_gamble
+  text: "Deal me in again, Hollis"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: talk, target: i1, speech: "Deal me in again", summary: "he won the last hand from me"}]
+  expect: {handled_by: interpret, kinds: [gamble]}

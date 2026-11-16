@@ -91,8 +91,10 @@ TRAIN = re.compile(r"\b(teach|taught|train|training|lessons?|drills?|tutor|tutor
 ASKING = re.compile(r"\b(me|my|i want|i'd like|i would like|can you|could you|will you|would you|i wish|i need)\b")
 JOB = re.compile(r"\b((take|do|accept|start|finish|have) (the|that|this|your|my) (job|work|task)|put me to work|hire me|i'll work|"
                  r"ready to work|work for you)\b")
-PRAYING = re.compile(r"\b(pray|prayer|prayers|kneel|kneels|light a candle|lights? a candle|candle for|altar|offering|give thanks|gives thanks|"
-                     r"vow|blessing|the gods|the god|goddess)\b")
+PRAYING = re.compile(r"\b(pray|prayer|prayers|light a candle|lights? a candle|candle for|altar|shrine|idol|offering|give thanks|gives thanks|"
+                     r"vow|blessing|the gods|the god|goddess)\b")          # (f653) kneeling alone is no prayer: "I kneel and jam the plates"
+TELLS = re.compile(r"\b(last night|yesterday|the other day|earlier today|used to|ago|lost|won(?!')|played|threw|rolled)\b")   # (f653) a deed told of
+CLAUSE = re.compile(r"[.;!?,]|\s+(?:but|then|and then)\s+")
 LOOKING = re.compile(r"\b(look|looks|looking|examine|inspect|see|watch|glance|study|survey|around|peer|gaze|check|take in|scan|notice|read|"
                      r"admire|observe|eye)\b")
 PARTING = ("turn", "walk", "step", "nod", "wave", "leave", "move", "stop", "fall", "say", "go", "back")
@@ -227,30 +229,44 @@ class PlanRepairs:
         """A talk whose words are a pastime or a request the game has a kind for: a hand of cards is gamble, beating a price down is
         haggle (when a ware of the seller's is named), asking the instructor to teach is train, taking the job offered is work."""
         here = self.here_map()
-        low = text.lower()
-        question = low.strip().endswith("?")
+        line = text.lower()
+        question = line.strip().endswith("?")
+        alone = len(plan) == 1
         for a in plan:
             if a.kind != "talk" or (a.target and a.target not in here):
                 continue
+            part = self.line_part(text, f"{a.speech} {a.summary}") if alone or not (a.speech or a.summary) else ""
+            low = " . ".join([a.speech.lower(), a.summary.lower(), part]).strip(" .")
+            asks = lambda pat: any(pat.search(c) and not TELLS.search(c) for c in CLAUSE.split(low))   # (f653) asked, not told of, clause by clause
             who = here.get(a.target)
-            if GAMBLE.search(low):
+            if asks(GAMBLE):
                 a.kind = "gamble"
-            elif HAGGLE.search(low) and not question:
+            elif asks(HAGGLE) and not question:
                 sellers = [n for n in here.values() if self.wares_of(n)]
                 seller = who if who in sellers else (next((n for n in sellers if self.ware_named(low, n)), sellers[0] if sellers else None)
                                                     if who is None else None)      # (f545's review) the one who sells what is named
                 ware = self.ware_named(low, seller) if seller is not None else ""
                 if ware:
                     a.kind, a.ware, a.target = "haggle", ware, seller.id
-            elif TRAIN.search(low) and ASKING.search(low) and (not question or self.asks_what(low)):
+            elif asks(TRAIN) and ASKING.search(low) and (not question or self.asks_what(low)):
                 teacher = who if who is not None and who.role == "guild_instructor" else (self.instructor_here() if who is None else None)
                 if teacher is not None:
                     a.kind, a.target, a.item = "train", teacher.id, a.item or a.speech
-            elif JOB.search(low) and who is not None and not question and not re.search(r"\b(don'?t|do not|won'?t|not|never)\b", low):
+            elif asks(JOB) and who is not None and not question and not re.search(r"\b(don'?t|do not|won'?t|not|never)\b", low):
                 a.kind = "work"
         for a in plan:                                                # an 'other' that is a small rite is a prayer, anywhere
-            if a.kind == "other" and PRAYING.search(f"{a.summary} {low}".lower()) and not question:
+            own = f"{a.summary} . {self.line_part(text, a.summary) if alone or not a.summary else ''}".lower()   # (f653) the deed's own words
+            if a.kind == "other" and PRAYING.search(own) and not question:
                 a.kind = "pray"
+
+    @staticmethod
+    def line_part(text: str, words: str) -> str:
+        """(f653) The part of the typed line that says a deed: the clauses sharing a word (four letters or more) with the deed's own
+        words, else the whole line. "I whisper a prayer and pry open the chest", read as prying it open, is the prying."""
+        mine = {w for w in re.findall(r"[a-z]+", (words or "").lower()) if len(w) >= 4}
+        parts = [p for p in re.split(r"[.;!?,]|\s+(?:and then|then|and|but|while)\s+", (text or "").lower()) if p.strip()]
+        said = [p for p in parts if mine & set(re.findall(r"[a-z]+", p))]
+        return " . ".join(said or parts)
 
     def give_for_coin(self, text: str, plan: list) -> None:
         """(f429) The f425 night gave four things away that the player meant to sell or show: "I hand over my ash longbow and ask the

@@ -82,6 +82,10 @@ def _is_line(node, names: set) -> bool:
             return _is_line(node.args[0], names) or _split_of(node.args[0], names)
     if isinstance(node, ast.Subscript):
         return _is_line(node.value, names)
+    if isinstance(node, (ast.List, ast.Tuple)):                         # (f653) a list of words the line is one of, joined
+        return any(_is_line(e, names) for e in node.elts)
+    if isinstance(node, ast.IfExp):                                     # (f653) the line, or something else
+        return _is_line(node.body, names) or _is_line(node.orelse, names)
     if isinstance(node, ast.Name):
         return node.id in names
     if isinstance(node, ast.JoinedStr):
@@ -144,6 +148,8 @@ def sites(owner, fn, index: int, seen: set | None = None, door: str = "", ours: 
     re_names = {k for k, v in scope.items() if v is re} | {"re"}
     def gives_line(call) -> bool:
         """A function of ours handed the line that gives back text: the line reworded, or its parts (addressing.without, .clauses)."""
+        if isinstance(call, ast.IfExp):                  # (f653) part = self.line_part(text, ...) if ... else ""
+            return gives_line(call.body) or gives_line(call.orelse)
         while isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute) and call.func.attr in PLAIN:
             call = call.func.value                       # without(text, ...).replace(...) is still the line
         if not (isinstance(call, ast.Call) and any(_is_line(a, names) for a in call.args)):

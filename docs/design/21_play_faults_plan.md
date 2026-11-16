@@ -341,6 +341,16 @@ repair, so a repair that catches too much passes. These are the tests of the eng
   in the walk is a look; a roof is a climb. The journal's line comes out right with the model's summary echoing it or not, and
   its mark is off; at a dungeon's mouth "we take the stairs down" is the delve (4.5). The census counts three more places in
   plan_repairs.py (a named raise): the part of the line that says the walk. tools/sim/deed_words_652_test.py.
+- **As built (f653): a talk or an act read as another deed.** talk_to_deed reads a talk's own words: its speech, its summary,
+  and the part of the typed line that says it when the line is one deed (the clauses sharing its words, else the whole line). A
+  hand of cards, a price beaten down, a lesson or a job is read clause by clause, and a clause that tells of a deed (last night,
+  used to, lost, won, played) asks nothing, while a request beside it still asks ("I lost last time, deal me in again"; "I tell
+  Hollis I lost a game of dice last night" is talk). A prayer is read from the act's own words, kneeling alone is no prayer ("I
+  kneel and jam the pressure plates"), and a shrine or an idol knelt at is one. The three cases B0 owed to this are right and their
+  marks are off; three owed remain, all the hire and exit intercepts'. The census reader now also sees the line held in a list or
+  a choice; its table is re-based on the code before f653 (291 places in 51 files), and the repair file falls 25 to 21.
+  tools/sim/talk_deed_653_test.py. Left (wrong before and still): a deed told of in the present ("my brother likes to play dice"),
+  "never teach me again" (no negation for a lesson), and acts against a holy thing read as prayer ("I smash the altar").
 - A foe who has yielded and is then attacked, in any words or by any ability, is attacked. He is not let go (2.7).
 - An answer to the game's own question is read against that question (4.10: "Both at once").
 - Test first: B0's corpus, both halves, for each repair.

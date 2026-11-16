@@ -122,26 +122,25 @@ CENSUS = {
     "engine/objects.py": 1, "engine/orenna.py": 1, "engine/partings.py": 2,
     "engine/party_director.py": 1, "engine/property.py": 1, "engine/questions.py": 1,
     "engine/severity.py": 3, "engine/situation_parts.py": 2, "engine/taming.py": 2,
-    "engine/world_improv.py": 7, "scenes/arc_actions.py": 3, "scenes/camp_actions.py": 3,
+    "engine/world_improv.py": 7, "scenes/arc_actions.py": 3, "scenes/camp_actions.py": 6,
     "scenes/combat_scene.py": 18, "scenes/explore_actions.py": 1, "scenes/field_actions.py": 9,
     "scenes/guild_actions.py": 2, "scenes/inventory_actions.py": 8, "scenes/law_actions.py": 3,
     "scenes/listening.py": 5, "scenes/markup.py": 2, "scenes/mentor_actions.py": 18,
     "scenes/part_actions.py": 5, "scenes/party_actions.py": 28, "scenes/passive_hooks.py": 3,
-    "scenes/plan_repairs.py": 22, "scenes/property_actions.py": 2, "scenes/quirk_actions.py": 5,
+    "scenes/plan_repairs.py": 21, "scenes/property_actions.py": 2, "scenes/quirk_actions.py": 5,
     "scenes/road_actions.py": 1, "scenes/spell_actions.py": 6, "scenes/training_actions.py": 7,
     "scenes/trial_actions.py": 5, "scenes/world.py": 36,
 }
 RAISED = {                 # {file: (how many more, "fNNN: the guard it adds over the line, and why")}
-    "engine/addressing.py": (13, "f649: who a line speaks to, read from where a name stands: it replaces the fight's searches for a name "
+    "engine/addressing.py": (20, "f649: who a line speaks to, read from where a name stands: it replaces the fight's searches for a name "
                                  "anywhere (combat_scene 21 to 18), and what the orders read is now only what is said to someone; "
-                                 "f650: one more, a trade only when called ('Guard, ...', never 'Guard the gate')"),
-    "scenes/plan_repairs.py": (3, "f652: a walk is read by its own words, among them the part of the typed line that says it (a clause "
-                                  "naming where, or with a verb of going); the whole line no longer"),
+                                 "f650: one more, a trade only when called; f653's reader sees seven more of its own places (a list or a "
+                                 "choice holding the line)"),
 }
 now = line_census.by_file(found)
 allowed = {f: CENSUS.get(f, 0) + RAISED.get(f, (0, ""))[0] for f in set(CENSUS) | set(RAISED)}
 more = {f: (n, allowed.get(f, 0)) for f, n in now.items() if n > allowed.get(f, 0)}
-check("no file searches the whole line more than it did (275 places in 50 files on the reader of f649, which follows a line given back by a function of ours), but beside a raise named here",
+check("no file searches the whole line more than it did (291 places in 51 files on the reader of f653, which also reads a list or a choice holding the line; re-based on the code before f653, whose repair file fell 25 to 21), but beside a raise named here",
       not more, {f: [f"{s[0]}:{s[1]} {fn} {what} (from {door})" for s, (fn, what, door) in sorted(found.items()) if s[0] == f] for f in more})
 check("...and every raise names its feature and why", all(n > 0 and _re.match(r"f\d{3}: \S", why) for n, why in RAISED.values()), RAISED)
 fewer = {f: (now.get(f, 0), n) for f, n in allowed.items() if now.get(f, 0) < n}
@@ -169,7 +168,7 @@ check("every rule a case holds off is a rule the game has", held <= rules, sorte
 check("the corpus is right apart from what it owes", not out["wrong"], out["wrong"])
 
 # ---- what is owed
-check("the cases owed only grow fewer (8 when the corpus's other half was built, 6 after f652)", len(out["owed"]) <= 6, out["owed"])
+check("the cases owed only grow fewer (8 when the corpus's other half was built, 3 after f653)", len(out["owed"]) <= 3, out["owed"])
 FIX = _re.compile(r"[A-H]\d?( \d\.\d+)?: \S")
 check("...each owed to a named fix of the plan, with what it does today", all(FIX.match(str(by_name[n]["owed"].get("fix", ""))) and by_name[n]["owed"].get("now")
                                                                              for n in out["owed"]),
@@ -186,10 +185,10 @@ mark = interp_eval.evaluate([right_now, wrong_as_owed, wrong_otherwise, unrepair
 check("a case marked owed that comes out right is wrong until the mark comes off; wrong as it is owed, owed; wrong another way, wrong",
       mark["wrong"] == ["marked_owed_but_right", "wrong_another_way", "owed_a_repair_that_did_not_act"] and mark["owed"] == ["wrong_as_owed"], mark)
 check("...and an owed case is counted wrong in the table by kind, not right", mark["by_kind"] == {"talk": "1/1", "intercept:exit": "0/3"}, mark["by_kind"])
-alone = interp_eval.evaluate([by_name["dice_lost_last_night_is_talk"], by_name["a_companion_named_resting_with_the_party_is_a_wait"]],
+alone = interp_eval.evaluate([by_name["telling_of_the_road_north_is_not_leaving_by_it"], by_name["a_companion_named_resting_with_the_party_is_a_wait"]],
                              quiet=True, save="line_patterns_648")
 check("a rule that acts or is held off only on a case it gets wrong is not seen acting or held off",
-      len(alone["owed"]) == 2 and "talk_to_deed" not in alone["acted"] and "hire" not in alone["held_off"], alone)
+      len(alone["owed"]) == 2 and "exit" not in alone["acted"] and "hire" not in alone["held_off"], alone)
 took = interp_eval.evaluate([by_name["telling_of_the_road_north_is_not_leaving_by_it"]], quiet=True, save="line_patterns_648")
 check("an intercept that takes an owed line is counted as taking a line not its own", took["intercept_took_wrongly"] == 1, took)
 walk = by_name["a_walk_over_before_an_order_is_no_journey"]
