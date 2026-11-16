@@ -739,11 +739,12 @@ def resolve(ws, actor_id: str, T, v: Checked, words: str, text: str, made: list[
     no = {ch.becomes for ch, _ in refused} | {ch.state for ch, _ in refused if ch.state}
     landed = world_improv.land(ws, own or words or text, degree, no)   # (f603) what the retired path made true besides, kept
     if rolled or changes or made or landed:
-        console.ledger(f"Attempt: {degree.replace('_', ' ')}")
+        if rolled:
+            console.ledger(f"Attempt: {degree.replace('_', ' ')}")
         ws.notice(Acted(minute=ws.minutes, place=ws.player_of(actor_id).location, what=world_improv.what_of(own or words or text), degree=degree, by=actor_id,
                         changes=tuple(ch.becomes for ch in changes), heat=0.0 if worked else float(F.get("heat", 0) or 0),
                         considered=tuple(t.ref for t in T.rows if t.kind == "situation")))
-    elif worked:                                                               # (f703) a plain yes: the player reads what it came to
+    if worked and not rolled:                                                  # (f703) a plain yes: the player reads what it came to
         from engine import told as told_
         comes_to = (r.works or "").strip().rstrip(" .!?")                      # the ruling's own words (f609), never the line's claim
         what_done = comes_to[:1].lower() + comes_to[1:] if comes_to else world_improv.what_of(own or words or text)

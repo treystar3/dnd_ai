@@ -162,7 +162,6 @@ READS = {                                                # ws.player read in the
     "engine/court.py": 7, "engine/entities.py": 6, "engine/events.py": 28, "engine/features.py": 5,
     "engine/matters.py": 17, "engine/moment_prompts.py": 1, "engine/moments.py": 10, "engine/obligations.py": 2, "engine/presence.py": 1,
     "engine/reactions.py": 13, "engine/situation_parts.py": 4, "engine/stakes.py": 6, "engine/stay.py": 2, "engine/truth.py": 26,
-    "engine/world_improv.py": 1,
 }
 found = {name: len(players_read(tree, ("ws", "scene"))) for name, tree in trees.items() if name.startswith("engine/") and players_read(tree, ("ws", "scene"))}
 check("the engine reads the scene's player in the recorded places and no more (new code takes an id and asks player_of)",

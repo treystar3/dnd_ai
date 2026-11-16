@@ -57,7 +57,7 @@ def odds_for(c, effect: str) -> float:
     return checks.improv_odds(attr, e["odds"], W["base_odds"], W["min"], W["max"])
 
 
-CHANGE_KINDS = ("closed", "danger", "news")
+CHANGE_KINDS = ("closed", "danger", "news", "vantage")
 
 
 def apply_changes(ws, effect: str, what: str, degree: str) -> list[str]:
@@ -69,14 +69,16 @@ def apply_changes(ws, effect: str, what: str, degree: str) -> list[str]:
         return []
     half = degree == "partial"
     state = ws.store.load_world_state()
-    if not state:
+    if not state and not any(ch.get("kind") == "vantage" for ch in specs):      # (f704) a view needs no world's state
         return []
-    here = ws.player.location
+    here = ws.player_of(ws.acting).location
     place = ws.world.places.get(here)
     fmt = {"what": what or "it", "place": place.name if place else here}
     done = []
     for ch in specs:
         kind = ch.get("kind")
+        if not state and kind != "vantage":
+            continue
         if kind == "closed":
             minutes = max(1, int(ch.get("minutes", 60)) // (2 if half else 1))
             worldstate.add_effect(state, {"kind": "closed", "place": here, "value": 0, "until": ws.minutes + minutes,
@@ -94,9 +96,35 @@ def apply_changes(ws, effect: str, what: str, degree: str) -> list[str]:
             groups = [ws.world.locals_group(here) or "everyone" if g == "locals" else g for g in ch.get("groups") or ["everyone"]]
             pulse.add_news(state, (ch.get("text") or "").format(**fmt), here, ws.minutes, [g for g in groups if g in ws.world.knowledge_groups] or ["everyone"])
             done.append("news")
-    if done:
+        elif kind == "vantage" and re.search(ch.get("view_words") or "(?!)", what or "", re.I):
+            seen = vantage(ws, ch, half)            # (f704) a height looked out from: what is really there to see
+            if seen:
+                done.append("vantage " + "; ".join(seen))
+    if state and any(not d.startswith("vantage") for d in done):
         ws.store.save_world_state(state)
     return done
+
+
+def vantage(ws, ch: dict, half: bool) -> list[str]:
+    """(f704) What can be made out from a height, as "Name (to the north, half a day's walk)": only from open ground (ch['from']),
+    out of a delve, by day; only places that can be seen from outside (ch['seen']: never under the ground), within the walk; the
+    ones the player has not heard of first. Those are heard of now."""
+    from engine import clock, exits, mapview
+    me = ws.player_of(ws.acting)
+    place = ws.world.places.get(me.location)
+    if place is None or me.delve or place.type not in set(ch["from"]) or clock.is_dark(ws.minutes):
+        return []
+    top = mapview.top_of(ws.world, me.location)
+    known = set(me.visited) | set(me.heard)
+    near = sorted((pid in known, found[1], pid) for pid, pl in ws.world.places.items()
+                  if pid != top and not pl.parent and pl.type in set(ch["seen"])
+                  for found in [ws.world.path(top, pid)] if found and found[1] <= int(ch["minutes"]))
+    out = []
+    for _, minutes, pid in near[:max(1, int(ch["most"]) // (2 if half else 1))]:
+        ws.hear(pid)
+        way = exits.sector_of(exits._heading(ws.world, top, pid))
+        out.append(f"{ws.world.places[pid].name} (to the {way}, {clock.walk_words(minutes)})")
+    return out
 
 
 def problems() -> list[str]:
@@ -112,7 +140,9 @@ def problems() -> list[str]:
             re.compile(e.get("needs") or "")
         except re.error as x:
             bad.append(f"improv.yaml {name}: needs is not a pattern ({x})")
-    need = {"closed": ("minutes",), "danger": ("value", "days"), "news": ("text",)}
+    need = {"closed": ("minutes",), "danger": ("value", "days"), "news": ("text",), "vantage": ("minutes", "most", "view_words", "from", "seen")}
+    if "{names}" not in str((W.get("told") or {}).get("vantage") or ""):
+        bad.append("improv.yaml told.vantage: needs {names}")
     for name, e in (W.get("effects") or {}).items():
         for ch in e.get("changes") or []:
             kind = ch.get("kind")
@@ -158,4 +188,4 @@ def land(ws, words: str, degree: str, refused: set[str] = frozenset()) -> list[s
     changed = apply_changes(ws, effect, what, degree)
     if changed:
         console.debug(f"improvised ({effect}): made true - {', '.join(changed)}")
-    return ([mark] if mark else []) + [W["told"][c.split()[0]] for c in changed]
+    return ([mark] if mark else []) + [W["told"][c.split()[0]].format(names=c.split(" ", 1)[-1]) for c in changed]
