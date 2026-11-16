@@ -233,10 +233,14 @@ class FightService:
             near.append(ally)
         near = taming.strongest(near, c.level)
         notes += party_rules.sync_levels(self.player.party, c.level)
-        members = [party_rules.fighter(m, minutes=now) for m in self.player.party if not m.get("tutorial")]
+        party = self.player.party
+        members = [party_rules.fighter(m, minutes=now) for m in party if not m.get("tutorial")]
         formed = bool(members) and not (hold and self.player.party_mode == "hold")
         if hold and self.player.party_mode == "hold":
             return near, members, notes, formed
+        if hold:                                          # (f651) at a camp, one held back alone arrives later with the reserves
+            back = {f"ally_{m['id']}" for m in party if m.get("held_at") and not m.get("tutorial")}
+            return near + [f for f in members if f.id not in back], [f for f in members if f.id in back], notes, formed
         return near + members, [], notes, formed
 
     def begin(self, spec: FightSpec) -> tuple[combat.Combat, Opening]:

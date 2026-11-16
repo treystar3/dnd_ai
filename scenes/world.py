@@ -761,10 +761,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             d = next((x for x in self.store.load_dungeons() if x["id"] == self.player.delve.get("dungeon")), None)
             if d is None or place_id != d["entrance"]:
                 self.player.delve = None
-        if self.player.party_mode == "hold" and place_id != self.player.party_hold_at:
-            self.party_service.set_mode("with")
-            if self.player.party:
-                console.note("Your party falls in beside you again.")
+        self.party_falls_in(place_id)
 
     def enter(self, place_id: str) -> None:
         self.wildlife = None

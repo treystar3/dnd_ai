@@ -565,6 +565,7 @@ function renderParty(d) {
     info.appendChild(el("div", "nm", a.name));
     info.appendChild(el("div", "dt", `${a.role} · rank ${a.rank} · level ${a.level}`));
     if (a.kit) info.appendChild(el("div", "dt", `Can use: ${a.kit}`));               // (f396) what they can do in a fight
+    if (a.doing) info.appendChild(el("div", "dt", a.doing));                          // (f651) one held back alone
     if (a.bond) {
       info.appendChild(el("div", "dt", `${a.bond} · ${a.health}% health`));
       info.appendChild(el("div", "dt", a.temper));

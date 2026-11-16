@@ -162,9 +162,13 @@ class CampActions:
         lo, hi = rule["level_cap"]
         return max(lo, min(hi, (self.player.character.level - enemy_level) * rule["level_weight"]))
 
+    def camp_members(self) -> list[dict]:
+        """(f651) The hirelings who go with the player to a camp: not one held back alone."""
+        return [m for m in self.player_of(self.acting).party if not m.get("held_at")]
+
     def camp_party_mod(self, kind: str) -> list:
         """What travelling with a band of hirelings does to an approach. Told to hold back, they cost nothing."""
-        members = self.player.party
+        members = self.camp_members()
         if not members:
             return []
         st = party_rules.P["stealth"]
@@ -385,7 +389,7 @@ class CampActions:
     def camp_fight_sim(self, enemies: list, reserves: list):
         from scenes.combat_scene import CombatScene
         c = self.player.character
-        near, later = CombatScene.allies(self, hold=self.player.party_mode == "hold")
+        near, later = CombatScene.allies(self, hold=True)                  # (f651) as the camp's own fight: the held come later
         fighters = [combat.fighter_from_character(c)] + near
         cmb = combat.Combat(fighters=fighters + [e.model_copy(deep=True) for e in enemies], place=self.place.name,
                             conditions=sorted(self.conditions()))               # (f500) record False and no serial: an estimate's fight

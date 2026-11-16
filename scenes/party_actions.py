@@ -110,7 +110,7 @@ class PartyActions:
             return False
         if kind in ("list", "hire"):
             return False                                    # (f309) talk about hiring is just talk; the hiring itself is done in the Board pane
-        if kind == "with" and self.player.party_mode == "with":
+        if kind == "with" and self.player.party_mode == "with" and not self.held_alone():
             return False                                    # (f386) they are already with you: the line is about something else ("head back to
                                                             # the guild house" was answered seven times with "your party moves beside you")
         getattr(self, f"party_{kind}")(intent.target, text, offered)
@@ -223,6 +223,8 @@ class PartyActions:
             row["promote"] = money.fmt(rules.promotion_fee(m)) if m.get("capped") and rules.next_rank(row["rank"]) else ""
         from engine import statsheet
         row["tip"] = statsheet.lines(self.member_sheet(m), notes=False)
+        if m.get("held_at"):                                                 # (f651) the pane says where one held alone is (the owner, Q19)
+            row["doing"] = "holding back here, ready to come if there is trouble"
         return row
 
     def party_data(self) -> dict:
@@ -787,10 +789,14 @@ class PartyActions:
         if not self.player.party:
             console.note("You have no party.")
             return
-        hay = f"{target} {text}".lower()
-        gone = [m for m in self.player.party if m["name"].lower() in hay or m["name"].split()[0].lower() in hay or m["role"] in hay]
-        if not gone or re.search(r"\b(all|everyone|party|disband)\b", hay):
+        meant = self.members_meant(target, text)                           # (f651) those named go, the rest stay
+        if meant is None and re.search(r"\b(all|everyone|everybody|whole party|the party|disband|all of you)\b", f"{target} {text}".lower()):
             gone = list(self.player.party)
+        elif meant is None:
+            console.note("No one in your party by that name. Say whom to send away, or the whole party.")
+            return
+        else:
+            gone = meant
         if any(m.get("tutorial") for m in gone):
             console.note("Maren shakes her head. \"Not until the job is done.\"")
             gone = [m for m in gone if not m.get("tutorial")]
@@ -803,20 +809,65 @@ class PartyActions:
         console.note(f"{', '.join(m['name'] for m in gone)} part ways with you. No refund.")
         self.narrate(f"[THE GAME HAS DECIDED: the player sends {', '.join(m['name'] for m in gone)} away; they leave.] Describe it.", text)
 
+    def members_meant(self, target: str, text: str) -> list[dict] | None:
+        """(f651) The members a party order is for: those the line speaks to by name, clause by clause (engine/addressing.py; "Kennard,
+        hold back. Everyone else, with me" is Kennard's), else those the reading's target names, by name or by role; None when the
+        line speaks to everyone, or no one is named: the order is the party's."""
+        from engine import addressing
+        party = [m for m in self.player_of(self.acting).party if m.get("name") and m.get("active", True) and not m.get("tutorial")]
+        people = {m["id"]: [m["name"].lower(), m["name"].split()[0].lower()] for m in party}
+        found = addressing.addressed(text or "", people)
+        said = {w for a in found for w in a.who if w != addressing.PARTY}
+        if said:
+            return [m for m in party if m["id"] in said]
+        if any(a.who == (addressing.PARTY,) and not re.search(r"\b(else|rest|others)\b", a.clause.lower()) for a in found):
+            return None
+        hay = (target or "").lower()
+        named = [m for m in party if hay and any(re.search(rf"\b{re.escape(w)}\b", hay) for w in (m["name"].lower(), m["name"].split()[0].lower(), m["role"]))]
+        return named or None
+
     def party_hold(self, target: str, text: str, offered: list[dict]) -> None:
-        if not self.player.party:
+        me = self.player_of(self.acting)
+        if not me.party:
             console.note("You have no party.")
             return
+        meant = self.members_meant(target, text)
+        if meant is not None and len(meant) < len(me.party):              # (f651) one held back, the others stay
+            for m in meant:
+                m["held_at"] = me.location
+            console.note(f"{' and '.join(m['name'].split()[0] for m in meant)} will hold back here and come running if the alarm goes up.")
+            return
         self.party_service.set_mode("hold")
-        self.player.party_hold_at = self.player.location                    # (f392) held back here: they fall in again when the player leaves
+        me.party_hold_at = me.location                                      # (f392) held back here: they fall in again when the player leaves
         console.note("Your party will hold back and come running if the alarm goes up. They make no noise for you to answer for.")
 
     def party_with(self, target: str, text: str, offered: list[dict]) -> None:
-        if not self.player.party:
+        me = self.player_of(self.acting)
+        if not me.party:
             console.note("You have no party.")
             return
+        for m in me.party:                                                  # (f651) those held back alone come too
+            m.pop("held_at", None)
         self.party_service.set_mode("with")
         console.note("Your party moves beside you. Together you are loud.")
+
+    def held_alone(self) -> list[dict]:
+        """(f651) The companions held back on their own while the rest go with the player."""
+        return [m for m in self.player_of(self.acting).party if m.get("held_at")]
+
+    def party_falls_in(self, place_id: str) -> None:
+        """(f392) Leaving the place the party was held: they fall in beside the player again; (f651) and so does one held alone."""
+        me = self.player_of(self.acting)
+        if me.party_mode == "hold" and place_id != me.party_hold_at:
+            self.party_service.set_mode("with")
+            if me.party:
+                console.note("Your party falls in beside you again.")
+        back = [m for m in self.held_alone() if m["held_at"] != place_id]
+        for m in back:
+            m.pop("held_at", None)
+        able = [m for m in back if m.get("active", True) and not m.get("fallen") and not m.get("down")]
+        if able:
+            console.note(f"{' and '.join(m['name'].split()[0] for m in able)} {'falls' if len(able) == 1 else 'fall'} in beside you again.")
 
     # ---------- what happens to them ----------
 

@@ -314,7 +314,17 @@ repair, so a repair that catches too much passes. These are the tests of the eng
   about the guard" goes to the guard by the old rule; "Guard the door tonight, my friend" goes to the guard; "Guard, Bram here
   needs a bed" is taken by the hire intercept before any repair (B2's); in a fight, "I ask Raerei if she is hurt, then attack
   wolf 1" drops the attack, the player's act having neither an "I" nor an ability's name.
-- **Left.** One companion held back out of a fight (1.6) is the last of B1, a feature of its own.
+- **As built (f651): an order to the party is to the members it names.** Holding back: the companions the line speaks to by name,
+  clause by clause, or else those the reading's target names by name or role, hold back where they are (the member's `held_at`);
+  the others stay with the player, and the line printed names who. A line said to everyone, or naming no one, holds the whole
+  party as before; "Kennard, hold back. Everyone else, with me" holds Kennard. One held alone is shown so in the Party pane (the
+  owner's Q19), arrives later at a camp and is not counted in its noise (the estimate as the fight), falls in again, said so, when
+  the player walks away, and comes when a typed line calls them. Dismissing: those named go, by name or role, and the rest stay;
+  "I dismiss Bram from the party" no longer sends everyone; a name not in the party sends no one and says so (it sent everyone).
+- **Left.** Inside a dungeon every chamber is one place, so holding one back there holds them for the whole delve, until the
+  player climbs out; whether "stay behind me" means holding back is the reading's choice; and the move in 1.6's line after the
+  party order is still not done (the party intercept takes the whole line). A companion held alone still banters and is tended
+  after a fight, being in the same place.
 
 **B2. A repair rewrites a deed by that deed's own words (4.1, 4.2, 4.5, 4.7 to 4.10, 2.7).**
 - Leaving a dungeon, praying, staying within a place, talking to a hire, naming a ware, the verbs a purchase covers, and

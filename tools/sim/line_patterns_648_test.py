@@ -124,7 +124,7 @@ CENSUS = {
     "scenes/combat_scene.py": 18, "scenes/explore_actions.py": 1, "scenes/field_actions.py": 9,
     "scenes/guild_actions.py": 2, "scenes/inventory_actions.py": 8, "scenes/law_actions.py": 3,
     "scenes/listening.py": 5, "scenes/markup.py": 2, "scenes/mentor_actions.py": 18,
-    "scenes/part_actions.py": 5, "scenes/party_actions.py": 31, "scenes/passive_hooks.py": 3,
+    "scenes/part_actions.py": 5, "scenes/party_actions.py": 28, "scenes/passive_hooks.py": 3,
     "scenes/plan_repairs.py": 22, "scenes/property_actions.py": 2, "scenes/quirk_actions.py": 5,
     "scenes/road_actions.py": 1, "scenes/spell_actions.py": 6, "scenes/training_actions.py": 7,
     "scenes/trial_actions.py": 5, "scenes/world.py": 36,
