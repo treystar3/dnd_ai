@@ -2543,8 +2543,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         low = text.lower()
         hits = []
         for n in self.present:
-            words = {n.role.replace("_", " ")} | ({n.name.split()[0].lower()} if regard.of(n, self.acting).name_known and n.name else set())
-            if any(re.search(rf"\b{re.escape(w.lower())}\b", low) for w in words if w):
+            role = n.role.replace("_", " ")
+            words = {role, f"the {role.split()[-1]}"} | ({n.name.split()[0].lower()} if regard.of(n, self.acting).name_known and n.name else set())
+            if any(re.search(rf"\b{re.escape(w.lower())}\b", low) for w in words if w):          # (f658) "the clerk" is the guild clerk
                 hits.append(n.id)
         for m in self.player.party:
             if m.get("permanent") and m.get("name") and re.search(rf"\b{re.escape(m['name'].split()[0].lower())}\b", low):

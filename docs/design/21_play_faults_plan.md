@@ -373,7 +373,15 @@ repair, so a repair that catches too much passes. These are the tests of the eng
   the line names, else at night until morning, else an hour (the rest a line asks for, one rule with an improvised rest).
   tools/sim/room_sleep_656_test.py.
 - A foe who has yielded and is then attacked, in any words or by any ability, is attacked. He is not let go (2.7).
+- **As built (f657).** A blow at a foe who yielded finishes them as "finish it" does: a word of a blow (attack, hit, swing, strike
+  but not a camp or a deal struck), an attack verb of the action table, or the name of any damaging ability the acting character
+  holds ("Cleaving Sweep on the wolf"). A blow said not to be struck is mercy; a heal or a guard lets them slip away as before.
+  tools/sim/yield_attack_657_test.py.
 - An answer to the game's own question is read against that question (4.10: "Both at once").
+- **As built (f658).** The answer was read joined to its question already; what failed was the person. A person here is named by
+  the last word of their trade as by the whole of it ("the clerk" is the guild clerk, "the master" the caravan master), with
+  "the" before it so "a clerk's hand" names no one; two of the same word name neither. Every reader of who a line names here
+  (named_here, those_named) reads it so. tools/sim/trade_named_658_test.py.
 - Test first: B0's corpus, both halves, for each repair.
 
 **B3. Every part of a fight line is acted on, or the player is told which was not (1.8, 1.9).**
