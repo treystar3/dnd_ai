@@ -480,6 +480,9 @@ Each is tested on its own class: D2 on every writer of a leaving, D4 on every pa
 - **As built (f667): D5.** The deal-first repair (f417) now takes a deal the reading wrote with no one named, in a line that speaks
   to one person, as theirs, and puts it before the words; beside two people spoken to it stays. Left: "the priestess" does not
   name a priest (a trade's other forms). tools/sim/deal_first_667_test.py, two corpus cases.
+- **As built (f668): D6.** The narrator is told a foe warns the player off with a way back only when every foe starts far off and
+  flight is open; otherwise the fight is told as on. Foes the rules will not let be reasoned with (parley.speaks: category and family,
+  the one rule parley's refusal reads) are told not to speak, bargain or wait for an answer. tools/sim/stance_held_668_test.py.
 
 ## 7. Group E: a passage is checked against what the turn did
 

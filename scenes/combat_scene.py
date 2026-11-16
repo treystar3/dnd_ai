@@ -250,9 +250,7 @@ class CombatScene:
         label, rate = opening.label, opening.rate
         console.debug(f"danger estimate: {label}, {rate:.0%} win rate")   # (f647) the label is the debug view's and the tools', never the player's
         opening_events = [TAG.sub("", e) for e in opening.events]      # the opening blows are logged, not narrated with figures
-        manner = {"aggressive": "They mean to attack.",
-                  "territorial": "It holds its ground and warns the player off - they could still back away.",
-                  "passive": "It turns on the player."}[creature.temperament]
+        manner = cls.stance_told(creature.temperament, enemies, can_flee=not duel and not getattr(fight, "mentor", None))
         where = "far off" if enemies and all(e.starts_far for e in enemies) else "close at hand"
         odds = {"trivial": "no real threat", "favorable": "the player should win this",
                 "even": "a real fight that could go either way",
@@ -524,6 +522,21 @@ class CombatScene:
                 target = target.id if target else ""
             out.append((told, kind, target))
         return out
+
+    @staticmethod
+    def stance_told(temperament: str, enemies, can_flee: bool) -> str:
+        """(f668) What the narrator is told of the foes' stance, on what the engine holds: a warning off offers a way back only when
+        there is one (all far off, flight open), and foes the engine will not let be reasoned with are told not to talk or wait for an
+        answer. A centaur warned the player off and waited for a reply in a fight already begun, then "cannot be reasoned with"."""
+        from engine import parley
+        far = bool(enemies) and all(e.starts_far for e in enemies)
+        manner = {"aggressive": "They mean to attack.",
+                  "territorial": "It holds its ground and warns the player off" + (": they could still back away." if far and can_flee
+                                                                                   else ", and the fight is already on."),
+                  "passive": "It turns on the player."}[temperament]
+        if enemies and not any(parley.speaks(e) for e in enemies):
+            manner += " It does not speak, bargain or wait for an answer: words will not reach it."
+        return manner
 
     @staticmethod
     def addressees(allies) -> dict:

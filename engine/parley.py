@@ -14,12 +14,17 @@ T = C.RULES["talk"]
 APPROACHES = ("intimidate", "persuade", "deceive")
 
 
+def speaks(target) -> bool:
+    """(f668) Whether this kind of foe can be reasoned with at all: its family and its category, as the rules hold them."""
+    fam = behaviors.FAMILIES.get(target.family, {})
+    return fam.get("talk") is not False and target.category in T["categories"]
+
+
 def why_not(target) -> str | None:
     """Why this enemy cannot be spoken to, or None."""
     if target.boss:
         return f"{cap_first(target.name)} is past parley - it will fight."
-    fam = behaviors.FAMILIES.get(target.family, {})
-    if fam.get("talk") is False or target.category not in T["categories"]:
+    if not speaks(target):
         return f"{cap_first(target.name)} cannot be reasoned with - it only understands the fight."
     if target.talked:
         return f"You have already spoken to {target.name}. Words will not work again this fight."
