@@ -182,6 +182,10 @@ def clean(text: str) -> str:
     if lead:
         t = t[lead.end():]
         REPAIRS["json"] += 1
+    tail = re.search(r'"\s*,?\s*$', t)
+    if tail and (t.count('"') + t.count("“") + t.count("”")) % 2 == 1 and tail.start() > 0:   # (f688) a field's closing quote and comma left on the passage: 'doorframe.",'
+        t = t[:tail.start()].rstrip()
+        REPAIRS["json"] += 1
     m = JSON_BITS.search(t)
     if m and m.start() > 0:
         t = t[:m.start()].rstrip(' "\'\n,')
