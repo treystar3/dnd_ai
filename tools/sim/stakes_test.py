@@ -108,7 +108,7 @@ held["progress"] = held["count"]
 narrated.clear()
 import engine.quests as _qq, engine.inventory as _inv
 _done, _rm = _qq.done, _inv.remove_goods
-_qq.done = lambda q, pack: True; _inv.remove_goods = lambda *a, **k: None          # whatever the job was, it is done
+_qq.done = lambda q, pack, among=(): True; _inv.remove_goods = lambda *a, **k: None          # whatever the job was, it is done
 ws.turn_in()
 _qq.done, _inv.remove_goods = _done, _rm
 th = next((t for t in store.load_world_state()["threads"] if t["title"] == m["title"]), None)

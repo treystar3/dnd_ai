@@ -168,7 +168,7 @@ class GuildActions:
                              "reward": money.fmt(round(coins * mult)), "xp": round(xp * mult),
                              "ok": not why, "why": why})
         held = [{"id": q["id"], "n": n, "letter": q["letter"], "title": q["title"], "guild": bool(q["guild"]),
-                 "line": quests.progress_line(q, self.pack, self.minutes)}
+                 "line": quests.progress_line(q, self.pack, self.minutes, self.player_of(self.acting).quests)}
                 for n, q in enumerate(self.player.quests, 1)]
         from engine import obligations                                     # (f481) requests standing, from the registry
         asked = {n.id: (n, obligations.current(self.store, "request", n.id, self.acting)) for n in self.present}
@@ -280,7 +280,7 @@ class GuildActions:
         rows = []
         for q in self.player.quests:
             arc = self.arc_lines(q)
-            ready = quests.done(q, self.pack)
+            ready = quests.done(q, self.pack, self.player_of(self.acting).quests)        # (f669) earlier contracts first
             if arc:
                 status = arc.split(" - ", 1)[1]                         # (f491) the arc's line no longer ends in a time limit
             elif ready:
@@ -290,7 +290,7 @@ class GuildActions:
             elif q["kind"] in ("delve", "dungeon_boss", "missing"):
                 status = "not yet"
             else:
-                status = f"{quests.held(q, self.pack)}/{q['count']}"
+                status = f"{quests.held(q, self.pack, self.player_of(self.acting).quests)}/{q['count']}"
             who = (f"for {q['issuer_name']}" if q.get("issuer_name") else "") + (f": {q['reason']}" if q.get("reason") else "")
             rows.append({"id": q["id"], "letter": q["letter"], "title": q["title"], "for": who.strip(), "guild": bool(q["guild"]),
                          "status": status, "ready": ready})
@@ -315,7 +315,7 @@ class GuildActions:
         if not self.player.quests:
             console.note("You have no contracts or requests in hand.")
         for q in self.player.quests:
-            console.note(self.arc_lines(q) or quests.progress_line(q, self.pack, self.minutes)
+            console.note(self.arc_lines(q) or quests.progress_line(q, self.pack, self.minutes, self.player_of(self.acting).quests)
                          + (f"  (for {q['issuer_name']}: {q['reason']})" if q.get("reason") else ""))
         if self.rank:
             nxt = quests.next_rank(self.rank)
@@ -486,16 +486,34 @@ class GuildActions:
                     console.note(f"{cap_first(s['name'])} is dead." if s["boss"] else f"The {s['name']} that were troubling this place are broken.")
             self.notice(CreatureKilled(minute=self.minutes, place=self.player.location, creature=e.creature, level=e.level, rank=e.rank,
                                        spawn=getattr(e, "spawn", "")))
+        self.tally_foes(dead)
+
+    def tally_foes(self, beaten) -> None:
+        """(f669) Foes beaten, killed or taken alive, counted for the hunts and bounties they are about, wherever the contract's place is
+        here: this place, the land it is part of, or the land above the dungeon the player is in."""
         changed = False
-        for q in self.player.quests:
-            if q["kind"] in ("hunt", "bounty") and q.get("place") in (self.player.location, None):
-                n = sum(1 for e in dead if e.creature == q["creature"])
+        me = self.player_of(self.acting)
+        for q in me.quests:
+            if q["kind"] in ("hunt", "bounty") and self.contract_here(q):
+                n = sum(1 for e in beaten if e.creature == q["creature"])
                 if n and q["progress"] < q["count"]:
                     q["progress"] = min(q["count"], q["progress"] + n)
                     changed = True
                     console.note(f"{q['title']}: {q['progress']}/{q['count']}")
         if changed:
-            self.store.save_player(self.player)
+            self.store.save_player(me)
+
+    def contract_here(self, q) -> bool:
+        """(f669) Is this contract's place where the player is: the place itself, the land or town it is part of, or the land above a
+        dungeon (a boar in the Greywood's own warren counts for the Greywood's hunt)?"""
+        from engine import mapview
+        want = q.get("place")
+        if not want:
+            return True
+        here = self.player_of(self.acting).location
+        place = self.world.places.get(here)
+        above = next(iter(place.connects), "") if place is not None and place.type == "dungeon" and place.connects else ""
+        return want in {here, mapview.top_of(self.world, here)} | ({above, mapview.top_of(self.world, above)} if above else set())
 
     def record_delivery(self, key, npc) -> None:
         """A key item handed over counts for a delivery contract. (The deed itself is published by the giving, scenes/inventory_actions.py.)"""
@@ -529,7 +547,7 @@ class GuildActions:
         handed = []
         for q in list(self.player.quests):
             payer = clerk if q["guild"] else present.get(q["issuer"])
-            if not payer or not quests.done(q, self.pack) or (to is not None and payer.id != to):
+            if not payer or not quests.done(q, self.pack, self.player_of(self.acting).quests) or (to is not None and payer.id != to):
                 continue
             if q["kind"] == "gather":
                 inv.remove_goods(self.pack, q["good"], "", q["count"])

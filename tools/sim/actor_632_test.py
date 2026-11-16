@@ -211,7 +211,7 @@ for folder in ("engine", "scenes", "services", "npc", "storage", "llm", "ui"):
 check("the clock is the one writer of the save's time in the game's code", writers and all(w.startswith("engine/actor.py:") for w in writers), writers)
 
 # ---- what is left: the scene's player read by name, per directory; a count only falls
-LEFT = {"scenes": 1076, "services": 63}
+LEFT = {"scenes": 1073, "services": 63}
 found = {d: sum(len(re.findall(r"\bself\.player\b", p.read_text(encoding="utf-8"))) for p in (ROOT / d).rglob("*.py")) for d in LEFT}
 check("code reads `self.player` in the recorded number of places and no more (new code takes an id and asks player_of)",
       all(found[d] <= LEFT[d] for d in LEFT), found)

@@ -483,6 +483,10 @@ Each is tested on its own class: D2 on every writer of a leaving, D4 on every pa
 - **As built (f668): D6.** The narrator is told a foe warns the player off with a way back only when every foe starts far off and
   flight is open; otherwise the fight is told as on. Foes the rules will not let be reasoned with (parley.speaks: category and family,
   the one rule parley's refusal reads) are told not to speak, bargain or wait for an answer. tools/sim/stance_held_668_test.py.
+- **As built (f669): D7.** A hunt or bounty counts a foe taken alive as one killed, and a kill wherever the contract's place is here:
+  the place, the land it is part of, or the land above the dungeon the player is in. For gathering (goods and materials), a contract
+  taken earlier has what it needs first; the next counts what is left, on the board, the window and at the hand-in.
+  tools/sim/tally_669_test.py.
 
 ## 7. Group E: a passage is checked against what the turn did
 

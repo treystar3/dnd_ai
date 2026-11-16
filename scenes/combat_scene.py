@@ -1106,6 +1106,7 @@ class CombatScene:
             self.sync_player()
             return
         ws.record_kills(dead)
+        ws.tally_foes(yielded)                                 # (f669) a foe taken alive counts for the contract as one killed
         if ws.place.danger and ws.owns("victors_name"):
             ws.reputation_add(ws.nearest_town(ws.player.location), 1)
         won = svc.rewards(f, dead, yielded)                   # (f503) the take under the engine's own names; the bodies and carcasses written
