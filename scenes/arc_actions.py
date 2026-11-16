@@ -449,8 +449,8 @@ class ArcActions:
         self.residents = self.residents + [npc]
         self.refresh_present()
         w = entities.WORDS[entities.GENDER[gender]]
-        console.note(f"{cap_first(npc.label(self.acting))} throws down {w['their']} weapon and yields. Question {w['them']}, let {w['them']} go, "
-                     f"hand {w['them']} to the watch, or put an end to it.")
+        console.note(f"{cap_first(npc.label(self.acting))} is your captive now, bound at your side. Question {w['them']}, let {w['them']} go, "
+                     f"hand {w['them']} to the watch, or put an end to it.")   # (f681) the yielding itself was told in the round (f663)
         return npc
 
     def captives_lost(self, how: str) -> int:

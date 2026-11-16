@@ -72,7 +72,8 @@ cap_id = caps[0].links["npc"]
 npc = store.load_npc(cap_id)
 check("...a person of their own: a gender, a people, a pronoun kept", npc.gender in ("male", "female") and npc.people
       and caps[0].pronoun == entities.GENDER[npc.gender], (npc.gender, npc.people, caps[0].pronoun))
-check("...whose yielding is told with their own pronoun", any(re.search(r"throws down (his|her) weapon", n) for n in NOTES), NOTES)
+check("...who is told as the player's captive with their own pronoun, the yielding not told again (f681)",
+      any(re.search(r"is your captive now.*Question (him|her),", n) for n in NOTES) and not any("weapon and yields" in n for n in NOTES), NOTES)
 check("people's bodies are not offered for butchering, and leave no carcass", not any("butcher" in n for n in NOTES)
       and not store.load_place("parth").carcasses, (NOTES, store.load_place("parth").carcasses))
 check("the captive is here, and in the cast every writer is told", any(n.id == cap_id for n in ws.present)
