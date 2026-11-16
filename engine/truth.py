@@ -314,7 +314,9 @@ def _present_people(ws) -> list[Present]:
                            doing="at the player's side", kind="companion",
                            note="the player's own companion: telling it to track, sniff out or hunt something is search; it is not talked with"))
     if ws.wildlife:
-        out.append(Present(id="wildlife", name=", ".join(e.name for e in ws.wildlife[1]), label=", ".join(e.name for e in ws.wildlife[1]),
+        from engine.combat import plain_name
+        seen = ", ".join(plain_name(e.name) for e in ws.wildlife[1])       # (f696) never the game's tag or counter
+        out.append(Present(id="wildlife", name=seen, label=seen,
                            desc="a creature, keeping its distance", doing="", kind="wildlife"))
     return out
 

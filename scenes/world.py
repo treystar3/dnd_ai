@@ -480,7 +480,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             return False
         if self.temperament(creature) == "passive":
             self.wildlife = (creature, enemies)
-            names = ", ".join(e.name for e in enemies)
+            from engine.combat import plain_name
+            names = ", ".join(plain_name(e.name) for e in enemies)          # (f696) never the game's tag
             self.narrate_with(cp.START_SYSTEM, f"{how} the player spots {names}, keeping its distance. It is not hostile.")
             return False
         if creature.temperament == "territorial" or self.sees_far():

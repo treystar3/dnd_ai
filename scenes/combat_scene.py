@@ -570,8 +570,7 @@ class CombatScene:
             whom = next((a.name.split()[0] for a in f.allies() if a.id == target), "") if kind in ("heal", "guard") else ""
             line = {"focus": "to attack {foe}", "guard": f"to guard {whom}" if whom else "to guard you", "hold": "to hold back", "back": "to get behind you",
                     "heal": "to tend their own wounds" if target == "self" else (f"to tend {whom}" if whom else "to tend you")}[kind]
-            foe = next((e.name for e in f.enemies() if e.id == target), "")
-            foe = ("the " + foe) if foe and foe[0].islower() else foe        # "the troll", "the wolf 1", but "Old Brannoch" as is
+            foe = next((combat.who(e) for e in f.enemies() if e.id == target), "")   # (f696) "the second wolf", never "the wolf (elite)"
             console.narrate(("Instead, you tell " if again else "You tell ") + " and ".join(a.name.split()[0] for a in told.told) + " "
                             + line.format(foe=foe or "their foe") + ".")
         self.show()

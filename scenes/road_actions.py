@@ -323,7 +323,8 @@ class RoadActions:
         lore = " ".join(f.text for f in self.world.lore.values() if group in f.known_by)[:600]
         rkeys = {roads.edge_key(self.world, x.from_, x.to): f"{x.id} ({x.name})" for x in self.world.roads.values()}
         if hostile:
-            names = ", ".join(sorted({e.name for e in hit[1]}))
+            from engine.combat import plain_name
+            names = ", ".join(sorted({plain_name(e.name) for e in hit[1]}))     # (f696) never the game's tag
             must = f"an ambush by {len(hit[1])} x {hit[0].name.lower()} ({names})"
             if camp:
                 must = (f"an ambush at an outlaw camp by the roadside: {len(hit[1])} fighters ({names}) with a captain, "

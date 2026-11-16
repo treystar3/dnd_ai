@@ -452,12 +452,19 @@ class Combat(BaseModel):
 ORDINALS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"]
 
 
+def plain_name(name: str, counted: bool = False) -> str:
+    """(f696) A fighter's name without the game's tags ("(elite)", "(bounty)") and, unless `counted`, its counter ("wolf 2"): the name
+    a narrator is told."""
+    out = re.sub(r"(?:\s*\([^()]*\))+\s*$", "", name or "").replace(" (elite)", "")
+    return out if counted else re.sub(r"\s+\d{1,2}$", "", out)
+
+
 def who(f: Fighter) -> str:
     if f.side == "player":
         return "you"
     if f.side == "ally":
         return f.name
-    name = re.sub(r"\s*\((?!elite\))[^)]*\)\s*$", "", f.name).replace(" (elite)", "")   # (f422) a tag such as "(bounty)" is not their name
+    name = plain_name(f.name, counted=True)                  # (f422) a tag such as "(bounty)" is not their name
     if name.lower().startswith(("the ", "a ", "an ", "one of ")) or (f.boss and name[:1].isupper()):
         return name                                   # already says what it is, or is a person with a name of their own
     prefix = "the hulking " if "(elite)" in f.name else "the "
@@ -1648,7 +1655,7 @@ def raise_thrall(combat: Combat, dead: Fighter, reason: str = "") -> None:
     if not reason:
         combat.thrall_used = True
     t = dead.model_copy(deep=True)
-    base = dead.name.replace(" (elite)", "")
+    base = plain_name(dead.name)                             # (f696) a risen bounty is no "(bounty)"
     for article in ("the ", "a ", "an ", "one of "):
         if base.lower().startswith(article):
             base = base[len(article):]
