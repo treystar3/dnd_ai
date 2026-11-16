@@ -45,6 +45,7 @@ class Action:
     needed_by_rest: bool = True
     fills: tuple[str, ...] = ()
     unread: tuple[str, ...] = ()
+    audit_adds: bool = False       # (f699) the audit may add it where the first reading had none, when the line's own words ask for it
 
 
 ACTIONS: tuple[Action, ...] = (
@@ -129,7 +130,7 @@ ACTIONS: tuple[Action, ...] = (
            prompt="""they ask or pay a person here to make gear for them ("forge me a spear", "make me boots
                from these hides")"""),
     Action("wait", "wait, rest or sleep", fills=("wait_minutes", "wait_until"), verbs=("sleep", "rest", "wait"),
-           needed_by_rest=False, prompt="""they wait, rest, linger, pass time or skip ahead"""),
+           needed_by_rest=False, audit_adds=True, prompt="""they wait, rest, linger, pass time or skip ahead"""),
     Action("attack", "attack someone or something", targeted=True, verbs=("attack", "stab", "shoot", "kill"), words=("hit", "fight"),
            prompt="""they attack a creature (in PEOPLE HERE with id wildlife) or start a fight. Killing, executing or
                finishing off a captive prisoner in PEOPLE HERE is attack, with that prisoner's id as target."""),

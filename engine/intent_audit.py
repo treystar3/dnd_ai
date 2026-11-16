@@ -95,6 +95,56 @@ def problems(plan: list, sit: Situation) -> list[str]:
     return out
 
 
+def _content(s: str) -> set[str]:
+    from engine.inventory import _stem
+    return {_stem(w) for w in re.findall(r"[a-z]+", (s or "").lower()) if len(w) >= 4}
+
+
+def _own(s, sit: Situation) -> set[str]:
+    """A step's own words: what it names, never the model's summary."""
+    own = " ".join(str(getattr(s, f, "") or "") for f in ("item", "ware", "destination", "wait_until"))
+    return _content(own + " " + sit.present.get((s.target or "").lower(), s.target or ""))
+
+
+def surplus(plan: list, proposal: list) -> list:
+    """(f699) The steps of a longer correction that set no step of the first reading right: each first step is paired with the same
+    step, else one of its kind, else the next left in order; what is left over was added."""
+    left, extra = list(range(len(plan))), []
+    rest = list(proposal)
+    for match in (lambda p, f: _key(p) == _key(f), lambda p, f: p.kind == f.kind, lambda p, f: True):
+        for p in list(rest):
+            i = next((i for i in left if match(p, plan[i])), None)
+            if i is not None:
+                left.remove(i)
+                rest.remove(p)
+    return [p for p in proposal if any(p is r for r in rest)]
+
+
+def unasked(text: str, plan: list, proposal: list, sit: Situation) -> list[str]:
+    """(f699) What a longer correction adds that the player's own words do not ask for. An added step stands when it is of a kind the
+    first reading holds and names a word of the line no other step claims ("the bear hunt" beside the wolf's and the boar's), or is one
+    the action table lets the audit add (a wait), asked for by that action's own words in the line and the only one of its kind. Never
+    a new kind of deed, never the same deed again on a word already used."""
+    from engine.actions import BY_KIND
+    kinds, said, low = {s.kind for s in plan}, _content(text), (text or "").lower()
+    out = []
+    for s in surplus(plan, proposal):
+        what = s.summary or s.kind
+        act = BY_KIND.get(s.kind)
+        if s.kind not in kinds:
+            asked = act is not None and act.audit_adds and any(re.search(rf"\b{re.escape(w)}\w*\b", low) for w in act.verbs + act.words)
+            if not asked or sum(1 for p in proposal if p.kind == s.kind) > 1:
+                out.append(f"'{what}' is a deed the first reading did not hold; only steps the player's own words ask for may be added")
+            continue
+        if act is not None and act.audit_adds:
+            out.append(f"'{what}' is a second {s.kind}; the player's words ask for one")
+            continue
+        claimed = set().union(*(_own(p, sit) for p in proposal if p is not s))
+        if not ((_own(s, sit) - claimed) & said):
+            out.append(f"'{what}' adds what the player's words never name; only steps their own words ask for may be added")
+    return out
+
+
 def fix(plan: list) -> list:
     """Drop exact repeats, an 'other' that only restates another step, and a later step with nothing of its own (no target, item,
     ware, words...) whose summary is an earlier step's summary word for word ("I put 2 silver in the tithe box" as a give and again
@@ -221,7 +271,7 @@ def audit(text: str, plan: list, sit: Situation, ask: AuditAsk) -> Result:
             res.calls += 1
             still = problems(proposal, sit)
             if not still and len(proposal) > len(plan):
-                still = ["the new plan has more steps than the first; only remove or correct steps, never add"]
+                still = unasked(text, plan, proposal, sit)       # (f699) what the player's own words ask for may be added, nothing else
             if not still:
                 if [_key(s) for s in proposal] == [_key(s) for s in plan]:
                     return res
