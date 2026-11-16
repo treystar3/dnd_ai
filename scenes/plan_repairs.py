@@ -209,6 +209,7 @@ class PlanRepairs:
         deal first, so the answer is given knowing how it went: a night's smith said he did not deal in cloth and then bought the hood,
         an innkeeper agreed to a room that was never let. Steps after a journey are left where they are."""
         partner = self.partner.id if self.partner else ""
+        named = {x.target for x in plan if x.target}
         for k, a in enumerate(plan):
             who = a.target or partner
             if a.kind != "talk" or not who:
@@ -217,8 +218,8 @@ class PlanRepairs:
             for j, b in enumerate(plan[k + 1:], k + 1):
                 if b.kind in self.GOING:
                     break
-                if b.kind in self.DEALS and (b.target == who or (not b.target and b.kind not in actions.TARGETED)):
-                    last = j                         # a deal aimed at them; a buy with no one named may be from anyone
+                if b.kind in self.DEALS and (b.target == who or (not b.target and (b.kind not in actions.TARGETED or named <= {who}))):
+                    last = j                         # a deal aimed at them; one with no one named, in a line that speaks to them alone (f667)
             if last is not None:
                 return plan[:k] + plan[k + 1:last + 1] + [a] + plan[last + 1:]
         return None

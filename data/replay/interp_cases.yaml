@@ -1277,3 +1277,13 @@
   text: "Bram, are you healing up?"
   scene: {place: trading_square, pack: [bandage, healing_draught], party: [{name: Bram Voss}]}
   expect: {handled_by: hire}
+- name: a_thing_handed_over_to_the_one_spoken_to_goes_before_the_words
+  text: "I tell the priestess the work is done and hand her the receipt"
+  scene: {place: trading_square, present: [{id: p1, name: Sister Ama, role: priest}]}
+  plan: [{kind: talk, target: p1, speech: "The work is done."}, {kind: give, item: receipt}]
+  expect: {handled_by: interpret, kinds: [give, talk]}
+- name: a_thing_handed_over_with_no_one_named_beside_two_spoken_to_stays
+  text: "I tell Ama the work is done, ask Garran the way, and hand over the receipt"
+  scene: {place: trading_square, present: [{id: p1, name: Sister Ama, role: priest}, {id: g1, name: Garran Holt, role: guard}]}
+  plan: [{kind: talk, target: p1, speech: "The work is done."}, {kind: talk, target: g1, speech: "Which way?"}, {kind: give, item: receipt}]
+  expect: {handled_by: interpret, kinds: [talk, talk, give]}

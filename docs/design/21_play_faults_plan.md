@@ -477,6 +477,9 @@ Each is tested on its own class: D2 on every writer of a leaving, D4 on every pa
 - **As built (f666): D4.** The party's acts done at a guild hall (promote, hire) are refused away from a hall, or at one with no
   clerk there, with a line that says where it is done (three new lines for the owner, told.yaml at_hall); nothing is paid or
   raised. tools/sim/hall_acts_666_test.py.
+- **As built (f667): D5.** The deal-first repair (f417) now takes a deal the reading wrote with no one named, in a line that speaks
+  to one person, as theirs, and puts it before the words; beside two people spoken to it stays. Left: "the priestess" does not
+  name a priest (a trade's other forms). tools/sim/deal_first_667_test.py, two corpus cases.
 
 ## 7. Group E: a passage is checked against what the turn did
 
