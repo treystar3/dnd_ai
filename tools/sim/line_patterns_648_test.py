@@ -7,11 +7,12 @@ the case that made each, so a repair that catches too much passed. Held here:
   handler, every answer to the world's question, the fight's turn), every place a pattern or a word is searched over the line,
   followed into what the line is handed to (by name, by a method reached through getattr with a prefix whether called there or
   later, that takes as many arguments as it is given, through what a function
-  imports inside itself), over the line, a plain or reworded form of it and its clauses; the reader finds what is read and
+  imports inside itself), over the line, a plain or reworded form of it, its clauses, and the line given back by a function of ours
+  that returns text, or gives back in a record of its own (a NamedTuple's text fields); the reader finds what is read and
   nothing else, and reaches the places the findings named;
 - what the census counts is every such search, not only those that decide a deed: a question mark, a command's mark, a word
-  made singular are in it. It does not see: the line handed on by keyword or stored on the scene, compared with == or put on the
-  left of `in`, or handed to the model (the model's reading is the interpreter's, not a pattern's);
+  made singular are in it. It does not see: the line handed on by keyword or stored on the scene, read off a record by its field's
+  name, compared with == or put on the left of `in`, or handed to the model (the model's reading is the interpreter's, not a pattern's);
 - the count, file by file, as it stands: it only falls, and the table is lowered when one goes. A fix that adds a guard over
   the line (a question, a negation, who is addressed) may raise a file's count only beside a line in RAISED that names the
   feature and why. The count is per file, so one search swapped for another in the same file is not seen here;
@@ -45,6 +46,10 @@ def helper(line):
     return WORDS.search(line)
 
 
+def reword(line) -> str:
+    return line.title()
+
+
 class Fake:
     def door(self, text, plan):
         low = text.lower()
@@ -59,6 +64,8 @@ class Fake:
         getattr(self, f"part_{plan}")(text)                   # a method reached by name
         later = getattr(self, f"bit_{plan}")                  # ...and one reached by name and called later
         later(text, plan)
+        given = reword(text)                                  # given back by a function of ours that returns text
+        WORDS.search(given)
         self.narrate(text)                                    # prose: not followed
         return self.untouched(plan)
 
@@ -85,7 +92,7 @@ got = line_census.sites(Fake, Fake.door, 0, ours=("__main__",))
 where = sorted((s[3].split(".")[-1], s[4]) for s in got)
 check("the reader finds a search over the line, a plain and a reworded form of it, a clause of it, the line set in a longer string "
       "and handed to a function, and a method reached by name",
-      where == [("bit_one", "startswith"), ("door", "in"), ("door", "pattern"), ("door", "pattern"), ("door", "startswith"), ("helper", "pattern"),
+      where == [("bit_one", "startswith"), ("door", "in"), ("door", "pattern"), ("door", "pattern"), ("door", "pattern"), ("door", "startswith"), ("helper", "pattern"),
                 ("part_one", "endswith"), ("step", "in")], where)
 check("...and nothing over what is not the line, and nothing in the prose it is told", not any(s[3].endswith(("untouched", "narrate")) for s in got), got)
 
@@ -93,7 +100,7 @@ check("...and nothing over what is not the line, and nothing in the prose it is 
 found, by_door = line_census.census()
 named = {f"{s[0]}:{fn.split('.')[-1]}" for s, (fn, what, door) in found.items()}
 FINDINGS = {"scenes/plan_repairs.py:move_elsewhere": "4.1, leaving a dungeon", "scenes/plan_repairs.py:talk_to_deed": "4.2, praying",
-            "scenes/combat_scene.py:order_of": "1.1 to 1.5, an order", "scenes/combat_scene.py:order_kind": "1.2, the kind of order",
+            "scenes/combat_scene.py:orders_in": "1.1 to 1.5, an order", "engine/addressing.py:addressed": "1.1 to 1.5, who an order is said to",
             "scenes/combat_scene.py:own_part": "1.1, the player's own part", "scenes/arc_actions.py:yield_intercept": "2.7, a yielded foe",
             "scenes/party_actions.py:hire_wants_talk": "4.7, talk to a hire", "engine/intent_audit.py:risk_flags": "4.9, the audit's verbs",
             "engine/actions.py:takes_oneself": "f645, taking a thing oneself", "scenes/party_actions.py:party_dismiss": "a party dismissed by a name",
@@ -107,25 +114,29 @@ CENSUS = {
     "engine/act.py": 1, "engine/actions.py": 4, "engine/brief.py": 1,
     "engine/candidates.py": 2, "engine/combat_improv.py": 1, "engine/convo.py": 2,
     "engine/crafting.py": 2, "engine/discovery.py": 2, "engine/elements.py": 1,
-    "engine/encounters.py": 4, "engine/exits.py": 1, "engine/features.py": 1,
+    "engine/encounters.py": 4, "engine/exits.py": 15, "engine/features.py": 3,
     "engine/intent_audit.py": 3, "engine/inventory.py": 2, "engine/lessons.py": 2,
     "engine/locks.py": 1, "engine/mentor.py": 9, "engine/mounts.py": 1,
     "engine/objects.py": 1, "engine/orenna.py": 1, "engine/partings.py": 2,
-    "engine/party_director.py": 1, "engine/property.py": 1, "engine/situation_parts.py": 2,
-    "engine/taming.py": 2, "engine/world_improv.py": 7, "scenes/arc_actions.py": 3,
-    "scenes/camp_actions.py": 3, "scenes/combat_scene.py": 21, "scenes/explore_actions.py": 1,
-    "scenes/field_actions.py": 9, "scenes/guild_actions.py": 2, "scenes/inventory_actions.py": 8,
-    "scenes/law_actions.py": 3, "scenes/listening.py": 4, "scenes/markup.py": 2,
-    "scenes/mentor_actions.py": 18, "scenes/part_actions.py": 3, "scenes/party_actions.py": 31,
-    "scenes/passive_hooks.py": 3, "scenes/plan_repairs.py": 22, "scenes/property_actions.py": 2,
-    "scenes/quirk_actions.py": 5, "scenes/road_actions.py": 1, "scenes/spell_actions.py": 6,
-    "scenes/training_actions.py": 7, "scenes/trial_actions.py": 5, "scenes/world.py": 34,
+    "engine/party_director.py": 1, "engine/property.py": 1, "engine/questions.py": 1,
+    "engine/severity.py": 3, "engine/situation_parts.py": 2, "engine/taming.py": 2,
+    "engine/world_improv.py": 7, "scenes/arc_actions.py": 3, "scenes/camp_actions.py": 3,
+    "scenes/combat_scene.py": 18, "scenes/explore_actions.py": 1, "scenes/field_actions.py": 9,
+    "scenes/guild_actions.py": 2, "scenes/inventory_actions.py": 8, "scenes/law_actions.py": 3,
+    "scenes/listening.py": 5, "scenes/markup.py": 2, "scenes/mentor_actions.py": 18,
+    "scenes/part_actions.py": 5, "scenes/party_actions.py": 31, "scenes/passive_hooks.py": 3,
+    "scenes/plan_repairs.py": 22, "scenes/property_actions.py": 2, "scenes/quirk_actions.py": 5,
+    "scenes/road_actions.py": 1, "scenes/spell_actions.py": 6, "scenes/training_actions.py": 7,
+    "scenes/trial_actions.py": 5, "scenes/world.py": 36,
 }
-RAISED: dict = {}          # {file: (how many more, "fNNN: the guard it adds over the line, and why")}
+RAISED = {                 # {file: (how many more, "fNNN: the guard it adds over the line, and why")}
+    "engine/addressing.py": (12, "f649: who a line speaks to, read from where a name stands: it replaces the fight's searches for a name "
+                                 "anywhere (combat_scene 21 to 18), and what the orders read is now only what is said to someone"),
+}
 now = line_census.by_file(found)
 allowed = {f: CENSUS.get(f, 0) + RAISED.get(f, (0, ""))[0] for f in set(CENSUS) | set(RAISED)}
 more = {f: (n, allowed.get(f, 0)) for f, n in now.items() if n > allowed.get(f, 0)}
-check("no file searches the whole line more than it did (250 places in 48 files when the census was built), but beside a raise named here",
+check("no file searches the whole line more than it did (275 places in 50 files on the reader of f649, which follows a line given back by a function of ours), but beside a raise named here",
       not more, {f: [f"{s[0]}:{s[1]} {fn} {what} (from {door})" for s, (fn, what, door) in sorted(found.items()) if s[0] == f] for f in more})
 check("...and every raise names its feature and why", all(n > 0 and _re.match(r"f\d{3}: \S", why) for n, why in RAISED.values()), RAISED)
 fewer = {f: (now.get(f, 0), n) for f, n in allowed.items() if now.get(f, 0) < n}

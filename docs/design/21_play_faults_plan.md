@@ -254,6 +254,46 @@ repair, so a repair that catches too much passes. These are the tests of the eng
   guard's story", owed in B0's corpus).
 - Test first: the five lines of the journal, each with a twin the journal did not hold (another ability name with an order word
   in it, another companion as an object, an order to guard a third), and orders_test's patterns still passing.
+- **As built (f649): orders in a fight.** engine/addressing.py reads who a line speaks to, in one place: a name at the head of a
+  sentence or of the words said ("Kennard, guard me", "Kennard guard me", "Kennard attacks the wolf"), several at once ("Kennard and
+  Raerei, hold back", "Kennard and Raerei take wolf 1": a list ends at its comma, so "Raerei, Kennard is down, heal him!" is said to
+  Raerei), one the player has, gets or lets do a thing ("I have Kennard guard me", "I let Kennard take wolf 1"), a name said alone
+  before the order ("Kennard! Fall back!"), a sentence that asks something after one said to someone ("Kennard, I'm hurt. Cover
+  me!"), a name called at the end or in the middle ("Cover me, Kennard!", "Cover Raerei, Kennard, while I take wolf 1"), one the
+  player tells, orders, asks or shouts to ("I tell Almund to take wolf 1", "I shout for Kennard to fall back"), one signed to with
+  the words after a colon, a "to" or a comma ("I nod at Kennard: take wolf 1", "I turn to Raerei, heal me!"; "I look at Kennard,
+  then take wolf 1" is the player's own), words in quotes given to someone by the sentence after, whatever the player then does
+  ('"Hold back," I tell Kennard, and I charge wolf 1.'), or the whole party ("Everyone, hold back"). A name followed by how they
+  are ("Raerei is down") is spoken of, not to; a sentence that begins with a foe's name is not read as a companion's at its head
+  ("Wolf 1 is on me, Kennard, guard me!" is said to Kennard, by the name called in its middle). A name said alone followed by what
+  the player does ('"Kennard!" I yell, and charge wolf 1.') tells the companion nothing. What the player says they do themself in those words, from "and I", "while
+  I" or "I'll" up to where the words to them start again ("Kennard, while I strike wolf 0, take wolf 1"), is cut off and kept as
+  the player's own; "I'm done for" and "I need you to" stay said. The fight reads each order's kind only from what is said to them, after
+  the player's own ability names and worn gear are taken out ("follow my Guard Breaker with a strike" is an attack); a question is
+  still no order. A guard or a heal is for whom the words right after its own word name: "me", a companion, or the one a "him" or
+  "her" points to, back in the line or on in it ("Raerei, heal him, Kennard is bleeding!"); a him or her is never the player, and
+  with no one named it is no order. "Kennard, guard me while Raerei heals" guards the player; a guard order with no one named
+  guards the player. The order
+  keeps it (engine/combat.py give_order), the line printed says it ("You tell Kennard to guard Raerei."), and a blow aimed at that
+  one is what the guard steps in front of (combat.guards_of; a guard whose charge is no one on the player's side guards the player).
+  An order refused (a fighter with no healing told to heal) lets the next order in the line be given; any order after the one
+  given, to anyone, is said to wait ("One order a turn: Raerei will have to wait for the next."); when the turn's order was given
+  already, that is said once and no order in the line is given. own_part keeps every
+  clause said to no one that says what the player does, whoever it names, and the player's own part of what is said to someone.
+  tools/sim/addressed_orders_649_test.py holds the journal's 1.1 to 1.5 and 1.9, a twin of each, and the forms above; orders_test,
+  the two playthrough tests of orders and mentor_test pass unchanged, and so do the three recordings. The census, which now also
+  follows a line given back in a record of ours, reads the fight 21 to 18 and the new module's 12 as a named raise: the reading of
+  who is addressed replaces the searches for a name anywhere, and the orders read only what is said to someone. The better reader
+  also sees old code it missed before (exits 15, features 3, the world 36, listening 5, part_actions 5, questions 1, severity 3):
+  those are the table's new baseline, 275 places in 50 files, not new searches.
+- **Left, and why.** An ability whose whole name is an order word ("Cover") is read as the ability inside an order. "Almund, get
+  back out of its reach!" is no order: no word of the order lists says it, and widening the lists is not this fix. The order lists
+  themselves (the kinds and the ways a name is called) are closed lists of words; what is not in them is read by the interpreter as
+  before. A guard order with no one named guards the player, the one fight's single player; with a second player it will need the
+  speaker. Misread before f649 and still (owed to a later pass of this reading): an order and another to a second companion in one
+  sentence ("Kennard, guard Almund, Raerei, heal me!" gives only the first, unsaid); a need said of a companion before an order
+  ("Kennard needs it too, heal him after"); "Kennard! Hold!" ("hold" alone is no order word); "Cover me, Kennard, I'm going for
+  wolf 1" keeps no part for the player. The rest of B1 (a talk out of a fight goes to who is addressed, one companion held back) follow as features of their own.
 
 **B2. A repair rewrites a deed by that deed's own words (4.1, 4.2, 4.5, 4.7 to 4.10, 2.7).**
 - Leaving a dungeon, praying, staying within a place, talking to a hire, naming a ware, the verbs a purchase covers, and

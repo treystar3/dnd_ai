@@ -214,7 +214,7 @@ class Behaviour(Part):
     surrendered: bool = False            # yielded rather than fled: it can be taken prisoner
     talked: bool = False                 # spoken to once this fight, for good or ill (engine/parley.py)
     order: str = ""                      # what the player told this ally to do: focus | guard | hold | heal ("" = fight on their own)
-    order_target: str = ""               # the enemy a focus order names; (f406) for a heal order, who to heal ("self", or an ally's id)
+    order_target: str = ""               # the enemy a focus order names; (f406) for a heal order, who to heal ("self", or an ally's id); (f649) for a guard, whom
 
 
 class Summon(Part):
@@ -2716,11 +2716,12 @@ def enemy_turn(combat: Combat, e: Fighter, rng: random.Random) -> None:
     from engine import healing as _heal
     decided = combat_perks.pick_target(combat, e, targets, rng)             # a perk may decide it outright (Provoke, Pack Alpha)
     target = decided or _heal.attention_target(combat, e, rng) or target    # else healing draws the eye
-    guards = [t for t in targets[1:] if t.order == "guard" and t.alive]
-    if target is combat.player and guards and rng.random() < GUARD_CHANCE:
+    guards = [g for g in guards_of(combat, target) if g in targets]
+    if guards and rng.random() < GUARD_CHANCE:
+        meant = target
         target = rng.choice(guards)
-        combat.log.append(f"{target.name} steps in front of {combat.player.name}")
-        tell(combat, f"{who(target)} {vb(target, 'step', 'steps')} into the blow meant for you")
+        combat.log.append(f"{target.name} steps in front of {meant.name}")
+        tell(combat, f"{who(target)} {vb(target, 'step', 'steps')} into the blow meant for " + ("you" if meant is combat.player else who(meant)))
     from engine import summons as _sm
     if target is combat.player and "concealed" in target.position_tags:
         seen = [t for t in targets[1:] if t.alive]
@@ -2875,7 +2876,15 @@ def act_interpose(combat: Combat, f: Fighter, ally: Fighter | None) -> None:
 
 
 ORDERS = ("focus", "guard", "hold", "heal", "back")     # (f406) back: behind the player, in the back row, acting from there
-GUARD_CHANCE = 0.4          # an enemy that would strike the player strikes a guarding ally instead this often
+
+
+def guards_of(combat: Combat, target: Fighter) -> list:
+    """(f649) The allies told to guard this fighter, standing: the companion a guard order named, or the player when it named no one
+    on the player's side."""
+    side = {x.id for x in combat.player_side() if x is not combat.player}
+    charge = lambda g: g.order_target if g.order_target in side and g.order_target != g.id else combat.player.id
+    return [g for g in combat.allies() if g.order == "guard" and g.alive and g is not target and charge(g) == target.id]
+GUARD_CHANCE = 0.4          # an enemy that would strike the one guarded (the player, or the ally named) strikes the guard instead this often
 
 
 def give_order(combat: Combat, ally: Fighter, kind: str, target_id: str = "", same_command: bool = False) -> str:
@@ -2901,6 +2910,8 @@ def give_order(combat: Combat, ally: Fighter, kind: str, target_id: str = "", sa
         ally.order_target = t.id
     elif kind == "heal":
         ally.order_target = target_id if target_id == "self" or any(x.id == target_id for x in combat.allies()) else ""
+    elif kind == "guard":                                # (f649) whom to guard: a companion named, else the player ("")
+        ally.order_target = target_id if any(x.id == target_id and x is not ally for x in combat.allies()) else ""
     elif kind == "back":                                 # (f406) "get behind me": out of the press, into the back row
         from engine import battlefield as bf
         bf.release(combat, ally)

@@ -5,7 +5,7 @@ A line enters the game by a few doors, each declared: the world's turn, the inte
 census follows the line through every method of the scene and every function it is handed to, and counts each place a pattern, a
 word or a test of the text is searched over it: a compiled pattern's search, match or findall, re.search, `word in line`, and
 startswith or endswith. The line is the parameter it came in as, any plain form of it (lowered, stripped, set in a longer string),
-and the clauses it is split into. It stops where the line becomes prose for the narrator (narrate, and the modules that clean a
+the clauses it is split into, and what a function of ours gives back for it as text or in a record of text fields. It stops where the line becomes prose for the narrator (narrate, and the modules that clean a
 passage), which no deed is decided by.
 
 tools/sim/line_patterns_648_test.py holds the count file by file, and the count only falls (docs/design/21_play_faults_plan.md, B0).
@@ -142,17 +142,47 @@ def sites(owner, fn, index: int, seen: set | None = None, door: str = "", ours: 
     names = {params[index]}
     scope = {**fn.__globals__, **_local_imports(tree)}
     re_names = {k for k, v in scope.items() if v is re} | {"re"}
+    def gives_line(call) -> bool:
+        """A function of ours handed the line that gives back text: the line reworded, or its parts (addressing.without, .clauses)."""
+        while isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute) and call.func.attr in PLAIN:
+            call = call.func.value                       # without(text, ...).replace(...) is still the line
+        if not (isinstance(call, ast.Call) and any(_is_line(a, names) for a in call.args)):
+            return False
+        f = getattr(_resolve(owner, scope, call.func)[1], "__wrapped__", None)
+        f = f or _resolve(owner, scope, call.func)[1]
+        if not (inspect.isfunction(f) and f.__module__.startswith(ours)):
+            return False
+        back = str(f.__annotations__.get("return", "")).replace(" ", "")
+        return back in ("str", "list[str]", "<class'str'>")
+
+    def text_fields(call) -> list[int]:
+        """(f649) The places of the text in each record a function of ours gives back for the line: list[Address], Address's `said`."""
+        if not (isinstance(call, ast.Call) and any(_is_line(a, names) for a in call.args)):
+            return []
+        f = getattr(_resolve(owner, scope, call.func)[1], "__wrapped__", None)
+        f = f or _resolve(owner, scope, call.func)[1]
+        if not (inspect.isfunction(f) and f.__module__.startswith(ours)):
+            return []
+        m = re.fullmatch(r"list\[(\w+)\]", str(f.__annotations__.get("return", "")).replace(" ", ""))
+        rec = f.__globals__.get(m.group(1)) if m else None
+        fields = getattr(rec, "__annotations__", None) if inspect.isclass(rec) and hasattr(rec, "_fields") else None
+        kind = lambda v: str(getattr(v, "__forward_arg__", v))                  # a record's fields read as text, or as ForwardRef('str')
+        return [k for k, name in enumerate(rec._fields) if kind(fields.get(name, "")) in ("str", "<class 'str'>")] if fields else []
+
     grew = True
     while grew:
         grew = False
         for node in ast.walk(tree):
             new = []
             if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name) \
-                    and (_is_line(node.value, names) or _split_of(node.value, names)):
+                    and (_is_line(node.value, names) or _split_of(node.value, names) or gives_line(node.value)):
                 new.append(node.targets[0].id)
             elif isinstance(node, (ast.For, ast.comprehension)) and isinstance(node.target, ast.Name) \
-                    and (_is_line(node.iter, names) or _split_of(node.iter, names)):
+                    and (_is_line(node.iter, names) or _split_of(node.iter, names) or gives_line(node.iter)):
                 new.append(node.target.id)
+            elif isinstance(node, (ast.For, ast.comprehension)) and isinstance(node.target, ast.Tuple):
+                new += [node.target.elts[k].id for k in text_fields(node.iter)
+                        if k < len(node.target.elts) and isinstance(node.target.elts[k], ast.Name)]
             for n in new:
                 if n not in names:
                     names.add(n)

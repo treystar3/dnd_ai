@@ -457,6 +457,10 @@ class CombatScene:
         """(f383) Which order the line gives, read past the ones it says not to give: "do not heal me anymore, focus on attacking" was read
         as heal, the first pattern in the table to match anywhere. An order inside a clause with a not before it, or anymore after it, is
         not given; of the rest the first in the line is. A line that only says what not to do gives the other thing (stop healing: fight)."""
+        return self.order_at(low)[0]
+
+    def order_at(self, low: str) -> tuple[str, int]:
+        """(f649) The order the words give (order_kind) and where its word ends, so whom it is for is read from what follows the word."""
         import re
         hits = []
         for k, pat in self.ORDER_WORDS:
@@ -464,54 +468,94 @@ class CombatScene:
                 start = max(low.rfind(c, 0, m.start()) for c in (",", ";", ".", " but ", " then ", " and ", " instead"))
                 ends = [i for i in (low.find(c, m.end()) for c in (",", ";", ".", " but ", " then ", " and ")) if i >= 0]
                 before, after = low[max(0, start):m.start()], low[m.end():min(ends) if ends else len(low)]
-                hits.append((m.start(), k, bool(re.search(self.NOT, before)) or bool(re.search(r"\b(anymore|any more|no longer)\b", after))))
+                hits.append((m.start(), k, bool(re.search(self.NOT, before)) or bool(re.search(r"\b(anymore|any more|no longer)\b", after)), m.end()))
         plain = sorted(h for h in hits if not h[2])
-        if plain:
-            return plain[0][1]
-        return self.INSTEAD[sorted(hits)[0][1]] if hits else ""
+        if plain:                                            # whom: after the last word of that order ("needs healing, heal him")
+            return plain[0][1], max(h[3] for h in plain if h[1] == plain[0][1])
+        return (self.INSTEAD[sorted(hits)[0][1]], len(low)) if hits else ("", len(low))
 
     def order_of(self, text: str):
-        """('ally', kind, enemy id) when the line is an order to a party member by name (or to the party), else None. No model call: a plain
-        pattern, so an order never costs a turn or a wait."""
+        """(allies, kind, target) when the line gives an order to a party member it speaks to, or to the party; else None. (f649) The
+        first of orders_in: one order a turn."""
+        found = self.orders_in(text)
+        return found[0] if found else None
+
+    def orders_in(self, text: str) -> list[tuple]:
+        """(f649) Every order the line gives, in order: (allies, kind, target). Who is told is who the line addresses (engine/addressing.py),
+        never a companion named anywhere in it; the order is read from what is said to them, with the player's own abilities and worn
+        gear taken out first and the player's own part of the words cut off. No model call, so an order never costs a turn."""
         import re
-        if "?" in text:                                  # a question is for talking, not an order
-            return None
-        low = " " + text.lower() + " "
+        from engine import addressing
         allies = [a for a in self.fight.allies() if a.alive and (a.ally_role or combat.is_companion(a))]       # (f384) the animal companion too
         if not allies:
-            return None
-        named = [a for a in allies if re.search(r"\b" + re.escape(a.name.split()[0].lower()) + r"\b", low)]
-        everyone = bool(re.search(r"\b(everyone|all of you|you all|party|you two|you both|team)\b", low))
-        if not named and not everyone:
-            return None
-        kind = self.order_kind(low)
-        if not kind:
-            return None
-        target = ""
-        if kind == "heal":                                   # (f406) "heal yourself", "Jorn, heal Bryn": who the heal is for
-            if re.search(r"\b(yourself|yourselves|himself|herself|themselves|themself|your own)\b", low):
-                target = "self"
-            elif len(named) >= 2:
-                order = sorted(named, key=lambda a: low.find(a.name.split()[0].lower()))
-                return [order[0]], kind, order[1].id
-        if kind == "focus":
-            foes = [e for e in self.fight.enemies() if e.alive and not e.fled]
-            hit = next((e for e in foes if e.name.lower() in low or any(w in low for w in (e.name.lower().split()[-1],))), None)
-            target = (hit or next((e for e in foes if e.id == self.fight.focus), None) or (foes[0] if foes else None))
-            target = target.id if target else ""
-        return (named or allies), kind, target
+            return []
+        people = self.addressees(allies)
+        line = addressing.without(text, self.own_names()).replace(addressing.APOS, "'")
+        out = []
+        for who, said, clause, _mine in addressing.addressed(line, people, others=[e.name for e in self.fight.enemies()],
+                                                             asks=lambda s: bool(self.order_kind(f" {s} "))):
+            if "?" in clause:                                # a question is for talking, not an order
+                continue
+            low = " " + said + " "
+            kind, end = self.order_at(low)
+            if not kind:
+                continue
+            told = allies if who == (addressing.PARTY,) else [a for a in allies if a.id in who]
+            target = ""
+            if kind in ("heal", "guard"):                    # (f406, f649) whom: read from the words right after the order's own word
+                whom = re.split(r"[,;.]|\b(?:and|while|so|before|but|then|as|because|until)\b", low[end:], maxsplit=1)[0]
+                named = [i for i in addressing.spoken_of(whom, people) if i not in who]
+                earlier = [i for i in addressing.spoken_of(line[:max(0, line.find(clause))] + " . " + low[:end], people) if i not in who]
+                if kind == "heal" and re.search(r"\b(yourself|yourselves|himself|herself|themselves|themself|your own)\b", whom):
+                    target = "self"
+                elif re.search(r"\b(me|myself|us)\b", whom):
+                    target = ""
+                elif named:
+                    target = named[0]
+                elif re.search(r"\b(him|her|them)\b", whom):    # a him or her is a companion, never the player: back, then on
+                    later = [i for i in addressing.spoken_of(low[end:] + " . " + line[line.find(clause) + len(clause):], people) if i not in who]
+                    if not (earlier or later):
+                        continue
+                    target = earlier[-1] if earlier else later[0]
+            if kind == "focus":
+                foes = [e for e in self.fight.enemies() if e.alive and not e.fled]
+                hit = next((e for e in foes if e.name.lower() in low or any(w in low for w in (e.name.lower().split()[-1],))), None)
+                target = (hit or next((e for e in foes if e.id == self.fight.focus), None) or (foes[0] if foes else None))
+                target = target.id if target else ""
+            out.append((told, kind, target))
+        return out
 
-    def give_orders(self, who, kind: str, target: str) -> None:
+    @staticmethod
+    def addressees(allies) -> dict:
+        """(f649) Each companion's forms of name, for engine/addressing.py: the full name, then the first."""
+        return {a.id: [a.name.lower(), a.name.split()[0].lower()] for a in allies}
+
+    def own_names(self) -> list[str]:
+        """(f649) The names of the player's own abilities and the gear they wear: never read as an order ("Guard Breaker", "Shield Wall")."""
+        names = [m.name for m in self.fight.player.moves if m.name]
+        ws = getattr(self, "ws", None)
+        try:
+            c = ws.player_of(ws.acting).character
+        except AttributeError:
+            c = None
+        if c is not None:
+            from engine import items
+            names += [items.display_name(i) for i in (getattr(c, "equipment", None) or {}).values() if i is not None]
+        return names
+
+    def give_orders(self, who, kind: str, target: str) -> bool | None:
+        """The order given, said, and the fight saved; (f649) True when someone was told, False when refused, None when this turn's
+        order was already given (no other order in the line can be)."""
         f = self.fight
         again = f.order_round == f.round and f.round and any(a.id in f.ordered for a in who)      # (f383) putting this turn's order right
         told = self.service.orders(f, who, kind, target)        # one order a turn is one command, even to the whole party
         for problem in told.problems:
             console.note(problem)
         if told.stopped:
-            return
+            return None
         if told.told:
-            whom = next((a.name.split()[0] for a in f.allies() if a.id == target), "") if kind == "heal" else ""
-            line = {"focus": "to attack {foe}", "guard": "to guard you", "hold": "to hold back", "back": "to get behind you",
+            whom = next((a.name.split()[0] for a in f.allies() if a.id == target), "") if kind in ("heal", "guard") else ""
+            line = {"focus": "to attack {foe}", "guard": f"to guard {whom}" if whom else "to guard you", "hold": "to hold back", "back": "to get behind you",
                     "heal": "to tend their own wounds" if target == "self" else (f"to tend {whom}" if whom else "to tend you")}[kind]
             foe = next((e.name for e in f.enemies() if e.id == target), "")
             foe = ("the " + foe) if foe and foe[0].islower() else foe        # "the troll", "the wolf 1", but "Old Brannoch" as is
@@ -519,6 +563,7 @@ class CombatScene:
                             + line.format(foe=foe or "their foe") + ".")
         self.show()
         self.ws.store.save_combat(self.to_json())
+        return bool(told.told)
 
     def turn(self, text: str, forced=None) -> None:
         """One player turn. forced is an intent already decided (a fight opened with an ability, f248): it is not interpreted."""
@@ -531,9 +576,18 @@ class CombatScene:
             from llm.contracts import CombatIntent
             self.free_item(CombatIntent(kind="item", item=text), text)
             return
-        order = self.order_of(text)
-        if order:
-            self.give_orders(*order)
+        orders = self.orders_in(text)
+        if orders:
+            given = None
+            for k, o in enumerate(orders):                   # (f649) a refused order lets the next be given; one already given ends it
+                done = self.give_orders(*o)
+                if done is None or done:
+                    given = k if done else None
+                    break
+            order = orders[given if given is not None else 0]
+            waiting = [a.name.split()[0] for o in orders[given + 1:] for a in o[0]] if given is not None else []
+            if waiting:                                      # (f649) one order a turn: the others are said to wait, not dropped unsaid
+                console.note(f"One order a turn: {' and '.join(dict.fromkeys(waiting))} will have to wait for the next.")
             mine = self.own_part(text, order[0])
             if mine and self.ws.combat is self and not f.over:      # (f406) "Jorn, heal yourself. I use spark bolt": both are done
                 self.act(self.interpret(mine), mine)
@@ -542,21 +596,27 @@ class CombatScene:
         self.act(intent, text)
 
     def own_part(self, text: str, told) -> str:
-        """(f406) The player's own action in a line that also gives an order: the clauses that do not name whoever was told, and that say
-        what the player does ('I cast...', 'I use...', or an ability of theirs by name). '' when the line is only the order. A night's play
-        had 'Jorn, heal yourself. I use spark bolt' give the order and drop the spell, and the player typed the spell again."""
+        """(f406) The player's own action in a line that also gives an order: the clauses said to no one that say what the player does
+        ('I cast...', 'I use...', or an ability of theirs by name), whoever they name (f649). '' when the line is only the order. A
+        night's play had 'Jorn, heal yourself. I use spark bolt' give the order and drop the spell, and the player typed it again."""
         import re
-        names = [a.name.split()[0].lower() for a in told]
+        from engine import addressing
+        allies = [a for a in self.fight.allies() if a.alive and (a.ally_role or combat.is_companion(a))] or list(told)
+        own = self.own_names()
+        spoken = {c: m for _who, _said, c, m in addressing.addressed(text, self.addressees(allies), others=[e.name for e in self.fight.enemies()],
+                                                                     asks=lambda s: bool(self.order_kind(f" {addressing.without(s, own)} ")))}
         moves = [m.name.lower() for m in self.fight.player.moves if m.name]
-        clauses = re.split(r'(?<=[.!;])\s+|["\u201c\u201d]+|\s+(?:and then|then|while)\s+|\s+and\s+(?=i\b)', text, flags=re.I)
         mine = []
-        for c in clauses:
-            c = (c or "").strip(" .,;:!")
-            low = c.lower()
-            if not low or any(re.search(r"\b" + re.escape(n) + r"\b", low) for n in names):
+        for clause in addressing.clauses(text):
+            if clause in spoken:                             # said to a companion: only the part the player says they do themself
+                if spoken[clause]:
+                    mine.append(spoken[clause])
                 continue
-            if re.match(r"(i|i'll|i'm|i will|let me|now i|and i)\b", low) or any(m in low for m in moves):
-                mine.append(c)
+            for c in re.split(r"\s+(?:and then|then|while)\s+|\s+and\s+(?=i\b)", clause, flags=re.I):
+                c = (c or "").strip(" .,;:!")
+                low = c.lower()
+                if low and (re.match(r"(i|i'll|i'm|i will|let me|now i|and i)\b", low) or any(m in low for m in moves)):
+                    mine.append(c)
         return ". ".join(mine)
 
     def outside_ability(self, intent, text: str) -> str:
