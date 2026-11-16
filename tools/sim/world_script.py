@@ -138,6 +138,7 @@ def play(name: str, stub, seed: int = SEED, prepare=None) -> Run:
         who = next(a["who"] for a in th["parts"] if a.get("kind") == "person")
         with ws.operation("action:give", "give a loaf"):
             ws.notice(Gift(minute=ws.minutes, place=PLACE, witnesses=(), npc=who, name=store.load_npc(who).name, item=item, count=1))
+        ws.take_up_rulings("give a loaf")                # (f684) ruled after the line, as the game does, not inside the give
 
     def acted() -> None:
         """(f605) An act on the act path (f595, f600): looters lay a danger on the square and harm a townsperson there; the act's one

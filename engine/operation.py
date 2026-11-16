@@ -69,6 +69,16 @@ class Operation:
 
 
 PRESENTED_KEEP = 400              # (f467) what reached the page is taken per input by the recorder; without one, the last few hundred are kept
+PLAYERS = {"line", "passage", "round", "aftermath", "goddess", "opening", "naming", "clarify"}   # (f684) the player's own operations,
+PLAYERS_PREFIX = ("action:", "command:", "act:")                                                 # and these families of them
+
+
+def players_own(kind: str) -> bool:
+    """(f684) One of the player's own operations (a step, a fight's round, a telling, their own act ruled), whose time the turn's budget
+    keeps for the line; every other kind is the world's (arrival, law, tail, the board, a situation's own)."""
+    return kind in PLAYERS or kind.startswith(PLAYERS_PREFIX)
+
+
 TELLING = {"passage", "round", "aftermath", "goddess", "opening"}   # (f470) operations that are the call itself (the telling): not counted; (f498) the fight's opening
 
 

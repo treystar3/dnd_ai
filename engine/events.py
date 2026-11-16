@@ -531,8 +531,8 @@ def judge(ws, state, th, deed) -> bool:
     if not th.get("parts"):
         return False
     op = operation.current()
-    if op is not None and getattr(op, "rulings_wait", False):
-        return _wait(ws, th, deed)
+    if op is not None and (getattr(op, "rulings_wait", False) or operation.players_own(op.kind)):
+        return _wait(ws, th, deed)                       # (f684) the player's line first: ruled after it, in an operation of its own
     try:
         budget.allow("event_judge", len(pp.JUDGE_PARTS_SYSTEM) + 2400)
     except BudgetError:
@@ -595,15 +595,21 @@ def waiting(state: dict) -> list[dict]:
 
 def take_up_waiting(ws) -> bool:
     """(f597) After a line, where a situation's birth is asked (the owner, 2026-11-11: the player's line first): the oldest deed
-    waiting on a situation is ruled on, its call asked outside the transaction. One a line; one that still finds no room waits on."""
+    waiting on a situation is ruled on, its call asked outside the transaction. (f684) Every one waiting, oldest first across the
+    situations, as long as the budget has room; one that finds none waits on, and those after it."""
+    from engine import operation
     state = ws.store.load_world_state()
     rows = waiting(state)
     if not rows:
         return False
-    th = rows[0]
-    deed = th["waiting"].pop(0)
-    if not ruled_before(th, deed, state):                # ruled meanwhile, with nothing changed since: no more
-        judge(ws, state, th, deed)                       # no room again: it waits again (_wait)
+    queue = sorted(((d.get("seq", 0), i, th, d) for i, th in enumerate(rows) for d in th["waiting"]), key=lambda x: (x[0], x[1]))
+    op = operation.current()
+    for _, _, th, deed in queue:                         # (f684) oldest deed first, across every situation, until the budget has no room
+        if op is not None and getattr(op, "rulings_wait", False):
+            break
+        th["waiting"] = [d for d in th["waiting"] if d is not deed]
+        if not ruled_before(th, deed, state):            # ruled meanwhile, with nothing changed since: no more
+            judge(ws, state, th, deed)                   # no room again: it waits again (_wait), and the rest wait with it
     ws.store.save_world_state(state)
     return True
 
