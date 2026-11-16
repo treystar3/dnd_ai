@@ -62,22 +62,22 @@ def _threads_at(world, state: dict, places: set[str]) -> list[tuple[dict, str]]:
 
 
 def _lost_lately(store, world, places: set[str], now: int, days: int) -> str:
-    """The name of someone of the town taken out of the story within these days, where the manner of it reads as a death; else ''."""
-    from engine import relevance
+    """The name of someone of the town taken out of the story within these days, whose leaving was written as a death; else ''."""
     for row in reversed(store.journal_tail(20, kind="npc_gone")):
         if now - row["minute"] > days * 1440:
             continue
         data = row.get("data") or {}
         if data.get("place") not in places or data.get("mourned") is False:     # (f430) a captive outlaw is not the town's to grieve
             continue
-        if data.get("dead") is not None:                                         # (f430) the game said whether it was a death
-            if data["dead"]:
-                return row.get("text", "").split(" is gone")[0]
-            continue
-        how = data.get("how") or ""
-        if how and relevance.pick(how, [R["death_reads_as"]], 1):
+        if data.get("dead"):                                                     # (f430, f664) the writer said it was a death: nothing looser
             return row.get("text", "").split(" is gone")[0]
     return ""
+
+
+def reads_as_death(how: str) -> bool:
+    """(f664) Whether a model's own words for a leaving read as a death: decided once, where the leaving is written."""
+    from engine import relevance
+    return bool(how and relevance.pick(how, [R["death_reads_as"]], 1))
 
 
 def town_places(world, town: str) -> set[str]:

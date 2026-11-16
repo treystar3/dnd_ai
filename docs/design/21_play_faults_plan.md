@@ -469,6 +469,9 @@ Each is tested on its own class: D2 on every writer of a leaving, D4 on every pa
   foe who yields or runs mid-fight is a line the player reads (six new lines for the owner, data/rules/told.yaml foe_yields,
   foe_flees). stub_fight re-blessed: inputs 14 and 15 show a guard's yielding, and the saved fight row at 14 holds the line.
   tools/sim/yield_settled_663_test.py.
+- **As built (f664): D2.** One writer of a leaving (pulse.journal_gone), which always says whether it was a death; remove_npc
+  cannot be called without saying it; Maren's leaving is written alive; a model's own words for a leaving are read once, where they
+  are written. The town's grief reads the written death alone: a row that says nothing is no death. tools/sim/leaving_said_664_test.py.
 
 ## 7. Group E: a passage is checked against what the turn did
 

@@ -82,10 +82,10 @@ st["threads"][0]["tier"] = "campaign"; store.save_world_state(st)
 check("...a campaign-sized threat besieges it", towns.condition(store, world, "guild_house", now).name == "besieged")
 st["threads"] = []; store.save_world_state(st)
 
-store.journal(now - 1440, "npc_gone", "", "x1", "Old Tam is gone: killed by wolves on the sheep hill", {"how": "killed by wolves on the sheep hill", "place": "parth"})
+store.journal(now - 1440, "npc_gone", "", "x1", "Old Tam is gone: killed by wolves on the sheep hill", {"how": "killed by wolves on the sheep hill", "place": "parth", "dead": True})
 c = towns.condition(store, world, "trading_square", now)
 check("someone of the town killed lately puts it in mourning", c.name == "mourning" and "Old Tam" in c.why, (c.name, c.why))
-store.journal(now - 600, "npc_gone", "", "x2", "Pell is gone: moved to the capital for work", {"how": "moved to the capital for work", "place": "kelpmoor"})
+store.journal(now - 600, "npc_gone", "", "x2", "Pell is gone: moved to the capital for work", {"how": "moved to the capital for work", "place": "kelpmoor", "dead": False})
 check("...a loss elsewhere, or a leaving, does not", towns.condition(store, world, "kelpmoor", now).name == "calm")
 with_effect("danger", 70, place="parth")
 check("a siege outranks mourning", towns.condition(store, world, "trading_square", now).name == "besieged")
@@ -100,7 +100,7 @@ check("the town's own holiday is read off the calendar", towns.festival_today(wo
       and towns.festival_today(world, "trading_square", fair_minute + f.days * 1440) == "", (clock.day(fair_minute), fair_day))
 c = towns.condition(store, world, "trading_square", fair_minute)
 check("...and the town is festive, with full streets", c.name == "festive" and "crowded" in c.crowd and c.why == f.name, (c.name, c.why))
-store.journal(fair_minute - 1440, "npc_gone", "", "x3", "Hob is gone: died of a fever", {"how": "died of a fever", "place": "parth"})
+store.journal(fair_minute - 1440, "npc_gone", "", "x3", "Hob is gone: died of a fever", {"how": "died of a fever", "place": "parth", "dead": True})
 check("...mourning outranks a holiday", towns.condition(store, world, "trading_square", fair_minute).name == "mourning")
 
 # ---- through the truth layer

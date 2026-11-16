@@ -838,7 +838,9 @@ def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: s
         met = npc.tier != "background"
         if npc.protected or npc.role in P["protected_roles"] or (met and tier not in P["may_remove_met"]):
             return "skipped: they are protected"
-        remove_npc(store, world, npc, e.get("text") or "gone away", t)
+        from engine import towns
+        how = e.get("text") or "gone away"
+        remove_npc(store, world, npc, how, t, dead=towns.reads_as_death(how))       # (f664) read once, where it is written
     elif kind == "arrive" and known(world, e.get("place")) and e.get("role") in world.roles:
         if world.places[e["place"]].danger or not world.peoples_at(e["place"]):
             return "skipped: a dangerous or empty place"
@@ -909,18 +911,23 @@ def move_npc(store, npc, place_id: str) -> None:
     store.save_npc(npc)
 
 
-def remove_npc(store, world, npc, how: str, t: int, dead: bool | None = None, mourned: bool | None = None) -> None:
+def journal_gone(store, npc, how: str, t: int, dead: bool, mourned: bool | None = None) -> None:
+    """(f664) The one writer of a person's leaving in the journal: whether it was a death is always said, by the one who knows."""
+    store.journal(t, "npc_gone", "", npc.id, f"{npc.name} is gone: {how}", {"how": how, "place": npc.location, "dead": bool(dead), "mourned": mourned})
+
+
+def remove_npc(store, world, npc, how: str, t: int, *, dead: bool, mourned: bool | None = None) -> None:
     """Take someone out of the story - and tie off everything the player had with them. (f430) `dead` says whether it was a death, so
     a town grieves only for its dead: the f425 night hung black cloth for three captives who had slipped their bonds, the meaning of
-    'got away' read as a death. `mourned` False: the town does not grieve them whatever became of them (an outlaw held captive). Left
-    None (a model's own words for it), the words are read for a death as before."""
+    'got away' read as a death. `mourned` False: the town does not grieve them whatever became of them (an outlaw held captive). (f664)
+    Every caller says whether it was a death; a model's own words for it are read once, where they are written (towns.reads_as_death)."""
     npc.gone = how
     from engine import obligations, quests                 # (f481) what they offered ends with them, for that reason
     for e in obligations.open_ones(store, holder=npc.id):
         fam = e.data.get("family")
         obligations.close(store, e, "withdrawn" if fam == "work" else "released", "gone" if fam != "contract" else "issuer_gone", t, npc=npc)
     store.save_npc(npc)
-    store.journal(t, "npc_gone", "", npc.id, f"{npc.name} is gone: {how}", {"how": how, "place": npc.location, "dead": dead, "mourned": mourned})
+    journal_gone(store, npc, how, t, dead, mourned)
     ps = store.load_place(npc.location)
     ps.residents = [r for r in ps.residents if r != npc.id]
     store.save_place(ps)
