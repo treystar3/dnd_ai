@@ -39,6 +39,10 @@ give_short:          # (f676) too few of what a contract asks for, given to the 
   - "\"{title}\" asks for {count}, and you hold {held}: given now, it is a gift, not the contract. Give {goods} anyway? (y/n)"
   - "That is {held} of the {count} \"{title}\" asks for, so it cannot be handed in yet. Give {goods} to {name} as a gift? (y/n)"
   - "With {held} of {count}, \"{title}\" is not ready to hand in. Give {goods} to {name} for nothing? (y/n)"
+none_here:           # (f677) one of the game's own goods taken up where none lies
+  - "No {thing} lies here to take."
+  - "There is no {thing} here for the taking."
+  - "You find no {thing} here to pick up."
 at_hall:             # (f666) a party act done only at a guild hall, before its clerk, asked for elsewhere
   - "{act} is done at a guild hall, before its clerk. It will wait until you are there."
   - "{act} is the guild's business, done at a hall with the clerk at the desk; not here."

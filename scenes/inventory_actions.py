@@ -387,6 +387,10 @@ class InventoryActions:
             return
         if not item and self.take_object(intent.item or text, text):
             return                                           # (f592) a thing lying here, made real by a ruling
+        if not item and inv.is_good(intent.item or ""):      # (f677) one of the game's own goods, and none lies here: the engine says so
+            from engine import told
+            self.refuse(told.say("none_here", self.store.meta.turn, thing=(intent.item or "").strip()))
+            return
         if not item:                                         # not an item the game keeps: an ordinary bit of the scenery is narrated, and kept nowhere
             from scenes import world_prompts as wp
             self.narrate(wp.SCENERY_PICKUP.format(thing=(intent.item or "it").strip()), text)
@@ -717,7 +721,7 @@ class InventoryActions:
         from llm.contracts import ActionIntent
         intent = ActionIntent(kind="give", target=d.get("target") or "", item=d.get("item") or "", count=d.get("count") or 0)
         hire = self.hire_by_id(intent.target) if intent.target.startswith("hire:") else None
-        if hire is not None and self.player.party_mode == "with":
+        if hire is not None and self.player_of(self.acting).party_mode == "with":
             self.give_to_hire(hire, intent, d.get("text") or text)
             return True
         npc = next((n for n in self.present if n.id == intent.target), None)
