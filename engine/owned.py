@@ -155,6 +155,8 @@ STATE: dict[str, Row] = {
 
     # ---- this run's: read once, or worked out once and kept
     "engine.asked._TASKS": Row(PROCESS, READ_ONCE),
+    "engine.asked._MOST": Row(PROCESS, READ_ONCE),
+    "engine.asked._SEEN": Row(PROCESS, "nothing: the requests lately hashed, only for a drift's debug note, capped at twice asked_max (f675)"),
     "engine.brief._B": Row(PROCESS, READ_ONCE),
     "engine.clock._TW": Row(PROCESS, READ_ONCE),
     "engine.memory._CAPS": Row(PROCESS, READ_ONCE),

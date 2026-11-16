@@ -33,10 +33,16 @@ def tasks() -> frozenset:
     return _TASKS
 
 
+_MOST: int | None = None
+
+
 def most() -> int:
     """(f489) The most calls one operation may ask outside it (budget.yaml asked_max)."""
-    B = yamlio.safe_load((ROOT / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8")) or {}
-    return int(B.get("asked_max", 48))
+    global _MOST
+    if _MOST is None:
+        B = yamlio.safe_load((ROOT / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8")) or {}
+        _MOST = int(B.get("asked_max", 48))
+    return _MOST
 
 
 class NeedAnswer(BaseException):
@@ -88,8 +94,36 @@ def end() -> None:
     begin(None)
 
 
+_SEEN: dict[str, str] = {}                               # (f675) the request each recent key hashed, so a drift can say what moved
+
+
 def key(task: str, system: str, user_text: str, schema_name: str) -> str:
-    return hashlib.sha256("\x1f".join((task, system, user_text, schema_name)).encode("utf-8")).hexdigest()[:20]
+    k = hashlib.sha256("\x1f".join((task, system, user_text, schema_name)).encode("utf-8")).hexdigest()[:20]
+    _SEEN.pop(k, None)
+    _SEEN[k] = f"{system}\n{user_text}"
+    while len(_SEEN) > 2 * most():                       # an operation's own asks, twice over: the earlier attempt's are still held
+        _SEEN.pop(next(iter(_SEEN)))
+    return k
+
+
+def _hashed(x: str) -> bool:
+    """A request's key (key()): twenty hex digits, where a computed entry's key is the work's own name."""
+    try:
+        return len(x) == 20 and int(x, 16) >= 0
+    except ValueError:
+        return False
+
+
+def moved(want: str, k: str) -> str:
+    """(f675) The lines of the request that differ between the attempts, for the debug log: what the operation read that moved."""
+    import difflib
+    if not (_hashed(want) and _hashed(k)):               # a computed entry (compute's own key), not a request
+        return f"the earlier attempt had {want!r} at this point, this one {k!r}: the order of the operation's asks moved"
+    a, b = _SEEN.get(want), _SEEN.get(k)
+    if a is None or b is None:
+        return "(the earlier request is no longer held)"
+    out = [ln for ln in difflib.unified_diff(a.splitlines(), b.splitlines(), lineterm="", n=0) if ln[:1] in "+-" and ln[:3] not in ("+++", "---")]
+    return "\n".join(x[:300] for x in out[:24])
 
 
 def call(task: str, k: str, ask):
@@ -100,6 +134,8 @@ def call(task: str, k: str, ask):
     if s.at < len(s.answers):
         want, result, error = s.answers[s.at]
         if want != k:
+            from ui import console
+            console.debug(f"drift in {task}, what moved:\n{moved(want, k)}")
             raise Drift(f"{task}: the request at this point differs from the one asked ({want} -> {k}); what the operation read moved")
         s.at += 1
         if error is not None:
@@ -143,6 +179,8 @@ def compute(key: str, fn):
     if s.at < len(s.answers):
         want, result, error = s.answers[s.at]
         if want != key:
+            from ui import console
+            console.debug(f"drift in computed work, what moved:\n{moved(want, key)}")
             raise Drift(f"computed: the work at this point differs from the one kept ({want} -> {key}); what the operation read moved")
         s.at += 1
         return copy.deepcopy(result)

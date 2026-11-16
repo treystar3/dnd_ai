@@ -220,8 +220,22 @@ def last() -> dict:
 
 def allow(task: str, prompt_chars: int) -> None:
     b = actor.registers().budget
-    if b is not None:
+    if b is None:
+        return
+    from engine import asked
+    if asked.serving() is None:
         b.allow(task, prompt_chars)
+        return
+
+    def verdict():
+        try:
+            b.allow(task, prompt_chars)
+            return None
+        except BudgetError as e:
+            return type(e).__name__, str(e).split(": ", 1)[-1]
+    kept = asked.compute(f"allow:{task}", verdict)       # (f675) read once an operation: its attempt run again for an answer finds the same room
+    if kept is not None:
+        raise {"BudgetSpent": BudgetSpent, "Deferred": Deferred, "Dropped": Dropped}.get(kept[0], BudgetError)(task, kept[1])
 
 
 def charge(task: str, prompt_chars: int, answer_chars: int | None = None, cached: float = 0.0) -> float:
