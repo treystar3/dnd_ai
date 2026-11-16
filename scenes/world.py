@@ -556,8 +556,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         contact = self.open_contact()                                                 # (f679) an arc's contact, while their step is open
         self.present = [n for n in self.residents                                     # there, whatever the hour: no shift or routine on a road
                         if not n.gone                                                                     # (f422) the dead and departed are not here
-                        and (on_stop or n.id == contact or clock.in_hours(self.minutes, self.world.roles[n.role].hours) and n.away_until <= self.minutes
-                             and court.visible(self, n) and not routines.away(self.world, seed, n, self.minutes, cast))]   # (f352)
+                        and (on_stop or (n.id == contact or clock.in_hours(self.minutes, self.world.roles[n.role].hours)
+                                         and not routines.away(self.world, seed, n, self.minutes, cast))       # (f352) (f680) a contact: not hours
+                             and n.away_until <= self.minutes and court.visible(self, n))]                      # or routine, but away and court hold
         if self.__dict__.get("_talk_saved") and self.present:
             self.restore_talk()
         bound = self.escorted()                                             # (f392) the registry says who walks bound at the player's side

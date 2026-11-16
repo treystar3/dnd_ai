@@ -245,9 +245,12 @@ class ArcActions:
             console.note(self.contact_words(n))
 
     def contact_words(self, n: dict) -> str:
-        """(f679) Whom to ask at a contact's place, by their trade."""
+        """(f679) Whom to ask at a contact's place, by their trade. (f680) And by name once they are there: another of that trade may
+        be about."""
         from engine import told
-        return told.say("arc_contact", self.store.meta.turn, who=f"the {n['role'].replace('_', ' ')}", place=self.pname(n["place"]))
+        role = f"the {n['role'].replace('_', ' ')}"
+        who = f"{self.store.load_npc(n['npc']).name}, {role}" if n.get("npc") and self.store.npc_exists(n["npc"]) else role
+        return told.say("arc_contact", self.store.meta.turn, who=who, place=self.pname(n["place"]))
 
     def open_contact(self) -> str:
         """(f679) The contact whose step is open where the acting character stands: there at any hour until they have told what

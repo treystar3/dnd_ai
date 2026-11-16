@@ -40,6 +40,12 @@ for thing in ("bear hides", "silverleaf"):
     check(f"'{thing}' not lying here: refused, nothing narrated as taken, nothing in the pack", refused and not told and len(ws.pack) == n,
           (refused, told, len(ws.pack)))
 
+said = []
+ws.refuse = lambda say, *a, **k: said.append(say)
+pick("the bear hides")
+check("(f680) the refusal names the good in its own words, never the line's", said and "bear hide " in said[-1] + " " and "the bear hides" not in said[-1]
+      and "hides lies" not in said[-1], said)
+del ws.refuse
 state = store.load_place(ws.player.location)
 inv.leave_on_ground(state, inv.make_good("silverleaf", 2), ws.minutes)
 store.save_place(state)

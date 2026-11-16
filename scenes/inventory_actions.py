@@ -387,9 +387,10 @@ class InventoryActions:
             return
         if not item and self.take_object(intent.item or text, text):
             return                                           # (f592) a thing lying here, made real by a ruling
-        if not item and inv.is_good(intent.item or ""):      # (f677) one of the game's own goods, and none lies here: the engine says so
-            from engine import told
-            self.refuse(told.say("none_here", self.store.meta.turn, thing=(intent.item or "").strip()))
+        good = inv.is_good(intent.item or "")
+        if not item and good:                                # (f677) one of the game's own goods, and none lies here: the engine says so
+            from engine import told                          # (f680) in the good's own name, never the line's words
+            self.refuse(told.say("none_here", self.store.meta.turn, thing=inv.good_name(good)))
             return
         if not item:                                         # not an item the game keeps: an ordinary bit of the scenery is narrated, and kept nowhere
             from scenes import world_prompts as wp

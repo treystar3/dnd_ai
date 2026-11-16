@@ -324,7 +324,7 @@ class GuildActions:
             console.note("You have no contracts or requests in hand.")
         for q in self.player.quests:
             console.note(self.arc_lines(q) or quests.progress_line(q, self.pack, self.minutes, self.player_of(self.acting).quests)
-                         + (f"  ({self.payer_words(q)}: {q['reason']})" if q.get("reason") else ""))
+                         + (f"  ({': '.join(x for x in (self.payer_words(q), q['reason']) if x)})" if q.get("reason") else ""))
         if self.rank:
             nxt = quests.next_rank(self.rank)
             if nxt:

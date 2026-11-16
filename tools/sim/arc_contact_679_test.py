@@ -70,6 +70,17 @@ for tid in arcs.TEMPLATES:
     check(f"{tid}: arriving says who there should know more, by their trade", any(role in t for t in notes), (role, notes[-3:]))
     check(f"{tid}: the contact is here at {night if night is not None else 2}:00, outside their trade's hours",
           any(p.id == n.get("npc") for p in ws.present), (n.get("npc"), [p.id for p in ws.present]))
+    who = ws.store.load_npc(n["npc"])
+    check(f"{tid}: (f680) ...and by name, since another of that trade may be about", any(who.name in t for t in notes), (who.name, notes[-2:]))
+    who.away_until = ws.minutes + 60
+    ws.store.save_npc(who)
+    ws.residents = [who if p.id == who.id else p for p in ws.residents]
+    ws.refresh_present()
+    check(f"{tid}: (f680) a contact who has gone off for a while is not here meanwhile", all(p.id != who.id for p in ws.present),
+          [p.id for p in ws.present])
+    who.away_until = 0
+    ws.store.save_npc(who)
+    ws.residents = [who if p.id == who.id else p for p in ws.residents]
     notes.clear()
     ws.show_arc()
     check(f"{tid}: the arc's Next line names the trade too", any(t.startswith("Next:") and role in t for t in notes), notes)

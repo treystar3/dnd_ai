@@ -145,6 +145,14 @@ def is_good(name: str) -> str:
     return ""
 
 
+def good_name(found: str) -> str:
+    """(f680) The name of what is_good found: a good's own name, or a raw material's ("material:<id>")."""
+    if found.startswith("material:"):
+        m = items.MATERIALS.get(found.split(":", 1)[1])
+        return m.name if m is not None else found.split(":", 1)[1].replace("_", " ")
+    return GOODS[found].name if found in GOODS else found.replace("_", " ")
+
+
 def category_word(cat: str) -> str:
     """A category as a sentence says it: "trade goods", never "trade"."""
     return {"trade": "trade goods"}.get(cat, cat)
