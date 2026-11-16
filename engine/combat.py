@@ -1,7 +1,7 @@
 """The combat engine. Pure rules: no model calls, no printing.
 
 Everything here is deterministic given a random generator, so the same code runs real fights,
-the danger estimate shown to the player, and the balance simulator (tools/balance.py).
+the danger estimate (the debug view's and the tools', f647), and the balance simulator (tools/balance.py).
 """
 
 import copy

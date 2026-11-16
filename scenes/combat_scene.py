@@ -248,7 +248,7 @@ class CombatScene:
         prep += opening.notes
         scene = cls(ws, fight, creature.name)
         label, rate = opening.label, opening.rate
-        console.debug(f"danger estimate: {rate:.0%} win rate")
+        console.debug(f"danger estimate: {label}, {rate:.0%} win rate")   # (f647) the label is the debug view's and the tools', never the player's
         opening_events = [TAG.sub("", e) for e in opening.events]      # the opening blows are logged, not narrated with figures
         manner = {"aggressive": "They mean to attack.",
                   "territorial": "It holds its ground and warns the player off - they could still back away.",
@@ -283,14 +283,15 @@ class CombatScene:
             # could not be written; fight_begun stands in): the notes and the pane below keep their place on the page behind it
         for line in prep + tether_notes:
             console.note(line)
+        read = []                                              # (f647) what their own abilities read of the fight, in figures
         if pools.mechanic(c, "keen_judge") is not None:
-            label = f"{label} - you judge your odds at {rate:.0%}"
+            read.append(f"you judge your odds at {rate:.0%}")
         sworn = next((p.subject for p in c.passives if p.mechanic == "sworn_enemy" and p.subject), "")
         if sworn and getattr(creature, "category", "") == sworn:
             pace_word = {"slow": "slow - it cannot follow a quick step", "fast": "fast - it will run you down",
                          "normal": "no quicker than you"}[enemies[0].pace if enemies else "normal"]
-            label = f"{label} - a sworn foe: you read it at a glance ({rate:.0%} odds, {pace_word})"
-        scene.show(danger=label)
+            read.append(f"a sworn foe, read at a glance: {rate:.0%} odds, {pace_word}")
+        scene.show(read="; ".join(read))
         ws.store.save_combat(scene.to_json())                  # the row as the telling left it (what was shown of the fight, f499)
         return scene
 
@@ -332,7 +333,7 @@ class CombatScene:
             return f"poisoned ({n} stack{'s' if n != 1 else ''}" + (f", {fixed} won't fade" if fixed else "") + ")"
         return status.replace("_", " ")
 
-    def pane_data(self, danger: str = "") -> dict:
+    def pane_data(self, read: str = "") -> dict:
         """The fight as plain data for the window's combat pane."""
         f, p = self.fight, self.fight.player
         def fighter(x):
@@ -370,7 +371,7 @@ class CombatScene:
             items_now.append({"name": g.name, "qty": it.quantity, "text": effect or g.description, "ready": not reason, "reason": reason})
         you = fighter(p)
         you["buffs"] = [[b.get("name", k), b.get("rounds", 0)] for k, b in p.buffs.items()]
-        return {"round": f.round, "danger": danger, "enemies": [fighter(e) for e in f.enemies()],
+        return {"round": f.round, "danger": read, "enemies": [fighter(e) for e in f.enemies()],
                 "reserves": len(f.reserves), "allies": [fighter(a) for a in f.allies()], "you": you,
                 "moves": moves, "items": items_now, "hits": f.hits, "over": f.over or ""}
 
@@ -382,14 +383,13 @@ class CombatScene:
             return console.ability_tip(a, c.level)
         return [["h", m.name]] + ([["", m.text]] if getattr(m, "text", "") else [])
 
-    def show(self, danger: str = "") -> None:
-        if console.combat_state(self.pane_data(danger)):
+    def show(self, read: str = "") -> None:
+        if console.combat_state(self.pane_data(read)):
             return
         p = self.fight.player
         lines = []
-        if danger:
-            head, _, rest = danger.partition(" - ")
-            lines.append(f"⚔ Danger: {head.upper()}" + (f" ({rest})" if rest else ""))
+        if read:                                              # (f647) a reading an ability gives; the danger label is not shown
+            lines.append(f"⚔ {read[:1].upper()}{read[1:]}")
         for e in self.fight.enemies():
             status = f" · {', '.join(e.statuses)}" if e.statuses else ""
             lines.append(f"{e.name} (lv {e.level}) {console.meter(e.hp, e.max_hp)} {round(e.hp)}/{e.max_hp} · {self.spot(e)}{status}")

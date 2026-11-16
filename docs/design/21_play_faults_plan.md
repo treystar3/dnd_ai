@@ -378,6 +378,20 @@ told once (8.8); and the small wrong words (8.9), each fixed where its line is b
    replaces the recommendation. The label is taken off everything a player sees and stays for testing (the debug view, the
    night tools, danger_500_test). It is built as a feature of its own after group A (G1). What a player is told of a fight's
    odds from then on is what the story shows.
+   **As built (f647): the label is off the screen, not yet off everything a player reads.** It is no longer handed to the
+   fight's pane, printed at the head of a fight, or said in the note of a camp scouted well ("Charging in looks: DEADLY.").
+   The debug view prints the word beside the rate. The estimate itself is untouched. Kept, and for the owner to rule on: (a) two abilities are promised a reading of the fight by their own text
+   in data, and still get it, in figures and never by the label's word: Keen Judge and the Oracle's effect ("you see your exact
+   odds": "You judge your odds at 62%"), and a sworn enemy ("you see its strength, speed and your odds at once": "A sworn foe,
+   read at a glance: 62% odds, slow - it cannot follow a quick step"; its "strength" is now the level and health every fight
+   shows); the figure is the same estimate the label is cut from, so it has the label's fault (5.1: it counts the player's
+   survival, not the party's). (b) The narrator is still told the
+   odds in words at a fight's opening ("THE ODDS: the player should win this") and after a scouting ("Charging in would be
+   deadly"), so the story can still say it, and the fight of 5.1 would still open as "no real threat"; taking that away
+   changes what every opening is written from, and is a re-record.
+   (c) After a scouting that reads dangerous or deadly, the advice to hire help is still given ("That is a garrison, not a
+   gang."), which is the label in other words. tools/sim/danger_hidden_647_test.py holds all of it, and a fence on who asks
+   for the estimate and who reads its label among the code that shows a player something.
 4. **The level 35 ghost, and the rest of group G:** "Leave the balance for later."
 5. **The logs:** open. The folder is refused by this project's own settings (`.claude/settings.json`, `Read(./logs/**)` in its
    deny list), which the owner changes, not the session. Group H waits on it.

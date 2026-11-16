@@ -374,7 +374,7 @@ class CampActions:
              "a gap in the picket where the ground falls away"])
         first, reserves = self.camp_enemies(camp, tpl, "boss" if n["kind"] == "boss" else "lair")
         label, rate = combat.danger(self.camp_fight_sim(first, reserves))
-        console.note(f"Guards: {listing}. Leader: {ld['name']} (lv {ld['level']}). Charging in looks: {label.upper()}.")
+        console.note(f"Guards: {listing}. Leader: {ld['name']} (lv {ld['level']}).")   # (f647) the label is not shown
         console.note(f"You spot {flaw} - it will help you get close.")
         if label in ("dangerous", "deadly") and len(self.player.party) < party_rules.P["max_party"]:
             console.note("That is a garrison, not a gang. The guild hires out adventurers for a job like this.")
