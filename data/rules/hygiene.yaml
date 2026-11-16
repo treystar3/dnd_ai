@@ -12,6 +12,15 @@ prose_fields: [text, speech, gesture, before, after, line, scene, detail, paragr
 # Tasks whose prose is the narrator's: second person, so "I" and "my" belong only inside someone's quoted speech.
 narrator_tasks: [narrate, combat_opening, combat_narrate, combat_aftermath, dialogue_frame, moment, road_event]
 
+# (f693) The first-person words with another sense. "Mine" is a pit dug for ore and the digging of it, so it is the narrator's own
+# only in a possessive frame: after one of these words ("is mine", "a friend of mine", "his eyes meet mine"), "'s mine" closing a
+# clause ("this one's mine"), or "Mine is" opening a sentence. "I" after a ruler's title and name is a numeral ("King Harald I").
+first_person_senses:
+  mine_after: [is, was, are, were, be, been, of, and, or, nor, but, than, like, unlike, as, in, into, with, against, beside, toward,
+               towards, meet, meets, met, hold, holds, held, find, finds, found, all, time]
+  mine_opens: [is, was, are, were, will, shall]
+  ruler_titles: [King, Queen, Emperor, Empress, Prince, Princess, Duke, Duchess, Lord, Lady, Baron, Count, Countess, Pope, Saint, Tsar, Chief]
+
 reasons:
   json: "write only the passage itself: no JSON, braces, code fences, field names or notes about your answer"
   placeholder: "a word in braces is a template's, not the story's: write the plain words"
