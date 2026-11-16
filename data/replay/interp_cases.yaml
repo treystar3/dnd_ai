@@ -1311,3 +1311,13 @@
   scene: {place: trading_square, present: [{id: f1, name: Fipen Copperpot, role: noble}]}
   plan: [{kind: talk, target: f1, speech: "I could never persuade you, could I?"}]
   expect: {handled_by: interpret, kinds: [talk], not_by: [social_check]}
+- name: plucking_a_fresh_kill_is_the_harvest
+  text: "I pluck the griffon's down carefully."
+  scene: {place: greywood, carcasses: [griffon]}
+  plan: [{kind: other, summary: "The player plucks the griffon's down carefully."}]
+  expect: {handled_by: interpret, kinds: [harvest], repairs: [carcass_part]}
+- name: plucking_with_no_kill_here_stays_an_attempt
+  text: "I pluck the griffon's down carefully."
+  scene: {place: greywood}
+  plan: [{kind: other, summary: "The player plucks the griffon's down carefully."}]
+  expect: {handled_by: interpret, kinds: [other], not_by: [carcass_part]}

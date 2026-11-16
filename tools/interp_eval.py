@@ -184,6 +184,7 @@ class Bench:
         ps.ground = []
         for g in sc.get("ground", []):
             inv.leave_on_ground(ps, thing(g), self.store.meta.minutes)
+        ps.carcasses = [{"creature": k, "level": 5, "minute": self.store.meta.minutes} for k in sc.get("carcasses", [])]   # (f690) fresh kills here
         self.store.save_place(ps)
         ws.wildlife = None
         if sc.get("wildlife"):

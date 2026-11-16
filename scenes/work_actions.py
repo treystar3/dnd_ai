@@ -10,6 +10,7 @@ from core import yamlio
 from engine import regard                                   # (f480)
 from engine import clock, crafting, inventory as inv, items, loot, money, pools
 from llm.contracts import WorkOffer
+from scenes import plan_repairs
 from llm.gateway import LLMError, generate
 from ui import console
 from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
@@ -33,6 +34,45 @@ def offer_open(store, npc, who: str) -> dict | None:
 
 
 class WorkActions:
+    REPAIRS = (plan_repairs.Repair("carcass_part", 168, "carcass_part",
+                                   "a part a fresh kill here yields, named in an improvised step or a pick-up of nothing lying here, is the harvest (f690)"),)
+
+    @staticmethod
+    def stems(words: str) -> list[str]:
+        return [inv._stem(w) for w in re.findall(r"[a-z]+", words.lower()) if w != "s"]
+
+    def carcass_parts(self, place: str) -> list[str]:
+        """What the fresh carcasses at a place yield, each name as its stemmed words: their materials and goods (f690)."""
+        state = self.store.load_place(place)
+        fresh = {k["creature"] for k in state.carcasses if self.minutes - k["minute"] < W["carcass_hours"] * 60}
+        names = [m.name for m in items.MATERIALS.values() if fresh & set(m.drops_from)]
+        names += [g.name for g in inv.GOODS.values() if fresh & set(g.drops_from)]
+        return [" ".join(self.stems(n)) for n in names]
+
+    def carcass_part(self, text: str, plan: list) -> list | None:
+        """(f690) Plucking a griffon's down, read as an improvisation, is the harvest; a harvest already read keeps it one."""
+        if not any(a.kind in ("other", "pick_up") for a in plan):
+            return None
+        place = self.player_of(self.acting).location
+        parts = self.carcass_parts(place)
+        if not parts:
+            return None
+        def names_part(words: str) -> bool:                  # the part's own name, in order: "hides behind the wolf" is no wolf hide
+            said = f" {' '.join(self.stems(words))} "
+            return any(f" {p} " in said for p in parts)
+        ground, made = None, []
+        for a in plan:
+            own = f"{a.summary} {a.item}" if (a.summary or a.item) else (text if len(plan) == 1 else "")
+            if a.kind == "pick_up" and names_part(own):
+                if ground is None:
+                    ground = inv.ground_items(self.store.load_place(place), self.minutes)
+                if not inv.find(ground, a.item or text):
+                    a.kind = "harvest"
+                    made.append(a)
+            elif a.kind == "other" and names_part(own):
+                a.kind = "harvest"
+                made.append(a)
+        return [a for k, a in enumerate(plan) if not (any(a is m for m in made) and any(b.kind == "harvest" for b in plan[:k]))] or plan
 
     def promises_pay(self, speech: str) -> bool:
         """Does an NPC's line promise pay for a task, whether or not the reply carried a structured offer?"""
