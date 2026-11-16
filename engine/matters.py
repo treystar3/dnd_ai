@@ -523,6 +523,21 @@ def reopen(store, world, state: dict, th: dict, t: int) -> bool:
 
 # ---------- what the town keeps
 
+def met(th: dict, player) -> bool:
+    """(f662) Has the player met this matter: seen its moment, answered it, touched it, had it revealed, or held a contract of it?"""
+    return bool(th.get("touched") or th.get("answered") or th.get("revealed") or th.get("moment") == "shown"
+                or any(q.get("thread") == th.get("id") for q in getattr(player, "quests", None) or []))
+
+
+def ended_line(th: dict, kind: str, player) -> str:
+    """(f662) What the player is told when a matter ends: nothing of one they never met, else its line, the title made part of it."""
+    if not met(th, player):
+        return ""
+    title = th["title"]
+    title = title[:1].lower() + title[1:] if title.startswith(("The ", "A ", "An ")) else title
+    return D["memory"]["ended"][kind].format(title=title)
+
+
 def remember(store, world, th: dict, how: str, name: str, minutes: int, turn: int) -> None:
     """A matter ended: the town's memory (the truth layer gives it to every speaker there), and the people in it remember too.
     how is settled (by the player) or ignored (they were asked, and let it be)."""

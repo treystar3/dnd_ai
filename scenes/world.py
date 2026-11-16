@@ -1782,6 +1782,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         console.note("Nothing comes of that here. Try it another way, or say plainly what you want to happen.")   # (f391) in the world's words
         refusals.note("silent", text, f"the turn showed nothing; actions run: {ran}", self.player.location, self.store.meta.turn)
 
+    WALKS = ("move", "delve", "leave_dungeon", "explore", "look", "wait")      # (f662) the steps that go on, needing nothing picked up
+
     def refuse(self, say: str, needed_by_rest: bool | None = None) -> None:
         """(f416) The game says no to a step. The player reads why; the turn's record keeps what did not happen, so the passage that tells
         the rest of the line never shows it done (a whetstone the player did not have rasped along their blade, a dungeon they were not
@@ -1798,6 +1800,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         refusals.note("refused", self.last_text or "", f"{kind or 'outside a plan'}: {reason}", self.player.location, self.store.meta.turn)
         if needed_by_rest is None:
             needed_by_rest = actions.BY_KIND[kind].needed_by_rest if kind in actions.BY_KIND else True
+        plan = list(self.plan_now or ())
+        after = plan[plan.index(st) + 1:] if st is not None and any(p is st for p in plan) else []
+        if needed_by_rest and kind == "pick_up" and after and all(a.kind in self.WALKS for a in after):
+            needed_by_rest = False                      # (f662) a walk on never needs a thing not picked up
         if needed_by_rest:
             self.halted = True
 

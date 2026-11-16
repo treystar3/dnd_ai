@@ -651,12 +651,19 @@ def lose(ws, state, th) -> None:
     fall = th.get("fallout") or {"description": "", "effects": []}
     pulse.end_thread(store, state, th, "ended", f"{th['title']} - lost. {fall.get('description', '')}".strip(), t)
     pulse.apply_effects(store, world, ws.catalog, state, fall.get("effects", []), th["tier"], t, th["title"], raw=True, thread_id=th["id"])
+    line = matters_line(th, "lost", ws.player_of(ws.acting))    # (f662) read before the matter is marked touched
     th["result"], th["ending_kind"], th["touched"] = "lost", "lost", True
     from engine import matters, threads as _threads
     _threads.follow_up(state, th, "ignored", random.Random(f"{store.meta.seed}:chain:{th['id']}"), t)
     if touched_by := sorted({c["by"] for c in th.get("changes") or [] if c.get("by")}):
         matters.remember(store, world, th, "lost", situation_name(ws, touched_by[0]), t, store.meta.turn)
-    console.note(matters.D["memory"]["ended"]["lost"].format(title=th["title"]))
+    if line:
+        console.note(line)
+
+
+def matters_line(th, kind: str, player) -> str:
+    from engine import matters
+    return matters.ended_line(th, kind, player)
 
 
 def situation_name(ws, cid: str) -> str:
@@ -710,8 +717,9 @@ def finish(ws, state, th, how: str, ending: str, kind: str = "achieved", contrib
             except Exception:
                 pass
     matters.remember(store, world, th, {"partly": "partly", "transformed": "transformed"}.get(kind, "settled"), name, t, ws.store.meta.turn)
-    console.note(matters.D["memory"]["ended"][kind].format(title=th["title"]) if contributors is not None
-                 else f"{th['title']} is ended - {how}.")      # (f598) told as it ended
+    line = matters.ended_line(th, kind, ws.player_of(ws.acting)) if contributors is not None else f"{th['title']} is ended - {how}."
+    if line:
+        console.note(line)                                 # (f598) told as it ended; (f662) only to one who met it
     if th["tier"] in ("campaign", "cataclysm") and kind in ("achieved", "partly"):
         grand_reward(ws, state, th)
     store.save_player(ws.player)

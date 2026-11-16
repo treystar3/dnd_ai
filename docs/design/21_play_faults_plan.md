@@ -440,6 +440,12 @@ The note does not depend on the passage saying it.
   words for chances, all for the owner to read before play (data/rules/told.yaml). The three goldens re-blessed: the data hash
   moved, the fight's row holds the new field, and three shown lines are new (an approach, a flight's odds, a rest with no bed).
   tools/sim/told_661_test.py. Left for C: 4.6 and 3.6 (f662), 2.8 (D1), 5.7 (an ability's cost rising at a level).
+- **As built (f662): 4.6 and 3.6.** A refused pick-up no longer stops the steps after it that only go on (a walk, a delve, a way
+  out, a look, a wait); a step that may need the thing still waits. The coins themselves stay refused: loot coin is already in the
+  purse. A matter of the world that ends is told only to a player who met it (its moment shown, answered, touched, revealed, or a
+  contract of it held), and its four ending lines say "The matter of {title}", so the verb fits a plural title (four reworded lines
+  for the owner to read, data/rules/doors.yaml). The goldens re-blessed on the new data hash; nothing else in them moved.
+  tools/sim/walk_on_matter_662_test.py.
 
 ## 6. Group D: one sequence for a thing that happens
 
