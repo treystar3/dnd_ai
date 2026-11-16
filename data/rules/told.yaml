@@ -31,6 +31,14 @@ foe_flees:           # (f663) a foe breaks and runs: gone from the fight
   - "{foe} breaks and runs, out of the fight."
   - "{foe} turns and flees the fight."
   - "{foe} has had enough and runs."
+give_wanted:         # (f676) goods a held contract asks for, given to one who does not pay for it: asked first
+  - "{whose} contract (\"{title}\") asks for that, and {name} does not pay for it. Give {goods} to {name} anyway? (y/n)"
+  - "That is for {whose} contract, \"{title}\". Give {goods} to {name} all the same? (y/n)"
+  - "\"{title}\" is {whose} contract, and it asks for that. Hand {goods} to {name} instead? (y/n)"
+give_short:          # (f676) too few of what a contract asks for, given to the one who pays: a gift, not the contract, so asked first
+  - "\"{title}\" asks for {count}, and you hold {held}: given now, it is a gift, not the contract. Give {goods} anyway? (y/n)"
+  - "That is {held} of the {count} \"{title}\" asks for, so it cannot be handed in yet. Give {goods} to {name} as a gift? (y/n)"
+  - "With {held} of {count}, \"{title}\" is not ready to hand in. Give {goods} to {name} for nothing? (y/n)"
 at_hall:             # (f666) a party act done only at a guild hall, before its clerk, asked for elsewhere
   - "{act} is done at a guild hall, before its clerk. It will wait until you are there."
   - "{act} is the guild's business, done at a hall with the clerk at the desk; not here."

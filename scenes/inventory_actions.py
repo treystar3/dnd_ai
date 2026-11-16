@@ -626,7 +626,8 @@ class InventoryActions:
         if hire is None and not any(n.id == intent.target for n in self.present):
             hire = self.hire_named(text)
         if hire is not None and self.player.party_mode == "with":
-            self.give_to_hire(hire, intent, text)                 # (f420) a companion is someone to give to as well
+            if not self.contract_asks(intent, text, f"hire:{hire['id']}", hire["name"]):
+                self.give_to_hire(hire, intent, text)             # (f420) a companion is someone to give to as well
             return
         npc = next((n for n in self.present if n.id == intent.target), None) or \
             (self.partner if self.partner in self.present else None)
@@ -665,6 +666,69 @@ class InventoryActions:
                 f"[They hand you {key.name} ({key.description}).]"
             self.on_talk(intent, text)
             return
+        if not self.contract_asks(intent, text, npc.id, npc.label(self.acting)):
+            self.give_goods(intent, text, npc)
+
+    def contract_asks(self, intent, text: str, to: str, name: str) -> bool:
+        """(f676) Goods a held contract asks for: given to the one who pays and enough of them, they hand it in; given to anyone else
+        (a companion too), or too few, the game asks first. False when no contract asks for them: the giving goes on."""
+        wanted = self.contract_wanting(intent.item or text, to)
+        if wanted is None:
+            return False
+        q, pays, ready, have = wanted
+        if pays and ready:                                    # (f676) to the one who pays: on_talk's turn_in hands it in
+            intent.target = to
+            self.on_talk(intent, text)
+            return True
+        from engine import told
+        goods = self.counted(inv.find(self.pack, intent.item or text), max(1, self.how_many(intent) or 1))
+        whose = f"{q['issuer_name']}'s" if not q["guild"] else "the guild's"
+        self.ask_next("give_wanted", told.say("give_short" if pays else "give_wanted", self.store.meta.turn, goods=goods, whose=whose,
+                                              title=q["title"], name=name, held=have, count=q["count"]),
+                      target=to, item=intent.item or text, count=intent.count or 0, text=text)
+        return True
+
+    def contract_wanting(self, name: str, to: str):
+        """(f676) The held contract these goods are for (one this person pays for first, when two ask for them), whether they pay for
+        it, whether it is ready to hand in, and how many the pack holds toward it; None when no contract asks for them."""
+        from engine import quests
+        item = inv.find(self.pack, name)
+        if item is None:
+            return None
+        mine = self.player_of(self.acting).quests
+        clerk = self.clerk_here()
+        found = [(q, (clerk is not None and to == clerk.id) if q["guild"] else to == q.get("issuer")) for q in mine if quests.wants(q, item)]
+        if not found:
+            return None
+        q, pays = next((f for f in found if f[1] and quests.done(f[0], self.pack, mine)), None) or \
+            next((f for f in found if f[1]), found[0])
+        return q, pays, quests.done(q, self.pack, mine), quests.held(q, self.pack, mine)
+
+    def on_answer_give_wanted(self, asked: dict, text: str):
+        """(f676) The answer to 'give a contract's goods to them anyway?': yes gives them, no keeps them."""
+        from engine import questions
+        yes = questions.yes_no(text)
+        if yes is None:
+            return None
+        if not yes:
+            console.note("Kept.")
+            return True
+        d = asked["data"]
+        from llm.contracts import ActionIntent
+        intent = ActionIntent(kind="give", target=d.get("target") or "", item=d.get("item") or "", count=d.get("count") or 0)
+        hire = self.hire_by_id(intent.target) if intent.target.startswith("hire:") else None
+        if hire is not None and self.player.party_mode == "with":
+            self.give_to_hire(hire, intent, d.get("text") or text)
+            return True
+        npc = next((n for n in self.present if n.id == intent.target), None)
+        if npc is None:
+            self.refuse("There's no one here to give that to.")
+            return True
+        self.give_goods(intent, d.get("text") or text, npc)
+        return True
+
+    def give_goods(self, intent, text: str, npc) -> None:
+        """Goods from the pack given for nothing: taken, remembered, and the companions have a view."""
         item = inv.take(self.pack, intent.item or text, self.how_many(intent))   # (f545's review) as many as said, never a figure
                                                                                   # said of something else
         if not item:

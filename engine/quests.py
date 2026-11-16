@@ -381,15 +381,20 @@ def _dungeon_boss(world, store, wild, now, rng, hall=None):
 
 # ---------- progress ----------
 
+def wants(q: dict, item) -> bool:
+    """(f676) Whether this item is what a contract that counts the pack asks for."""
+    if q["kind"] == "gather":
+        return bool(item.good) and item.good == q.get("good")
+    return q["kind"] == "materials" and item.base == "raw_material" and item.material == q.get("material")
+
+
 def held(q: dict, pack: list, among: list = ()) -> int:
     """What the pack holds toward this contract. (f669) `among`, the player's contracts in order: one taken earlier for the same thing
     has what it needs first, so two contracts never count the same leaves."""
     if q["kind"] not in ("gather", "materials"):
         return q["progress"]
     def of(x) -> int:
-        if x["kind"] == "gather":
-            return inv.count_of(pack, x["good"])
-        return sum(i.quantity for i in pack if i.base == "raw_material" and i.material == x["material"])
+        return sum(i.quantity for i in pack if wants(x, i))
     same = lambda x: x["kind"] == q["kind"] and x.get("good") == q.get("good") and x.get("material") == q.get("material")
     have = of(q)
     for o in among:
