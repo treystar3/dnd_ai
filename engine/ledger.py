@@ -135,6 +135,12 @@ def untold() -> list[str]:
     return [r["say"] for r in actor.registers().rows if r.get("say") and not r.get("told")]
 
 
+def untold_deeds() -> list[str]:
+    """(f692) What the turn did that only a passage shows (a row added with passage_only=True: no line of its own), and no passage has
+    told yet."""
+    return [r["say"] for r in actor.registers().rows if r.get("passage_only") and r.get("say") and not r.get("told")]
+
+
 def decided() -> list[str]:
     """(f416) Everything the engine has settled this turn so far, told or not: what a person answering the player must not contradict."""
     return [r["say"] for r in actor.registers().rows if r.get("say")]

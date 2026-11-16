@@ -1769,12 +1769,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.note_hire_spoke(heard)
         self.collapse_check()
         self.stay_tick()                           # (f351) one change in the room since last turn, if the narrator did not write
-        self.heard_flush()                         # the places first heard of this turn, in one quiet line
         from engine import operation as _op
         held_now = (len(_op.current().lines) + sum(1 for h in _op.current().held if h[0] == "marker")
                     if _op.current() is not None else 0)     # (f463) what this operation holds, not yet released; (f498) a passage it queued
-        if turnlog.shown_count() + held_now == shown and not self.to_menu:
-            self.said_nothing(text)
+        if not self.to_menu and (turnlog.shown_count() + held_now == shown or ledger.untold_deeds()):
+            self.said_nothing(text)                # (f692) a quiet line in the tail is no answer to a deed only a passage tells
+        self.heard_flush()                         # the places first heard of this turn, in one quiet line
         self.store.save_player(self.player)
 
     def said_nothing(self, text: str) -> None:

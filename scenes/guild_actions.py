@@ -443,7 +443,7 @@ class GuildActions:
                           key=str(q["id"]))
         self.store.save_player(self.player)
         from engine import ledger                                           # (f416) and the turn's record: a contract taken by a line the
-        ledger.add("took", quest=str(q["id"]),                              # clerk never answered was told 'Nothing comes of that here'
+        ledger.add("took", quest=str(q["id"]), passage_only=True,           # clerk never answered was told 'Nothing comes of that here'
                    say=f"The player has taken the contract '{q['title']}' at the board; the clerk records it. It is theirs now.")
         from engine import stakes                                           # (f326) no ledger line: the board pane and the clerk's own words carry it
         stakes.taken(self, q)                                               # (f322) the issuer hears who took it
