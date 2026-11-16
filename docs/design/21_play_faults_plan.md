@@ -432,6 +432,14 @@ The note does not depend on the passage saying it.
   not need it.
 - 3.6: a matter ending is told only to a player who had met it or heard of it, and the line agrees with its title.
 - 4.11: the flight line says how likely it was, in words (the danger label's kind of word, not a percentage). The numbers stay.
+- **As built (f661): the mechanism, and four of its sites.** engine/told.py draws one of several lines a kind from
+  data/rules/told.yaml (checked at start-up: lines, no dash, the bands of words rising to 100), without a die, so a replay reads
+  the same. A fight gathers them in its round (Combat.told) and hands them to the round's notes; a scene says them with
+  WorldScene.told. Sites: an attack or an ability on a foe out of reach (4.4), a search that found nothing, with the time spent
+  (4.5), a flight, with its chance in words (4.11), a night's sleep with no room, camp or temple (6.4). Twelve new lines and four
+  words for chances, all for the owner to read before play (data/rules/told.yaml). The three goldens re-blessed: the data hash
+  moved, the fight's row holds the new field, and three shown lines are new (an approach, a flight's odds, a rest with no bed).
+  tools/sim/told_661_test.py. Left for C: 4.6 and 3.6 (f662), 2.8 (D1), 5.7 (an ability's cost rising at a level).
 
 ## 6. Group D: one sequence for a thing that happens
 

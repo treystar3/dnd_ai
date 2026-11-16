@@ -809,6 +809,8 @@ def check() -> list[str]:
     bad += model_problems()                                            # (f527) the model ids name the server's files
     bad += world_caps_problems()                                       # (f589) what the world's state keeps of each list
     bad += endings_problems()                                          # (f598) how a matter's ending is told and paid
+    from engine import told
+    bad += told.problems()                                             # (f661) what the engine decided, told to the player
     bad += grammar_problems()                                          # (f527) every contract has its grammar
     from llm import runtime as _runtime
     bad += _runtime.runtime_problems()                                 # (f522) the server's settings hold what the game sends

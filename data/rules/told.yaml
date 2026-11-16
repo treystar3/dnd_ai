@@ -1,0 +1,25 @@
+# (f661) What the engine decided against or beside what the player asked, said to the player in the game's own voice, whether or
+# not the passage says it (docs/design/21_play_faults_plan.md, group C). Several lines a kind (pillar 3); engine/told.py draws one
+# without a die. New lines: the owner reads them before they are played.
+
+approach:            # an attack on a foe out of reach: the action is spent closing on them
+  - "{foe} is out of your reach: the turn goes on closing the distance, and the blow waits for your next."
+  - "You cannot strike {foe} from where you stand. You spend the turn getting there."
+  - "{foe} is beyond your reach this turn, so you close on them instead of striking."
+search_failed:       # a search off the known ways that found nothing new
+  - "You spend {hours} looking for {seek} and find nothing new."
+  - "{hours} of searching for {seek} turns up nothing you did not already know."
+  - "Nothing new: {hours} spent on {seek}, and only more of {place} to show for it."
+flight_odds:         # a flight tried: how likely it was, in words, never a figure
+  - "Getting away was {odds}."
+  - "Breaking off was {odds}."
+  - "The chance of getting clear was {odds}."
+flight_words:        # (at most this chance in percent, the words for it)
+  - [25, "a long chance"]
+  - [50, "uncertain at best"]
+  - [75, "likely enough"]
+  - [100, "all but sure"]
+rest_no_bed:         # a sleep with no room, camp or temple: a rest, not a full night's recovery
+  - "With no bed of your own here, that was a rest, not a full night's sleep. A room at an inn, a camp or a temple would restore you fully."
+  - "A night without a room is only a rest. Take a room, make camp or sleep at a temple to wake fully restored."
+  - "You rested, but not as you would in a bed: a room, a camp or a temple gives the full night's recovery."

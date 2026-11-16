@@ -4158,6 +4158,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 console.note(f"You slept in your room and woke fully rested. If you die, you will wake at {self.place.name}.")
             else:
                 console.note(f"You rested here. If you die, you will wake at {self.place.name}.")
+                self.told("rest_no_bed")                       # (f661) why it was not a full night
         arrived = [n.label(self.acting) for n in self.present if n.id not in before]
         left = [n.label(self.acting) for n in self.residents if n.id in before and n not in self.present]
         changes = ""
@@ -4201,6 +4202,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 for e in enemies:
                     e.starts_far = True
             self.combat = CombatScene.begin(self, creature, enemies, "While you wait,")
+
+    def told(self, kind: str, **facts) -> None:
+        """(f661) A line for the player of what the engine decided beside what they asked (engine/told.py), drawn by the turn."""
+        from engine import told
+        console.note(told.say(kind, self.store.meta.turn, **facts))
 
     def rest_asked(self, text: str) -> ActionIntent:
         """(f656) The rest a line asks for: until the time of day it names, else at night until morning, else an hour."""

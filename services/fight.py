@@ -343,7 +343,7 @@ class FightService:
         f = fight
         p = (f.get(intent.actor) if intent.actor else None) or f.player
         notes: list[str] = []
-        f.log, f.story, f.hits = [], [], []
+        f.log, f.story, f.hits, f.told = [], [], [], []
         target = f.get(intent.target) if intent.target else None
         if intent.kind != "interpose" and (not target or not target.alive or target.side != "enemy" or target.fled):
             target = battlefield.closest(f, p, f.enemies())
@@ -404,6 +404,7 @@ class FightService:
         if not f.over and not f.enemies() and not combat.muster(f):
             f.over = "victory"
         p.counters.pop("moved_now", None)
+        notes += f.told                                   # (f661) what the engine did beside what was asked, said to the player
         if p.counters.pop("free_action", None) and not f.over:   # a movement on its own did not use the action - the player acts again
             return RoundOutcome("free", notes, [])
         if not f.over:

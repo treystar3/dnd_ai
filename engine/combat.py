@@ -358,6 +358,7 @@ class Combat(BaseModel):
     place: str = ""
     conditions: list[str] = []     # triggers true for the whole fight: at_night, in_bad_weather, in_swamp...
     story: list[str] = []          # this round's events in words, for the narrator
+    told: list[str] = []           # (f661) this round's lines for the player: what the engine did beside what they asked (engine/told.py)
     opened: bool = False
     focus: str = ""                # the enemy the player last went after; companions follow it
     player_acted: bool = False     # the player has done something other than run
@@ -1807,6 +1808,13 @@ def can_use(f: Fighter, move: Move, combat: Combat | None = None) -> str | None:
     return None
 
 
+def told_player(combat: Combat, att: Fighter, kind: str, **facts) -> None:
+    """(f661) A line for the player of what the engine did beside what they asked, when the one acting is a player."""
+    if att.side == "player":
+        from engine import told
+        combat.told.append(told.say(kind, combat.round, **facts))
+
+
 def act_attack(combat: Combat, att: Fighter, target: Fighter, rng: random.Random) -> None:
     from engine import battlefield as bf
     if att.side == "player" and target:
@@ -1828,6 +1836,7 @@ def act_attack(combat: Combat, att: Fighter, target: Fighter, rng: random.Random
         story = bf.approach(combat, att, target) if access.can_approach else ""
         combat.log.append(f"{att.name}: {access.why}" + (f"; {story}" if story else ""))
         tell(combat, f"{who(att)} {vb(att, 'are', 'is')} {access.why}" + (f" - {who(att)} {story}" if story else ""))
+        told_player(combat, att, "approach", foe=target.name)
         return                                           # getting there was the action: the blow comes next round
     att.counters.pop("tier_now", None)                   # a plain blow has no tier
     from engine import combat_perks
@@ -2062,6 +2071,7 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
             story = bf.approach(combat, att, aim) if access.can_approach else ""
             combat.log.append(f"{att.name}: {access.why} ({move.name} is kept)")
             tell(combat, f"{who(att)} {vb(att, 'are', 'is')} {access.why}" + (f" - {who(att)} {story}" if story else ""))   # (f419) what is kept is the log's
+            told_player(combat, att, "approach", foe=aim.name)
             return None
     cost = cost_of(att, move, combat) if not echo else 0
     body = stamina_part(att, move, combat) if not echo else 0   # a channeled strike's stamina (f260)
@@ -2478,6 +2488,8 @@ def act_flee(combat: Combat, rng: random.Random) -> bool:
         tell(combat, "your feet are frozen to the ground - there is no running")
         return False
     chance = flee_chance(combat)
+    from engine import told
+    told_player(combat, combat.player, "flight_odds", odds=told.odds(chance))     # (f661) how likely it was, in words
     if rng.uniform(0, 100) < chance:
         from engine import battlefield as bf
         bf.release(combat, combat.player)
