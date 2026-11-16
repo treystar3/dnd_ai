@@ -978,7 +978,8 @@ class InventoryActions:
         if not named:
             return False
         npc, item, price = next(o for o in offers if o[1].uid == named.uid)
-        self.buy_stock_item(npc, item, price, text)
+        if not self.one_only(intent):                                 # (f646)
+            self.buy_stock_item(npc, item, price, text)
         return True
 
     def on_sell(self, intent, text: str) -> None:

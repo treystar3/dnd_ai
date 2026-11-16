@@ -158,6 +158,46 @@ named periods.
 - A wait to an hour waits to that hour. The contract keeps the named periods and gains an hour of the clock.
 - Test first: a fence that every field of each intent the interpreter fills is read by the handler that takes it, or declared
   unused; then the two cases, and a count of one, a count the shelf cannot meet, and an hour already past.
+- **As built (f646): the fence and the count. The hour is not built.** The table of kinds (engine/actions.py) now says, for
+  each kind, which fields of the reading the interpreter is told to fill (`fills`; a targeted kind is also told the target) and
+  which of those its handler does not read (`unread`). tools/sim/intent_fields_646_test.py reads every handler's source, with
+  the methods it hands the reading to, and holds that what is told and not read is exactly what is declared; it holds the table
+  to the interpreter's instructions both ways (the words set aside as not an instruction, "use that person's place id", are
+  listed in the test); and start-up refuses a field the reading does not have. The fields every kind has (summary, checks,
+  mark, force) are the turn's and are outside it.
+- **What the fence found besides buying**, declared in the table and not built here, eight in all: a count is not read by
+  pick_up (all that lies there is taken), craft and commission (one is made), show and equip (nothing to count); the person
+  named is not read by board, train and commission (each finds its own clerk, teacher or crafter). The player is not told when
+  one of these is not kept. That telling is group C's note (an outcome beside what was asked); the list only shrinks.
+- **Buying.** A listed ware takes the reading's own count (`count_asked`), and never a number read out of a name: "a meal for
+  the two of us" is one meal, and a "Blade of Seven Stars" is one blade. That many are paid for at the quoted price each,
+  carried (or, the pack full, set down here and told so), and a meal or a drink is eaten or drunk that many times. The line of
+  the purchase names the number and the whole sum ("Paid ... for three jars of wine"). What a seller holds of a good is sold
+  first; when their own trade lists the good too, the rest comes from that list at its own price, and only a seller whose trade
+  does not sell it can run short. What is held goes by the good's bare name, so it is counted as the trades sell it ("two
+  sacks of salt"), or in measures when no trade does ("two measures of yarrow").
+- **The new lines a player reads, for the owner to read:** "That is sold one at a time. Ask for one." (a piece of gear, a
+  mount, a house); "A room is let one at a time, for the one night. Ask for a room." (said before the quote, so a room that
+  would be free is not announced and then refused); "<Seller> has only two bandages to sell." and "<Seller> has only the one
+  to sell."; "Three jars of wine come to <sum>, and you have <sum>."; "No more than 99 of a thing are sold at once." (a
+  count over the most is refused, never cut to it and charged); and, to the narrator, "They have three jars of wine, but
+  no room to carry them: they are set down here." (or "all of them: the rest is set down here."). A count of one is as it
+  was, and the three recordings replay unchanged.
+- **Left, and why.** The hour: the plan's way is a new field of the contract, which is a line of the interpreter's
+  instructions, a re-record of all three recordings, and a reading by the real model that is not measured without a pod. It
+  waits for the owner's answer and goes with group B's own line of the instructions, in one re-record. A count is taken at
+  the reading's word, as selling and giving take it: whether the real model ever writes a price or another figure into it is
+  not measured (the logs are closed to this session). A house's upgrades and its rebuilding take no count. Haggling ends in
+  this same purchase and hands it the reading, but the instructions tell a haggle only the ware and the seller, so "I haggle
+  him down on three jars" buys three only if the reading wrote the count unasked; the fence holds what is told and not read,
+  not what is read and never told. That is a line of the instructions, and B4 reworks the haggle. Meals and drinks have no
+  limit of their own below the count's 99: ninety-nine are paid for and eaten. A room for a companion, and a room for two
+  nights, are not things the engine has; the room's line says what it lets. The most sold at once is 99, the number giving
+  already holds in code; it is named once here and not moved to data, which would move the data hash under all three
+  recordings for a number nothing tunes. A bargain struck once (the barter, a won haggle) takes its share off every one of
+  the count, as it does off a whole stack sold; the owner has not ruled on it. A haggle won for a thing sold singly and asked
+  for in a number prints its win and then the refusal. A purse short for one is told by the narrator, as it was; short for
+  several, in a line.
 
 **A5. The cap of deeds in a line is 15, in data (1.10).** The owner's decision of review Q31, not yet built. The cap moves from the
 contract to data/rules; a line over it is told how many were taken, as now.

@@ -121,6 +121,8 @@ class PropertyActions:
         if town in self.player.homes:
             self.refuse("You already own a house here. Walk over to it to build.")
             return True
+        if self.one_only(intent):                                     # (f646)
+            return True
         h = P["homes"][town]
         if c.coins < h["price"]:
             self.refuse(f"{cap_first(h['name'])} costs {money.words(h['price'])}; you have {money.words(c.coins)}.")

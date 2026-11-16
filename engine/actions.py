@@ -18,6 +18,12 @@ Fields:
   needed_by_rest  (f416) when the game says no to a step of this kind, the steps after it are not done either: they were meant for
             where it would have taken the player, or for what it would have given them. False for a step nothing later rests on (a
             look, a draught, a prayer): 'I lie down on my cot and sleep till dawn' still sleeps when the cot cannot be used
+  fills     (f646) the fields of the reading the interpreter is told to fill for this kind, by the field entries of its instructions
+            and by this kind's own prompt: beyond those every kind has (summary, checks, mark, force), and beyond the target of a
+            targeted kind. tools/sim/intent_fields_646_test.py holds this list to the instructions, and each field to being read
+            by on_<kind>
+  unread    (f646) those of them (the target among them) that on_<kind> does not read: a count where one is made, taken, shown
+            or worn at a time, a person where the handler finds its own. The player is not yet told; the list only shrinks
   note      what it is, for anyone reading this table"""
 from __future__ import annotations
 
@@ -37,58 +43,60 @@ class Action:
     words: tuple[str, ...] = ()
     prompt: str = ""
     needed_by_rest: bool = True
+    fills: tuple[str, ...] = ()
+    unread: tuple[str, ...] = ()
 
 
 ACTIONS: tuple[Action, ...] = (
-    Action("move", "go to a place, or to a person elsewhere", words=("go", "walk", "head", "travel", "ride", "set out", "set off"),
+    Action("move", "go to a place, or to a person elsewhere", fills=("destination",), words=("go", "walk", "head", "travel", "ride", "set out", "set off"),
            prompt="""they want to go to one of the PLACES, or to a person listed under PEOPLE ELSEWHERE.
                Moving within the current place - upstairs, to their room, to a table, a corner, the bar,
                across the street - is look, not move. Going up to, approaching or walking over to someone
                in PEOPLE HERE is never move: it is part of talking to them."""),
-    Action("explore", "set out to find somewhere not on the map", words=("explore",),
+    Action("explore", "set out to find somewhere not on the map", fills=("seek",), words=("explore",),
            prompt="""they set out to find somewhere NOT on the PLACES list: follow a stream or trail to see where it leads,
                look for a shortcut or a hidden way, hunt for a cave, ruin or spring, wander off the path.
                Put what they look for in seek. Naming a place from PLACES is move, never explore."""),
     Action("look", "look around, or at something here", clock.LOOK_MINUTES, words=("look", "examine", "inspect", "listen"),
            needed_by_rest=False, prompt="""they look around or take in their surroundings, or think aloud with no one to answer"""),
-    Action("search", "search this place", words=("search",),
+    Action("search", "search this place", fills=("seek",), words=("search",),
            prompt="""they search, hunt, track, explore, scout or look for creatures, game, enemies or signs of them
                (fishing is other; herbs are forage)"""),
-    Action("talk", "speak to someone here", clock.TALK_MINUTES, targeted=True,
+    Action("talk", "speak to someone here", clock.TALK_MINUTES, fills=("speech",), targeted=True,
            prompt="""they speak to, ask, whisper to, greet, approach or look for a PERSON in PEOPLE HERE,
                or keep talking in the current conversation. Any spoken words count as talk. Handing in, reporting or
                turning in finished work (a contract, a request) is talk to the clerk or to whoever asked for it."""),
     Action("leave_conversation", "end the conversation", 0,
            needed_by_rest=False, prompt="""they end the current conversation without going anywhere (a goodbye can include spoken words)"""),
-    Action("buy", "buy a ware from someone here", targeted=True, verbs=("buy", "purchase", "sleep", "rest"), words=("order", "rent"),
+    Action("buy", "buy a ware from someone here", fills=("ware", "item", "count"), targeted=True, verbs=("buy", "purchase", "sleep", "rest"), words=("order", "rent"),
            prompt="""they pay for, buy, rent, order or accept the price of something listed under FOR SALE.
                Handing someone money for something they offered ("I hand him the silver") is buy, not give."""),       # sleep, rest: a room
-    Action("sell", "sell something to someone here", targeted=True, verbs=("sell", "give", "hand"),
+    Action("sell", "sell something to someone here", fills=("item", "count"), targeted=True, verbs=("sell", "give", "hand"),
            prompt="""they sell something from YOUR PACK to a person here who BUYS it"""),
-    Action("ability", "use one of the character's abilities", verbs=("attack", "stab", "shoot", "kill", "cast", "heal"),
+    Action("ability", "use one of the character's abilities", fills=("ability",), verbs=("attack", "stab", "shoot", "kill", "cast", "heal"),
            needed_by_rest=False, prompt="""outside a fight, they use one of YOUR ABILITIES - only when they name it or plainly describe
                doing exactly what it does. Watching, noticing, studying or reading someone is look."""),
-    Action("use", "use an item they carry", words=("use", "drink", "eat", "quaff"),
+    Action("use", "use an item they carry", fills=("item", "count"), words=("use", "drink", "eat", "quaff"),
            needed_by_rest=False, prompt="""they drink, eat, apply or use a consumable or food from YOUR PACK"""),
-    Action("drop", "drop an item here", verbs=("drop", "discard"),
+    Action("drop", "drop an item here", fills=("item", "count"), verbs=("drop", "discard"),
            needed_by_rest=False, prompt="""they drop, leave or set down something from YOUR PACK"""),
-    Action("pick_up", "pick something up from the ground", words=("pick up", "loot"),
+    Action("pick_up", "pick something up from the ground", fills=("item", "count"), unread=("count",), words=("pick up", "loot"),
            prompt="""they pick up or take something listed ON THE GROUND HERE"""),
-    Action("give", "give an item or coin to someone here", targeted=True, verbs=("give", "hand", "bribe"), words=("offer",),
+    Action("give", "give an item or coin to someone here", fills=("item", "count"), targeted=True, verbs=("give", "hand", "bribe"), words=("offer",),
            prompt="""they give or hand something from YOUR PACK or KEY ITEMS to a person here"""),
-    Action("show", "show someone an item or key item", targeted=True, verbs=("give", "hand", "show"), words=("present",),
+    Action("show", "show someone an item or key item", fills=("item", "count"), unread=("count",), targeted=True, verbs=("give", "hand", "show"), words=("present",),
            needed_by_rest=False, prompt="""they show, present or display something (usually from KEY ITEMS) to a person here"""),
-    Action("discard", "throw an item away for good", verbs=("discard", "drop"),
+    Action("discard", "throw an item away for good", fills=("item", "count"), verbs=("discard", "drop"),
            needed_by_rest=False, prompt="""they throw away, get rid of, burn or destroy something from KEY ITEMS"""),
-    Action("store", "put an item in the item box", words=("stow",),
+    Action("store", "put an item in the item box", fills=("item", "count"), words=("stow",),
            needed_by_rest=False, prompt="""they put something into their ITEM BOX (only if one is here)"""),
-    Action("retrieve", "take an item out of the item box",
+    Action("retrieve", "take an item out of the item box", fills=("item", "count"),
            prompt="""they take something out of their ITEM BOX (only if one is here)"""),
-    Action("equip", "wear or wield an item", verbs=("equip", "wield", "wear"),
+    Action("equip", "wear or wield an item", fills=("item", "count"), unread=("count",), verbs=("equip", "wield", "wear"),
            prompt="""they equip, wield, wear, draw or put on gear from YOUR PACK"""),
     Action("forage", "forage for herbs and materials", verbs=("harvest", "forage"),
            prompt="""they gather, forage, pick or collect herbs or plants"""),
-    Action("craft", "make something from materials", verbs=("craft", "forge"),
+    Action("craft", "make something from materials", fills=("item", "count"), unread=("count",), verbs=("craft", "forge"),
            prompt="""they make, brew, cook, forge, sew or craft something themselves - a RECIPE, or gear such as a
                jerkin, helm, spear or shield from materials in YOUR PACK"""),
     Action("work", "take, do or finish paid work for someone", targeted=True, words=("haul", "labour", "labor", "chop", "dig"),
@@ -100,27 +108,27 @@ ACTIONS: tuple[Action, ...] = (
     Action("join_guild", "pay the fee and sign the register", verbs=("buy", "purchase", "join", "register"),
            prompt="""they join, sign up for or pay to enter the adventurers' guild, or say they want or hope to join it
                or its register (not a question about how)"""),
-    Action("board", "read or ask about the contract board", targeted=True, verbs=("buy", "join", "board"),
+    Action("board", "read or ask about the contract board", unread=("target",), targeted=True, verbs=("buy", "join", "board"),
            needed_by_rest=False, prompt="""they read or look over the guild's contract board"""),
-    Action("accept_quest", "take a contract or request", verbs=("join",), words=("accept", "contract"),
+    Action("accept_quest", "take a contract or request", fills=("item",), verbs=("join",), words=("accept", "contract"),
            prompt="""they take a contract from the board (item = its number or name; "the delivery one", "I'll do this" and
                "I want to take this job" all count, with the CONTRACT BOARD below to pick from), or say yes to a request
                a person here just asked of them"""),
-    Action("abandon_quest", "give a contract or request up", verbs=("abandon",),
+    Action("abandon_quest", "give a contract or request up", fills=("item",), verbs=("abandon",),
            needed_by_rest=False, prompt="""they give up a contract or request they hold (item = which)"""),
-    Action("train", "train with a teacher", targeted=True, verbs=("train", "learn"),
+    Action("train", "train with a teacher", fills=("item",), unread=("target",), targeted=True, verbs=("train", "learn"),
            prompt="""they ask for or pay for training: drills, lessons in a skill, or to be taught a new ability
                (item = what they want to train or learn, in their words)"""),
-    Action("learn_ability", "learn a taught ability", verbs=("train", "learn"),
+    Action("learn_ability", "learn a taught ability", fills=("item",), verbs=("train", "learn"),
            prompt="""they choose one of the abilities an instructor just offered (item = its number or name)"""),
     Action("delve", "go down into a dungeon", words=("delve", "descend"),
            prompt="""at a dungeon: they go down, enter, press on, go deeper or continue to the next chamber"""),
     Action("leave_dungeon", "leave the dungeon",
            prompt="""in a dungeon: they turn back, climb out or leave"""),
-    Action("commission", "order gear from a crafter", targeted=True, verbs=("buy", "purchase", "craft", "forge"),
+    Action("commission", "order gear from a crafter", fills=("item", "count"), unread=("count", "target"), targeted=True, verbs=("buy", "purchase", "craft", "forge"),
            prompt="""they ask or pay a person here to make gear for them ("forge me a spear", "make me boots
                from these hides")"""),
-    Action("wait", "wait, rest or sleep", verbs=("sleep", "rest", "wait"),
+    Action("wait", "wait, rest or sleep", fills=("wait_minutes", "wait_until"), verbs=("sleep", "rest", "wait"),
            needed_by_rest=False, prompt="""they wait, rest, linger, pass time or skip ahead"""),
     Action("attack", "attack someone or something", targeted=True, verbs=("attack", "stab", "shoot", "kill"), words=("hit", "fight"),
            prompt="""they attack a creature (in PEOPLE HERE with id wildlife) or start a fight. Killing, executing or
@@ -128,24 +136,24 @@ ACTIONS: tuple[Action, ...] = (
     Action("release", "release a captive", verbs=("release",),
            prompt="""they let a captive prisoner in PEOPLE HERE go free, spare them, or send them away unharmed - or
                release a tamed companion back into the wild"""),
-    Action("hand_over", "hand a captive over", verbs=("arrest", "surrender"),
+    Action("hand_over", "hand a captive over", fills=("target",), verbs=("arrest", "surrender"),
            prompt="""they hand a captive prisoner over to the watch / a guard / the authorities (target = the prisoner)"""),
-    Action("steal", "steal from someone here", 5, targeted=True, words=("steal", "rob"),
+    Action("steal", "steal from someone here", 5, fills=("item",), targeted=True, words=("steal", "rob"),
            prompt="""they secretly take something that is not theirs: pick a pocket, lift or swipe an item from a stall, shelf,
                desk or person, slip something away unseen, or look through someone's things to take what they find.
                Item = what they take, in their words. Target = the person they take it from or whose it is, if any.
                Paying for something is buy, never steal. Asking for something is talk."""),      # the audit's theft words come from law.yaml
-    Action("unlock", "pick or force a lock", targeted=True,
+    Action("unlock", "pick or force a lock", fills=("item",), targeted=True,
            prompt="""they open a lock that is not theirs to open: pick it, jimmy it, break into a locked room, chest or door, or open
                one with a key they hold. Item = what is locked, in their words ("the back room", "the strongbox").
                Target = the person it belongs to, if any. Opening an ordinary unlocked door is move or look, never unlock."""),
     Action("pray", "pray, or keep a small rite, at a temple or anywhere", words=("pray", "kneel", "worship"),
            prompt="""they pray, kneel, light a candle, give thanks or keep a small rite - at a temple or shrine, or anywhere.
                Coins into a tithe box are give, not pray.""", needed_by_rest=False),
-    Action("gamble", "stake coin on dice or cards with someone here", targeted=True, verbs=("gamble", "wager", "bet"), words=("dice", "cards"),
+    Action("gamble", "stake coin on dice or cards with someone here", fills=("item",), targeted=True, verbs=("gamble", "wager", "bet"), words=("dice", "cards"),
            prompt="""they gamble: dice, cards or a wager with someone here. target: who they play with, if named. item: the stake
                as they named it ("2 silver"), else empty.""", needed_by_rest=False),
-    Action("haggle", "bargain a price down before buying", targeted=True, verbs=("haggle", "bargain"),
+    Action("haggle", "bargain a price down before buying", fills=("ware",), targeted=True, verbs=("haggle", "bargain"),
            prompt="""they haggle, bargain or try to beat down the price of something listed under FOR SALE before buying it:
                ware and target as for buy. A plain purchase is buy."""),
     Action("other", "anything else: narrated as an attempt", clock.OTHER_MINUTES, verbs=("bribe",),
@@ -219,7 +227,7 @@ def prompt_block() -> str:
 
 def problems(scene_class, interpreter_text: str) -> list[str]:
     """What does not agree: a kind with no on_<kind> on the scene, a kind the interpreter's instructions do not describe (or describe
-    without declaring here), a kind declared twice."""
+    without declaring here), a kind declared twice, a field told to a kind that the reading does not have."""
     out = []
     seen = set()
     for a in ACTIONS:
@@ -236,6 +244,12 @@ def problems(scene_class, interpreter_text: str) -> list[str]:
             out.append(f"action '{k}' is not described in the interpreter's instructions")
     for k in described - set(KINDS):
         out.append(f"the interpreter's instructions describe '{k}', which is not a declared action")
+    from llm.contracts import ActionIntent                              # (f646) here: the contract's kinds are written from this table
+    fields = set(ActionIntent.model_fields)
+    for a in ACTIONS:
+        told = set(a.fills) | ({"target"} if a.targeted else set())
+        out += [f"action '{a.kind}' is told to fill '{f}', which the reading does not have" for f in sorted(set(a.fills) - fields)]
+        out += [f"action '{a.kind}' declares '{f}' as not read, which it is not told to fill" for f in sorted(set(a.unread) - told)]
     return out
 
 

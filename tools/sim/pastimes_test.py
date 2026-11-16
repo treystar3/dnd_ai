@@ -83,7 +83,7 @@ checks.roll = _roll
 ws.residents = ws.present = [inn]
 ws.halted = False
 bought = []
-ws.buy_ware = lambda seller, ware, text="", quiet=False: bought.append((seller.id, ws.quote_ware(seller, ware).price, ware.price)) or True
+ws.buy_ware = lambda seller, ware, text="", quiet=False, count=1: bought.append((seller.id, ws.quote_ware(seller, ware).price, ware.price)) or True
 ws.resolve = lambda check, npc=None, talking=False, text="", extra=(): "success"
 room = next(w for w in world.roles["innkeeper"].sells if w.kind == "room")
 ws.on_haggle(ActionIntent(kind="haggle", target="in1", ware=room.id, summary="haggle over the room"), "I haggle with Hollis over the room")

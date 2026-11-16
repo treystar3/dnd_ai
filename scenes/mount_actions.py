@@ -80,6 +80,8 @@ class MountActions:
             self.show_stable()
             return True
         mount, price = next((m, p) for m, p in offers if m["id"] == named["id"])
+        if self.one_only(intent):                                     # (f646)
+            return True
         c = self.player.character
         result = mounts.buy(self.player, c, mount, price)
         if result == "short":

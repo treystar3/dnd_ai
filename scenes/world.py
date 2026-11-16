@@ -3810,7 +3810,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if not ware:
             self.refuse(f"{seller.label(self.acting)} sells: " + ", ".join(f"{w.name} ({money.words(self.quote_ware(seller, w).price)})" for w in wares))
             return
-        self.buy_ware(seller, ware, text)
+        self.buy_ware(seller, ware, text, count=self.count_asked(intent))
 
     def on_ability(self, intent: ActionIntent, text: str) -> None:
         c = self.player.character
