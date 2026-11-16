@@ -4110,9 +4110,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if not self.place.danger:
             return False
         roster = encounters.ensure_roster(self.store, self.world, self.player.location)
-        words = (intent.target or intent.seek or "").strip() or text
+        words = (intent.target or intent.seek or "").strip()
         found = encounters.matching(self.world, roster, words) if roster and words else []
-        if not found and words != text and not any(n.id == intent.target for n in self.present):
+        if not found and not any(n.id == intent.target for n in self.present):
             found = self.creature_named(roster, text)                    # (f685) the line's own words, when the target is no one here
         if not found:
             return False

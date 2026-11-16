@@ -67,6 +67,9 @@ check("...and 'the wolves' the wolf", ws3.creature_named(roster, "I strike at th
 check("a part of a word names none: 'the', 'and', 'was', 'has' are no panther, bandit, wasp or hawk",
       ws3.creature_named(roster, "Twin Flare at the ogre, and it was what it has been.") == [],
       ws3.creature_named(roster, "Twin Flare at the ogre, and it was what it has been."))
+check("with no target read, the line's words are read whole too: 'at the griffon' is no saber-toothed tiger",
+      ws3.hunt_named(A(kind="ability", ability=ab.id), "I cast Twin Flare at the griffon.") is False or
+      "griffon" in " ".join(ws3.creature_named(encounters.ensure_roster(ws3.store, ws3.world, "greywood"), "at the griffon")))
 sought = []
 encounters.roll = lambda store, world, place, chance, rng, seek="", **k: sought.append(seek) or (wolf, [combat.fighter_from_creature(wolf, 2, "normal", "e1", "wolf")])
 g4 = simlib.campaign("ability_hunt_685d", seed=5, location="greywood")
