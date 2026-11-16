@@ -68,7 +68,7 @@ class MentorActions:
                 frame = fresh("dialogue_frame", wp.DIALOGUE_SYSTEM,
                               wp.dialogue_request(self.time_label(), self.place, others, label, looks, doing, manner, not introduced,
                                                   reply_to or "(listening)", speech, gesture, False, self.recent_narration, M["frame"]["shows"],
-                                                  reach=within, moment=moment, already=self.shown_lines(),
+                                                  reach=within, moment=moment, already=self.shown_lines(), in_view=self.in_view(),
                                                   why=["the first words between them" if not introduced else "a moment of her walking the player through the guild"],
                                                   who_is=entities.who_is_who(self, also=["maren"]),        # (f392)
                                                   exemplars=self.exemplars("narration")),
@@ -179,7 +179,7 @@ class MentorActions:
                 r = fresh("narrate", wp.NARRATOR_SYSTEM,
                           wp.narration_request(self.time_label(), self.place, self.people_view(), event, (said or "").strip(), self.recent_narration, self.gear_line(),
                                                self.store.load_place(self.player.location).marks,
-                                               exemplars=self.exemplars("narration")),
+                                               exemplars=self.exemplars("narration"), in_view=self.in_view()),     # (f700)
                           Narration, self.recent_narration)
                 text = r.text.strip()
             except LLMError:

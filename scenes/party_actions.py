@@ -684,6 +684,7 @@ class PartyActions:
                               wp.dialogue_request(self.time_label(), self.place, others, name, looks, doing, self.temper_text(m), False,
                                                   reply_to or "(listening)", speech, gesture, False, self.recent_narration,
                                                   self.frame_for(m, P["frame"]["fight" if in_fight else "talk"]), reach=within, moment=reach.moment(fight=in_fight),
+                                                  in_view=self.in_view(),                                  # (f700)
                                                   why=why, already=self.shown_lines(), worn=self.worn_words("prose"), who_is=entities.who_is_who(self),
                                                   exemplars=self.exemplars("fight" if in_fight else "narration")),
                               DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS,

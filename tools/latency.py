@@ -433,9 +433,10 @@ def dearer(now: dict, before: dict, inputs: set[int] | None = None) -> list[tupl
     return out
 
 
-def gate(base: dict | None = None, root: Path = GOLDENS) -> dict[str, list[tuple[int, float | None, float]]]:
+def gate(base: dict | None = None, root: Path = GOLDENS, every: bool = False) -> dict[str, list[tuple[int, float | None, float]]]:
     """(f490) The goldens against their pre-D prices (the baseline's estimates), every answer at its expected size: per golden, the inputs
-    with a speech call, (f510) or a fight call, priced dearer than before. Empty lists everywhere: the gate holds."""
+    with a speech call, (f510) or a fight call, priced dearer than before. Empty lists everywhere: the gate holds. (f700) every: each
+    input the baseline keeps a price for, the plain ones too (what --rekeep sets, since f640 holds every kept price)."""
     import card_profile
     from engine import budget
     base = _yaml(BASELINE) if base is None else base
@@ -444,7 +445,8 @@ def gate(base: dict | None = None, root: Path = GOLDENS) -> dict[str, list[tuple
         for name, before in (base.get("estimates") or {}).items():
             folder = Path(root) / name
             now = dict(card_profile.estimate_inputs(folder, expected=True))
-            out[name] = dearer(now, {int(k): v for k, v in (before or {}).items()}, speech_inputs(folder) | fight_inputs(folder))
+            out[name] = dearer(now, {int(k): v for k, v in (before or {}).items()},
+                               None if every else speech_inputs(folder) | fight_inputs(folder))
     return out
 
 
@@ -460,7 +462,7 @@ def rekeep(most: float, note: str, path: Path = BASELINE, root: Path = GOLDENS, 
         return "refused, nothing written: a re-keep says why (--note TEXT)"
     limit = card_profile.budget_limit() if limit is None else limit
     lines = Path(path).read_text(encoding="utf-8").split("\n")
-    got = gate(base=_yaml(path), root=root)
+    got = gate(base=_yaml(path), root=root, every=True)                # (f700) a plain input grown dearer is re-kept too
     over = [(n, i, b, s) for n, rows in got.items() for i, b, s in rows if b is None or s - b > most + 1e-9 or s > limit]
     if over:
         return "refused, nothing written: " + ", ".join(f"{n} input {i} ({b} -> {s} s)" for n, i, b, s in over)

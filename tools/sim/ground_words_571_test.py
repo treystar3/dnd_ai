@@ -230,5 +230,24 @@ with tempfile.TemporaryDirectory() as d:
           "2026-01-01" in head and "f999: a reason, owner accepts up to 1 s" in head and f"stub_fight inputs {i}" in head
           and yaml.safe_load(after) == want, head[-400:])
 
+with tempfile.TemporaryDirectory() as d:                             # (f700) a plain input, no speech and no fight, grown dearer
+    kept = Path(d) / "baseline.yaml"
+    folder = latency.GOLDENS / "stub_short"
+    gated = latency.speech_inputs(folder) | latency.fight_inputs(folder)
+    est = base["estimates"]["stub_short"]
+    lim = card_profile.budget_limit()
+    with budget.priced(**(base.get("priced_at") or {})):
+        today_short = {k: round(s, 1) for k, s in card_profile.estimate_inputs(folder, expected=True)}
+    j = next(k for k in est if k not in gated and est[k] < lim - 1 and today_short.get(k) == est[k])
+    at = text.index("  stub_short:", text.index("estimates:"))
+    cheap = text[:at] + text[at:].replace(f"    {j}: {est[j]}", f"    {j}: {round(est[j] - 0.1, 1)}", 1)
+    kept.write_text(cheap, encoding="utf-8", newline="")
+    said = latency.rekeep(0.2, N, path=kept, today="2026-01-01")
+    check("a plain input grown dearer is re-kept too, at today's price", f"input {j}" in said
+          and yaml.safe_load(kept.read_text(encoding="utf-8"))["estimates"]["stub_short"][j] == est[j], said)
+    kept.write_text(cheap, encoding="utf-8", newline="")
+    said = latency.rekeep(0.2, N, path=kept, limit=est[j] - 0.05)
+    check("...and refused when it would carry that input over the limit", said.startswith("refused") and kept.read_text(encoding="utf-8") == cheap, said)
+
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

@@ -27,6 +27,9 @@
 #                 now takes the room it asks for (50 copper), so the night and the purse from there are another story; 35 and 37 were
 #                 kept over the limit before and are unchanged. Its 7 inputs from 34 on set to today's prices: kept over the limit,
 #                 plain inputs 35 (69.7 s), 37 (67.1 s)
+#                 (2026-11-16, tools/latency.py --rekeep 0.1) f700: a creature in view is told to every passage while it stays (one IN
+#                 VIEW line, placed late in the request so the cached head stays whole); accepted by the owner with the feature on
+#                 2026-11-16. Set again at today's price: stub_short inputs 20; stub_fight inputs 16
 #   priced_at:    (f527) the speeds every estimate above was priced at, read tps, write tps and the embedder's seconds a text: the gate
 #                 (tools/latency.py gate, over_limit) prices today's goldens at these, whatever card_profile.yaml says now
 night: 'pod night 20261103_0520 at ed8fdf4, partial: four runs of 10 hours planned; the summoner (89 turns) and priest (204) stopped on two game
@@ -255,7 +258,7 @@ estimates:
     17: 12.6
     18: 3.1
     19: 12.7
-    20: 18.0
+    20: 18.1
     21: 18.0
     22: 12.6
     23: 12.6
@@ -308,7 +311,7 @@ estimates:
     13: 13.5
     14: 13.2
     15: 48.9
-    16: 18.3
+    16: 18.4
     17: 18.4
     18: 17.4
     19: 19.2

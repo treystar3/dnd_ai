@@ -104,7 +104,7 @@ HOMES: dict[str, str] = {
     "last_social": VIEW, "last_plan": VIEW, "sneaking": VIEW, "queued_buffs": VIEW, "fight_text": VIEW,
     # ---- the scene's, shared by everyone in it: what was told of it, the conversation, the road being walked, the fight that
     # is coming or was fled and how its beats landed on the party, what is in view
-    "recent_narration": SCENE, "convo": SCENE, "last_spoken": SCENE, "partner": SCENE, "stance": SCENE, "wildlife": SCENE,
+    "recent_narration": SCENE, "convo": SCENE, "last_spoken": SCENE, "partner": SCENE, "stance": SCENE, "wildlife": SCENE, "wildlife_at": SCENE,
     "resume_pending": SCENE, "recently_fled": SCENE, "held_yield": SCENE, "orenna_fight": SCENE, "camp_fight": SCENE,
     "dungeon_fight": SCENE, "surrender_took": SCENE, "last_hits": SCENE,
 }

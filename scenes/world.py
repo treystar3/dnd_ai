@@ -127,6 +127,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.combat: CombatScene | None = None
         self.resume_pending = None
         self.wildlife = None
+        self.wildlife_at = None                # (f700) the minute it was seen
         self.sneaking, self.queued_buffs, self.fight_text = False, [], ""     # a fight the player starts this turn (f248)
         self.recently_fled = False
         self.rng = streams.get("scene")  # (f439) reseeded at every input
@@ -404,7 +405,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                             self.recent_narration, self.gear_line(),
                                             self.store.load_place(self.player.location).marks, ground=self.lying_here(),
                                             told=ledger.told(),   # (f416) what the turn did: a fight's opening, a sighting
-                                            exemplars=self.exemplars("narration")),
+                                            exemplars=self.exemplars("narration"), in_view=self.in_view()),
                        Narration, self.recent_narration)
         console.narrate(result.text)
         self.remember_narration(result.text)
@@ -479,7 +480,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             console.note(f"A {creature.name.lower()} stirs nearby, but the animals have spoken for you and it passes by.")
             return False
         if self.temperament(creature) == "passive":
-            self.wildlife = (creature, enemies)
+            self.wildlife, self.wildlife_at = (creature, enemies), self.minutes
             from engine.combat import plain_name
             names = ", ".join(plain_name(e.name) for e in enemies)          # (f696) never the game's tag
             self.narrate_with(cp.START_SYSTEM, f"{how} the player spots {names}, keeping its distance. It is not hostile.")
@@ -497,7 +498,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def advance(self, minutes: int, exert: bool = False, wait: str = "") -> None:
         """Time passes. exert: travelling, working or fighting. wait: 'rest' or 'sleep' - health comes back, and a sleep clears fatigue."""
         before = clock.period(self.minutes)
+        if self.wildlife and getattr(self, "wildlife_at", None) is None:
+            self.wildlife_at = self.minutes
         self.actor.clock.advance(minutes)                  # (f632) the minute and the day: the clock is their one writer
+        if self.wildlife and self.minutes - self.wildlife_at > encounters.E["in_view_minutes"]:
+            self.wildlife, self.wildlife_at = None, None   # (f700) a creature keeping its distance moves on
         c = self.player.character
         was = needs.marks(c)
         needs.tick(c, minutes, exertion=exert, sleeping=wait == "sleep", resting=wait == "rest")
@@ -1153,7 +1158,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             "combat_state", "combat_panel")     # (f497) the fight's pane and its text panel: pushed at the commit, not for an attempt that stood down
     PANE = ("combat_state", "combat_panel")     # (f497) held, but no lines of the page: load re-shows the pane from the row (enter), so they are
     #                                             kept off the record's presentation entry and the turn log's lines
-    ROLLED = ("recent_narration", "convo", "last_spoken", "wildlife", "recently_fled", "resume_pending", "held_yield", "orenna_fight", "camp_fight",
+    ROLLED = ("recent_narration", "convo", "last_spoken", "wildlife", "wildlife_at", "recently_fled", "resume_pending", "held_yield", "orenna_fight", "camp_fight",
               "last_social", "weight_hint", "exits_due", "last_plan", "journey_event_factor", "haggle_factor", "craft_boost", "camp_bonus",
               "dungeon_fight", "rank_options", "learn_options", "step", "plan_now", "interpret_calls", "ran",
               "partner", "stance", "pending_check", "pending_beats", "buffering",
@@ -2786,6 +2791,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.store.save_player(self.player)
         self.store.save_meta()
 
+    def in_view(self) -> list[str]:
+        """(f700) The creature the game holds in view here, as the scene's one list of who is present names it, for every passage while
+        it stays: told once, it was lost."""
+        from engine import truth
+        return [p.label for p in truth.scene_of(self).present_people() if p.kind == "wildlife"]
+
     def people_view(self) -> list[tuple[str, str, str]]:
         """Who is here, as the player knows them, for the narrator (engine/truth.py, f313). The hires travelling with the player are not
         scenery (f349): they are left out, and the narrator hears of one only when the GAME EVENT has them act (companions_in)."""
@@ -2903,6 +2914,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                        fallen=here.lines("fallen"),                                 # ...and who fell, never seen alive again
                                        parts=features.lines(self),                                  # (f394) the parts of this place, real
                                        told=ledger.told(),                                          # ...and what the engine did this turn
+                                       in_view=self.in_view(),                                      # (f700) ...and the creature still in view
                                        habits=self.arrival_habits() + self.habits_due("rest"),      # (f412) ...and the companions' habits, to fold in
                                        exemplars=self.exemplars("narration"))                        # (f583) how this kind of moment sounds
         result = fresh("narrate", wp.NARRATOR_SYSTEM, request, Narration, self.recent_narration, max_tokens=config.PROSE_MAX_TOKENS,
@@ -3744,6 +3756,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                     reach=within, moment=moment,
                                     why=reasons, already=self.shown_lines(), worn=self.worn_words("prose"),
                                     who_is=entities.who_is_who(self, also=[npc.id]),                  # (f392)
+                                    in_view=self.in_view(),                                            # (f700)
                                     exemplars=self.exemplars("narration")),
                 DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS,
                 context={"speaker": [npc.name, known_as, speaker], "others": self.other_names(npc), "speech": reply.speech}, worn=self.worn_words("prose"),
@@ -4063,7 +4076,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if pick:
             self._trail = {"place": self.player.location, "creature": pick, "minutes": self.minutes}     # (f381) signs to follow
         self.narrate(f"The player spends {clue and 'a while '}searching but finds no creature this time. They do find "
-                     f"fresh signs of {clue or 'nothing'}: tracks, droppings, or marks. Describe the search and the sign."
+                     f"fresh signs of {clue or 'nothing'}: tracks, droppings, or marks"
+                     f"{f'; the {clue} itself is not here and is not seen' if clue else ''}. Describe the search and the sign."   # (f700)
                      f"{' The creature they were looking for is not known to live here.' if intent.seek and not wanted else ''}",
                      text)
 

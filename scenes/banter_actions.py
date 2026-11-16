@@ -175,7 +175,7 @@ class BanterActions:
             frame = fresh("dialogue_frame", wp.EXCHANGE_SYSTEM,
                           wp.exchange_request(self.time_label(), self.place, speakers, others, spoken[0], spoken[-1], self.recent_narration,
                                               P["frame"]["exchange_fight" if in_fight else "exchange"], self.player.character.name,
-                                              reach=reach.within("", self.place.type), moment=reach.moment(fight=in_fight),
+                                              reach=reach.within("", self.place.type), moment=reach.moment(fight=in_fight), in_view=self.in_view(),   # (f700)
                                               who=entities.who_is_who(self),                          # (f392) she, elf: never guessed at
                                               exemplars=self.exemplars("fight" if in_fight else "narration")),
                           DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS)
