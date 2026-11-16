@@ -1301,3 +1301,13 @@
   scene: {place: greywood, party: [{name: Pae Tamalaga}]}
   plan: [{kind: move, destination: parth}]
   expect: {handled_by: interpret, not_by: [hire]}
+- name: persuade_said_of_the_act_rolls_the_check
+  text: 'I try to persuade Fipen, appealing to his love of secrets: "Help me set the records right."'
+  scene: {place: trading_square, present: [{id: f1, name: Fipen Copperpot, role: noble}]}
+  plan: [{kind: talk, target: f1, speech: "Help me set the records right."}]
+  expect: {handled_by: interpret, kinds: [talk], repairs: [social_check]}
+- name: persuade_only_in_the_words_said_rolls_nothing
+  text: '"I could never persuade you, could I?" I ask Fipen.'
+  scene: {place: trading_square, present: [{id: f1, name: Fipen Copperpot, role: noble}]}
+  plan: [{kind: talk, target: f1, speech: "I could never persuade you, could I?"}]
+  expect: {handled_by: interpret, kinds: [talk], not_by: [social_check]}

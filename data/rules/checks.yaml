@@ -108,3 +108,9 @@ bribe:
     courtier: 60000
     relic_dealer: 100000
     land_agent: 30000
+# (f683) A social check said of the player's own act, in their words outside what they say aloud ("I try to persuade him: ..."): the
+# stems that name each, read at the start of a word. A talk step the reading left without one gets it (scenes/plan_repairs.py).
+said_of_acts:
+  persuasion: [persuad, convinc, coax, cajol, sway, plead, "win him over", "win her over", "win them over", "talk him into", "talk her into", "talk them into", "reason with"]
+  intimidation: [intimidat, threaten, menac, frighten, scare, bully]
+  deception: [deceiv, bluff, mislead, "lie to", "trick him", "trick her", "trick them", "fool him", "fool her", "fool them"]

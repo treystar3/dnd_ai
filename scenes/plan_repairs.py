@@ -133,6 +133,7 @@ class PlanRepairs:
         Repair("drop_restatements", 130, "drop_restatements", "a step that only says again what another does goes: the attack after the spell, the ingredient beside the craft, a look nobody asked for"),
         Repair("buy_what_was_named", 135, "buy_what_was_named", "a piece of stock the line never named, bought beside the asking for something else, goes: the asking stands (f342)"),
         Repair("name_the_target", 140, "name_the_target", "a step aimed at someone, with nobody named in it, is for the one person the line names"),
+        Repair("social_check", 155, "social_check", "'I try to persuade him: ...' said of the player's own act: the talk rolls that check (f683)"),
         Repair("deal_then_word", 165, "deal_then_word", "a word to someone, then a deal with them: the deal is settled first, so what they say knows how it went (f417)"),
     )
     DEALS = ("buy", "sell", "give", "show", "work", "accept_quest", "commission", "haggle", "gamble", "train")
@@ -182,6 +183,21 @@ class PlanRepairs:
                     a.destination = ""
 
     # ---------- conversation
+
+    def social_check(self, text: str, plan: list) -> None:
+        """(f683) "I try to persuade Fipen: ..." read as a plain talk rolled nothing, and the clue stayed shut for good: a social act
+        named in the player's own words, outside what they say aloud, is that check on the first talk the reading left without one."""
+        from engine import checks
+        own = re.sub(r"\"[^\"]*\"|“[^”]*”", " ", (text or "").lower())
+        said = next((c for c, stems in (checks.RULES.get("said_of_acts") or {}).items()
+                     if any(re.search(rf"\b{re.escape(s)}", own) for s in stems)), None)
+        if said is None:
+            return None
+        for a in plan:
+            if a.kind == "talk" and not set(a.checks) & set(checks.SOCIAL):
+                a.checks = list(a.checks) + [said]
+                return None
+        return None
 
     def one_goodbye(self, text: str, plan: list) -> list | None:
         """"Thanks, that's all. Goodbye." read as a talk and then a leave_conversation is one parting, said to the one they were talking
