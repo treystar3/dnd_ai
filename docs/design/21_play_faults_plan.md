@@ -216,6 +216,30 @@ changes what a deed is. A count only falls (the form of acting_character_630's c
 pinned by (`data/replay/interp_cases.yaml`, read by interp_eval_test) gains its other half: for each repair, lines that must not
 fire it, taken from the blind journal and from lines written for the test. Today the corpus holds only the case that made each
 repair, so a repair that catches too much passes. These are the tests of the engine fixes below, not a stand-in for them.
+- **As built (f648).** tools/line_census.py reads the code from every door a typed line comes in by (the world's turn, each
+  intercept, each repair, each kind's handler, each answer to the world's own question, the fight's turn) and follows the line
+  into every method and function it is handed to: by name, by a method reached through getattr with a prefix (the party's and
+  the camp's own dispatch), through what a function imports inside itself; over the line, a plain or reworded form of it, a
+  longer string it is set in, and its clauses. A method reached by getattr is followed when it takes as many arguments as the
+  call gives, whether called there or kept and called later. It stops at the prose the narrator is told. It counts each pattern, word or test
+  searched over it: 250 places in 48 files. tools/sim/line_patterns_648_test.py holds that count file by file. It only falls,
+  and the table is lowered when one goes; a fix that adds a guard over the line (a question, a negation, who is addressed) may
+  raise a file's count only beside a line that names the feature and why. The count is of every search over the line, not only
+  those that decide a deed: a question mark, a command's mark and a word made singular are in it. It does not see the line
+  handed on by keyword or stored on the scene, compared with ==, put on the left of `in`, or handed to the model; and, being per
+  file, one search swapped for another in the same file.
+- **The corpus's other half.** A case may name the intercepts and repairs that must not take it or change its plan
+  (`not_by`). Every intercept and repair that reads the line's words now has a case where it acts and a case it gets right that
+  it must not touch, but three the bench cannot stage (an arc's camp, Maren's first stepping in, a foe who yielded: that one is
+  B2's, in a fight of its own) and one held off today only by a case it gets wrong (to_the_named, B1's). 19 cases already there
+  were such near misses and now say so; 26 are new. A case the game gets wrong today is kept and marked owed, with the fix that
+  owes it and what it does today (`owed: {fix, now}`): owed while it goes wrong that way, wrong if it goes wrong another way, and
+  wrong once it comes out right until the mark comes off. An owed case counts as wrong in the table by kind and in what the
+  intercepts took. Eight are owed: the journal's three (4.1 "point out the wires", 4.2 "I kneel and jam the plates", read with and
+  without the kneeling in the deed's own words, and 4.7 a companion named while the party rests) and four the near misses found:
+  "I tell Hollis I lost a game of dice" is a gamble; "I nod and tell the guard the road north is clear" leaves town by that road;
+  "Here, take this healing draught, Bram" is taken by the hire intercept and nothing is given; "I ask my companion what he makes
+  of the guard's story" is said to the guard (B1's: who is addressed). The rest are B2's, whose list below is widened to hold them.
 
 **B1. An order is to someone addressed (1.1 to 1.5, part of 1.6).**
 - An order is recognised from who is spoken to (a name the line addresses, in speech or at the head of a clause), never from a
@@ -225,13 +249,19 @@ repair, so a repair that catches too much passes. These are the tests of the eng
 - A guard order says whom to guard, and the order's record and its printed line carry it.
 - Out of a fight, one member can be told to hold back, not only the whole party.
 - The player's own act in a line that also orders is kept, whoever it names.
+- Out of a fight, a talk goes to the one the line speaks to by the same reading of who is addressed: a talk aimed at a companion
+  is not turned to someone else only because the line names them (to_the_named: "I ask my companion what he makes of the
+  guard's story", owed in B0's corpus).
 - Test first: the five lines of the journal, each with a twin the journal did not hold (another ability name with an order word
   in it, another companion as an object, an order to guard a third), and orders_test's patterns still passing.
 
 **B2. A repair rewrites a deed by that deed's own words (4.1, 4.2, 4.5, 4.7 to 4.10, 2.7).**
 - Leaving a dungeon, praying, staying within a place, talking to a hire, naming a ware, the verbs a purchase covers, and
   finishing a foe who yielded are each decided by the deed the interpreter wrote (its summary, its destination, its target),
-  not by a word found in the line.
+  not by a word found in the line. So are two B0 found: a way out of town by road (the exit intercept takes "I tell the guard
+  the road north is clear"), and a talk read as a hand of cards, a haggle, a lesson or a job (talk_to_deed), which reads what
+  the talk asks for, never a deed it tells of ("I lost a game of dice last night"). And a move onward within a delve, to
+  the next chamber, is the delve, as that kind's own words say (with "point out the wires", B0's corpus expects it).
 - A foe who has yielded and is then attacked, in any words or by any ability, is attacked. He is not let go (2.7).
 - An answer to the game's own question is read against that question (4.10: "Both at once").
 - Test first: B0's corpus, both halves, for each repair.

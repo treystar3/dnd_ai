@@ -19,7 +19,12 @@ Cases live in data/replay/interp_cases.yaml:
                         dungeon (a wild place id: the player stands at the dungeon beneath it), delve (true: and is inside it)
     plan                what the model is taken to have read, offline: a list of intents ({kind, target, item...})
     expect              handled_by (the intercept's name, or interpret), kinds (the kinds that ran, in order), first (fields of the first),
-                        steps [{field: value} per step, in order], most (no more than this many steps ran), moves (destinations, in order)
+                        steps [{field: value} per step, in order], most (no more than this many steps ran), moves (destinations, in order),
+                        not_by [intercepts and repairs that must not take the line or change its plan] (f648: the corpus's other half,
+                        lines that must not fire a rule, so a rule that catches too much is caught)
+    owed                (f648) the game gets this case wrong today: {fix: the fix that owes it ("B2 4.1: ..."), now: what it does today, in
+                        expect's terms, with `repairs` [the rules that change it]}. Counted as owed, not wrong, only while it goes wrong
+                        that way; wrong another way is wrong; offline, right is wrong until the mark comes off
 The suite runs the offline mode (tools/sim/interp_eval_test.py); the offline run is deterministic and needs no model. --live is the real
 measure: the whole corpus takes the model a good while, and that is the point - one thorough run rather than many quick ones. It ends
 with the count right and a table by kind."""
@@ -242,6 +247,14 @@ def judge(got: dict, expect: dict) -> list[str]:
                 bad.append(f"step {i + 1}.{k} = {step.get(k, '')!r}, not {v!r}")
     if "most" in expect and len(got["kinds"]) > int(expect["most"]):
         bad.append(f"{len(got['kinds'])} steps ran; at most {expect['most']} should")
+    for rule in expect.get("repairs") or []:                      # (f648) for what an owed case does today: the repairs that change it
+        if rule not in (got.get("repairs") or []):
+            bad.append(f"not changed by {rule}")
+    for rule in expect.get("not_by") or []:                       # (f648) a rule that must not take this line, or change its plan
+        if got["handled_by"] == rule:
+            bad.append(f"taken by {rule}, which must not take it")
+        elif rule in (got.get("repairs") or []):
+            bad.append(f"changed by {rule}, which must not change it")
     return bad
 
 
@@ -256,7 +269,8 @@ def group_of(case: dict) -> str:
 
 def evaluate(cases: list[dict], live: bool = False, quiet: bool = False, save: str = SAVE, source=None) -> dict:
     bench = Bench(live=live, save=save, source=source)
-    results, wrong = [], []
+    results, wrong, owed = [], [], []
+    by_kind: dict[str, list[int]] = {}                               # right as the game is: owed is wrong, and an owed mark gone stale right
     taken_wrong = missed = 0
     from llm.errors import LLMError
     for case in cases:
@@ -274,27 +288,42 @@ def evaluate(cases: list[dict], live: bool = False, quiet: bool = False, save: s
                 taken_wrong += 1
             elif want != "interpret" and got["handled_by"] == "interpret":
                 missed += 1
+        row = by_kind.setdefault(group_of(case), [0, 0])
+        row[1] += 1
+        row[0] += not bad
+        owes = case.get("owed") or {}
+        if owes and got["handled_by"] != "model_failed":              # (f648) wrong today in the way it is owed, to a named fix
+            if bad and not judge(got, owes.get("now") or {}):
+                owed.append(case["name"])
+                bad = []
+            elif bad:
+                bad = bad + [f"and not as it is owed ({owes.get('now')})"]
+            elif not live:                                            # live, the model's own reading may have gone round it
+                bad = [f"right now, but marked owed to {owes.get('fix')}: take the mark off"]
         results.append((case["name"], got, bad))
         if bad:
             wrong.append(case["name"])
         if not quiet:
-            print(("ok   " if not bad else "FAIL ") + f"{case['name']:<36} {got['handled_by']:<16} {got['kinds']}" + ("" if not bad else "  <- " + "; ".join(bad))
+            print(("owed " if case["name"] in owed else "ok   " if not bad else "FAIL ") + f"{case['name']:<36} {got['handled_by']:<16} {got['kinds']}"
+                  + ("" if not bad else "  <- " + "; ".join(bad)) + (f"  (owed to {owes.get('fix')})" if case["name"] in owed else "")
                   + (f"  (model read {got['read']})" if live and got.get("read") is not None else ""))
     n = len(cases)
-    by_kind: dict[str, list[int]] = {}
-    for case, (_, got, bad) in zip(cases, results):
-        row = by_kind.setdefault(group_of(case), [0, 0])
-        row[1] += 1
-        row[0] += not bad
     fired: dict[str, int] = {}
     for _, got, _ in results:
         for r in got.get("repairs") or []:
             fired[r] = fired.get(r, 0) + 1
     failed = sum(1 for _, got, _ in results if got["handled_by"] == "model_failed")
-    summary = {"cases": n, "right": n - len(wrong), "wrong": wrong, "model_failed": failed, "intercept_took_wrongly": taken_wrong, "intercept_missed": missed,
-               "by_kind": {k: f"{r}/{t}" for k, (r, t) in sorted(by_kind.items())}, "repairs": dict(sorted(fired.items(), key=lambda x: -x[1]))}
+    right = [got for name, got, bad in results if not bad and name not in owed]          # (f648) an owed case is not a rule seen acting rightly
+    acted = {got["handled_by"] for got in right} | {r for got in right for r in got.get("repairs") or []}
+    summary = {"cases": n, "right": n - len(wrong) - len(owed), "wrong": wrong, "owed": owed, "model_failed": failed,
+               "intercept_took_wrongly": taken_wrong, "intercept_missed": missed,
+               "by_kind": {k: f"{r}/{t}" for k, (r, t) in sorted(by_kind.items())}, "repairs": dict(sorted(fired.items(), key=lambda x: -x[1])),
+               "acted": sorted(acted - {"interpret", "nothing"}),                                  # (f648) every rule seen to act on a case it got right
+               "held_off": sorted({r for c in cases if c["name"] not in owed and c["name"] not in wrong
+                                   for r in (c.get("expect") or {}).get("not_by") or []})}                # a rule seen held off, by a case it got right
     if not quiet:
-        print(f"\n{summary['right']}/{n} right; intercepts took {taken_wrong} line(s) that were not theirs and missed {missed} that were"
+        print(f"\n{summary['right']}/{n} right" + (f", {len(owed)} owed" if owed else "")
+              + f"; intercepts took {taken_wrong} line(s) that were not theirs and missed {missed} that were"
               + (" (live: the model's reading counted)" if live else " (offline: the model's reading is the case's own)")
               + (f"; the model gave no usable reading {failed} time(s)" if failed else ""))
         print("by kind: " + ", ".join(f"{k} {v}" for k, v in summary["by_kind"].items()))
