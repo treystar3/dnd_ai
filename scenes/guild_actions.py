@@ -291,10 +291,18 @@ class GuildActions:
                 status = "not yet"
             else:
                 status = f"{quests.held(q, self.pack, self.player_of(self.acting).quests)}/{q['count']}"
-            who = (f"for {q['issuer_name']}" if q.get("issuer_name") else "") + (f": {q['reason']}" if q.get("reason") else "")
+            who = self.payer_words(q) + (f": {q['reason']}" if q.get("reason") else "")
             rows.append({"id": q["id"], "letter": q["letter"], "title": q["title"], "for": who.strip(), "guild": bool(q["guild"]),
                          "status": status, "ready": ready})
         return rows
+
+    @staticmethod
+    def payer_words(q: dict) -> str:
+        """(f678) Who pays a contract, as the pane says it: the guild (and who asked for it, when someone did), or the one who asked."""
+        name = q.get("issuer_name") or ""
+        if q["guild"]:
+            return "for the guild" + (f", asked by {name}" if name and q.get("issuer") != "guild" else "")
+        return f"for {name}" if name else ""
 
     def rank_data(self) -> dict | None:
         """(f327) What the next guild rank asks for, as the pane's three bars."""
@@ -316,7 +324,7 @@ class GuildActions:
             console.note("You have no contracts or requests in hand.")
         for q in self.player.quests:
             console.note(self.arc_lines(q) or quests.progress_line(q, self.pack, self.minutes, self.player_of(self.acting).quests)
-                         + (f"  (for {q['issuer_name']}: {q['reason']})" if q.get("reason") else ""))
+                         + (f"  ({self.payer_words(q)}: {q['reason']})" if q.get("reason") else ""))
         if self.rank:
             nxt = quests.next_rank(self.rank)
             if nxt:

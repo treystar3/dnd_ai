@@ -92,7 +92,7 @@ ws.player.quests = [
     {"id": "q4", "letter": "E", "title": "Old news", "kind": "hunt", "count": 2, "progress": 0, "guild": True, "deadline": now - 10},
 ]
 r = {q["id"]: q for q in ws.quest_rows()}
-check("a contract row says how far along, for whom and why", r["q1"]["status"] == "2/3" and r["q1"]["for"] == "for Hob Marl: four ewes gone this week" and not r["q1"]["ready"], r["q1"])
+check("a contract row says how far along, for whom and why", r["q1"]["status"] == "2/3" and r["q1"]["for"] == "for the guild, asked by Hob Marl: four ewes gone this week" and not r["q1"]["ready"], r["q1"])
 # (f491) no contract has a time limit: no row says how long is left, and one an older save gave a deadline that has passed is still in hand
 check("a delivery and a finished one read so, and no row tells time left", r["q2"]["status"] == "to deliver" and r["q3"]["ready"] and r["q3"]["status"] == "ready to turn in"
       and not any(k in row for row in r.values() for k in ("left", "urgent")), r)
