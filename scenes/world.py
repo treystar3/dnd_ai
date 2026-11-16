@@ -1449,6 +1449,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         target_id = intent.target if intent.target not in ("", "none", "null") else ""
         if target_id and not any(n.id == target_id for n in self.present) and not self.store.npc_exists(target_id):
             target_id = ""
+        payer = self.payer_for_handin(intent, text)
+        if payer:
+            intent.target = target_id = payer                            # (f691) work handed in goes to the one here who pays for it
         target_id = target_id or (self.partner.id if self.partner else "") or (self.last_spoken or "")
         if not target_id:
             return

@@ -576,6 +576,10 @@ def check() -> list[str]:
             re.compile(RD_[path_[0]][path_[1]])
         except (KeyError, re.error) as e_:
             need(False, f"road.yaml {'.'.join(path_)}: {e_}")
+    try:
+        re.compile(_load("data/rules/guild.yaml")["handin_words"])                     # (f691)
+    except (KeyError, re.error) as e_:
+        need(False, f"guild.yaml handin_words: {e_}")
     for t_ in Q.get("in_need", {}).get("kind", []) + Q.get("in_need", {}).get("hard", []):
         need(t_ in Q.get("blueprints", {}), f"quirks.yaml in_need: '{t_}' is not a temperament")
     from engine import voices as _vk                                                         # (f431) a blueprint line a kit forbids

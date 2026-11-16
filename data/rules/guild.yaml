@@ -106,6 +106,9 @@ recipient_words:
 # finding the one name a delivery's words give.
 recipient_titles: [captain, lady, lord, mother, father, old, young, sister, brother, master, mistress, sir, dame, goodwife, goodman,
                    aunt, uncle, elder, granny, gran]
+# (f691) Words a talk uses to hand finished work in: said to someone here who pays for none of it, the talk goes to the one here who
+# does. "Turn in" needs what is turned in: alone it is going to bed.
+handin_words: '\bhand(s|ed|ing)?\s+(?:(?:it|them|these|those|this|that|everything|(?:the|my|our|all|both)(?:\s+\w+){1,2})\s+)?in\b(?!\s+hand)|\bturn(s|ed|ing)?\s+(?:it|them|these|those|this|that|everything|(?:the|my|our|all|both)(?:\s+\w+){1,2})\s+in\b|\bturn(s|ed|ing)?\s+in\s+(?:the|my|our|these|those|this|that|all|both|it|them)\b|\b(claim|collect)(s|ed|ing)?\s+(my|our|the)\s+(pay|reward|bounty|coin|fee)\b'
 # (f682) Words a line uses to take a posting that name none: what is left names the posting asked for, and a number is read as a place
 # on the board only when nothing is left.
 taking_words: [take, takes, taking, accept, accepts, contract, contracts, posting, postings, board, want, would, like, please, sign,

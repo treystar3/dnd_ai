@@ -552,6 +552,24 @@ class GuildActions:
                 return True
         return False
 
+    def payer_for_handin(self, intent, text: str) -> str:
+        """(f691) The one here who pays for finished work, when a talk hands work in to no one or to someone here who pays for none of
+        it; '' otherwise, and when the line names its listener or more than one here would pay."""
+        if not re.search(G["handin_words"], f"{intent.speech} {intent.summary}", re.I):
+            return ""
+        if intent.target not in ("", "none", "null") and not any(n.id == intent.target for n in self.present):
+            return ""                                                   # one of this town elsewhere: the walk to them is theirs
+        me = self.player_of(self.acting)
+        clerk, here = self.clerk_here(), {n.id for n in self.present}
+        payers = {(clerk.id if clerk else "") if q["guild"] else (q["issuer"] if q["issuer"] in here else "")
+                  for q in me.quests if quests.done(q, self.pack, me.quests)} - {""}
+        if len(payers) != 1 or intent.target in payers:
+            return ""
+        them = next((n for n in self.present if n.id == intent.target), None)
+        if them and self.named_here(text) == intent.target or (them and them.name and re.search(rf"\b{re.escape(them.name.split()[0])}\b", text, re.I)):
+            return ""
+        return next(iter(payers))
+
     def turn_in(self, to: str | None = None) -> list[str]:
         """Pay out finished contracts to the clerk (a guild contract) or the one who asked (a personal request). (f378) `to` is the person
         the player is speaking to or handing the work to, and only what they pay for is handed in: walking into the hall no longer does
