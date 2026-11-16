@@ -108,6 +108,8 @@ recipient_titles: [captain, lady, lord, mother, father, old, young, sister, brot
                    aunt, uncle, elder, granny, gran]
 # (f691) Words a talk uses to hand finished work in: said to someone here who pays for none of it, the talk goes to the one here who
 # does. "Turn in" needs what is turned in: alone it is going to bed.
+# (f694) Who pays for finished work, named to the player when that one is not the listener and no one is here to name.
+payer_words: {guild: "the guild clerk", asker: "the one who asked"}
 handin_words: '\bhand(s|ed|ing)?\s+(?:(?:it|them|these|those|this|that|everything|(?:the|my|our|all|both)(?:\s+\w+){1,2})\s+)?in\b(?!\s+hand)|\bturn(s|ed|ing)?\s+(?:it|them|these|those|this|that|everything|(?:the|my|our|all|both)(?:\s+\w+){1,2})\s+in\b|\bturn(s|ed|ing)?\s+in\s+(?:the|my|our|these|those|this|that|all|both|it|them)\b|\b(claim|collect)(s|ed|ing)?\s+(my|our|the)\s+(pay|reward|bounty|coin|fee)\b'
 # (f682) Words a line uses to take a posting that name none: what is left names the posting asked for, and a number is read as a place
 # on the board only when nothing is left.

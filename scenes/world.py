@@ -3535,6 +3535,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if handed:
             check_note = (check_note + " [THE GAME HAS DECIDED: the stranger has handed in " + "; ".join(handed)
                           + ". It is done, recorded and paid; you may say so in your own way, without the figures.]").strip()
+        untaken = self.handin_untaken(intent, npc.id)                       # (f694) work handed in that this listener does not take
+        from engine import told
+        for who, here in dict.fromkeys((w, h) for _, w, h in untaken):
+            titles = " and ".join(f'"{t}"' for t, w, h in untaken if (w, h) == (who, here))
+            console.note(told.say("handin_other" if here else "handin_away", self.store.meta.turn, titles=titles, who=who))
+            check_note = (check_note + f" [THE GAME HAS DECIDED: nothing is handed in to you or paid by you for {titles}: the one who pays"
+                          f" for that is {who}{'' if here else ', who is not here'}. You cannot take the work or pay for it.]").strip()
         from engine import matters, court, stakes
         matters.bind_for(self.store, self.world, npc)                    # (f317) a clue written for their role settles on them
         from engine import situation_parts

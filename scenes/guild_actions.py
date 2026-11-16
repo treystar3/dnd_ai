@@ -570,6 +570,26 @@ class GuildActions:
             return ""
         return next(iter(payers))
 
+    def handin_untaken(self, intent, listener: str) -> list[tuple[str, str, bool]]:
+        """(f694) (title, who pays, whether they are here) for each piece of finished work a talk hands in that this listener does
+        not take: the guild clerk pays for guild work, the asker for a request. Empty when the words hand nothing in."""
+        if not re.search(G["handin_words"], f"{intent.speech} {intent.summary}", re.I):
+            return []
+        me = self.player_of(self.acting)
+        clerk, here = self.clerk_here(), {n.id for n in self.present}
+        out = []
+        for q in me.quests:
+            payer = (clerk.id if clerk else "") if q["guild"] else q.get("issuer", "")
+            if payer == listener or not quests.done(q, self.pack, me.quests):
+                continue
+            if q["guild"]:
+                who = clerk.label(self.acting) if clerk else G["payer_words"]["guild"]
+            else:
+                asker = self.store.load_npc(payer) if payer and self.store.npc_exists(payer) else None
+                who = asker.label(self.acting) if asker else q.get("issuer_name") or G["payer_words"]["asker"]
+            out.append((q["title"], who, payer in here))
+        return out
+
     def turn_in(self, to: str | None = None) -> list[str]:
         """Pay out finished contracts to the clerk (a guild contract) or the one who asked (a personal request). (f378) `to` is the person
         the player is speaking to or handing the work to, and only what they pay for is handed in: walking into the hall no longer does
