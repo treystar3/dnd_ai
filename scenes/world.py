@@ -3855,6 +3855,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if self.wildlife:                                        # a fighting ability turned on something hostile starts the fight with it
                 self.on_attack(intent, text, opener=ability.id)
                 return
+            if ability.effect.value in ("damage", "control") and self.hunt_named(intent, text):   # (f685) at a creature here: go looking,
+                self.open_with(ability.id, text)                                     # and the found fight begins with it
+                return
             self.refuse(f"{ability.name} is a fighting technique - save it for a fight"
                          + (" (name it as you start one, or set it with #prebuff)." if ability.effect.value == "buff" else "."))
             return
@@ -4104,17 +4107,38 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         after Beast-Breaker's Eye had listed them among the things that live here (pillar 1: what is shown can be acted on). A creature of
         this place's roster that the player names is sought the way a search seeks it, the same roll and the same minutes, and the fight
         begins if it is found; the player is told first that none is at hand. Nothing named, or a place with nothing dangerous: False."""
-        words = (intent.target or intent.seek or "").strip() or text
-        if not words or not self.place.danger:
+        if not self.place.danger:
             return False
         roster = encounters.ensure_roster(self.store, self.world, self.player.location)
-        found = encounters.matching(self.world, roster, words) if roster else []
+        words = (intent.target or intent.seek or "").strip() or text
+        found = encounters.matching(self.world, roster, words) if roster and words else []
+        if not found and words != text and not any(n.id == intent.target for n in self.present):
+            found = self.creature_named(roster, text)                    # (f685) the line's own words, when the target is no one here
         if not found:
             return False
         name = self.world.bestiary[found[0]].name
         console.note(f"No {name.lower()} is within reach just now, though they are about these parts. You go looking.")
         self.on_search(ActionIntent(kind="search", seek=name, summary=f"hunting {name}"), text)
         return True
+
+    def creature_named(self, roster: list, text: str) -> list:
+        """(f685) The creature of the roster a line names by whole words: its whole name first ("awakened tree"), else the word it is
+        ("tree", "ogres"), each word as one of its kind. Never a part of a word ("the" is no panther)."""
+        from engine import inventory as inv
+        said = {inv._stem(w) for w in re.findall(r"[a-z]+", (text or "").lower())}
+        named = [(cid, [inv._stem(w) for w in re.findall(r"[a-z]+", self.world.bestiary[cid].name.lower()) if w not in ("of", "the")])
+                 for cid in roster if cid in self.world.bestiary]
+        whole = [cid for cid, ws_ in named if ws_ and all(w in said for w in ws_)]
+        return whole or [cid for cid, ws_ in named if ws_ and ws_[-1] in said][:1]
+
+    def open_with(self, ability_id: str, text: str) -> None:
+        """(f685) The fight a hunt just found begins with the ability the player named: in view and wary, it starts the fight; already on
+        them, it is the first blow."""
+        if self.wildlife:
+            self.on_attack(ActionIntent(kind="attack"), text, opener=ability_id)
+        elif self.combat is not None and not self.combat.fight.over:
+            from llm.contracts import CombatIntent
+            self.combat.turn(text, forced=CombatIntent(kind="ability", ability=ability_id))
 
     def on_wait(self, intent: ActionIntent, text: str) -> None:
         barrow = (self.dungeon_here() or {}).get("theme") == "barrow"
