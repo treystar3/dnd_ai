@@ -117,6 +117,45 @@ Your reply:
 Respond only with JSON matching the schema."""            # (f307) townsfolk talk like people too: the shared style rules; (f583) the voice shown at the end of each request; and they know their world
 
 
+SPEAK_SYSTEM = """You play one ordinary person in the fantasy world of Meravia, and you write what they say. The request gives who
+you are first, then what is around you, then what was just said to you, and last what you do with it.
+Stay true to them: their traits, personality, voice and concern decide how open, warm, guarded or honest they sound.
+WHAT YOU DO IN THIS REPLY is settled by the game. Do that, in your own manner, and no other thing. It is never words to say.
+WHAT YOU TELL THEM is what you tell in this reply: say all of it, in your own words. Tell nothing else you know of the town, its news
+or other people's business; when nothing is listed there, you tell nothing of the kind this time.
+When THEY SAY ends with [THE GAME HAS DECIDED: ...], that outcome is fact: your reply follows it.
+RIGHT NOW YOU ARE, when it is given, is how you are for this conversation. HOW YOU TALK describes your way of speaking; it is never
+words to say. WORDS YOU MAY USE are the only lines given to you to say as they are, and only if they fit.
+
+What you know:
+- Only what this request gives you: what is plainly around you (WHERE, WHO IS HERE, the TIME and its weather), your memories, and
+  what you tell. Do not describe weather that contradicts it.
+- Everyone under WHO IS HERE is in the same place as you right now; a neighbour you know by name, a stranger by their look.
+- You know the people under PEOPLE YOU KNOW and where they usually are, never where anyone is at this exact moment unless they are
+  here with you. Asked about someone not given to you, you have not heard of them.
+- You may share opinions, guesses or feelings, but never present invented information about the wider world as true. If you do not
+  know, say so, turn it aside, or guess openly as a guess. The one exception: when WHAT YOU DO IN THIS REPLY says that what you say
+  is not so, you answer what was asked with something false, said as if it were true: small and ordinary, and naming no new person
+  or place.
+- For directions, only places under PLACES NEARBY and WHAT THIS TOWN HAS (given when the talk is about the town). Never invent a lane,
+  a landmark, a building, a shop, a craftsman or their name: name the one there is, or say there is none here.
+- Work posted at the guild is only what ON THE GUILD BOARD lists, when it is given. Where herbs grow and game is hunted is only what
+  THE LAND AROUND YOU lists, with its places and distances, exactly as listed.
+- You know the person in front of you only as described, and their name only if your memories give it. Never assume anything about
+  them (their past, deeds, papers, reputation or plans) beyond what they have said or done in this conversation and what your
+  memories record.
+- Use only this world's terms. No real-world religions, holy days, months or weekdays, and do not invent gods, spirits or religious
+  practices.
+
+Your answer:
+  speech: what you say aloud, in your voice. On what matters to you or what you know well, answer as a real person does: with detail,
+    feeling and a little of yourself. No narration inside it. Open on what you have to say, not on a stock word ("Well", "Oh", "Aye" only
+    when they carry something, never two lines running). Trailing dots at most once, only where a thought is really dropped.
+  gesture: optional body language, no name or pronoun at the start (e.g. "wipes her hands on her apron").
+""" + __import__("engine.quirks", fromlist=["style_block"]).style_block() + "\n" + __import__("llm.prompts", fromlist=["WORLD_RULES"]).WORLD_RULES + """
+Respond only with JSON matching the schema."""            # (f726) the words alone, the decision made (npc/life.py speak): no field but speech and gesture
+
+
 DECIDE_SYSTEM = """You decide what one person in the fantasy world of Meravia does with what was just said to them. You do not write
 their words: those are written afterwards, from what you decide. Decide as this person would, from who they are, how they are
 today, how far they trust the one in front of them, and what they know.
@@ -141,16 +180,18 @@ Your answer:
     offers_work.
   offers_work: only when they offer paid work right now: task a short phrase, minutes it should take, pay in copper at honest
     village rates. Never work they have already offered.
+  journal_note: only when JOURNAL NOTE DUE ends the request; it says what to write.
 A line in square brackets that begins THE GAME HAS DECIDED is fact: decide in keeping with it.
 Respond only with JSON matching the schema."""            # (f725) the reading before they speak (npc/life.py decide)
 
 
 def decide_request(npc, place, convo: list[tuple[str, str]], player_text: str, stance: str, move: str, could: list, most: int,
                    given: list[str] = (), *, who: str, work: dict | None = None, pronoun: str = "", promised: bool = False,
-                   forced: list[str] = ()) -> str:
+                   forced: list[str] = (), sells: list[str] = (), memories: str = "", note: str = "") -> str:
     """(f725) The request for the reading: who they are in three lines, how they are with the one in front of them, the stance and
     the move in plain words, the game's lines that bear on what they do, what they could tell (one line an id; `forced`: the ids
-    the game has decided they tell; with a move that tells nothing, none is shown), the talk's last lines, and what was said."""
+    the game has decided they tell; with a move that tells nothing, none is shown), the talk's last lines, and what was said.
+    (f726) Also what they remember of this character, what they sell, and the rule for the journal note when one is due."""
     free = [c for c in could if c.id not in forced]
     rows = [f"  [{c.id}] {' '.join(c.text.split())} (the game has decided: you tell this)" for c in could if c.id in forced]
     if most >= 1:
@@ -166,14 +207,17 @@ def decide_request(npc, place, convo: list[tuple[str, str]], player_text: str, s
         _who(npc, place)
         + f"PERSONALITY: {npc.personality}\nON YOUR MIND: {npc.concern}\n"
         + _them(npc, who, pronoun) + "\n"
+        + (f"YOUR MEMORIES OF THEM:\n{memories}\n" if memories else "")
         + (f"RIGHT NOW YOU ARE: {stance}\n" if stance else "")
         + f"WHAT YOU DO WITH WHAT THEY SAY: {move}\n"
+        + (("YOUR WARES (fixed prices):\n" + "\n".join(f"  - {w}" for w in sells) + "\n") if sells else "")
         + (f"WORK YOU HAVE OFFERED THEM (not yet done): {work['task']} for {work['pay']} copper\n" if work else "")
         + (("WHAT ELSE IS SO RIGHT NOW:\n" + "\n".join(f"  - {x}" for x in given) + "\n") if given else "")
         + tell
         + f"THIS CONVERSATION SO FAR:\n{so_far}\n"
         + f'THEY SAY: "{player_text}"'
         + (f"\nA PROMISE? {PROMISE_ASK}" if promised else "")
+        + (f"\n{note}" if note else "")
     )
 
 
@@ -247,6 +291,90 @@ def conversation_prompt(npc, place, trait_lines: list[str], facts, convo: list[t
     return p
 
 
+def speak_prompt(npc, place, trait_lines: list[str], convo: list[tuple[str, str]], player_text: str, nearby: list[str],
+                 people_known: list[str], time_label: str = "", wares: list[str] = (), extra: list[str] = (), land: list[str] = (),
+                 truth_text: str = "", stance: str = "", voice_fact: str = "", voice_lines: list[str] = (), material: list[str] = (),
+                 unsaid: str = "", worn: list[str] = (), now: int | None = None, *, who: str, work: dict | None = None, pronoun: str = "",
+                 exemplars: str = "", does: list[str] = (), tells: list[str] = ()):
+    """(f726) The request for the words alone, the decision made (docs/design/28_phase4_plan.md A4), in typed parts as a reply's
+    is. The person first: who they are, how they are with the one in front of them and what they remember of them, how they
+    talk. Then what is plainly around them (the truth's view, once), and what else is theirs to know. Then the talk, and what
+    was said. Last the decision: `does`, in plain words (engine/reply.py words), and `tells`, the things decided in full (told).
+    Nothing they could have told and did not is here, nor the line naming what else they know."""
+    from engine.prompt import Prompt
+    p = Prompt()
+    p.fact(_card(npc, place, trait_lines).rstrip())
+    from engine import memory as _memory
+    from engine import reply as _reply
+    days = memories(npc, now, int(_reply.R["speak"]["lived"]), keep=_memory.lived)
+    p.fact(_them(npc, who, pronoun) + "\nYOUR MEMORIES OF THEM:\n" + memories(npc, now, keep=lambda m: _memory.of(m, who))
+           + (f"\nYOUR OWN DAYS LATELY:\n{days}" if days.strip() != "(none)" else ""))
+    if stance:
+        p.instruction(stance, "RIGHT NOW YOU ARE")
+    if voice_fact:
+        p.fact(voice_fact, "YOUR PEOPLE")
+    if voice_lines:
+        p.instruction("\n".join(f"- {l}" for l in voice_lines), "HOW YOU TALK")
+    if material:
+        p.material("\n".join(f"- {m}" for m in material), "WORDS YOU MAY USE THIS TIME, AS THEY ARE (only if they fit)")
+    samples = (getattr(npc, "speech", None) or {}).get("samples") or []
+    if samples:
+        p.history("\n".join(f"- {s}" for s in samples), "HOW YOU SOUND (things you have said: the way you talk, to keep; never say these again)")
+    p.fact(f"TIME: {time_label}\n"
+           + (truth_text + "\n" if truth_text else f"YOUR PLACE: {place.name}\n" + "\n".join(f"  - {v}" for v in place.visible) + "\n")
+           + f"PEOPLE YOU KNOW: {'; '.join(people_known) or 'no one in particular'}\n"
+           f"PLACES NEARBY: {', '.join(nearby) or 'none'}"
+           + (("\nTHE LAND AROUND YOU (what everyone here knows of where things grow and are hunted):\n" + "\n".join(f"  - {x}" for x in land)) if land else ""))
+    p.fact((("WHAT YOU SELL (fixed prices: quote them exactly. They pay through the game when they agree, so never pretend coins "
+             "have already changed hands):\n" + "\n".join(f"  - {w}" for w in wares) + "\n\n") if wares else "")
+           + (f"WORK YOU HAVE OFFERED THEM (not yet done): {work['task']} for {work['pay']} copper\n\n" if work else "")
+           + (("RIGHT NOW YOU ALSO KNOW:\n" + "\n".join(f"  - {x}" for x in extra)) if extra else ""))
+    p.history(unsaid)
+    if worn:
+        p.instruction(", ".join(worn), "WORDS PEOPLE HERE HAVE WORN OUT (said again and again lately; find other words)")
+    so_far = "\n".join(f"  {who_}: {what}" for who_, what in convo[-10:]) or "  (this is the start of the conversation)"
+    p.history(so_far, "THIS CONVERSATION SO FAR")
+    p.instruction(exemplars)
+    p.fact(f'THEY SAY: "{player_text}"')
+    p.instruction(_listed(does), "WHAT YOU DO IN THIS REPLY (the game has settled it)")
+    if tells:
+        p.fact(_listed(tells), "WHAT YOU TELL THEM (true, and yours to tell: all of it, in your own words)")
+    else:
+        p.instruction("Nothing of the town, its news or other people's business this time.", "WHAT YOU TELL THEM")
+    return p
+
+
+def _listed(lines) -> str:
+    """One thing as it is; several, a line each."""
+    lines = list(lines)
+    return lines[0] if len(lines) == 1 else "\n".join(f"- {x}" for x in lines)
+
+
+def memories(npc, now: int | None, last: int = 12, keep=None) -> str:
+    """What they remember, the latest `last`, a line each; '  (none)' when there is nothing. keep (f726): which rows, for a reply
+    made from a decision (engine/memory.py of, lived): those about the character in front of them, or those of their own days.
+    With none, as a whole reply's request has it: every row but their own life's."""
+    from engine import clock
+    from engine import memory as _memory
+    shared = [m for m in npc.memories if (keep(m) if keep is not None else m.kind != "own_life")]   # their own life is given separately (f478: by kind)
+    shared = shared[-last:] if last > 0 else []
+    return "\n".join(f"  - {clock.ago_day(m.day, now, npc.id) if now is not None else f'day {m.day}'}: {_memory.render(m.text)}"   # (f477) from now, in words
+                     for m in shared) or "  (none)"
+
+
+def _card(npc, place, trait_lines) -> str:
+    """Who they are: the head of a reply's request and (f726) of the request for the words alone."""
+    traits = "\n".join(f"  - {t}" for t in trait_lines)
+    return (
+        _who(npc, place)
+        + f"LOOKS: {npc.description}\nPERSONALITY: {npc.personality}\n"
+        + (f"VOICE: {npc.voice}\n" if npc.voice and (not (getattr(npc, "speech", None) or {}).get("kit")                # (f350) a kit under HOW YOU TALK is the voice,
+                                                    or (getattr(npc, "speech", None) or {}).get("own_voice")) else "")     # (f374) unless the person was written by hand
+        + f"ON YOUR MIND: {npc.concern}\nRIGHT NOW: {npc.activity}\n"
+        f"TRAITS (how you decide and react; never a subject you bring up):\n{traits}\n"
+    )
+
+
 def _who(npc, place) -> str:
     return f"YOU ARE: {npc.name}, a {npc.people.replace('_', '-')} {npc.role.replace('_', ' ')} at {place.name}.\n"
 
@@ -266,15 +394,9 @@ def _them(npc, char_id: str, pronoun: str = "") -> str:
 
 
 def _identity(npc, place, trait_lines, time_label, nearby, here_with, people_known, buildings, truth_text, land) -> str:
-    traits = "\n".join(f"  - {t}" for t in trait_lines)
     return (
-        _who(npc, place)
-        + f"LOOKS: {npc.description}\nPERSONALITY: {npc.personality}\n"
-        + (f"VOICE: {npc.voice}\n" if npc.voice and (not (getattr(npc, "speech", None) or {}).get("kit")                # (f350) a kit under HOW YOU TALK is the voice,
-                                                    or (getattr(npc, "speech", None) or {}).get("own_voice")) else "")     # (f374) unless the person was written by hand
-        + f"ON YOUR MIND: {npc.concern}\nRIGHT NOW: {npc.activity}\n"
-        f"TRAITS (how you decide and react; never a subject you bring up):\n{traits}\n\n"
-        f"TIME: {time_label}\n"
+        _card(npc, place, trait_lines) + "\n"
+        + f"TIME: {time_label}\n"
         f"YOUR PLACE: {place.name}\n" + "\n".join(f"  - {v}" for v in place.visible) + "\n"
         + (f"HERE WITH YOU: {'; '.join(here_with) or 'no one'}\n" if here_with or not truth_text else "")
         + f"PEOPLE YOU KNOW: {'; '.join(people_known) or 'no one in particular'}\n"
@@ -286,11 +408,6 @@ def _identity(npc, place, trait_lines, time_label, nearby, here_with, people_kno
 
 
 def _knowledge(npc, facts, convo, wares, extra, now: int | None, char_id: str, work: dict | None = None, pronoun: str = "") -> str:
-    from engine import memory as _memory
-    shared = [m for m in npc.memories if m.kind != "own_life"]        # their own life is given separately (f478: by kind, not by a prefix)
-    from engine import clock
-    memories = "\n".join(f"  - {clock.ago_day(m.day, now, npc.id) if now is not None else f'day {m.day}'}: {_memory.render(m.text)}"   # (f477) from now, in words
-                         for m in shared[-12:]) or "  (none)"
     known = "\n".join(f"  [{f.id}] {' '.join(f.text.split())}" for f in facts) or "  (nothing in particular)"
     return (
         _them(npc, char_id, pronoun) + "\n\n"
@@ -301,5 +418,5 @@ def _knowledge(npc, facts, convo, wares, extra, now: int | None, char_id: str, w
         + (f"WORK YOU HAVE OFFERED THEM (not yet done): {work['task']} for {work['pay']} copper\n\n"     # (f481) the offer that stands
            if work else "")
         + (("RIGHT NOW YOU ALSO KNOW:\n" + "\n".join(f"  - {x}" for x in extra) + "\n\n") if extra else "") +
-        f"YOUR MEMORIES OF THEM:\n{memories}"
+        f"YOUR MEMORIES OF THEM:\n{memories(npc, now)}"
     )

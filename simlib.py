@@ -198,6 +198,13 @@ class Stub:
         extra = getattr(self, "decide_extra", None)
         return {"intent": "small_talk", **((extra(u, k) if callable(extra) else extra) or {})}
 
+    def a_NPCSpeech(self, u, k):
+        """(f726) What a townsperson says, the decision made: the reply's planted words (reply_extra's speech and gesture), or what
+        a test planted for the words alone (speech_extra: the fields, or a function of the request that gives them)."""
+        planted = {f: v for f, v in (getattr(self, "reply_extra", None) or {}).items() if f in ("speech", "gesture")}
+        extra = getattr(self, "speech_extra", None)
+        return {"speech": "Quiet enough, most days.", **planted, **((extra(u, k) if callable(extra) else extra) or {})}
+
     def a_NPCReplyMany(self, u, k):
         """(f487) One block per character the format names, or what a test planted (many_extra: a list of blocks, as given)."""
         ids = (((k["format"].get("$defs") or {}).get("NPCAnswer") or {}).get("properties") or {}).get("to", {}).get("enum") or []

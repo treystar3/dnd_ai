@@ -33,6 +33,18 @@ def offer_open(store, npc, who: str) -> dict | None:
     return dict(e.data.get("terms") or {}) if e is not None else None
 
 
+def settled(offer) -> WorkOffer | None:
+    """(f726) An offer of work held to honest wages, or None when it names no real task (empty, 'none', a template echo). The one
+    rule, for an offer recorded and for one a person is about to speak of (engine/reply.py take)."""
+    task = offer.task.strip()
+    if not task or task.lower() in PLACEHOLDER_TASKS or "with the work described" in task.lower():
+        return None
+    minutes = max(15, min(W["max_minutes"], offer.minutes or 60))
+    fair = W["wage_per_hour"] * minutes / 60
+    pay = round(max(fair * (1 - W["wage_spread"]), min(fair * (1 + W["wage_spread"]), offer.pay or fair)))
+    return WorkOffer(task=task, pay=max(1, pay), minutes=minutes)
+
+
 class WorkActions:
     REPAIRS = (plan_repairs.Repair("carcass_part", 168, "carcass_part",
                                    "a part a fresh kill here yields, named in an improvised step or a pick-up of nothing lying here, is the harvest (f690)"),)
@@ -97,20 +109,17 @@ class WorkActions:
 
     def record_work_offer(self, offer, npc) -> None:
         """Keep an NPC's job offer, held to honest wages. An offer with no real task (empty, 'none', a template echo) is not an offer."""
-        task = offer.task.strip()
-        if not task or task.lower() in PLACEHOLDER_TASKS or "with the work described" in task.lower():
-            console.debug(f"work offer thrown out: task '{task}' is not a real job")
+        got = settled(offer)
+        if got is None:
+            console.debug(f"work offer thrown out: task '{offer.task.strip()}' is not a real job")
             return
-        minutes = max(15, min(W["max_minutes"], offer.minutes or 60))
-        fair = W["wage_per_hour"] * minutes / 60
-        pay = round(max(fair * (1 - W["wage_spread"]), min(fair * (1 + W["wage_spread"]), offer.pay or fair)))
         from engine import obligations                     # (f481) an offer in the registry; a second one withdraws the first, for that reason
         obligations.close(self.store, obligations.current(self.store, "work", npc.id, self.acting), "withdrawn", "other_work", self.minutes, npc=npc)
-        obligations.open_(self.store, "work", npc.id, self.acting, offer.task.strip(), self.minutes,
-                          terms={"task": offer.task.strip(), "pay": max(1, pay), "minutes": minutes})
+        obligations.open_(self.store, "work", npc.id, self.acting, got.task, self.minutes,
+                          terms={"task": got.task, "pay": got.pay, "minutes": got.minutes})
         self.store.save_npc(npc)
-        console.debug(f"Work offered: {offer.task.strip()} - {money.words(pay)}, about "
-                     f"{clock.describe_duration(minutes)}.")
+        console.debug(f"Work offered: {got.task} - {money.words(got.pay)}, about "
+                     f"{clock.describe_duration(got.minutes)}.")
 
     def worker_for(self, intent):
         for nid in (intent.target, self.partner.id if self.partner else "", self.last_spoken or ""):

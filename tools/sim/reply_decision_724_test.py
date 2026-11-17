@@ -236,8 +236,9 @@ try:
           d is not None and d.speaker == npc.id and d.to == ws.acting and d.stance == voice_rules.stance_kind(ws.stance)
           and d.move in reply.R["moves"]["kinds"] and all(c.kind in reply.KINDS and isinstance(c.share, bool) for c in d.candidates),
           d)
-    check("...made by the engine: the reply's own call and (f725) the one reading of the line, and nothing a reply did not ask for before",
-          on_calls.get("NPCReply") == 1 and on_calls.get("NPCDecision", 0) <= 1 and set(on_calls) <= set(off_calls) | {"DialogueFrame", "NPCDecision"}
+    check("...made by the engine: then (f725) the one reading of the line and (f726) the words alone, and nothing a reply did not ask for before",
+          on_calls.get("NPCSpeech") == 1 and on_calls.get("NPCDecision", 0) <= 1 and "NPCReply" not in on_calls
+          and set(on_calls) <= set(off_calls) | {"DialogueFrame", "NPCDecision", "NPCSpeech"}
           and "NPCReply" in off_calls and "NPCDecision" not in off_calls, (off_calls, on_calls))
     check("...a line that asks nothing of the board has no posting among what they could share; one that asks for work has",
           not any(c.kind == "board" for c in d.candidates), [c.id for c in d.candidates])
@@ -277,20 +278,26 @@ try:
     stub.plan = None
     check("a line in which no one replies has no decision: it is the line's, never one left over", ws.decision is None, ws.decision)
 
-    # the request is the one it was: the same person, line and dice, with the decision and without
+    # the lore is the lore it was: the same person, line and dice, with the decision and without (f726: one brief for both)
     from npc import life
     from engine import streams
     view = truth.scene_of(ws).view(truth.viewer_for_npc(npc, ws.world), "townsfolk")
-    args = (npc, store, ws.world, ws.catalog, list(ws.convo), "Have you heard any news of the road?", [], view.text(), "", None, [], None, ws.acting, "she")
+    args = [npc, store, ws.world, ws.catalog, list(ws.convo), "Have you heard any news of the road?", [], view.text(), "", None, [], None, ws.acting, "she"]
 
-    def request(decision):
-        rng = random.Random("req")
-        return str(life._request(*args[:9], rng, *args[10:], decision=decision)[0] if decision is not None else life._request(*args[:9], rng, *args[10:])[0])
+    def old_lore():
+        """The lore the old request has for the line, and the request."""
+        prompt, facts, _ = life._request(*args[:9], random.Random("req"), *args[10:])
+        return [str(f.id) for f in facts], str(prompt)
 
-    plain = request(None)
+    def lore_of(decision):
+        """The lore among a decision's candidates, the decision made whole as the speaking makes it."""
+        life._brief(npc, store, ws.world, args[4], args[5], random.Random("req"), ws.acting, decision)
+        return [c.id for c in decision.candidates if c.kind in ("lore", "clue")]
+
+    was, plain = old_lore()
     d2 = reply.Decision(npc.id, ws.acting, around=reply.pieces(view, "Have you heard any news of the road?"))
-    check("the request for the reply is the same with the decision and without (nothing a player reads changes)",
-          request(d2) == plain and "Have you heard" in plain and d2.move in reply.R["moves"]["kinds"], d2.line())
+    check("the lore among a decision's candidates is the lore the old request has for the line (the town's pieces come beside it, never in its place)",
+          lore_of(d2) == was and "Have you heard" in plain and d2.move in reply.R["moves"]["kinds"], (was, d2.line()))
 
     # the same with news in town and a happening in the street: the pieces have ids, come in only as they bear, and the request is the one it was
     from engine import pulse
@@ -315,13 +322,13 @@ try:
         in_play = [c.id for c in ws.decision.candidates]
         check("...in play, the scene's own decision has the piece that bears on the line and neither of the others",
               "news:0" in in_play and "news:1" not in in_play and "happening:0" not in in_play, in_play)
-        args = (npc, store, ws.world, ws.catalog, list(ws.convo), ASK, [], view.text(), "", None, [], None, ws.acting, "she")
-        plain = request(None)
+        args[:] = [npc, store, ws.world, ws.catalog, list(ws.convo), ASK, [], view.text(), "", None, [], None, ws.acting, "she"]
+        was, plain = old_lore()
         d4 = reply.Decision(npc.id, ws.acting, around=(whole, maybe))
-        with_town = request(d4)
+        with_town = lore_of(d4)
         got = [c.id for c in d4.candidates]
-        check("...the request is still the one it was, and of the town's pieces only the one that bears on the line is theirs to share",
-              with_town == plain and "north road" in plain and "news:0" in got and "news:1" not in got and "happening:0" not in got, got)
+        check("...the lore is still the lore it was, and of the town's pieces only the one that bears on the line is theirs to share",
+              with_town == was and "north road" in plain and "news:0" in got and "news:1" not in got and "happening:0" not in got, got)
     finally:
         pulse.news_window, pulse.happenings_at = real_window, real_happen
     regard.own(npc, ws.acting).trust = 5

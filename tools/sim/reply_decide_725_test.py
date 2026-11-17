@@ -3,7 +3,7 @@ engine/reply.py take and fallback, llm/contracts.py NPCDecision, data/rules/repl
 request asks what they do with what was said: the intent, which of the things they could tell they tell (by id, only of those
 the engine offered, no more than the move lets them), the names, what is offered or handed over, what to keep. The engine checks
 the answer as it checks a reply's, and when the reading fails the engine's own candidates are the whole decision. Behind the
-switch: off, no such call is made; on, the reply itself is still asked for as it was (the speaking prompt changes in f726).
+switch: off, no such call is made; on, the words are then asked for with the decision made (f726).
 Run: python tools/sim/reply_decide_725_test.py"""
 import copy
 import sys
@@ -49,10 +49,10 @@ check("a move that tells less than nothing, comes to no intent a reply has, or h
       all(any(w in p for p in found) for w in ("kinds.answer", "kinds.part", "kinds.quiet", "decide.lines")), found)
 check("the reading's intents are a reply's own", INTENTS == set(typing.get_args(contracts.NPCReply.model_fields["intent"].annotation)))
 
-# ---- the task: known to the budget, asked outside an operation's transaction, explained, and no prose for the guard to read
-check("the task is the budget's (required, a small answer), asked outside the transaction, has its reason, and is not read as prose",
+# ---- the task: known to the budget, asked outside an operation's transaction, explained, and (f726) read by the guard: its lines are kept
+check("the task is the budget's (required, a small answer), asked outside the transaction, has its reason, and is read by the guard",
       budget.need("npc_decide") == "required" and budget.B["tasks"]["npc_decide"]["answer_tokens"] <= 120 and "npc_decide" in budget.B["asked_outside"]
-      and "npc_decide" in guard.SKIP and not [p for p in data_check.check() if "npc_decide" in p or "budget.yaml" in p or "audit_log" in p],
+      and guard.guarded("npc_decide") and not [p for p in data_check.check() if "npc_decide" in p or "budget.yaml" in p or "audit_log" in p],
       [p for p in data_check.check() if "npc_decide" in p or "budget.yaml" in p or "audit_log" in p])
 
 # ---- the contract: the ids offered and no others, no more than the move lets them
@@ -143,7 +143,7 @@ real = simlib.below()
 
 def chat(**k):
     t = k["format"].get("title")
-    if t in ("NPCReply", "NPCDecision"):
+    if t in ("NPCReply", "NPCDecision", "NPCSpeech"):
         ASKED.append(t)
         REQ.append((t, k["messages"][0]["content"], k["messages"][1]["content"], k["format"]))
     if t == "NPCDecision" and FAIL[0]:
@@ -194,8 +194,9 @@ try:
         reply.roll_move = forced_move
     d = ws.decision
     asked = [t for t in ASKED]
-    check("with it on, the reading is asked for once, before the reply", asked[:1] == ["NPCDecision"] and asked.count("NPCDecision") == asked.count("NPCReply") >= 1
-          and stub.calls.get("NPCDecision") == asked.count("NPCDecision"), asked)
+    check("with it on, the reading is asked for once, before the words (f726: the words alone, no whole reply)",
+          asked[:1] == ["NPCDecision"] and asked.count("NPCDecision") == 1 and "NPCSpeech" in asked[1:] and "NPCReply" not in asked
+          and stub.calls.get("NPCDecision") == 1, asked)
     check("...and the decision holds what was read, after the engine's checks: the id offered is told, the one never offered is not",
           d is not None and d.read == "model" and d.intent == "share" and (not PICK or d.shares == tuple(PICK[:1])) and "never_offered" not in d.shares
           and d.told_own_name is True and d.answer is not None and "trade" in d.answer.remember, (PICK, d and d.line()))
@@ -203,7 +204,7 @@ try:
           PICK and set(PICK) <= {c.id for c in reply.offered(d)}, (PICK, [c.id for c in d.candidates]))
     check("...the engine says so on the debug console", any(k == "debug" and "decided: move answer" in str(t) and "share" in str(t) for k, t in SHOWN), [t for k, t in SHOWN if k == "debug"][-2:])
     dec = [r for r in REQ if r[0] == "NPCDecision"][-1]
-    on = [r for r in REQ if r[0] == "NPCReply"][-1]
+    on = [r for r in REQ if r[0] == "NPCSpeech"][-1]
     size = len(dec[1]) + len(dec[2])
     check("the reading's request is small: under 6,000 characters, system and all", size < 6000, size)
     check("...it has who they are, what was said, what they do with it in plain words, and what they could tell, one line an id",
@@ -211,11 +212,11 @@ try:
     check("...and not the places around, the index of what else they know, the town's list or how they talk (those are for the speech)",
           not any(w in dec[2] for w in ("PLACES AROUND HERE", "YOU ALSO KNOW OF", "WHAT THIS TOWN HAS", "HOW YOU TALK", "JOURNAL NOTE DUE",
                                         "THE GUILD'S RULES", "The season is", "Your people follow")), dec[2][:300])
-    check("...but how they stand with this character and what they are after are in it, as the reply's request has them",
+    check("...but how they stand with this character and what they are after are in it, as the request for the words has them",
           all(w in dec[2] and w in on[2] for w in ("How people around here regard the stranger", "What you're working toward", "the old boat"))
           and "The season is" in on[2], dec[2][:900])
-    check("the reply itself is still asked for whole: the same rules, the same contract, its own request (the speaking prompt is f726's)",
-          on[1] == off[1] and on[3] == off[3] and "RIGHT NOW YOU ALSO KNOW" in on[2] and "intent" in on[3]["properties"], sorted(on[3]["properties"]))
+    check("the words are then asked for on their own (f726): no intent in that answer, and what they know besides is still theirs",
+          on[1] != off[1] and "RIGHT NOW YOU ALSO KNOW" in on[2] and "intent" not in on[3]["properties"], sorted(on[3]["properties"]))
     check("the talk goes on as it did: they answered, the line stood", ws.stood is True and ws.convo and ws.convo[-1][0] == npc.name, (ws.stood, ws.convo[-1:]))
 
     # a move that tells nothing: no id is offered to the reading at all, and none is told
@@ -271,7 +272,7 @@ try:
         FAIL[0] = False
     d = ws.decision
     check("when the reading fails the engine's own candidates are the decision, and they still speak",
-          d is not None and d.read == "engine" and d.shares == tuple(c.id for c in reply.offered(d))[: K["answer"]["most"]] and "NPCReply" in ASKED and ws.stood is True,
+          d is not None and d.read == "engine" and d.shares == tuple(c.id for c in reply.offered(d))[: K["answer"]["most"]] and "NPCSpeech" in ASKED and ws.stood is True,
           (d and d.line(), ASKED))
     check("...and the line is not counted as broken", not ws.last_crash, ws.last_crash)
 finally:

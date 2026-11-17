@@ -226,7 +226,75 @@ Its answer is speech and a gesture, nothing else. Target: the 95th percentile at
 Everything the engine does with a reply today (memory, trust, offers recorded, names known, the parting) is done from the
 decision, not from the speech. `reveals` are the decided facts whose words the speech carries, as now.
 
-### A5 (f727). The voice in every line; the engine decides when grammar slips (the change to f410)
+**As built (f726, 17 November):**
+
+- **With the switch on a townsperson is asked twice:** the reading (A3), then the words (npc/life.py `speak`), under the same
+  task as before (`npc_conversation`) with a new contract, `NPCSpeech`: speech and a gesture, held to every check a reply's
+  speech was. The old whole reply is not asked for. With the switch off nothing changes: the kept recordings replay with no
+  request different.
+- **The request for the words** (npc/prompts.py `speak_prompt`), in this order: who they are; how they know and trust the one
+  in front of them and what they remember of them; how they are for this talk and how they talk; the hour, then the truth's view
+  of the place and who is here (said once: the old request gave the place's lines twice), the people they know and the places
+  near; what they sell and what else is theirs to know; what they said lately, the talk's last lines, the examples; what was
+  said; and last **what they do in this reply** (the move's words, then what the reading settled, engine/reply.py `words`) and
+  **what they tell** (the decided things in full, no ids, `told`).
+- **What is not in it:** the lore they could have told and did not; the town's news, happenings and postings that were not
+  decided (the truth view leaves a piece out of one reply by its id, engine/truth.py `View.hide`; the ordinary day and "nothing
+  is posted" stay); the line naming what else they know; the rule for the journal note; every rule for a field; and the rows of
+  their memory that are things they hold to tell (a clue of a matter, a fact they overheard) or are about another character.
+- **Their memory, by whom it is about** (engine/memory.py `of`, `lived`): the words get what they remember of the character in
+  front of them, by id, and beside it up to four things of their own days that are about no one (reply.yaml `speak.lived`). The
+  old request gave every row under "your memories of them", whoever it was about; with the switch off it still does.
+- **A posting stays on the board.** When the line asks about the board, every posting is in the request whether or not one was
+  decided: it hangs where anyone reads it. Postings are still among what the reading may choose, so one can be named twice.
+- **One who lies** tells none of what is so, and the rules for speaking now say what a lie is: the one case where they answer
+  with something false as if it were true, small and ordinary, naming no new person or place.
+- **The rules** (`SPEAK_SYSTEM`) are 6,587 characters against the reply's 8,857. What stayed is what no code checks (what they
+  may know and invent, how speech sounds, the shared style and world rules, which are 3,650 of it).
+- **The decision in plain words** is data (reply.yaml `intents`, `tells`): each intent's words, and how a name given, a thing
+  handed over, paid work and a request are told. Checked at startup.
+- **The engine acts from the decision** through the one commit path (`apply_answer`): trust, the meeting, the name they were
+  given, what to remember, the promise. What the player learned is the decided lore and clues whose words the speech carries. A
+  piece of the town's is never kept by its id. Their own name is known when the speech has it, whatever the reading said (a
+  name beginning with a title is matched by its first word only). A leaving still needs a parting in the words (the scene's
+  check, unchanged). **Not held to the words:** a thing handed over, paid work, a request, the trust step and the line to
+  remember are committed from the decision whether or not the speech speaks of them, as the old reply's were from its fields.
+- **Paid work is the engine's figures before they speak of it:** the rule that holds an offer to honest wages is now one function
+  (scenes/work_actions.py `settled`), used when the reading is taken and when the offer is recorded, so what they say is what is
+  recorded. A request the game cannot track is still spoken and then dropped, as before (settling it first would build a
+  place's roster inside the reply).
+- **More checks on the reading** (engine/reply.py `take`): one who lies tells none of what is so; what the game decided they
+  tell is told truly (a reading that would lie, keep it back or refuse comes to a sharing).
+- **The reading is now given** what they remember of this character, by id (the latest four, reply.yaml `decide.memories`), and
+  what they sell, and writes the journal note when one is due (asked for only then; the budget's 80 answer tokens for the
+  reading were set before the note and are to be measured in A6). The guard reads it now that its lines are kept.
+- **Their own work is answered: not in this step.** With the move rolled by the engine, a clerk asked about the board, or a
+  seller asked a price, can roll a move that turns it aside. A rule for that was built with this step and taken out again on
+  review: it is not in the plan, it changes the move rules of A2, and it is the owner's to keep or strike, so it is a feature of
+  its own (f727, below).
+- **A clue is never forced.** Under a move that tells nothing (a joke, a word or two, turning it aside) a clue they hold is not
+  told, and the player asks again. A6's measure is where to see whether that slows a matter.
+- **The examples follow the decision:** the sound of gossip is drawn only when news is told (before: whenever the town had news).
+- **A reply to several characters at once** is not called by the scene today (only by tools/live_check.py); it keeps the old
+  contract and has no decision. When the scene gains that path it takes one of these per speaker (brief.yaml `flat_each`).
+- **Size, estimated, not measured.** Rebuilding the nine townsperson requests of the 17 November gate run by arithmetic
+  (the new rules, less the place's second copy, the index line, the note's rule and the promise's; plus the decision's lines):
+  median about 14,200 to 14,600 characters (was 17,750), 95th about 15,900 to 16,300 (was 19,541). **The target of 14,000 at
+  the 95th is missed by about 2,000 on this estimate.** The reading adds about 4,300, so what is read for one reply, in all,
+  goes up from about 17,750 characters to about 18,500 to 18,900, not down (the reading's answer is short, so the time may
+  still fall; only A6 can say). What is still large and could be given
+  only when the line bears on it, each a change of its own: the town's list when asked (1,500), the faith paragraph (750),
+  the people they know (400 to 700), a seller's wares (300 to 650), and for guild folk the guild's rules (2,500). A6 measures
+  size and time on the real model; whether these are needed is decided there.
+- **The kept recordings** were made again: every input replayed the same, no request different; only the rules' hash moved.
+
+### A4b (f727). Their own work is answered (not in the plan as approved; the owner's to keep or strike)
+
+With the move rolled by the engine, someone asked for the very thing they are there for can roll a move that turns it aside: the
+clerk and the board, the seller and a price. Built as a feature of its own so that striking it is one commit. As built: see its
+notes when it lands.
+
+### A5 (f728). The voice in every line; the engine decides when grammar slips (the change to f410)
 
 The owner's decision: a speaker's voice holds in every line (their words, their rhythm, the sayings the engine offers), and the
 engine decides, reply by reply, whether a slip of grammar shows, telling the model so in plain words either way.
@@ -242,7 +310,7 @@ engine decides, reply by reply, whether a slip of grammar shows, telling the mod
   both, so the kept recordings are made again, each change listed.
 - For townsfolk and companions alike. This feature does not need the switch: it replaces f410 outright, as decided.
 
-### A6 (f728). Companions and the mentor; the measure; the switch
+### A6 (f729). Companions and the mentor; the measure; the switch
 
 - **Companions:** no decide call is needed (a companion's reply has no facts to gate and no offers). The engine's decision for
   them is the move, the subtext and feeling they already have, and the slip. Their prompt is put in the same order (person first,
@@ -302,8 +370,9 @@ passages released a sentence at a time.
 | f724 | The engine's decision for a reply | no |
 | f725 | The decide call | a short run |
 | f726 | The speaking prompt | a short run |
-| f727 | The voice and the slip (f410) | a short run |
-| f728 | Companions; the measure; the switch | yes, two runs, and the owner's reading |
+| f727 | Their own work is answered (added on review of f726; the owner's to keep or strike) | no |
+| f728 | The voice and the slip (f410) | a short run |
+| f729 | Companions; the measure; the switch | yes, two runs, and the owner's reading |
 
 ## Questions for the owner
 

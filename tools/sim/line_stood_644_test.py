@@ -250,7 +250,7 @@ check("a talk that fails on what nobody speaks (who they are, how the line is fr
 from llm import contracts as K
 REPLIES = sorted(n for n, k in vars(K).items() if isinstance(k, type) and getattr(k, "REPLY", False))
 check("the contracts that are someone's reply to the player say so themselves, and one checked like speech for another reason does not",
-      REPLIES == ["CompanionReply", "MentorReply", "NPCReply", "NPCReplyManyBase", "NPCReplyPromised", "Parting"]
+      REPLIES == ["CompanionReply", "MentorReply", "NPCReply", "NPCReplyManyBase", "NPCReplyPromised", "NPCSpeech", "Parting"]
       and all(hasattr(getattr(K, n), "spoken") for n in ("ThreadTelling", "ThreadProposal", "CataclysmProposal", "Exchange")), REPLIES)
 kept_search = ws.on_search
 

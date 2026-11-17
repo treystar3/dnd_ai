@@ -170,6 +170,7 @@ class View:
         self.skip: set[str] = set()
         self.allow: set[str] = set()                  # (f375) narrator-only facts this viewer is given for this reply ('crowd')
         self.drop: set[str] = set()                   # (f486) facets left out of this reply (engine/brief.py asked): read alone with lines()
+        self.hide: set[str] = set()                   # (f726) facts left out of this reply by id: a piece of the town's is told only as decided
 
     def asking(self, text: str) -> "View":
         """(f375) The same view for a reply to these words: the street scene comes in when they are about the town or its streets."""
@@ -189,7 +190,7 @@ class View:
         if name == "present":
             return self.present_lines()
         v = self.viewer
-        return [f.text for f in self.scene.facts(name) if v.sees(f) or (f.id and f.id in self.allow)]
+        return [f.text for f in self.scene.facts(name) if (v.sees(f) or (f.id and f.id in self.allow)) and not (f.id and str(f.id) in self.hide)]
 
     def present_lines(self) -> list[str]:
         """Who is here, as this viewer knows them: a townsperson knows their neighbours by name and sees strangers (Maren, the hires) as

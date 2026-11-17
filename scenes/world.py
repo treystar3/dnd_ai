@@ -40,7 +40,7 @@ from scenes.inventory_actions import InventoryActions
 from scenes.shop_actions import ShopActions
 from scenes.gear_actions import GearActions
 from scenes.check_actions import CheckActions
-from scenes.work_actions import WorkActions, offer_open
+from scenes.work_actions import WorkActions, offer_open, settled as fair_offer
 from scenes.guild_actions import GuildActions
 from scenes.training_actions import TrainingActions
 from scenes.dungeon_actions import DungeonActions
@@ -3758,19 +3758,22 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 + stakes.talk_lines(self, npc))                                         # (f322) the job they put on the board
         ctx = core + places + asks
         note_due = self.note_due(npc)
+        note = []
         if note_due:
             old_note = regard.of(npc, self.acting).journal_note
-            ctx = ctx + [("JOURNAL NOTE DUE: write journal_note now: one plain sentence, under 28 words, that the STRANGER writes in THEIR journal "
+            note = [("JOURNAL NOTE DUE: write journal_note now: one plain sentence, under 28 words, that the STRANGER writes in THEIR journal "
                           "about YOU: your role, where you are found, and what they have learned of you, with you in the third person by name "
                           '("Fenella Reeve, the guild clerk in Parth; fussy about her ledgers and anxious about mistakes"). Never your own '
                           'thought about the stranger, never in your voice, never "I" or "my".'      # (f486) the rule where it is used
                           + (f" The old note was: {old_note} - bring it up to date with what has happened since." if old_note else ""))]
+            ctx = ctx + note
         secret_lines, pending_secret = self.secret_lines(npc, speech)
         ctx = ([back] if back else []) + ctx + secret_lines
         bearing = ([back] if back else []) + bears + asks + secret_lines   # (f725) the lines that bear on what they do: the reading's
+        knows = ([back] if back else []) + core + places + asks + secret_lines   # (f726) the speaker's, the decision made: the note is the reading's
         if decided := ledger.decided():                                  # (f416) what the turn has settled so far: never answered against
             ctx = ctx + ["WHAT THE GAME HAS DECIDED THIS TURN (true; say nothing against it): " + " ".join(decided)]
-            bearing = bearing + ctx[-1:]
+            bearing, knows = bearing + ctx[-1:], knows + ctx[-1:]
         if npc.id in self.player.prisoners:
             self.player.prisoners[npc.id]["asked"] = self.player.prisoners[npc.id].get("asked", 0) + 1
         from engine import voices
@@ -3788,16 +3791,21 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             decision = reply_rules.Decision(npc.id, self.acting, stance=voice_rules.stance_kind(getattr(self, "stance", "") or ""),
                                             last=tuple(self.moves), forced=reply_rules.must_say([check_note, *ctx]), around=reply_rules.pieces(view, speech),
                                             candidates=reply_rules.secret(pending_secret, self.secret_text(pending_secret["secret"]) if opened else ""),
-                                            given=tuple(bearing))
+                                            given=tuple(bearing), note=note[0] if note else "")
+            view.hide |= {str(f.id) for part in decision.around for f in part       # (f726) a piece of the town's is told only as decided;
+                          if reply_rules.kind_of(f) != "board"}                     # a posting hangs where anyone reads it
+        drawn = lambda d: self.exemplars("speech", self.speech_pool(npc, getattr(self, "stance", "") or "",      # (f726) drawn once decided:
+                                                                    [c.text for c in d.candidates if c.kind == "news" and c.id in d.shares]))   # the sound of news only when it is told
         reply, revealed = converse(npc, self.store, self.world, self.catalog, self.convo,
-                                   f"{speech} {check_note}".strip(), ctx, truth_text=view.text(), known=view.scene.known_words(),
+                                   f"{speech} {check_note}".strip(), ctx if decision is None else knows, truth_text=view.text(), known=view.scene.known_words(),
                                    stance=getattr(self, "stance", ""), rng=streams.keyed("voice", npc.id, f"{npc.id}", len(self.convo)),   # (f486)
                                    worn=self.worn_words("speech"), pronoun=brief.pronoun(self, self.acting), given_also=town_lines,
                                    house=voices.house_phrases(self, town, npc.id),          # (f350) what everyone else here has been saying
                                    wares=self.wares_said(npc), who=self.acting,             # (f418) at the prices the game charges; (f480) to whom
-                                   exemplars=self.exemplars("speech", self.speech_pool(npc, getattr(self, "stance", "") or "",
-                                                                                         view.lines("news") if "news" in view.facets() else [])),
-                                   decision=decision, story=self.story_object)
+                                   exemplars=drawn if decision is not None else
+                                   self.exemplars("speech", self.speech_pool(npc, getattr(self, "stance", "") or "",
+                                                                             view.lines("news") if "news" in view.facets() else [])),
+                                   decision=decision, story=self.story_object, fair=fair_offer)
         if decision is not None:
             self.decision = decision
             self.moves = (self.moves + [decision.move])[-int(reply_rules.R["moves"]["running"]):]

@@ -38,6 +38,7 @@ class Decision:
     stance: str = "none"                         # voice.yaml stances, by its key
     last: tuple = ()                             # the moves of this talk's last replies, oldest first
     forced: bool = False                         # the game has decided something they must say in this reply
+    note: str = ""                               # (f726) the rule for the journal note, when one is due: the reading writes it
     around: tuple = ((), ())                     # the town's pieces for this reply (pieces): those asked for, those that may bear on it
     move: str = ""
     candidates: list = field(default_factory=list)
@@ -182,29 +183,44 @@ def gift(gives, intent: str, story):
     return gives
 
 
-def take(decision: Decision, got, who: str, story=None) -> Decision:
+def take(decision: Decision, got, who: str, story=None, fair=None) -> Decision:
     """(f725) The model's reading of the line (llm/contracts.py NPCDecision), written into the decision after the engine's checks:
     an id that was not offered is dropped, as is one over what the move lets them tell; what the game decided they tell is told;
     a gift only of a story object; paid work and a request never together; an offer of nothing is none; sharing with nothing
-    left to tell is ordinary talk."""
+    left to tell is ordinary talk. (f726) One who lies tells none of what is so; what the game decided they tell is told truly;
+    paid work is the engine's figures (fair: the scene's rule of an honest offer, None for no real task) before they speak of
+    it; a delivery to no one is no request."""
     ids = [c.id for c in offered(decision)]
     forced = must(decision)
+    intent = got.intent
     named = list(dict.fromkeys(got.shares))
     free = [i for i in named if i in ids and i not in forced]
     picked = free[: most(decision.move)]
     dropped = [f"{i}: not offered" for i in named if i not in ids] + [f"{i}: more than this move tells" for i in free if i not in picked]
+    if intent == "lie" and picked:
+        dropped += [f"{i}: a lie tells none of it" for i in picked]
+        picked = []
+    if forced and intent in ("lie", "withhold", "refuse"):
+        dropped.append(f"intent {intent}: the game decided they tell it")
+        intent = "share"
     ans = got.answers(who)[0]
-    if ans.offers_work is not None and not ans.offers_work.task.strip():
-        ans.offers_work = None
-    if ans.offers_quest is not None and (not ans.offers_quest.what.strip() or ans.offers_work is not None):
+    if ans.offers_work is not None:
+        task = ans.offers_work.task.strip()
+        ans.offers_work = (fair(ans.offers_work) if fair is not None else ans.offers_work) if task else None
+        if task and ans.offers_work is None:
+            dropped.append(f"the work '{task}': no real task")
+    if ans.offers_quest is not None and (not ans.offers_quest.what.strip() or ans.offers_work is not None
+                                         or (ans.offers_quest.kind == "deliver" and not ans.offers_quest.to.strip())):
         if ans.offers_work is not None:
             dropped.append("the request: never with paid work")
+        elif ans.offers_quest.what.strip():
+            dropped.append("the request: a delivery to no one")
         ans.offers_quest = None
-    if ans.gives is not None and gift(ans.gives, got.intent, story) is None:
+    if ans.gives is not None and gift(ans.gives, intent, story) is None:
         dropped.append(f"the gift '{ans.gives.name}': no story object, or offered for sale")
         ans.gives = None
     decision.read, decision.shares = "model", tuple(forced + picked)
-    decision.intent = got.intent if decision.shares or got.intent != "share" else "small_talk"
+    decision.intent = intent if decision.shares or intent != "share" else "small_talk"
     decision.told_own_name, decision.answer, decision.dropped = bool(got.told_own_name), ans, tuple(dropped)
     return decision
 
@@ -220,6 +236,36 @@ def fallback(decision: Decision, answer) -> Decision:
     decision.intent = intent if decision.shares or intent != "share" else "small_talk"
     decision.told_own_name, decision.answer, decision.dropped = False, answer, ()
     return decision
+
+
+def words(decision: Decision) -> list[str]:
+    """(f726) The decision in plain words, as the one who speaks is told it (reply.yaml): the move, what the reading settled, and
+    what they give: their name, a thing, paid work at the engine's figures, a request."""
+    T = R["tells"]
+    out = [says(decision.move)]
+    if str(R["intents"].get(decision.intent) or "").strip():
+        out.append(R["intents"][decision.intent])
+    if decision.told_own_name:
+        out.append(T["name"])
+    a = decision.answer
+    if a is not None and a.gives is not None:
+        out.append(T["gift"].format(name=a.gives.name.strip(), description=a.gives.description.strip().rstrip(".")))
+    if a is not None and a.offers_work is not None:
+        out.append(T["work"].format(task=a.offers_work.task.strip(), minutes=a.offers_work.minutes, pay=a.offers_work.pay))
+    if a is not None and a.offers_quest is not None:
+        q = a.offers_quest
+        out.append(T[q.kind].format(what=q.what.strip(), count=q.count, item=q.item.strip() or T["yours"], to=q.to.strip()))
+    return out
+
+
+def told(decision: Decision) -> list[str]:
+    """(f726) What they tell in this reply: the decided things in full, in the order decided. No id: an id is the engine's."""
+    by = {c.id: c for c in decision.candidates}
+    return [" ".join(by[i].text.split()) for i in decision.shares if i in by and by[i].text.strip()]
+
+
+TELLS = {"name": (), "yours": (), "gift": ("name", "description"), "work": ("task", "minutes", "pay"), "hunt": ("what", "count"), "gather": ("what", "count"),
+         "deliver": ("item", "to")}                                          # each telling, and the figures its words must have a place for
 
 
 def problems(rules: dict | None = None) -> list[str]:
@@ -252,6 +298,18 @@ def problems(rules: dict | None = None) -> list[str]:
     for k in ("lines", "max_tokens"):
         if not isinstance(G.get(k), int) or isinstance(G.get(k), bool) or G[k] < 1:
             bad.append(f"reply.yaml decide.{k}: a whole number above zero")
+    if not isinstance(G.get("memories"), int) or isinstance(G.get("memories"), bool) or G["memories"] < 0:
+        bad.append("reply.yaml decide.memories: a whole number from 0")
+    said = D.get("intents") or {}                                           # (f726) the decision in plain words
+    if set(said) != intents or not all(isinstance(v, str) for v in said.values()):
+        bad.append(f"reply.yaml intents: one line of words (or none) for each of a reply's intents ({', '.join(sorted(intents))})")
+    K2 = D.get("speak") or {}
+    if not isinstance(K2.get("lived"), int) or isinstance(K2.get("lived"), bool) or K2["lived"] < 0:
+        bad.append("reply.yaml speak.lived: how many things of their own days the one who speaks is given, a whole number from 0")
+    T2 = D.get("tells") or {}
+    for k, fields in TELLS.items():
+        if not isinstance(T2.get(k), str) or not T2[k].strip() or not all("{" + f + "}" in T2[k] for f in fields):
+            bad.append(f"reply.yaml tells.{k}: its words, with a place for each of {', '.join(fields) or 'nothing'}")
     if not isinstance(G.get("temperature"), (int, float)) or isinstance(G.get("temperature"), bool) or not 0 <= G["temperature"] <= 2:
         bad.append("reply.yaml decide.temperature: a number from 0 to 2")
     if not isinstance(M.get("forced"), str) or M["forced"] not in kinds or (kinds.get(M["forced"]) or {}).get("needs"):

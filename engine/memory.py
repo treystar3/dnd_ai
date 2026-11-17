@@ -18,6 +18,9 @@ THEM = "the stranger"
 _CAPS: dict | None = None
 
 
+HELD = ("fact:", "thread:")                      # (f726) what a memory is about when it is a thing held to tell: a fact of the world's, a matter's clue
+
+
 def caps() -> dict:
     global _CAPS
     if _CAPS is None:
@@ -104,6 +107,17 @@ def keep(npc, text: str, *, day: int, turn: int, subject: str, kind: str = "expe
                source=source or ("self" if kind in FIRST_HAND else ""), about=about, minute=int(minute), state=state)
     npc.memories.append(m)
     return m
+
+
+def of(m, who: str) -> bool:
+    """(f726) Whether this memory is about this character, by id."""
+    return bool(who) and m.subject == who
+
+
+def lived(m) -> bool:
+    """(f726) Whether this is something of their own days, about no one: not their life's story (given with who they are), and not
+    a thing they hold to tell (a clue of a matter, a fact overheard), which a reply tells only as decided (engine/reply.py)."""
+    return not m.subject and m.kind not in ("own_life", "knows") and not str(m.about or "").startswith(HELD)
 
 
 def render(text: str) -> str:

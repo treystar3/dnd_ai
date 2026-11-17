@@ -50,11 +50,40 @@ moves:
 # (f725) THE READING: what only reading the line can settle (do they leave, refuse, bargain; which of the things they could
 # tell answers what was asked; a name given; work, a request or a thing offered; a promise made them). One small call before they
 # speak (npc/life.py decide), its answer checked by the engine (engine/reply.py take). lines: how many of the talk's last lines
-# it is given. max_tokens: the most its answer may be. temperature: low, it is a reading.
+# it is given. max_tokens: the most its answer may be. temperature: low, it is a reading. (f726) memories: how many of their
+# latest memories of the one in front of them it is given.
 decide:
   lines: 4
+  memories: 4
   max_tokens: 200
   temperature: 0.2
+
+# (f726) THE SPEAKING: the decision in plain words, as the one who speaks is told it (engine/reply.py words; npc/prompts.py
+# speak_prompt). They are told the move (its `says` above), then what the reading settled. intents: each intent a reply has, in
+# words ("" where the move's own words say it). tells: a name given, a thing handed over, paid work at the engine's figures, a
+# request; each with the places its figures go (yours: what a thing to carry is called when the reading named none).
+# speak.lived: how many things of their own days (what they lived through, about no one) the one who speaks is given beside
+# what they remember of the character in front of them. Never a thing they hold to tell: that is told only as decided.
+speak:
+  lived: 4
+intents:
+  small_talk: ""
+  share: ""
+  withhold: "You keep back what they asked for."
+  lie: "What you say of it is not so, and you say it as plainly as if it were."
+  bargain: "You name your price or your terms."
+  help: "You agree to it."
+  refuse: "You decline outright."
+  threaten: "You threaten them."
+  leave: "You end the talk here and step away, and you say so aloud: a goodbye, an excuse or a dismissal."
+tells:
+  name: "You give them your name."
+  yours: "something of yours"
+  gift: "You hand them {name} ({description}), and say that you do."
+  work: "You offer them paid work: {task}, about {minutes} minutes of it, for {pay} copper. Say the pay as it is."
+  hunt: "You ask their help with a need of yours: to hunt {count} {what}."
+  gather: "You ask their help with a need of yours: to bring you {count} {what}."
+  deliver: "You ask their help with a need of yours: to carry {item} to {to}."
 
 # WHAT THEY WOULD SHARE. Each thing they could say in this reply is of a kind; a kind under `trust` is told only to someone they
 # trust that far ("refusal": voice.yaml exemplars refusal_trust, the line under which their examples are refusals). What anyone
