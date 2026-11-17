@@ -82,6 +82,7 @@ FIELDS: dict[str, Field] = {
     "passages": _f(LINE, fresh=list),                      # the passages its operations queued
     "line_untold": _f(LINE, fresh=list),                   # the passage operations told by a stand-in
     "unshown_ops": _f(LINE, fresh=dict),                   # operations whose later lines wait on a passage
+    "waiting": _f(LINE, ROLLED, fresh=list),               # what waits behind the line's one passage (f722)
     "collecting": _f(LINE, fresh=bool),                    # the line's actions are running
     "line_from": _f(LINE),                                 # where the line began
     "line_log": _f(LINE),                                  # where the journal stood when it began
@@ -95,7 +96,7 @@ FIELDS: dict[str, Field] = {
     "plan_now": _f(ROLLED, default=()),                    # ...and the plan it is a step of (f645)
     "ran": _f(ROLLED),                                     # the kinds of action the line has run
     "interpret_calls": _f(ROLLED),                         # the interpreter's calls, for the turn log
-    "buffering": _f(ROLLED),                               # several actions told in one passage
+    "buffering": _f(LINE, ROLLED, fresh=bool),             # several actions told in one passage; a line's (f722)
     # ---- kept across lines and failures: a failed operation puts `pending` back by its own hand and writes `halted` and
     # `last_failure` itself (scenes/world.py abandon, operation); `last_budget` is the last input's, closed
     "pending": _f(KEPT),

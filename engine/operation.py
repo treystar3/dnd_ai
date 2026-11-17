@@ -59,8 +59,10 @@ class Operation:
         for name, a, k in self.held:
             if name in ("combat_state", "combat_panel"):           # (f497) the fight's pane: load re-shows it from the row (scenes/world.py enter)
                 continue
-            if name == "marker":
-                out.append(["marker", [], {}])
+            if name == "waited":                                   # (f722) earlier operations' lines are their own entries': here, whose
+                out.append(["waited", [e[4] for e in a[0]], {}])
+            elif name == "marker":
+                out.append(["marker", ["line"] if a[0][0] == "line" else [], {}])   # (f722) the line's one passage, or its own
             elif name == "legendary_reveal":
                 from engine import items
                 out.append(["note", [f"A legendary find: {items.display_name(a[0])}."], {}])

@@ -120,6 +120,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.passages: list = []      # (f464) the passages the line's operations queued: [kind, fn, standin, the lines held after their marker, the operation's id]
         self.line_untold: list = []   # (f464) the passage operations of the line that did not stand and were told by a stand-in
         self.unshown_ops: dict = {}   # (f464) operations whose later lines wait on a passage: id -> segments still to release
+        self.waiting: list = []       # (f722) what waits behind the line's one passage, in the order said: entries shaped as a passage's
         self.collecting = False       # (f464) the line's actions are running: a narration is a passage operation of its own, after them
         self.line_plan: list = []     # (f715) every step the line was read as, begun or not
         self.own_steps = False        # (f715) a passage asked for now is the line's own, not the world's
@@ -967,15 +968,16 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         def mended(x):
             return names.mend_pronouns(x) if isinstance(x, str) else x
 
+        told = {i for e in pending.values() for c in (e.get("calls") or []) if c[0] == "waited" for i in c[1]}   # (f722) told by a telling that stood
         console.narrate(failures.shown_later(self.rng))
         for op_id in ids:
             entry = pending[op_id]
             calls = entry.get("calls")
             if calls is None:                                          # an entry from before the calls were kept: its lines, as narration
                 calls = [["narrate", [line], {}] for line in entry.get("lines", [])]
-            untold = not calls or any(c[0] == "marker" for c in calls)
+            untold = not calls or any(c[0] == "marker" and not (c[1] and op_id in told) for c in calls)
             for name, a, k in calls:
-                fn = getattr(console, name, None) if name != "marker" else None
+                fn = getattr(console, name, None) if name not in ("marker", "waited") else None
                 if fn is not None:
                     fn(*[mended(x) for x in a], **{kk: mended(v) for kk, v in k.items()})
             if untold:
@@ -1092,6 +1094,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if typed:
                 from engine import budget
                 self.last_budget = budget.close(stand_ins=[o.kind for o in self.line_untold])
+        if typed and ended:
+            self.show_waiting()                                 # (f722) nothing said is lost: what still waited is read before the close
         line = self.closing_line(text) if typed and ended else None
         if line:
             console.note(line)
@@ -1316,7 +1320,21 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     return ch.windowed if _name == "combat_state" else None             # same branch held as live (a window's page
                 op.lines.append(turnlog._shown_text(_name, a, k) if _name in turnlog.SHOWN_KINDS else " ".join(str(x) for x in a))   # says True)
             ch.set(name, held)
+        if self.collecting and self.pending:
+            self.owe_place(op)                                     # (f722) an earlier step's passage is still to tell: this one's lines follow it
         return ch, real
+
+    @staticmethod
+    def line_mark(op) -> int | None:
+        """(f722) Where, in what `op` holds, the line's one passage is to be told; None when it owes it no place."""
+        return next((i for i, (name, a, k) in enumerate(op.held) if name == "marker" and a[0][0] == "line"), None)
+
+    def owe_place(self, op) -> None:
+        """(f722) The one passage of a line of several actions has a place on the page, as a single action's passage has (f464): here,
+        in what `op` holds, the first time an event is held back for it (narrate) or, for a later operation, before anything it says
+        (hold). What the operation says after this place waits behind the passage (release, flush)."""
+        if op is not None and self.line_mark(op) is None:
+            op.held.append(("marker", (["line", None, None, [], op.id],), {}))
 
     @staticmethod
     def unhold(held: tuple) -> None:
@@ -1333,12 +1351,45 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if name == "marker":
                 current = a[0][3]
                 segments += 1
+                if a[0][0] == "line":
+                    self.waiting.append(a[0])              # (f722) behind the line's one passage, shown once it is told (flush, show_waiting)
             elif current is not None:
                 current.append((name, a, k))
             else:
-                getattr(console, name)(*a, **k)
+                self.show([(name, a, k)])
         op.held = []
         return segments
+
+    def show(self, calls) -> None:
+        """(f722) Held calls reach the page through the real bindings, in the order they were said; what waited behind the line's
+        passage and was taken up by the operation that told it (flush) among them."""
+        for name, a, k in calls:
+            if name == "waited":
+                for entry in a[0]:
+                    self.show_after(entry)
+            else:
+                getattr(console, name)(*a, **k)
+
+    def show_after(self, entry) -> None:
+        """(f464) The lines that waited behind a passage, now that it is told or stood in for; (f467) the operation whose lines they
+        were is marked shown once the last of them has reached the page."""
+        self.show(entry[3])
+        owner = entry[4]
+        if owner in self.unshown_ops:
+            self.unshown_ops[owner] -= 1
+            if self.unshown_ops[owner] <= 0:
+                del self.unshown_ops[owner]
+                self.store.mark_shown(owner)
+
+    def show_waiting(self, op=None) -> None:
+        """(f722) The line's passage is told, or stood in for: what waited behind it follows. Told inside an operation (`op`), it is
+        that operation's to show when it commits and goes with it when it does not stand (the wait is put back by the rollback)."""
+        entries, self.waiting = self.waiting, []
+        if entries and op is not None:
+            op.held.append(("waited", (entries,), {}))
+        else:
+            for entry in entries:
+                self.show_after(entry)
 
     def mark_passage(self, kind: str, fn, standin=None) -> None:
         """(f464) Here goes a passage: a narration, a fight round's telling, the aftermath of a win, the goddess's words. Inside an
@@ -1360,8 +1411,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         telling could not be written; then the lines that waited behind it; and the operation whose lines they were is marked shown once
         the last of them has reached the page."""
         from engine import operation as _op
-        while self.passages:
-            kind, fn, standin, after, owner = self.passages.pop(0)
+        while self.passages and not (self.buffering and self.pending):     # (f722) behind the line's one passage while it is still to tell
+            entry = self.passages.pop(0)
+            kind, fn, standin, after, owner = entry
             halted = self.halted
             op, _ = self.asked_operation(kind, self.last_text, lambda op: fn())    # (f498) restartable: the telling's own call is asked
             self.halted = halted                                   # outside it; a telling that did not stand halts nothing: the facts stand
@@ -1374,13 +1426,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     if line:
                         console.narrate(line)
                 _op.present(op.id, "stand_in")                     # (f467) told by a stand-in
-            for name, a, k in after:
-                getattr(console, name)(*a, **k)
-            if owner in self.unshown_ops:
-                self.unshown_ops[owner] -= 1
-                if self.unshown_ops[owner] <= 0:
-                    del self.unshown_ops[owner]
-                    self.store.mark_shown(owner)
+            self.show_after(entry)
 
     def stood_standin(self, rng) -> list[str]:
         """(f464) What the player reads when the line's passage could not be written: one plain line for each row of the line not yet
@@ -1815,6 +1861,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                         self.pending = []
                         from engine import operation as _op
                         _op.present(op.id, "stand_in")         # (f467)
+                self.show_waiting()                        # (f722) behind a stand-in as behind the passage: what waited for it
+                self.run_passages()                        # (f722) ...then a later step's own passage, which waited for the line's
                 from engine import budget
                 self.own_steps = False                     # (f715) from here, the world's passages
                 budget.passage_shown()                     # (f468) the required path is told: the optional calls after it keep no reserve
@@ -1860,7 +1908,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.collapse_check()
         self.stay_tick()                           # (f351) one change in the room since last turn, if the narrator did not write
         from engine import operation as _op
-        held_now = (len(_op.current().lines) + sum(1 for h in _op.current().held if h[0] == "marker")
+        held_now = (len(_op.current().lines) + sum(1 for h in _op.current().held if h[0] == "marker" and h[1][0][0] != "line")
                     if _op.current() is not None else 0)     # (f463) what this operation holds, not yet released; (f498) a passage it queued
         if not self.to_menu and (turnlog.shown_count() + held_now == shown or ledger.untold_deeds()):
             self.said_nothing(text)                # (f692) a quiet line in the tail is no answer to a deed only a passage tells
@@ -2691,6 +2739,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """Narrate everything held back so far, as one passage."""
         if not self.pending:
             return
+        from engine import operation as _op
+        op = _op.current()
+        place = self.line_mark(op) if op is not None else None
+        after = []
+        if place is not None:                                    # (f722) told at its place: what this operation said after it follows it
+            after = op.held[place + 1:]
+            del op.held[place:]
         events, self.pending = self.pending, []
         if len(events) == 1:
             event = events[0]
@@ -2698,6 +2753,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             event = ("The player does several things in order. Narrate them as one flowing passage, in that order, "
                      "giving each its due but no more: " + " THEN: ".join(f"({n}) {e}" for n, e in enumerate(events, 1)))
         self._narrate_now(event, player_text)
+        self.show_waiting(op)                                    # (f722) then what earlier operations said after it, then this one's
+        if op is not None:
+            op.held.extend(after)
 
     def add_mark(self, mark: str) -> None:
         state = self.store.load_place(self.player.location)
@@ -2961,10 +3019,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         operation). (f464) Inside an operation of a line: a passage operation of its own, run once this one has committed, shown at this
         place in what the player reads (mark_passage); its failure shows what stood in the narrator's plain words and undoes nothing.
         Outside a line (the game opening, a test's handle()): now."""
+        from engine import operation as _op
         if self.buffering:
             self.pending.append(event)
+            if self.collecting:
+                self.owe_place(_op.current())                    # (f722) the passage's place on the page: what is said from here waits behind it
             return
-        from engine import operation as _op
         if self.collecting and _op.current() is not None:
             self.mark_passage("passage", lambda: self._narrate_now(event, player_text),
                               self.line_standin if self.own_steps else self.stood_standin)

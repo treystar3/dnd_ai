@@ -427,6 +427,48 @@ it stops; a question is last.
 
 **Risk:** medium. It builds on f721's close.
 
+### As built (17 November)
+
+**The cause, read in the code.** A single action's passage already had a place on the page (f464): where it is asked for, a
+marker is put among the lines its operation holds, and what the operation says after the marker waits behind the passage. The
+one passage of a line of several actions had no place: its events were set aside (`pending`) and told after all the steps, while
+each step's lines were shown as that step committed. So there was one road with a place and one without.
+
+**The change:** the line's one passage is given a place by the same marker (scenes/world.py `owe_place`): where its first event
+is set aside (`narrate`), and, for every later operation of the line while it is still to tell, before anything that operation
+says (`hold`). What is said after that place waits (`waiting`, a field of the line, put back by a failed operation) and is shown
+after the passage, in the order it was said:
+
+- told by the line's passage operation, or early by a later step (a talk tells what came before it; a fight's opening does):
+  the telling takes the place, then what earlier steps said after it, then what the telling step itself had said (`flush`);
+- stood in for: the stand-in takes the place and what waited follows it;
+- a step that told it and then did not stand shows nothing: its lines go with it and the wait is put back;
+- a passage of its own asked for by a later step (the goddess's words) waits until the line's is told and is told straight
+  after it (`run_passages`), before the notes time raised and the world's own lines (review Q36);
+- what waits is still owed by its operation in the save until it is shown, so a game closed in between tells it at the next
+  load (f467). A step whose wait was taken up by a telling that stood is told at that load by the telling, not by its rows
+  as well (engine/operation.py keeps whose wait a telling took up; `recover_unshown` reads it).
+
+**Found by the goals review and fixed here:** "several actions told in one passage" (`buffering`) was put back to on when the
+first action of such a line did not stand, and nothing turned it off: the next input, if it was taken whole (an answer, a
+fight's round) or was a pane's command, set its passage aside and never told it. It is now a field of the line, started fresh
+by every input. Older than this feature, but this feature would have made it cost more (the lines after it would have waited
+to the input's close).
+
+**Changed from the plan:**
+
+- **Within one action the order is left as the code says it** (a line said before the passage is asked for is read before it).
+  The plan said "a step's passage, then that step's notes" for every step. Read in the code, the lines said before a passage
+  are shown the moment the action stands, while the passage is still being written: moving them below it would make the player
+  wait the length of the model's call before reading anything. So the rule built is "nothing is read above a passage that tells
+  what came before it", which is the fault. For the owner: say if every note should sit below its passage even so.
+- **No recording moved.** None of the three holds a line of several actions (checked), and a line of one action reads as it did.
+- No new list type: the marker and the wait are the ones f464 made. ui/console.py is not touched.
+
+**Behaviour:** in a line of several actions, a later step's lines are read after the passage. In a line that hands work in and
+then speaks, what the hand-in said after its telling was asked for is read after that telling. The first lines of such a line
+are no longer read while the passage is being written, since they now follow it.
+
 ## What follows these
 
 - The travel line read as speech (17 November) goes into the corpus as a case, with no repair rule.

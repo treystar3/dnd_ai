@@ -23,7 +23,7 @@ def check(n, ok, x=""):
 
 MISSING = object()
 LINE = {"last_crash", "line_ops", "line_failed", "line_world_failed", "passages", "line_untold", "unshown_ops", "collecting",
-        "line_from", "line_log", "line_losses", "line_plan", "own_steps", "silent", "stood"}
+        "line_from", "line_log", "line_losses", "line_plan", "own_steps", "silent", "stood", "waiting", "buffering"}
 KEPT = ("last_budget", "broken", "last_text", "crash_after_commit", "recovered_at_load")      # a failure leaves these as they stand
 
 
@@ -57,13 +57,13 @@ ws.begin_line()
 store.arm(False)                                         # begin_line arms the write fence for a line's life; this is no line
 fresh = reach(ws, LINE)
 check("a new line begins clean: no operations, passages or failures of the last one, nothing lost, nothing collecting",
-      all(fresh[k] == [] for k in ("line_ops", "line_failed", "line_world_failed", "passages", "line_untold", "line_plan"))
+      all(fresh[k] == [] for k in ("line_ops", "line_failed", "line_world_failed", "passages", "line_untold", "line_plan", "waiting"))
       and fresh["unshown_ops"] == {} and fresh["collecting"] is False and fresh["last_crash"] is False and fresh["line_losses"] == 0
-      and fresh["own_steps"] is False and fresh["silent"] is False and fresh["stood"] is None, fresh)
+      and fresh["own_steps"] is False and fresh["silent"] is False and fresh["stood"] is None and fresh["buffering"] is False, fresh)
 check("...it knows where the line began and where the journal stood", fresh["line_from"] == ws.player.location
       and isinstance(fresh["line_log"], int) and not isinstance(fresh["line_log"], bool), (fresh["line_from"], fresh["line_log"]))
 check("...each list its own (none shared with another field)",
-      len({id(getattr(ws, k)) for k in LINE if isinstance(getattr(ws, k), list)}) == 6)
+      len({id(getattr(ws, k)) for k in LINE if isinstance(getattr(ws, k), list)}) == 7)
 
 # ---- what a failed operation keeps, and what it writes itself
 ws.pending = ["a step still to do"]
