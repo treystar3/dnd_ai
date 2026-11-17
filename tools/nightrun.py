@@ -72,6 +72,20 @@ def server_back(seconds: int = 600, every: int = 5, state=None, sleep=time.sleep
         waited += every
 
 
+def town_around(ws) -> dict:
+    """(f723) The town's news, its happenings and the board's postings as they stand, each a list of lines: what a reply to a line
+    about something else should not be bringing up (tools/live_gate.py leaks). Read only: the facts are the truth layer's own, from
+    a scene of its own that the game never sees; the board is the one last posted, never posted anew here (a refresh is the
+    game's, inside a turn); the ordinary day anyone can see (the ambient lines) is no news."""
+    from engine import truth
+    scene = truth.Scene(ws)
+    gid = ws.hall_here()
+    posted = ws.store.load_place(gid).board if gid else []
+    return {"news": [f.text for f in scene.facts("news")],
+            "happenings": [f.text for f in scene.facts("happenings") if f.facet == "happenings"],
+            "board": [str(q.get("title") or "") for q in posted if q.get("title")]}
+
+
 class Run:
     """The harness: the console hooks that record the transcript and the time to the first word, the wrapped model client that counts
     every call, and the turn rows."""
@@ -96,6 +110,7 @@ class Run:
         self.turn_notes: list[str] = []              # (f391) the notes the game showed this turn (refusals among them), kept in the turn row
         self.keep_told = False                       # (f719) a scripted run keeps each passage the narrator showed in its turn's row
         self.turn_told: list[str] = []
+        self.turn_said: list[list[str]] = []         # (f723) ...and each thing said aloud, [who, the words alone], in order
         self.cast: dict[str, dict] = {}              # (f391) everyone who travelled with the player, as the game knew them: for the summary's checks
 
     # ---- the console: everything the game prints goes to the transcript, and the first story line stamps the time
@@ -104,9 +119,9 @@ class Run:
         self.real = {k: console.now(k) for k in ("narrate", "say", "npc_says", "dialogue", "note", "wait", "ledger", "out",
                                                      "combat_numbers", "combat_panel", "debug", "ask", "status_block", "header")}
         console.put("narrate", lambda text: self.seen("", text))
-        console.put("say", lambda text, speaker="": self.seen(speaker or "says", text))
-        console.put("npc_says", lambda label, speech, gesture="": self.seen(label, speech + (f" ({gesture})" if gesture else "")))
-        console.put("dialogue", lambda before, speaker, speech, after: self.seen(speaker, " ".join(x for x in (before, f'"{speech}"', after) if x)))
+        console.put("say", lambda text, speaker="": self.seen(speaker or "says", text, text))
+        console.put("npc_says", lambda label, speech, gesture="": self.seen(label, speech + (f" ({gesture})" if gesture else ""), speech))
+        console.put("dialogue", lambda before, speaker, speech, after: self.seen(speaker, " ".join(x for x in (before, f'"{speech}"', after) if x), speech))
         console.put("note", lambda message, *a, **k: self.noted(str(message)))
         console.put("wait", lambda message: self.noted(str(message)))
         console.put("ledger", lambda message: self.noted(str(message)))
@@ -119,11 +134,13 @@ class Run:
         console.put("ask", self.ask)
         console.guard_outputs()                      # (f391) the transcript gets what the player would see, through the output gate
 
-    def seen(self, who: str, text: str) -> None:
+    def seen(self, who: str, text: str, words: str = "") -> None:
         if self.first_word is None and self.current is not None:
             self.first_word = time.time() - self.t_line
         if not who:
             self.turn_told.append(text.strip())
+        else:
+            self.turn_said.append([who, str(words or text).strip()])
         self.passage.append((f"{who}: " if who else "") + text.strip())
         self.transcript.write((f"**{who}:** " if who else "") + text.strip() + "\n\n")
 
@@ -181,6 +198,7 @@ class Run:
         self.passage = []
         self.turn_notes = []
         self.turn_told = []
+        self.turn_said = []
         self.sub_answers = 0
         self.current = {"n": len(self.rows) + 1, "time": datetime.now().isoformat(timespec="seconds"), "kind": kind, "text": text,
                         "where": self.bot.where(), "turn": self.bot.ws.store.meta.turn, "level": self.bot.c.level,
@@ -216,6 +234,12 @@ class Run:
                    recovered=int(getattr(getattr(self.bot, "ws", None), "recovered_at_load", 0) or 0) if row["n"] == 1 else 0)   # (f471)
         if self.keep_told:
             row["told"] = list(self.turn_told)
+            row["said"] = list(self.turn_said)
+            if self.turn_said:
+                try:
+                    row["around"] = town_around(self.bot.ws)
+                except Exception as e:
+                    self.errors.write(f"town_around: {type(e).__name__}: {e}\n")
         row["crashed"] = bool(row["hesitated"] and getattr(getattr(self.bot, "ws", None), "last_crash", False))   # (f492) the game's fault
         self.crash_streak = self.crash_streak + 1 if row["crashed"] else 0 if not row["hesitated"] else self.crash_streak
         if not row["hesitated"]:

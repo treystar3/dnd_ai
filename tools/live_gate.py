@@ -11,6 +11,10 @@
      roughly, the capitalised words inside a sentence that are no name of the run's or of the game's data, per hundred passages
      shown;
    - stiff speech: of the spoken replies checked (f714: while the turn has room), the share sent back as stiff;
+   - (f723) speech: what a townsperson's reply and a companion's read (the median and the 95th percentile, in characters) and
+     the share of them accepted on the first try, from the run's call log by the nights' measure (tools/latency.py); and leaks:
+     of the replies to the script's lines that ask about something else (a line's `tempts`), those that say a piece of the
+     town's news, a happening or a posting, counted roughly by the piece's own words;
    - time: the median and the 95th percentile of seconds by the turn's shape, the lines over the limit, the stand-ins shown.
 3. Held against the owner's floors (data/replay/gate.yaml). A floor that is not set is reported, not held.
 
@@ -45,10 +49,16 @@ HELD = {
     "phantoms_per_100": (("inventions", "phantoms_per_100"), False),
     "unknown_names_per_100": (("inventions", "unknown_names_per_100"), False),
     "stiff_sent_back_share": (("speech", "stiff_sent_back_share"), False),
+    "leaks": (("speech", "leaked"), False),
+    "townsperson_prompt_p95_chars": (("speech", "townsperson_prompt_p95"), False),
+    "first_try_share": (("speech", "first_try_share"), True),
     "p95_seconds": (("time", "p95_seconds"), False),
     "over_limit": (("time", "over_limit"), False),
     "stand_ins": (("time", "stand_ins"), False),
 }
+
+
+TEMPTS = ("news", "happenings", "board")       # (f723) what a script line can mark as a leak in its reply (the truth view's facets)
 
 
 def floors(path: Path = FLOORS) -> dict:
@@ -94,6 +104,9 @@ def load_script(path: Path = SCRIPT) -> dict:
     lines = raw.get("lines") or []
     if not lines or not all(isinstance(l, dict) and str(l.get("say") or "").strip() and str(l.get("shape") or "").strip() for l in lines):
         raise SystemExit(f"{path}: a list of lines, each with what is typed (say) and the turn's shape (shape)")
+    odd = [l["say"] for l in lines if not isinstance(l.get("tempts") or [], list) or set(l.get("tempts") or []) - set(TEMPTS)]
+    if odd:
+        raise SystemExit(f"{path}: a line's tempts is a list from {', '.join(TEMPTS)}: {odd[0]!r}")
     return {"setup": dict(raw.get("setup") or {}), "lines": lines}
 
 
@@ -112,7 +125,10 @@ def play(script: Path, out: Path, stub: bool, lines: int = 0, attach: bool = Fal
         raise SystemExit(f"the script could not be played (the night run left {done.returncode}): see {out / 'errors.log'}"
                          + (("\n" + (done.stderr or "")[-600:]) if stub else ""))
     rows = [json.loads(l) for l in (out / "turns.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
-    return rows, json.loads((out / "run.json").read_text(encoding="utf-8"))
+    info = json.loads((out / "run.json").read_text(encoding="utf-8"))
+    import latency
+    info["speakers"] = speakers(latency.load(out / "llm_calls.jsonl"))       # (f723) from the run's own call log
+    return rows, info
 
 
 def _p95(xs: list[float]) -> float:
@@ -170,7 +186,55 @@ def known_names(info: dict, rows: list[dict], game: set[str] | None = None) -> s
     return words
 
 
-def measures(read: dict, rows: list[dict], info: dict, limit: float, game: set[str] | None = None) -> dict:
+def speakers(calls: list[dict]) -> dict:
+    """(f723) Each kind of speaker's replies in a call log, by the measure the nights use (tools/latency.py first_tries, f475): how
+    many, the share accepted on the first try, what the prompt read. The kinds and their tasks are data (data/replay/gate.yaml)."""
+    import latency
+    return {kind: latency.first_tries(calls, tuple(tasks)) for kind, tasks in (floors().get("speakers") or {}).items()}
+
+
+def said_piece(words: str, pieces: list[str]) -> str:
+    """(f723) The first of these lines of news that the words carry (npc/life.py carries: the rule a fact revealed is held to),
+    or ''. Roughly: a line with fewer than two longer words in common is no match."""
+    from npc import life
+    spoken = set(re.findall(r"[a-z]{5,}", words.lower()))
+    return next((p for p in pieces if life.carries(words, p) and len(set(re.findall(r"[a-z]{5,}", p.lower())) & spoken) >= 2), "")
+
+
+def speech(rows: list[dict], info: dict, lines: list[dict] | None) -> dict:
+    """(f723) What the speech work is judged by. The speaking prompt's size and the first tries, by kind of speaker: the run's
+    call log by the nights' own measure (tools/latency.py first_tries). Leaks: a script line that asks about something else is
+    marked with what would be a leak in its reply; the reply is the first thing said aloud in its turn (the party's talk after
+    it is not it), its words alone; a marked line counts only where the town had such a piece to bring up."""
+    by = {k: v for k, v in (info.get("speakers") or {}).items()}
+    calls = sum(v["calls"] for v in by.values() if v)
+    left = [dict(l) for l in lines or []]
+    answered, examples, replies, carried = 0, [], 0, 0
+    for r in rows:
+        line = next((l for l in left if str(l.get("say")) == str(r.get("text"))), None)      # by what was typed: a row is its line's
+        if line is not None:
+            left.remove(line)
+        said = r.get("said") or []
+        if not said:
+            continue
+        replies += 1
+        who, words = said[0]
+        around = r.get("around") or {}
+        carried += bool(said_piece(words, [p for name in ("news", "happenings") for p in around.get(name) or []]))
+        pieces = [p for name in ((line or {}).get("tempts") or []) for p in around.get(name) or []]
+        if not pieces:
+            continue
+        answered += 1
+        piece = said_piece(words, pieces)
+        if piece:
+            examples.append({"line": r.get("n"), "typed": str(r.get("text") or "")[:120], "who": who, "said": words[:300], "piece": piece[:200]})
+    return {"speakers": by, "townsperson_prompt_p95": (by.get("townsperson") or {}).get("p95"),
+            "first_try_share": round(sum(v["first_try"] * v["calls"] for v in by.values() if v) / calls, 3) if calls else None,
+            "leaks": {"lines": answered, "leaked": len(examples), "replies": replies, "carried_news": carried, "examples": examples[:12]},
+            "leaked": len(examples) if answered else None, "leak_share": round(len(examples) / answered, 3) if answered else None}
+
+
+def measures(read: dict, rows: list[dict], info: dict, limit: float, game: set[str] | None = None, lines: list[dict] | None = None) -> dict:
     told = [t for r in rows for t in r.get("told") or []]            # the narrator's passages as shown, one a telling
     checked = info.get("checked") or {}
     strange = unknown_names(told, known_names(info, rows, game))
@@ -183,7 +247,8 @@ def measures(read: dict, rows: list[dict], info: dict, limit: float, game: set[s
                        "unknown_names_per_100": round(100 * len(strange) / len(told), 1) if told else None,
                        "examples": sorted(set(strange))[:12]},
         "speech": {"spoken_checked": n_spoken, "stiff": int(checked.get("stiff") or 0),
-                   "stiff_sent_back_share": round(int(checked.get("stiff") or 0) / n_spoken, 3) if n_spoken else None},
+                   "stiff_sent_back_share": round(int(checked.get("stiff") or 0) / n_spoken, 3) if n_spoken else None,
+                   **speech(rows, info, lines)},
         "time": timing(rows, limit),
     }
 
@@ -237,6 +302,9 @@ def report(m: dict, bad: list[str], F: dict, about: dict) -> str:
            f"| Passages sent back for a creature not there, per 100 checked | {show(inv['phantoms_per_100'])} | {floor('phantoms_per_100')} |",
            f"| Names the game does not hold, per 100 passages shown (rough) | {show(inv['unknown_names_per_100'])} | {floor('unknown_names_per_100')} |",
            f"| Spoken replies sent back as stiff (share of those checked) | {show(sp['stiff_sent_back_share'])} | {floor('stiff_sent_back_share')} |",
+           f"| Leaks: replies that said news to a line that asked about something else | {show(sp.get('leaked'))} | {floor('leaks')} |",
+           f"| What a townsperson's reply reads, 95th percentile, characters | {show(sp.get('townsperson_prompt_p95'))} | {floor('townsperson_prompt_p95_chars')} |",
+           f"| Spoken replies accepted on the first try (share) | {show(sp.get('first_try_share'))} | {floor('first_try_share')} |",
            f"| Seconds a turn, 95th percentile | {show(t['p95_seconds'])} | {floor('p95_seconds')} |",
            f"| Lines over {t['limit_seconds']:g} s | {show(t['over_limit'])} | {floor('over_limit')} |",
            f"| Stand-ins shown | {show(t['stand_ins'])} | {floor('stand_ins')} |", "",
@@ -254,6 +322,18 @@ def report(m: dict, bad: list[str], F: dict, about: dict) -> str:
             + (f" ({', '.join(inv['examples'])})." if inv["examples"] else "."),
             f"{sp['spoken_checked']} spoken replies were checked for stiffness (a reply is checked while its turn has room for another try); "
             f"{sp['stiff']} were sent back once.", ""]
+    if sp.get("leaks") is not None:
+        lk = sp["leaks"]
+        out += ["## The speaking prompt, first tries and leaks", "", "| Speaker | Replies asked for | Prompt, median chars | Prompt, 95th chars | Accepted on the first try |",
+                "|---|---|---|---|---|"]
+        for kind, v in sp["speakers"].items():
+            v = v or {}
+            out.append(f"| {kind} | {show(v.get('calls'))} | {show(v.get('p50'))} | {show(v.get('p95'))} | {show(v.get('first_try'))} |")
+        out += ["", f"{lk['lines']} of the script's lines that ask about something else were answered aloud where the town had something to bring up; "
+                f"{lk['leaked']} of those replies said a piece of its news, a happening or a posting the line did not ask for (counted by the piece's "
+                "own words: a rough count, each one below to be read).",
+                f"Of all {lk['replies']} turns with a spoken reply, {lk['carried_news']} carried a piece of the town's news or a happening, asked for or not."]
+        out += [f"- line {x['line']} ({x['typed']}): {x['who']} said \"{x['said']}\" against \"{x['piece']}\"" for x in lk["examples"]] + [""]
     return "\n".join(out)
 
 
@@ -306,7 +386,7 @@ def main(argv=None) -> int:
         print(f"reading: {read['right']} of {read['cases']} right ({read['share']})", flush=True)
     rows, info = play(Path(a.script), out / "play", a.stub, n_lines, attach=bool(getattr(a, "attach", False)))
     early = ended_early(len(load_script(Path(a.script))["lines"]), n_lines, rows, info)
-    m = measures(read, rows, info, limit)
+    m = measures(read, rows, info, limit, lines=load_script(Path(a.script))["lines"])
     under = held(m, F)
     why = partial(a, read)
     about = {"date": when.strftime("%Y-%m-%d"), "model": config.MODEL,

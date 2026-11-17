@@ -118,19 +118,21 @@ def prompt_chars(row: dict) -> int | None:
 def speech_measures(calls: list[dict]) -> dict:
     """(f475) Per speech task: calls, prompt characters (p50, p95, most) at the first try, the tail's p50 when logged, first-try
     acceptance (first tries with no error, of all first tries), and the share of prompt tokens the server had cached, when it said."""
-    out = {}
-    for task in speech_tasks():
-        first = [r for r in calls if r.get("task") == task and int(r.get("attempt", 0) or 0) == 0]
-        if not first:
-            continue
-        sizes = [c for c in (prompt_chars(r) for r in first) if c is not None]
-        tails = [r["tail_chars"] for r in first if isinstance(r.get("tail_chars"), int)]
-        toks = [r["tokens"] for r in first if isinstance(r.get("tokens"), dict) and isinstance(r["tokens"].get("cached"), int)]
-        out[task] = {"calls": len(first), "first_try": round(sum(1 for r in first if not r.get("error")) / len(first), 3),
-                     "p50": int(pct(sizes, .5)) if sizes else None, "p95": int(pct(sizes, .95)) if sizes else None,
-                     "max": max(sizes) if sizes else None, "tail_p50": int(pct(tails, .5)) if tails else None,
-                     "cached": round(sum(t["cached"] for t in toks) / max(1, sum(t.get("prompt", 0) for t in toks)), 3) if toks else None}
-    return out
+    return {task: m for task in speech_tasks() if (m := first_tries(calls, (task,)))}
+
+
+def first_tries(calls: list[dict], tasks) -> dict | None:
+    """(f475) The measure itself, for these tasks taken together ((f723) the live gate's kinds of speaker); None with no call of theirs."""
+    first = [r for r in calls if r.get("task") in tasks and int(r.get("attempt", 0) or 0) == 0]
+    if not first:
+        return None
+    sizes = [c for c in (prompt_chars(r) for r in first) if c is not None]
+    tails = [r["tail_chars"] for r in first if isinstance(r.get("tail_chars"), int)]
+    toks = [r["tokens"] for r in first if isinstance(r.get("tokens"), dict) and isinstance(r["tokens"].get("cached"), int)]
+    return {"calls": len(first), "first_try": round(sum(1 for r in first if not r.get("error")) / len(first), 3),
+            "p50": int(pct(sizes, .5)) if sizes else None, "p95": int(pct(sizes, .95)) if sizes else None,
+            "max": max(sizes) if sizes else None, "tail_p50": int(pct(tails, .5)) if tails else None,
+            "cached": round(sum(t["cached"] for t in toks) / max(1, sum(t.get("prompt", 0) for t in toks)), 3) if toks else None}
 
 
 def speech_table(calls: list[dict]) -> list[str]:

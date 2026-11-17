@@ -307,7 +307,8 @@ def ceilings_problems(ceil: dict | None = None) -> list[str]:
 def gate_problems(F: dict | None = None, measured: dict | None = None) -> list[str]:
     """(f719) data/replay/gate.yaml, the live gate's floors (the owner's numbers; unset until the owner sets them) and the sizes of
     its quick run; and data/measured/live_gate.yaml, once a whole run has written it: the four measures it holds."""
-    HELD = ("reading_share", "phantoms_per_100", "unknown_names_per_100", "stiff_sent_back_share", "p95_seconds", "over_limit", "stand_ins")
+    HELD = ("reading_share", "phantoms_per_100", "unknown_names_per_100", "stiff_sent_back_share", "p95_seconds", "over_limit", "stand_ins",
+            "leaks", "townsperson_prompt_p95_chars", "first_try_share")       # (f723) the speech work's three
     if F is None and not (ROOT / "data" / "replay" / "gate.yaml").exists():
         return []                                                      # a build without the test data has no gate to hold
     F = _load("data/replay/gate.yaml") if F is None else F
@@ -320,6 +321,10 @@ def gate_problems(F: dict | None = None, measured: dict | None = None) -> list[s
             bad.append(f"gate.yaml floors.{name}: a number, or nothing while the owner has not set it")
         elif v is not None and name.endswith("_share") and v > 1:
             bad.append(f"gate.yaml floors.{name}: a share, from 0 to 1")
+    speakers = F.get("speakers")                                       # (f723) each kind's tasks are tasks the budget knows
+    known = set(_load("data/rules/budget.yaml").get("tasks") or {})
+    if not isinstance(speakers, dict) or not speakers or not all(isinstance(v, list) and v and set(v) <= known for v in speakers.values()):
+        bad.append("gate.yaml speakers: each kind of speaker with a list of budget.yaml tasks")
     quick = F.get("quick") or {}
     for name in ("cases", "lines"):
         if not isinstance(quick.get(name), int) or isinstance(quick.get(name), bool) or quick[name] < 1:

@@ -371,6 +371,13 @@ def _request(npc, store, world, catalog, convo, player_text, extra, truth_text, 
     return prompt, facts, recent
 
 
+def carries(speech: str, text: str) -> bool:
+    """The speech carries the fact: it shares enough of the fact's own words (a fact merely claimed is not learned). (f723) One rule,
+    for a fact revealed here and for the live gate's count of news said unasked."""
+    words = set(re.findall(r"[a-z]{5,}", str(text or "").lower()))
+    return bool(words) and len(words & set(re.findall(r"[a-z]{5,}", str(speech or "").lower()))) >= min(3, max(1, len(words) // 4))
+
+
 def converse(
     npc: NPC,
     store: CampaignStore,
@@ -415,17 +422,8 @@ def converse(
     from engine import partings
     partings.remember(npc, player_text, reply.speech)       # (f347) kept for the repeat guard and the written parting
 
-    known_ids = {f.id for f in facts}
-    import re as _re
-    spoken = set(_re.findall(r"[a-z]{5,}", reply.speech.lower()))
     by_id = {f.id: f for f in facts}
-
-    def conveyed(fid: str) -> bool:
-        """The speech must actually carry the fact: it shares enough of the fact's own words (a fact merely claimed is not learned)."""
-        words = set(_re.findall(r"[a-z]{5,}", by_id[fid].text.lower()))
-        return len(words & spoken) >= min(3, max(1, len(words) // 4))
-
-    revealed = [r for r in reply.reveals if r in known_ids and conveyed(r)]
+    revealed = [r for r in reply.reveals if r in by_id and carries(reply.speech, by_id[r].text)]
     dropped = [r for r in reply.reveals if r not in revealed]
     if dropped:
         console.debug(f"ignored reveals {npc.name} does not know: {dropped}")
