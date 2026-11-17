@@ -491,10 +491,36 @@ class PartyActions:
             return True
         if self.party_proposal(text):                       # (f386) "let's keep moving toward Parth" is the player's next step
             return True
+        if "?" not in text and self.goes_to_place(low):     # (f708) "Start the trek to Ironvein.": a step, in any wording
+            return True
         if self.COMMAND.match(low) and "?" not in text and not low.startswith(("go on", "go ahead", "look,")):
             return True
         m = self.TO_SOMEONE.match(low)
         return bool(m) and m.group(1) not in (first, "me", "us", "him", "her", "them", "you")
+
+    TOWARD = re.compile(r"\b(?:to|toward|towards|for|into)\s+(?:the\s+)?(?P<rest>.*)")
+
+    @staticmethod
+    def _plain(s: str) -> str:
+        return " ".join(re.sub(r"[^a-z ]", " ", re.sub(r"'s\b", "", s.lower().replace("’", "'"))).split())
+
+    def goes_to_place(self, low: str) -> bool:
+        """(f708) Does the line name a place walked to, other than here, right after to / toward / for / into? The place's whole name
+        opens the words that follow ("to Parth's gate", "toward the Greyhollow foothills"), so 'for the great help' is never the Great
+        River reaches. Only whole places, and the parts of this town: another town's chapel is not walked to by its name alone."""
+        from engine import mapview
+        here = self.player_of(self.acting).location
+        here_top = mapview.top_of(self.world, here)
+        names = set()
+        for pid, p in self.world.places.items():
+            top = mapview.top_of(self.world, pid)
+            if p.type != "road" and pid not in (here, here_top) and top in (pid, here_top):
+                names.add(self._plain(re.sub(r"^the\s+", "", p.name, flags=re.I)))
+        for m in self.TOWARD.finditer(low):
+            rest = self._plain(m.group("rest"))
+            if any(n and (rest == n or rest.startswith(n + " ")) for n in names):
+                return True
+        return False
 
     def npc_addressed(self, text: str, npc) -> bool:
         from engine import mentor
@@ -524,6 +550,8 @@ class PartyActions:
             return None                                  # (f654) named, not spoken to: "Raerei is still white as a sheet. We sit..."
         if any(self.pack_thing_in(a.said or a.clause) for a in found) or any(a.mine for a in found):
             return None                                  # (f654) something handed over, or the player's own deed: the interpreter reads it
+        if "?" not in text and self.goes_to_place(low):
+            return None                                  # (f708) "Morm, start the trek to Greyhollow.": a step, read with Morm as the one spoken to
         spoken = {a.clause for a in found}
         if any(self.own_deed(c) for c in addressing.clauses(text) if c not in spoken):
             return None                                  # (f674) '"Pae, hold it off!" I cast Chilling Touch': the cast is the player's

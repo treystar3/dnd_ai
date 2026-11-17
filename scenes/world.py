@@ -3075,6 +3075,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                       if n.location == self.player.location and n.away_until > self.minutes else self.where_name(n.location))
                      for n in shown_away]
         last = self.last_spoken if left or any(n.id == self.last_spoken for n in self.present) else None
+        hl = getattr(self, "_hire_last", None)
+        if last is None and hl and hl[1] == self.store.meta.turn - 1:     # (f708) a reply that falls through still finds the hire who spoke
+            last = next((p.id for p in _sc.present_people() if p.kind == "hire" and p.name == hl[0]), None)
         people = people + [(p.id, f"{p.label} ({p.note})", f"{p.desc} {p.doing}.") for p in _sc.present_people() if p.kind in ("maren", "hire", "companion")]
         people = people + [(p.id, p.label, p.desc) for p in _sc.present_people() if p.kind == "wildlife"]
         short = cand.I["always_if_short"]

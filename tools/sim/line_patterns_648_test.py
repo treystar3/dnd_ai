@@ -139,8 +139,9 @@ RAISED = {                 # {file: (how many more, "fNNN: the guard it adds ove
     "scenes/world.py": (2, "f656: the time of day a rest is asked until ('till dawn'), read once for the rest a line or a room asks for; "
                            "f685: the creature a blow or a spell is aimed at, read from the line's words when the reading's target names none"),
     "scenes/arc_actions.py": (1, "f657: a blow at a foe who yielded, by the action table's verbs and the acting character's own abilities"),
-    "scenes/party_actions.py": (3, "f674: a sentence of the player's own beside words to a companion (it starts with what they do, or names an ability; "
-                                   "a speech tag is not one)"),
+    "scenes/party_actions.py": (6, "f674: a sentence of the player's own beside words to a companion (it starts with what they do, or names an ability; "
+                                   "a speech tag is not one); f708: a place walked to, its whole name after to / toward / for, in a line "
+                                   "that is no question, is a step and never a reply to a hire (named or the one who spoke last)"),
     "scenes/inventory_actions.py": (2, "f660: coin handed over read for the deed with a price it is for (the words that name the fee)"),
     "scenes/pastime_actions.py": (3, "f660: a haggle that only asks (a question with no word of buying) is a word with the seller, not a purchase"),
     "engine/clock.py": (1, "f687: the clock hour a wait is asked until ('until eight in the morning'), read once for the wait"),
