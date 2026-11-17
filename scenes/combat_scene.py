@@ -286,7 +286,7 @@ class CombatScene:
             read.append(f"you judge your odds at {rate:.0%}")
         sworn = next((p.subject for p in c.passives if p.mechanic == "sworn_enemy" and p.subject), "")
         if sworn and getattr(creature, "category", "") == sworn:
-            pace_word = {"slow": "slow - it cannot follow a quick step", "fast": "fast - it will run you down",
+            pace_word = {"slow": "slow: it can't keep up with a quick step", "fast": "fast: it will run you down",
                          "normal": "no quicker than you"}[enemies[0].pace if enemies else "normal"]
             read.append(f"a sworn foe, read at a glance: {rate:.0%} odds, {pace_word}")
         scene.show(read="; ".join(read))
@@ -643,7 +643,7 @@ class CombatScene:
             named = a.id == getattr(intent, "ability", "") or (a.name and re.search(rf"\b{re.escape(a.name.lower())}\b", low))
             if named and a.context == UseContext.OUT_OF_COMBAT and not any(m.id == a.id for m in self.fight.player.moves):
                 return (f"{a.name} works outside a fight, not in one: {a.description.strip()} "
-                        "Use it once the fight is over; for now, pick one of your fighting abilities from the panel.")
+                        "Use it once the fight is over. For now, pick one of your fighting abilities from the panel.")
         return ""
 
     def act(self, intent, text: str) -> None:
@@ -938,13 +938,13 @@ class CombatScene:
         """A draught or other consumable: one a turn, and it does not use up the action - the player is asked what they do next."""
         f = self.fight
         if f.duel:
-            console.note("No potions or draughts in a trial: you face the examiner with what you carry in your hands.")
+            console.note("No potions or draughts in a trial. You face the examiner with what's in your hands.")
             return
         from engine import combat_perks
         p = f.player
         used = p.counters.get("items_used", 0) if (f.item_round == f.round and p.counters.get("items_round") == f.round) else 0
         if used >= combat_perks.item_limit(f, p):
-            console.note("You have already used an item this turn. Do something else, and you can use another on your next turn."
+            console.note("You've already used an item this turn. Do something else now, and use another next turn."
                          if used == 1 else "Two items is all even you can manage in a turn. Do something else.")
             return
         ally = self.ally_for_item(text)
@@ -1063,8 +1063,8 @@ class CombatScene:
         if saved is None:
             return False
         item, wait = saved
-        console.note(f"The killing blow lands - and {items.display_name(item)} burns white. You rise from the ashes at half strength; "
-                     f"the fight is over. (It cannot do this again for {wait:g} days.)")
+        console.note(f"The killing blow lands, and {items.display_name(item)} burns white. You rise from the ashes at half strength, "
+                     f"and the fight is over. (It can't do this again for {wait:g} days.)")
         ws.narrate("A killing blow falls on the player, but their Phoenix relic flares and refuses it. They stagger up, alive, the "
                    "enemies recoiling or gone.")                                                   # (f415) no length (f375)
         return True
@@ -1101,7 +1101,7 @@ class CombatScene:
             return
         if not dead and not yielded:
             if getattr(ws, "orenna_fight", None) != "executioner":
-                console.note("They got away - nothing to show for it this time.")
+                console.note("They got away. You've nothing to show for this one.")
             self.sync_player()
             return
         ws.record_kills(dead)
@@ -1136,11 +1136,11 @@ class CombatScene:
                              lambda rng: failures.victory_stood({**facts, "found": ", ".join(self.final_name(i, copies) for i in found)}, rng))   # (f464)
         console.ledger(f"Victory. +{total_xp} XP" + (f", {money.fmt(coins)}" if coins else ""))
         if levels:
-            console.note(f"LEVEL UP! You are now level {c.level}. {c.unspent_points} points to spend - #allocate")
+            console.note(f"LEVEL UP! You are now level {c.level}, with {c.unspent_points} points to spend. Type #allocate.")
             self.ws.ranks_in_reach(c.level - levels)                          # (f397) a new rank of spells, when one comes within reach
         if skinnable:
             from engine import loot
-            console.note(f"The fallen can be {loot.remains_words([e for e in dead if loot.has_remains(e)])} - say so if you want to.")   # (f672)
+            console.note(f"The fallen can be {loot.remains_words([e for e in dead if loot.has_remains(e)])}. Say so if you want to.")   # (f672)
 
     @staticmethod
     def name_of(i) -> str:

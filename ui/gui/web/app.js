@@ -506,7 +506,7 @@ function renderBoard(d) {
 
 // ---------- places pane: where you can go from here, with walking times and Go buttons (same travel code as typing it) ----------
 function renderPlaces(d) {
-  if (!d.here) { side.appendChild(el("div", "dimrow", "You are not anywhere you know the way from.")); return; }
+  if (!d.here) { side.appendChild(el("div", "dimrow", "You don't know your way anywhere from here.")); return; }
   side.appendChild(el("div", "purse", `${d.here_name} · ${d.town}`));
   const block = (title, rows) => {
     side.appendChild(el("div", "h2", title));

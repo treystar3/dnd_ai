@@ -157,7 +157,7 @@ class GuildActions:
             elif not clerk:
                 why = "The clerk must be here to record it."
             elif not quests.at_or_below(q["letter"], rank):
-                why = f"Rank {q['letter']} - you are rank {self.rank}."
+                why = f"Needs rank {q['letter']}. You're rank {self.rank}."
             elif held_guild >= limit:
                 why = f"You hold {limit} guild contracts already."
             elif q["kind"] == "missing" and looking:
@@ -196,7 +196,7 @@ class GuildActions:
         if not self.rank or mentor.tutorial_on(self.player):
             return out                                        # her lesson: Maren or no one (f283)
         for m in self.party_roster():
-            why = "Your party is full." if full else ("Join the guild first." if not self.rank else "") or away or (f"Wants {money.fmt(m['fee'])}; your purse holds {money.fmt(c.coins)}." if c.coins < m["fee"] else "")
+            why = "Your party is full." if full else ("Join the guild first." if not self.rank else "") or away or (f"Wants {money.fmt(m['fee'])}. You have {money.fmt(c.coins)}." if c.coins < m["fee"] else "")
             out.append({"id": m["id"], "name": m["name"], "who": f"{(m.get('people') or 'human').replace('_', '-')} {m['role']}", "rank": m["rank"], "level": m["level"],
                         "blurb": m["blurb"], "temper": self.temper_text(m), "fee": money.fmt(m["fee"]), "ok": not why, "why": why,
                         "kit": __import__("engine.techniques", fromlist=["describe"]).describe(m["role"], m["level"])})      # (f396) what they can do
@@ -212,7 +212,7 @@ class GuildActions:
         board = self.ensure_board()
         bonus = self.guild_perks()["reward_bonus"]
         rank = self.rank or "F"
-        console.note(f"THE CONTRACT BOARD at {data['hall']} - your rank: {self.rank or 'not a member (joining fee ' + money.words(G['joining_fee']) + ')'}")
+        console.note(f"THE CONTRACT BOARD at {data['hall']}. Your rank: {self.rank or 'not a member (joining fee ' + money.words(G['joining_fee']) + ')'}")
         for n, q in enumerate(board, 1):
             coins, xp = quests.reward(q["letter"], True, bonus)
             coins, xp = round(coins * q.get("multiplier", 1)), round(xp * q.get("multiplier", 1))
@@ -242,7 +242,7 @@ class GuildActions:
                 offered = self.party_roster()
                 m = next((x for x in offered if x["id"] == parts[1]), None)
                 if m is None:
-                    console.note("They have moved on; the roster has changed.")
+                    console.note("That adventurer has moved on. The roster has changed.")
                 else:
                     self.party_hire(m["name"], f"hire {m['name']}", offered, exact=m)
         if cmd == "#boardaccept" and len(parts) >= 2:
@@ -334,7 +334,7 @@ class GuildActions:
                 console.note(f"Guild rank {self.rank}. To reach {nxt}: level {need['level']} (you are "
                              f"{self.player.character.level}), {need['completed']} contracts at {self.rank} or higher "
                              f"(you have {counted}), and a trial against an examiner of that rank"
-                             + (" - you qualify: ask for the trial at a guild hall." if self.trial_due() else "."))
+                             + (". You qualify: ask for the trial at a guild hall." if self.trial_due() else "."))
 
     # ---------- joining and contracts ----------
 
@@ -348,7 +348,7 @@ class GuildActions:
             console.note(f"You're already a member, rank {self.rank}.")
             return
         if c.coins < G["joining_fee"]:
-            self.refuse(f"The joining fee is {money.words(G['joining_fee'])}; you have {money.words(c.coins)}.")
+            self.refuse(f"The joining fee is {money.words(G['joining_fee'])}. You have {money.words(c.coins)}.")
             return
         c.coins -= G["joining_fee"]
         self.player.guild_rank = "F"
@@ -398,11 +398,11 @@ class GuildActions:
             self.take_personal(npc)
             return
         if not self.rank:
-            self.refuse(f"Only guild members can take contracts. Joining costs {money.words(G['joining_fee'])} - "
-                         "ask the clerk.")
+            self.refuse(f"Only guild members can take contracts. Joining costs {money.words(G['joining_fee'])}. "
+                         "Ask the clerk.")
             return
         if not self.clerk_here():
-            self.refuse("Contracts are taken from the board, with the clerk to record them.")
+            self.refuse("You take contracts from the board, and the clerk has to be here to record them.")
             return
         board = self.ensure_board()
         q = self.pick_posting(board, f"{intent.item} {text}")
@@ -411,17 +411,17 @@ class GuildActions:
             self.halted = True
             return
         if not quests.at_or_below(q["letter"], self.rank):
-            self.refuse(f"That's a rank-{q['letter']} contract; you're rank {self.rank}.")
+            self.refuse(f"That's a rank-{q['letter']} contract, and you're rank {self.rank}.")
             return
         if q["kind"] == "delve":
             dd = next((x for x in self.store.load_dungeons() if x["id"] == q.get("dungeon")), None)
             if dd is None or q.get("floor", 0) >= len(dd["floors"]):
                 board[:] = [x for x in board if x is not q]
-                self.refuse("That posting is out of date - the place has been remade. The clerk strikes it from the board.")
+                self.refuse("That posting is out of date: the place has been remade. The clerk strikes it from the board.")
                 return
         limit = G["base_active"] + self.guild_perks()["active"]
         if sum(1 for x in self.player.quests if x["guild"]) >= limit:
-            self.refuse(f"You can hold {limit} guild contracts at once - finish or abandon one first.")
+            self.refuse(f"You can only hold {limit} guild contracts at once. Finish or abandon one first.")
             return
         if q["kind"] == "missing" and any(x["kind"] == "missing" for x in self.player.quests):
             self.refuse("You are already looking for someone. Finish or drop that contract first.")
@@ -499,7 +499,7 @@ class GuildActions:
         for e in dead:
             if getattr(e, "spawn", ""):
                 for s in events.on_kills(self.store, [e], self.minutes, self.world):
-                    console.note(f"{cap_first(s['name'])} is dead." if s["boss"] else f"The {s['name']} that were troubling this place are broken.")
+                    console.note(f"{cap_first(s['name'])} is dead." if s["boss"] else f"That's the end of the {s['name']} that were troubling this place.")
             self.notice(CreatureKilled(minute=self.minutes, place=self.player.location, creature=e.creature, level=e.level, rank=e.rank,
                                        spawn=getattr(e, "spawn", "")))
         self.tally_foes(dead)
@@ -536,7 +536,7 @@ class GuildActions:
         q = self.delivery_for(key)                                       # (f545's review) the job this very item is carried for, and
         if q is not None and self.meant_for(npc, key):                   # the one it is meant for read as the giving reads it
             q["progress"] = 1
-            console.note(f"{q['title']}: delivered" + (" - collect your pay from the guild clerk." if q["guild"] else "."))
+            console.note(f"{q['title']}: delivered" + (". Collect your pay from the guild clerk." if q["guild"] else "."))
             self.store.save_player(self.player)
 
     def bounty_encounter(self) -> bool:
@@ -632,7 +632,7 @@ class GuildActions:
                 from engine import situation_parts
                 situation_parts.part_done(self, q)
             console.ledger(f"Completed: [{q['letter']}] {q['title']}. {cap_first(payer.label(self.acting))} pays "
-                         f"{money.fmt(coins)} - +{xp} XP.")
+                         f"{money.fmt(coins)}. +{xp} XP.")
             if q["guild"]:
                 import random as _r
                 from engine import spells
@@ -647,7 +647,7 @@ class GuildActions:
             from engine import stakes
             stakes.done(self, q)                                            # (f322) the result lands; the issuer and the town remember
             if levels:
-                console.note(f"LEVEL UP! You are now level {c.level}. {c.unspent_points} points to spend - #allocate")
+                console.note(f"LEVEL UP! You are now level {c.level}, with {c.unspent_points} points to spend. Type #allocate.")
             self.promote_if_due()
         self.store.save_player(self.player)
         return handed
@@ -676,7 +676,7 @@ class GuildActions:
         from engine import obligations                                     # (f481) an offer in the registry, waiting on a yes
         obligations.open_(self.store, "request", npc.id, self.acting, q["title"], self.minutes, terms=q)
         self.store.save_npc(npc)
-        console.note(f"Request offered: [{q['letter']}] {q['title']} - {money.words(q['coins'])}, {q['xp']} XP. "
+        console.note(f"Request offered: [{q['letter']}] {q['title']}, for {money.words(q['coins'])} and {q['xp']} XP. "
                      "Say yes to take it on.")
 
     def map_request(self, offer, npc) -> dict | None:

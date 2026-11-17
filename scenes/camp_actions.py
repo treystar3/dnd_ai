@@ -226,7 +226,7 @@ class CampActions:
         elif people:
             opts.append("bluff your way in")
         opts += ["ambush the leader", "charge in"]
-        console.note("You have not been seen. You could: " + " · ".join(opts) + " - or describe your own way, or go elsewhere.")
+        console.note("You haven't been seen. You could: " + " · ".join(opts) + ". Or try it your own way, or go elsewhere.")
 
     # ---------- reading the player ----------
 
@@ -359,7 +359,7 @@ class CampActions:
                                    "and grows wary. Nothing is learned.]", text):
                 self.narrate("[THE GAME HAS DECIDED: the player's scouting fails and someone in the camp glimpses movement "
                              "and grows wary. Nothing is learned. The camp has not seen who it is.]", text)
-                console.note("Someone out there is watching the treeline now. The camp is wary.")
+                console.note("Someone in the camp caught a glimpse of movement. The camp is wary now.")
             return
         guards = [g for g in camp["guards"] if g["state"] == "up"]
         camp["scouted"] = True
@@ -379,7 +379,7 @@ class CampActions:
         first, reserves = self.camp_enemies(camp, tpl, "boss" if n["kind"] == "boss" else "lair")
         label, rate = combat.danger(self.camp_fight_sim(first, reserves))
         console.note(f"Guards: {listing}. Leader: {ld['name']} (lv {ld['level']}).")   # (f647) the label is not shown
-        console.note(f"You spot {flaw} - it will help you get close.")
+        console.note(f"You spot {flaw}. That will help you get close.")
         if label in ("dangerous", "deadly") and len(self.player.party) < party_rules.P["max_party"]:
             console.note("That is a garrison, not a gang. The guild hires out adventurers for a job like this.")
         self.narrate(f"[THE GAME HAS DECIDED: the player scouts well. They count {len(guards)} guards and the leader "
@@ -401,7 +401,7 @@ class CampActions:
     def camp_sneak(self, data, arc, n, tpl, camp, text, target: str = "") -> None:
         g = self.camp_target(camp, text, target)
         if not g:
-            console.note("No guards are left - only the leader. You could ambush them, or charge in.")
+            console.note("There are no guards left, only the leader. You could ambush the leader, or charge in.")
             return
         rule = CA["sneak"]
         self.advance_quiet(rule["hours"] * 60)
@@ -416,7 +416,7 @@ class CampActions:
         g["state"] = "down"
         xp = round(leveling.kill_xp(self.player.character.level, g["level"], "normal") * rule["xp_share"])
         gained = leveling.gain_xp(self.player.character, xp)
-        console.note(f"{who} is dealt with. +{xp} XP" + (f" - LEVEL UP! You are now level {self.player.character.level}." if gained else ""))
+        console.note(f"{who} is dealt with. +{xp} XP" + (f". LEVEL UP! You are now level {self.player.character.level}." if gained else ""))
         left = sum(1 for x in camp["guards"] if x["state"] == "up")
         tail = f" {left} guard{'s' if left != 1 else ''} left." if left else " Only the leader remains."
         console.note(tail.strip())
@@ -431,7 +431,7 @@ class CampActions:
         if camp["removed"] % CA["missing_every"] == 0 and left:
             if self.camp_raise(data, arc, n, tpl, camp, 1, "[THE GAME HAS DECIDED: someone in the camp notices that men have gone missing and calls out.]", text):
                 return
-            console.note("Someone has noticed men are missing. The camp is on edge.")
+            console.note("Someone has noticed guards are missing. The camp is on edge.")
         elif noisy and camp["alert"]:
             console.note("The camp is on edge now.")
 
@@ -454,8 +454,8 @@ class CampActions:
                                                       else "The lie is caught at once, and the camp turns on the player.")
         self.narrate(f"[THE GAME HAS DECIDED: {line}] Describe this moment and end as steel is drawn.", text)
         if surprise != "none":
-            console.note("You catch them off guard - you will have the first moment." if surprise == "all"
-                         else "You catch the leader off guard - you will have the first moment against them.")
+            console.note("You catch them all off guard. The first move is yours." if surprise == "all"
+                         else "You catch the leader off guard, and the first blow is yours.")
         self.camp_battle(data, arc, n, tpl, surprise=surprise, far=far)
 
     def camp_ambush(self, data, arc, n, tpl, camp, text, target: str = "") -> None:
@@ -509,7 +509,7 @@ class CampActions:
             camp["edge"] += 10
         names = ", ".join(g["name"] for g in fled)
         left = sum(1 for g in camp["guards"] if g["state"] == "up")
-        console.note(f"{names} run{'s' if len(fled) == 1 else ''} off into the dark." + (" The leader is shaken." if degree == "strong success" else "")
+        console.note(f"{names} run{'s' if len(fled) == 1 else ''} off." + (" The leader is shaken." if degree == "strong success" else "")
                      + (f" {left} guard{'s' if left != 1 else ''} left." if left else " Only the leader remains."))
         self.narrate(f"[THE GAME HAS DECIDED: the player's menace works. {names} lose their nerve and flee"
                      + (", and the leader is visibly shaken" if degree == "strong success" else "") + ".] "

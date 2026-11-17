@@ -469,7 +469,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             return False                      # her lesson comes first: the wolves are found by searching, as she teaches
         if self.shadow_active() and not self.dungeon_here() and self.place.danger and not self.player.delve:
             self.use_shadow()
-            console.note("Something stirs nearby, but you are not noticed and it passes you by.")
+            console.note("Something stirs nearby, but it doesn't see you and moves on.")
             return False
         chance = min(0.95, chance * pulse.danger_factor(self.store, self.player.location, self.minutes)
                      * self.danger_multiplier(self.player.location, not getattr(self, "first_arrival", True)))
@@ -479,7 +479,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         creature, enemies = hit
         console.debug(f"encounter: {len(enemies)} x {creature.id} (levels {[e.level for e in enemies]})")
         if self.beasts_calm(creature):
-            console.note(f"A {creature.name.lower()} stirs nearby, but the animals have spoken for you and it passes by.")
+            console.note(f"A {creature.name.lower()} comes close, takes you for a friend, and wanders off.")
             return False
         if self.temperament(creature) == "passive":
             self.wildlife, self.wildlife_at = (creature, enemies), self.minutes
@@ -1876,7 +1876,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         enchanter = next((n for n in self.present if n.role == "enchanter"), None)
         own_hands = self.owns("enchanter") and bool(self.place.stations)
         if not enchanter and not own_hands and not actor.prefs().debug:
-            console.note("There's no enchanter here. You'll need to find one - perhaps somewhere magic is welcome."
+            console.note("There's no enchanter here. Look for one somewhere magic is welcome."
                          + (" Or a workshop: you can do the work yourself." if self.owns("enchanter") else ""))
             return
         if not enchanter and own_hands:
@@ -2322,7 +2322,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         undone = self.__dict__.pop("dropped_steps", [])
         if undone:                                             # (f332) the game does at most three things a line: say what it did not do
             from engine import refusals
-            console.note("Three things at a time: not done - " + "; ".join(undone) + ". Say it again when you are ready.")
+            console.note("Three things at a time. Left undone: " + "; ".join(undone) + ". Say them again when you're ready.")
             refusals.note("undone", text, "more than three actions in one line: " + "; ".join(undone), self.player.location, self.store.meta.turn)
             ledger.add("not_done", steps=undone, say="NOT DONE this turn, never show them done: " + "; ".join(undone) + ".")   # (f416)
         self.release_time_notes()                               # (f418) after the passage
@@ -3002,7 +3002,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if console.panel("places", data):                  # the window draws this one with Go buttons
             return
         if not data["here"]:
-            console.note("You are not anywhere you know the way from.")
+            console.note("You don't know your way anywhere from here.")
             return
         console.note(f"From {data['here_name']} in {data['town']}:")
         for r in data["local"]:
@@ -3355,7 +3355,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 found = self.world.path(self.player.location, dest)
                 away = f", {clock.describe_duration(found[1])} away" if found else ""
                 self.refuse(f"There is no {tgt.type} in {here_town}. The nearest is {tgt.name} in "
-                             f"{self.world.places[mapview.top_of(self.world, dest)].name}{away}. Say where you want to go to head there.")
+                             f"{self.world.places[mapview.top_of(self.world, dest)].name}{away}. Name it if you want to head there.")
                 return
             if self.far_unnamed(dest, text):
                 return
@@ -3913,7 +3913,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if self.wildlife and ability.effect.value == "buff":       # it goes up as the fight they start this turn begins (f248)
                 if ability.id not in self.queued_buffs:
                     self.queued_buffs.append(ability.id)
-                console.note(f"You ready {ability.name} - it goes up the moment you strike.")
+                console.note(f"You ready {ability.name}. It takes effect the moment you strike.")
                 return
             if self.wildlife:                                        # a fighting ability turned on something hostile starts the fight with it
                 self.on_attack(intent, text, opener=ability.id)
@@ -3921,7 +3921,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if ability.effect.value in ("damage", "control") and self.hunt_named(intent, text):   # (f685) at a creature here: go looking,
                 self.open_with(ability.id, text)                                     # and the found fight begins with it
                 return
-            self.refuse(f"{ability.name} is a fighting technique - save it for a fight"
+            self.refuse(f"{ability.name} is a fighting technique, so save it for a fight"
                          + (" (name it as you start one, or set it with #prebuff)." if ability.effect.value == "buff" else "."))
             return
         self.ensure_field_uses()
@@ -4162,7 +4162,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if self.hunt_named(intent, text):                         # (f449) a creature of this place, named but not in view: go looking for it
             return
         if self.present:
-            console.note("Attacking people isn't supported yet.")
+            console.note("You can't pick a fight with the people here.")
         else:
             console.note("There's nothing here to fight.")
 

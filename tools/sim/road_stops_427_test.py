@@ -136,7 +136,7 @@ help0 = seen("road_help")
 SHOWN.clear()
 ws.stop_step(ActionIntent(kind="give", item="bread", target=aid["who"]), False)
 check("helping them is repaid, then", ws.player.road["aid"].get("helped") and ws.player.character.coins > coins0
-      and any("repaid" in t for _, t in SHOWN), (ws.player.road["aid"], SHOWN))
+      and any("paid for your trouble" in t for _, t in SHOWN), (ws.player.road["aid"], SHOWN))
 check("...and the kind among the party are glad of it", seen("road_help")[crew[0]] == help0[crew[0]] + 1 and seen("road_help")[crew[1]] == help0[crew[1]])
 before = seen("pass_by")
 stop = ws.player.road["id"]

@@ -69,8 +69,8 @@ class PartyActions:
             return
         if not self.party_wanted():
             return
-        console.note("The clerk has heard where your trail leads: a fortified camp. The guild keeps adventurers who will go with you "
-                     "for a fee - say 'recruit help' to see who is free.")
+        console.note("The clerk knows where your trail leads: a fortified camp. The guild has adventurers who'll go with you "
+                     "for a fee. Say 'recruit help' to see who's free.")
 
     def party_roster(self) -> list[dict]:
         from engine import mentor
@@ -154,7 +154,7 @@ class PartyActions:
         self.party_service.join({"id": "npc_maren", "name": n.name, "role": "fighter", "level": mentor.M["troll_sheet"]["level_mentor"], "rank": "A",
                                  "blurb": "Maren Holt, an A-rank adventurer", "npc": n.id, "sheet": "maren", "stay": True})
         self.store.save_player(self.player)
-        console.note(f"{n.name} joins your party. She comes for her own reasons, and she is not paid. If she is hurt badly enough, she may not get up.")
+        console.note(f"{n.name} joins your party. She's coming for her own reasons, not for pay. If she's hurt badly enough, she may not get up again.")
         self.mentor_say("Fine. Someone has to keep you out of trouble. Lead on.", beat="the player has asked you to travel with them and you agree, dryly")
         return True
 
@@ -209,10 +209,10 @@ class PartyActions:
         shape = self.world.bestiary.get(comp.creature) or _Shape(comp)
         f = combat.companion_fighter(shape, c.level, f"ally_{comp.id}", comp.name, gift=comp.source == "gift")
         if comp.dead:
-            state = "Dead - only a revival brings it back"
+            state = "Dead. Only a revival will bring it back"
         elif comp.fallen:
             wait = max(0, comp.recover_at - self.minutes)
-            state = "Fallen - back on its feet in " + clock.describe_duration(wait) if wait else "Fallen - ready to rise"
+            state = "Fallen, back on its feet in " + clock.describe_duration(wait) if wait else "Fallen, but ready to get up"
         else:
             state = "Ready"
         role = getattr(comp.role, "value", comp.role) or "striker"
@@ -857,7 +857,7 @@ class PartyActions:
         if meant is None and re.search(r"\b(all|everyone|everybody|whole party|the party|disband|all of you)\b", f"{target} {text}".lower()):
             gone = list(self.player.party)
         elif meant is None:
-            console.note("No one in your party by that name. Say whom to send away, or the whole party.")
+            console.note("There's no one in your party by that name. Say who to send away, or send the whole party.")
             return
         else:
             gone = meant
@@ -903,7 +903,7 @@ class PartyActions:
             return
         self.party_service.set_mode("hold")
         me.party_hold_at = me.location                                      # (f392) held back here: they fall in again when the player leaves
-        console.note("Your party will hold back and come running if the alarm goes up. They make no noise for you to answer for.")
+        console.note("Your party will hold back and come running if the alarm goes up. On your own, you make less noise.")
 
     def party_with(self, target: str, text: str, offered: list[dict]) -> None:
         me = self.player_of(self.acting)
@@ -913,7 +913,7 @@ class PartyActions:
         for m in me.party:                                                  # (f651) those held back alone come too
             m.pop("held_at", None)
         self.party_service.set_mode("with")
-        console.note("Your party moves beside you. Together you are loud.")
+        console.note("Your party moves up beside you. As a group, you're a lot louder.")
 
     def held_alone(self) -> list[dict]:
         """(f651) The companions held back on their own while the rest go with the player."""
@@ -1014,10 +1014,10 @@ class PartyActions:
         c = self.player.character
         first = m["name"].split()[0]
         if pools.current(c, "health") >= pools.maximum(c, "health") * 0.98:
-            console.note(f"{first} looks you over: there is nothing that needs tending.")
+            console.note(f"{first} looks you over. Nothing needs tending.")
             return True
         if self.minutes - m.get("tended_at", -10 ** 9) < T["asked_every"]:
-            console.note(f"{first} has done what can be done for now; the rest wants rest and time.")
+            console.note(f"{first} can't do more for now. What's left will take rest and time.")
             return True
         self.advance(T["minutes"])
         gained, tended = techniques.tend(c, self.player.party, techniques.tend_pct(m, "asked"), self.minutes, m)

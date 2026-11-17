@@ -166,7 +166,7 @@ class ExitActions:
         members, fork = gp["members"], gp["fork_minutes"]
         if exits.wants_back(text):
             self.advance(fork, exert=True)
-            console.note("You turn back and walk the road home.")
+            console.note("You turn back and walk the way you came.")
             return True
         chosen = exits.pick(gp, text)
         if chosen is None:

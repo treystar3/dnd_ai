@@ -49,7 +49,7 @@ class InventoryActions:
             state = self.store.load_place(self.player.location)
             inv.leave_on_ground(state, leftover, self.minutes)
             self.store.save_place(state)
-            console.note(f"No room in your pack - {inv.label(leftover)} left on the ground here.")
+            console.note(f"No room in your pack, so you leave {inv.label(leftover)} on the ground here.")
             ledger.add("left", item=leftover.uid, say=f"{inv.label(leftover)} is LEFT LYING here: there was no room in the player's pack. "
                                                        "Never show it taken, pocketed or carried.")
         return Stowed(kept, leftover)
@@ -106,7 +106,7 @@ class InventoryActions:
             return False
         key = self.find_key(name)
         if key:
-            self.refuse(f"{cap_first(key.name)} is a {'quest' if key.kind == 'quest' else 'key'} item - you can't {what} it.")
+            self.refuse(f"{cap_first(key.name)} is a {'quest' if key.kind == 'quest' else 'key'} item. You can't {what} it.")
             return True
         return False
 
@@ -132,7 +132,7 @@ class InventoryActions:
         self.store.save_npc(npc)
         self.store.save_player(self.player)
         meant = f" (meant for {key.for_whom})" if key.for_whom else ""
-        console.note(f"{'Quest' if key.kind == 'quest' else 'Key'} item received: {key.name}{meant} - {key.description}")
+        console.note(f"{'Quest' if key.kind == 'quest' else 'Key'} item received: {key.name}{meant}. {key.description}")
 
     @staticmethod
     def how_many(intent) -> int:
@@ -207,10 +207,10 @@ class InventoryActions:
         c = self.player.character
         key = next((k for k in c.key_items if k.name == asked["data"]["item"]), None)
         if key is None:
-            console.note("It is no longer with you.")
+            console.note("You don't have it anymore.")
             return True
         c.key_items.remove(key)
-        unfinished = f" - it never reached {key.for_whom}" if key.for_whom else ""
+        unfinished = f", which never reached {key.for_whom}" if key.for_whom else ""
         c.item_history.append(f"Got rid of {key.name}{unfinished} (day {clock.day(self.minutes)}).")
         self.store.save_player(self.player)
         console.ledger(f"Discarded: {key.name}.")
@@ -297,7 +297,7 @@ class InventoryActions:
         if kind == "away":
             self.refuse(f"{who} is not here.")
         elif kind == "ask":
-            self.refuse(f"Is the {g.name} for you or for someone else? Say that you take it yourself, or give it to the one you mean.")
+            self.refuse(f"Is the {g.name} for you or for someone else? Say you'll take it yourself, or give it to whoever it's for.")
         elif kind == "hire":
             first = who["name"].split()[0]
             if self.player_of(self.acting).party_mode != "with":
@@ -383,7 +383,7 @@ class InventoryActions:
         state = self.store.load_place(self.player.location)
         item = inv.pick_up(state, intent.item or text, self.minutes)
         if not item and self.coin_word(intent.item or text):        # (f384) loot coin goes straight to the purse
-            self.refuse(f"Any coin worth taking is already in your purse ({money.fmt(self.player.character.coins)}); none lies here.")
+            self.refuse(f"There's no coin lying here. Any worth taking is already in your purse ({money.fmt(self.player.character.coins)}).")
             return
         if not item and self.take_object(intent.item or text, text):
             return                                           # (f592) a thing lying here, made real by a ruling
@@ -502,9 +502,9 @@ class InventoryActions:
                 return kind, ""
         kind, (price, words, what) = fees[0]
         short = bool(price and amount and amount < price)
-        return "", (f"{what[:1].upper() + what[1:]} is {money.words(price)}; that is short of it, and you keep your coin." if short else
+        return "", (f"{what[:1].upper() + what[1:]} costs {money.words(price)}, and that's more than you offered. You keep your coin." if short else
                     f"{npc.label(self.acting)} takes coin for {what}" + (f" ({money.words(price)})" if price else "") +
-                    ", not as a gift. Say it is for that, or say it is a gift; you keep your coin for now.")
+                    ", not as a gift. Say it's for that, or say it's a gift. Until then, you keep your coin.")
 
     def is_bribe(self, intent, text: str) -> bool:
         low = f"{text} {intent.summary}".lower()
@@ -658,7 +658,7 @@ class InventoryActions:
                 c.item_history.append(f"Delivered {key.name} to {npc.name}, as {key.source} asked (day {day}).")
                 console.ledger(f"Delivered: {key.name}.")
             else:
-                meant = f" - it was meant for {key.for_whom}" if key.for_whom else ""
+                meant = f", though it was meant for {key.for_whom}" if key.for_whom else ""
                 c.item_history.append(f"Gave {key.name} to {npc.name}{meant} (day {day}).")
                 console.ledger(f"Handed over: {key.name}{meant}.")
             from engine.domain_events import Delivered
@@ -762,7 +762,7 @@ class InventoryActions:
         leftover = inv.add(self.player.stash, item, self.stash_cap())
         if leftover:
             inv.add(self.pack, leftover, self.pack_slots() + 1)
-            console.note(f"The item box is full - kept {inv.label(leftover)}.")
+            console.note(f"The item box is full, so you keep {inv.label(leftover)} in your pack.")
         self.store.save_player(self.player)
         console.ledger(f"Stored: {inv.label(item)}. Item box {len(self.player.stash)}/{self.stash_cap()}.")
 
@@ -903,7 +903,7 @@ class InventoryActions:
         if spot is None:
             where = [p.name for p in self.world.places.values() if station in p.stations]
             self.refuse(f"Making {base.name} needs a {station.replace('_', ' ')}"
-                         + (f" - there's one at {', '.join(where)}." if where else "."))
+                         + (f". There's one at {', '.join(where)}." if where else "."))
             return
         owner = next((n for n in self.present if n.role == spot.get("owner")), None) if spot.get("owner") else None
         if spot.get("owner") and not owner:
@@ -939,10 +939,10 @@ class InventoryActions:
         self.to_pack(item)
         self.advance(round(crafting.RULES["gear_minutes"] * (1 - crafting.mechanic(c, "quick_hands") / 100)))
         self.store.save_player(self.player)
-        paid = f" Paid {money.fmt(fee)} to use the {station.replace('_', ' ')}." if fee else (" No workshop needed - you have made this before (Practiced Hands)." if practiced else "")
+        paid = f" Paid {money.fmt(fee)} to use the {station.replace('_', ' ')}." if fee else (" No workshop needed, since you've made this before (Practiced Hands)." if practiced else "")
         thrift = f" Saved {saved} material." if saved else ""
         console.ledger(f"Crafted: {quality_name(item)} (lv {item.item_level}).{paid}{thrift} "
-                     f"Crafting skill {before:.0f} -> {after:.0f}.")
+                     f"Crafting skill: {before:.0f}, now {after:.0f}.")
         self.narrate(f"The player spends a couple of hours {'with their tools, no workshop needed,' if practiced else 'at the ' + station.replace('_', ' ')} and makes "
                      f"{item.name} from {items.MATERIALS[material].name} - {item.rarity} work.", text)
 
@@ -987,7 +987,7 @@ class InventoryActions:
         self.store.save_player(self.player)
         console.ledger(f"Commissioned {items.MATERIALS[material].name} {base.label or base.name} from {crafter.label(self.acting)} "
                      f"for {money.fmt(price)}" + (" (your materials)" if use_own else "")
-                     + ". Ready in about a day - collect it while they're at work.")
+                     + ". It'll be ready in about a day. Come by for it during their working hours.")
         self.narrate(f"The player pays {crafter.label(self.acting)} to make {base.name} from "
                      f"{items.MATERIALS[material].name}. They agree it will be ready in a day or so.", text)
 
@@ -1054,14 +1054,14 @@ class InventoryActions:
         for sl in data["sellers"]:
             console.note(f"{sl['name']}:")
             for w in sl["wares"]:
-                more = " - ".join(x for x in (w["detail"], w["note"]) if x)
-                console.note(f"  {w['name']}" + (f" ({more})" if more else "") + f" - {w['price_text']}")
+                more = "; ".join(x for x in (w["detail"], w["note"]) if x)
+                console.note(f"  {w['name']}" + (f" ({more})" if more else "") + f": {w['price_text']}")
             if sl["buys"]:
                 console.note(f"  buys: {', '.join(sl['buys'])}")
         if data["sell"]:
             console.note("Your pack would fetch:")
             for x in data["sell"]:
-                console.note(f"  {x['name']} - {x['total_text']} (from {x['buyer_name']})")
+                console.note(f"  {x['name']}: {x['total_text']} (from {x['buyer_name']})")
         self.show_stable()
         console.note(f"Your purse: {data['purse']}")
 

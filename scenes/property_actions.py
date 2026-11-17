@@ -44,12 +44,12 @@ class PropertyActions:
         if self.player.homes:
             for t, h in self.player.homes.items():
                 console.note(f"You own {P['homes'][t]['name']} in {self.world.places[t].name}"
-                             + (f" - upgrades: {', '.join(h['upgrades'])}." if h["upgrades"] else "."))
+                             + (f". Upgrades: {', '.join(h['upgrades'])}." if h["upgrades"] else "."))
         else:
             console.note("You own no property yet.")
         if prop.for_sale(town) and town not in self.player.homes:
-            console.note(f"For sale here: {P['homes'][town]['name']} - {money.fmt(P['homes'][town]['price'])}. "
-                         f"A land agent handles it; say 'buy a house'.")
+            console.note(f"For sale here: {P['homes'][town]['name']}, for {money.fmt(P['homes'][town]['price'])}. "
+                         f"The land agent handles the sale. Say 'buy a house'.")
         if self.place.type == "home":
             h = self.home_here()
             for uid, u in P["upgrades"].items():
@@ -131,8 +131,8 @@ class PropertyActions:
         self.player.homes[town] = {"day": clock.day(self.minutes), "upgrades": [], "last_garden": -1, "last_hearth": -1}
         self.ensure_homes()
         self.store.save_player(self.player)
-        console.note(f"You buy {h['name']}: {money.fmt(h['price'])}. It is called 'your house in {self.world.places[town].name}' "
-                     f"now; you can sleep there free, and keep your item box in it. Type #home.")
+        console.note(f"You buy {h['name']} for {money.fmt(h['price'])}. It's 'your house in {self.world.places[town].name}' "
+                     f"now. You can sleep there for free and keep your item box there. Type #home.")
         self.weight_hint = "major"
         self.narrate(f"The player buys {h['name']} from {agent.label(self.acting)} and is handed the key. "
                      "Describe the signing and the first look at the door.", text)

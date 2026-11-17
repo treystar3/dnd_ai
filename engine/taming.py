@@ -46,9 +46,9 @@ def check(character, enemy, creature) -> str:
     if enemy.level > character.level + T["level_margin"]:
         return f"{cap_first(enemy.name)} is far too strong for you to bind."
     if enemy.hp > enemy.max_hp * T["max_health_share"]:
-        return f"{cap_first(enemy.name)} is still too strong and wild - wear it down first."
+        return f"{cap_first(enemy.name)} is still too strong and wild. You'll have to wear it down first."
     if len(tamed(character)) >= cap(character.level):
-        return "You already keep as many tamed companions as you can lead - release one first."
+        return "You already have as many tamed companions as you can lead, so release one first."
     return ""
 
 
@@ -105,7 +105,7 @@ def bind_check(character, enemy, creature) -> str:
     if enemy.level > character.level + (T["level_margin"] if comp else B["level_margin"]):
         return f"{cap_first(enemy.name)} is too strong for you to bind."
     if len(tamed(character)) >= cap(character.level):
-        return "You already keep as many bound creatures as you can lead - release one first."
+        return "You already have as many bound creatures as you can lead, so release one first."
     return ""
 
 

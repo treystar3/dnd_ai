@@ -84,8 +84,8 @@ class SpellActions:
             return None
         self.advance(int(hours * 60))
         self.store.save_player(self.player)
-        console.note(f"Learned {new.name}: {spells.card(new)}, {spells.mana(new)} mana. It takes the place of {t.name} among the spells you "
-                     f"bring; {t.name} stays in your book.")
+        console.note(f"Learned {new.name}: {spells.card(new)}, {spells.mana(new)} mana. It replaces {t.name} among the spells you "
+                     f"bring. {t.name} stays in your book.")
         self.narrate(f"The player spends {hours:g} hours {how}, and learns {new.name}, a stronger working of {t.name}: {new.description} "
                      "Show the study and the first time it answers them.", text)
         return new
@@ -106,8 +106,8 @@ class SpellActions:
                 console.note(f"The {good.name} deepens spells you already know, and you know none it could deepen.")
             else:
                 below = [a.name for a in (spells.top(c, l) for l in spells.lines(c)) if a is not None and a.rank < rank - 1]
-                console.note(f"The {good.name} teaches rank {spells.numeral(rank)}; none of your spells is at rank {spells.numeral(rank - 1)} "
-                             "to take it" + (f" ({', '.join(below)} must grow first)." if below else "."))
+                console.note(f"The {good.name} teaches rank {spells.numeral(rank)}, and none of your spells is at rank {spells.numeral(rank - 1)} "
+                             "yet" + (f" ({', '.join(below)} must grow first)." if below else "."))
             return
         line = self.pick_line(ready, text)
         if line is None:
@@ -144,7 +144,7 @@ class SpellActions:
         self.rank_options = ready
         console.note(f"{cap_first(teacher.label(self.acting))} can teach you:")
         for i, (line, a, r) in enumerate(ready, 1):
-            console.note(f"  {i}. {a.name} to rank {spells.numeral(r)} ({spells.form_label(a)}) - "
+            console.note(f"  {i}. {a.name} to rank {spells.numeral(r)} ({spells.form_label(a)}): "
                          f"{money.words(self.fee(spells.teacher_fee(r)))}, {spells.S['teach']['hours']} hours")
         console.note("Say which you'll learn.")
 

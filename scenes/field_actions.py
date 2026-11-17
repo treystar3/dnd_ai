@@ -45,17 +45,17 @@ class FieldActionsBase:
             return f"{ability.name} needs {clock.describe_duration(wait)} more before you can do it again."
         fn = ability.field_use
         if fn in ("read_the_room", "intimidate", "pickpocket") and not self.influence_target(intent):
-            return "There's no one here to work on - say who you mean."
+            return "There's no one here to work on. Say who you mean."
         if fn == "pickpocket" and self.fld.get("picked", {}).get(self.influence_target(intent).id) == clock.day(self.minutes):
             return "You've already tried them today. Their guard is up."
         if fn == "bind_beast":
-            return f"{ability.name} is used in a fight, on a creature you face - wound one first, or hit it with all you have."
+            return f"{ability.name} is used in a fight, on a creature you face. Wound one first, or hit it with all you have."
         if fn == "speak_corpse" and not self.bodies_here():
             return "There is no body here that can still answer you."
         if fn == "shelter" and not (self.place.danger or self.player.delve):
-            return "There is no need to make camp here - this place already has shelter."
+            return "There's no need to make camp here. This place already has shelter."
         if fn == "influence" and not self.influence_target(intent):
-            return "There's no one here to work on - say who you mean."
+            return "There's no one here to work on. Say who you mean."
         if fn == "showmanship":
             if not self.present:
                 return "There's no audience here."
@@ -83,7 +83,7 @@ class FieldActionsBase:
         if d:
             nxt = dungeons.next_chamber(d)
             if nxt is None:
-                console.note("Nothing is left below to look for - it is cleared to the bottom.")
+                console.note("There's nothing left below to look for. The place is cleared to the bottom.")
                 return None
             f, c = nxt
             ch = d["floors"][f]["chambers"][c]
@@ -100,7 +100,7 @@ class FieldActionsBase:
                 console.note("You read the land and find nothing to fear here.")
                 return "They read the land and find it quiet. Describe it, adding nothing."
             names = ", ".join(self.world.bestiary[r].name.lower() for r in roster)
-            console.note(f"You read the signs: things that live here - {names}.")
+            console.note(f"You read the signs. Things that live here: {names}.")
             return f"They survey the wild around them and find signs of: {names}. Describe the signs only, nothing else."
         roles = sorted({n.role.replace("_", " ") for n in self.present if n.role})
         if not roles:
@@ -117,9 +117,9 @@ class FieldActionsBase:
                 return f"the master of this place waits ahead ({d['boss_name']}), with its guard."
             n = ch["count"]
             return f"{n} {name}{'' if n == 1 else 's'} hold the next chamber."
-        return {"trap": "the next chamber is trapped - you see the trigger and will step around it.",
-                "cache": "a cache lies hidden in the next chamber" + (" - and it is locked." if (f >= 0 and self.cache_locked(d, f, c)) else "."),
-                "rest": "the next chamber is quiet and empty - a safe place to rest."}.get(kind, "nothing of note ahead.")
+        return {"trap": "the next chamber is trapped, but you see the trigger and will step around it.",
+                "cache": "a cache lies hidden in the next chamber" + (", and it's locked." if (f >= 0 and self.cache_locked(d, f, c)) else "."),
+                "rest": "the next chamber is quiet and empty, a safe place to rest."}.get(kind, "nothing of note ahead.")
 
     # ---------- shelter ----------
 
@@ -135,7 +135,7 @@ class FieldActionsBase:
     def field_shelter(self, ability, intent, text: str) -> str | None:
         self.advance(15)
         self.fld["camp"] = {"loc": self.player.location, "pos": self.camp_pos(), "until": self.minutes + F["shelter"]["lasts_minutes"]}
-        console.note("You make camp. You can rest here undisturbed - sleep and you will wake fully restored.")
+        console.note("You make camp. You can rest here undisturbed, and if you sleep you'll wake fully restored.")
         return "They set up a safe camp using it, a hidden, defensible place to rest. Describe the camp coming together."
 
     # ---------- haste ----------
@@ -202,7 +202,7 @@ class FieldActionsBase:
     def field_shadow(self, ability, intent, text: str) -> str | None:
         self.fld["shadow"] = {"until": self.minutes + F["shadow"]["expires_minutes"], "tier": ability.tier.value}
         if self.dungeon_here() or self.player.delve:
-            console.note("You fade into the dark. The next creature you meet in here can be slipped past.")
+            console.note("You fade into the dark. You can slip past the next creature you meet in here.")
         elif self.place.danger:
             console.note("You become hard to find. The next thing that would find you here passes by.")
         else:
@@ -224,8 +224,7 @@ class FieldActionsBase:
     def field_pass_without_trace(self, ability, intent, text: str) -> str | None:
         self.fld["traceless"] = {"until": self.minutes + F["pass_without_trace"]["lasts_minutes"]}
         who = "you and those with you" if getattr(self.player, "party", None) else "you"
-        console.note(f"For the next hour {who} move as one shadow: every attempt to go unseen is much easier, "
-                     f"and it holds after the first.")
+        console.note(f"For the next hour {who} move quietly together, and stay much harder to spot.")
         return "A hush falls over them and their tracks seem to vanish behind them. Describe how they pass without trace."
 
     def traceless(self) -> bool:
@@ -245,7 +244,7 @@ class FieldActionsBase:
         degree = "strong success" if ability.tier.value == "heavy" else "success"
         out = self.lore(subject, degree)
         if not out.startswith("The player recalls"):
-            console.note("You search what you know, but there is nothing more to recall about this place.")
+            console.note("You search your memory, but there's nothing more you know about this place.")
             return None
         console.note("Something comes back to you. (Added to what you know.)")
         return out
@@ -284,7 +283,7 @@ class FieldActionsBase:
             left = sum(i.quantity for i in self.pack if i.good == "torch")
             console.note(f"You light a torch. ({left} left)")
         else:
-            console.note(f"It is pitch black down here and you carry no light. You'll be feeling your way - "
+            console.note(f"It's pitch black down here and you carry no light. You'll be feeling your way, so "
                          f"spotting traps and finding things is harder (-{dungeons.D['dark_penalty']}). A torch from a chandler fixes that.")
 
     def darkness_penalty(self) -> int:
@@ -321,11 +320,11 @@ class FieldFunctions:
     def field_trapfinder(self, ability, intent, text: str) -> str | None:
         d = self.dungeon_here()
         if not d:
-            console.note("There are no traps to feel out here - save it for a dungeon.")
+            console.note("There are no traps to feel out here. Save it for a dungeon.")
             return None
         ahead = list(self.chambers_ahead(d))
         if not ahead:
-            console.note("It is cleared to the bottom - nothing is left to find.")
+            console.note("It's cleared to the bottom, with no traps left to find.")
             return None
         for f, c, ch in ahead:
             if ch["kind"] == "trap" and not ch.get("disarmed"):
@@ -348,7 +347,7 @@ class FieldFunctions:
         roster = encounters.ensure_roster(self.store, self.world, self.player.location)
         beasts = [self.world.bestiary[r].name.lower() for r in roster if self.world.bestiary[r].category == "beast"]
         if not beasts:
-            console.note("Nothing that lives here answers to you - no beasts, only worse.")
+            console.note("Nothing here will answer you. Whatever lives here isn't an animal.")
             return None
         mins = tier_value(F["beastspeak"]["calm_minutes"], ability.tier)
         self.fld["calm"] = {"loc": self.player.location, "until": self.minutes + mins}
@@ -418,7 +417,7 @@ class FieldFunctions:
                  else "likes you" if t < 80 else "trusts you")
         mood = npc.mood or "even"
         weighs = npc.concern or "nothing you can make out"
-        console.note(f"{cap_first(npc.label(self.acting))}: mood {mood}; what weighs on them - {weighs}; {trust}.")
+        console.note(f"{cap_first(npc.label(self.acting))} {trust}, and their mood is {mood}. What weighs on them: {weighs}.")
         return (f"They read {npc.label(self.acting)} closely. Their mood is: {mood}. What weighs on them: {weighs}. They {trust.replace('you', 'the player')}. "
                 "Describe the small signs the player notices, without having the person say any of it aloud.")
 
@@ -509,7 +508,12 @@ class FieldFunctions:
         if age < S["fresh_days"]:
             facts.append(f"it carried {body['carried']}" if body.get("carried") else "it carried nothing of worth")
         line = "; ".join(facts)
-        console.note(f"The dead answer: {line}.")
+        heard = [f"It was {who}, about level {body['level']}."]                  # (f712) the player reads sentences, the narrator the facts
+        if age < S["stale_days"]:
+            heard.append(f"It fell {clock.describe_duration(self.minutes - body['minute'])} ago, by your hand.")
+        if age < S["fresh_days"]:
+            heard.append(f"It carried {body['carried']}." if body.get("carried") else "It carried nothing of worth.")
+        console.note("The dead answer. " + " ".join(heard))
         vague = " The memory is faint; describe only fragments." if age >= S["stale_days"] else ""
         return (f"They kneel by the body of {who} and ask it to speak. All they learn: {line}.{vague} "
                 "Describe the whispering of the dead, adding no facts beyond these.")
@@ -550,7 +554,7 @@ class FieldFunctions:
         top, cur = pools.maximum(c, "health"), pools.current(c, "health")
         fallen = [m for m in c.companions if m.fallen and not m.dead]
         if cur >= top * 0.999 and not fallen:
-            console.note("There is nothing to tend - you are whole and your companions are on their feet.")
+            console.note("There's nothing to tend. You're whole, and your companions are on their feet.")
             return None
         gain = top * tier_value(F["treat"]["heal_percent"], ability.tier) / 100
         c.health = min(top, cur + gain)
@@ -615,7 +619,7 @@ class FieldFunctions:
                 self.save_dungeon(d)
                 self.advance(F["picklock"]["minutes"])
                 where = self.where_chamber(f, c, ahead[0][:2])
-                console.note(f"You work the lock on the cache in {where} - it holds more than a plain one.")
+                console.note(f"You work open the lock on the cache in {where}.")
                 return (f"They find a locked cache in {where} of {d['name']} and work its lock open. "
                         "Describe the tumblers giving way, without saying what is inside.")
         console.note("No locked cache lies ahead.")
@@ -652,7 +656,7 @@ class FieldFunctions:
             gap = ch["level"] - c.level
             creature = self.world.bestiary[ch["creature"]].name.lower()
             word = ("a poor match for you" if gap <= -3 else "an even match" if gap < 3 else "a hard fight" if gap < 8 else "far beyond you")
-            what = f"{ch['count']} {creature}{'' if ch['count'] == 1 else 's'} ahead - {word}"
+            what = f"{ch['count']} {creature}{'' if ch['count'] == 1 else 's'} ahead, {word}"
         elif self.place.danger:
             roster = encounters.ensure_roster(self.store, self.world, self.player.location)
             if not roster:
@@ -665,7 +669,7 @@ class FieldFunctions:
         self.fld["sized"] = {"loc": self.player.location, "tier": ability.tier.value,
                              "until": self.minutes + F["size_up"]["lasts_minutes"]}
         self.advance(5)
-        console.note(f"You size up {what}. You have found the weak point; the next fight here will go easier.")
+        console.note(f"You size up {what}. You've found the weak point, and the next fight here will go easier.")
         return f"They study the foe and judge it: {what}. Describe the measuring look, and that they've found where it is weakest."
 
     def field_snare(self, ability, intent, text: str) -> str | None:
@@ -696,12 +700,12 @@ class FieldFunctions:
                 for e in enemies:
                     e.armor = round(e.armor * (1 - cut))
                     e.ward = round(e.ward * (1 - cut))
-                notes.append("You strike where you judged it weakest - its defenses are thinner.")
+                notes.append("You strike where you judged it weakest.")
             else:
                 cut = tier_value(F["snare"]["hurt_percent"], s["tier"]) / 100
                 for e in enemies:
                     e.hp = max(1, round(e.hp * (1 - cut)))
-                notes.append("Your snare catches them - they come at you already hurt.")
+                notes.append("Your snares catch them, and they come at you already hurt.")
         return notes
 
     # ---------- revivify ----------
@@ -743,13 +747,13 @@ class FieldFunctions:
         c = self.player.character
         pool = [i for i in list(c.equipment.values()) + self.pack if forge.reforge_problem(i) is None]
         if not pool:
-            console.note("You have nothing that can be reforged - a piece of weapon or armor with at least two rolls, not yet reforged, and not legendary.")
+            console.note("You have nothing that can be reforged. That takes a weapon or armor with at least two rolls, never reforged before, and not legendary.")
             return None
         item = self.pick_gear(text, pool, ability)
         if item is None:
             console.note("Say which piece to reforge: " + ", ".join(items.display_name(i) for i in pool) + ".")
             return None
-        console.note(f"{items.display_name(item)} - its rolls:")
+        console.note(f"The rolls on {items.display_name(item)}:")
         for n, p in enumerate(item.properties, 1):
             console.note(f"  {n}. {forge.prop_text(item, p)}")
         self.ask_next("reforge_keep", f"Which roll do you keep? (1-{len(item.properties)}, or 'cancel')", item=item.uid, ability=ability.id, tries=0)
@@ -833,7 +837,7 @@ class FieldFunctions:
         c = self.player.character
         pool = [i for i in self.pack if forge.salvage_problem(i) is None]
         if not pool:
-            console.note("Nothing in your pack can be broken down - only unequipped weapons and armor, and nothing legendary.")
+            console.note("Nothing in your pack can be broken down. It has to be a weapon or armor you aren't wearing, and not legendary.")
             return None
         item = self.pick_gear(text, pool, ability)
         if item is None:
@@ -879,7 +883,7 @@ class FieldFunctions:
         self.fld.pop("tether", None)
         for a in pets:
             a.tether = t["heal"]
-        return ["Your Soul Tether holds: a companion that would fall will stand once more."]
+        return ["Your Soul Tether binds your companions. If one of them falls, they'll get back up once."]
 
     # ---------- word of recall ----------
 
@@ -897,7 +901,7 @@ class FieldFunctions:
         here = pulse.town_of(self.world, self.player.location)
         dest = next((t for t in reversed(self.fld.get("towns", [])) if t != here), None)
         if not dest or dest not in self.world.places:
-            console.note("There is no town you have left that you could return to yet.")
+            console.note("There's no town behind you to return to yet.")
             return None
         self.advance(F["word_of_recall"]["minutes"])
         self.end_conversation()

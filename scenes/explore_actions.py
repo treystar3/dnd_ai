@@ -95,7 +95,7 @@ class ExploreActions:
                          f"Describe arriving and what they see: {' '.join(p.visible)}", text)
         else:
             r = self.world.roads[found["id"]]
-            console.note(f"You find a way: {r.name} - {r.description}")
+            console.note(f"You find a way: {r.name}. {r.description}")
             console.note(f"It runs from here to {self.world.places[r.to].name}, about "
                          f"{clock.describe_duration(found['minutes'])} on foot.")
             self.narrate(f"After searching for {seek}, the player finds {r.name}: {r.description} It leads to "

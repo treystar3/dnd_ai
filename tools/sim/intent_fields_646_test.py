@@ -220,7 +220,7 @@ got = buy("wine", "I buy two jars of wine.", count=2, coins=3 * wine - 1)
 check("...and a count it can meet is then bought", got["paid"] == 2 * wine and got["got"] == 2, got)
 
 got = buy("wine", "I buy two hundred jars of wine.", count=200, coins=10 ** 6)
-check("a count over the most sold at once: refused in a line that says the most, never cut to it and charged", refused(got, "no more than 99"), got)
+check("a count over the most sold at once: refused in a line that says the most, never cut to it and charged", refused(got, "more than 99"), got)
 got = buy("wine", "I buy ninety-nine jars of wine.", count=99, coins=10 ** 6)
 check("...and the most itself is sold whole", got["paid"] == 99 * wine and any("99 jars of wine" in t for t in got["ledger"]), got)
 for none in (0, -3):

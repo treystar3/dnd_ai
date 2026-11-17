@@ -166,18 +166,14 @@ approach:
   narrate: >
     You notice the woman because she has looked your way more than once.
 
-    She is difficult not to notice herself. Somewhere into her middle years and broad through the shoulders, she wears a fitted
-    suit of plate that looks expensive without being ceremonial. The steel is darkly polished, its edges worked with restrained
-    gold detailing, and the breastplate bears the shallow scratches and dents of armor that has actually seen use.
+    She'd be hard to miss anyway. She's somewhere in her middle years and broad through the shoulders, in fitted plate. The steel is darkly polished and trimmed with a little gold, and the breastplate is
+    scratched and dented from real use.
 
-    A heavy guild crest is fastened high on one shoulder. At its center sits an enamelled A, marking a rank only one step below
-    the guild's highest.
+    A heavy guild crest is fastened high on one shoulder, with an enamelled A at its center, one rank short of the top.
 
-    A greatsword rests across her back in a scabbard worn pale along the edges. Between the armor, the blade, and the rank at her
-    shoulder, she has the look of someone most people would think twice about approaching.
+    A greatsword hangs across her back, in a scabbard worn pale along the edges.
 
-    She watches you for another moment, her eyes lingering briefly on what you carry, then seems to make up her mind and comes
-    your way.
+    She looks you over a moment longer, then comes your way.
   # the facts the narrator may use when it describes her noticing the player (the passage above is the fallback)
   look_event: >
     A woman nearby has looked the player's way more than once, and now makes up her mind and crosses to them. Describe her noticing the player
@@ -190,7 +186,7 @@ approach:
     The player has just done or said what PLAYER'S WORDS gives, and she steps into their path to make sure they are not about to cause trouble,
     because a stranger who looks like a fighter, with no guild badge, draws attention here. Let the narration show she has noticed what they were doing: it
     registers on her and what they meant to do has to wait. Do not decide how it turns out and do not give her any words.
-  interrupt: "You have barely begun to do what you meant to when she steps into your path, and it will have to wait."
+  interrupt: "You've barely started when she steps into your path. Whatever you meant to do will have to wait."
   ask_first: "What brings you to Parth?"
   weapon_line:
     - "Thought it might be something like that. You've got a good {weapon}, and you carry it like you've used it before."
@@ -260,7 +256,7 @@ approach:
     - "Fair enough. Then I'll spare you the lecture."
     - "Keep a draught somewhere you can reach it, and don't let a generous reward talk you into stupid work."
   skip_narrate: >
-    Whatever doubt she had about you seems to have passed. She gives you a small nod.
+    She gives you a small nod.
 
     "Good hunting."
   not_sure:
@@ -361,7 +357,7 @@ troll_combat:
   strike_narrate: "{weapon} leaves its scabbard in a single arc. The troll turns its head toward her, too late."
   after_speech:
     - "Right. That's that."
-  miss_narrate: "The troll's fist comes down on the spot where you were standing, and the earth bucks, and somehow it is not you it breaks."
+  miss_narrate: "The troll's fist slams into the spot where you were standing. The ground jumps under your feet."
 
 joined:
   narrate: >
@@ -397,17 +393,17 @@ troll:
     - "No. No, that's wrong. That's a troll. They don't come down this far."
   # the killing blow, in a few beats; one is chosen for the save. {weapon} is her sword's name.
   scenes:
-    - - "The troll comes on in a rush, and the earth bucks under its feet. Maren does not retreat. She sets her boots, rolls one shoulder, and the greatsword leaves its scabbard in a single arc."
-      - "The sword wakes. Pale fire runs down the length of {weapon} from guard to point, and the air around her gutters like a snuffed lamp."
-      - "The troll's fist comes down. She is not where it lands. She is inside its reach, one step and one breath, under the swing, close enough to smell the rot on it."
-      - "She spins. {weapon} comes round in a bright, ringing circle, her whole turn of the hips, every year she has ever swung it behind the blow, and the world goes white-gold at the edge of the arc."
-      - "For a heartbeat, nothing. The troll stands there with its mouth open, mid-roar. Then a seam of light opens from shoulder to hip, and the two halves slide apart and strike the leaf mould one after the other, with a sound like felled trees."
+    - - "The troll comes on in a rush, and the ground shakes under it. Maren doesn't back off. She sets her feet, rolls one shoulder, and draws the greatsword in one sweep."
+      - "Pale fire runs down {weapon} from guard to point, and the air around her goes cold and dim."
+      - "The troll's fist comes down where she was. She's already inside its reach, under the swing, close enough to smell the rot on it."
+      - "She spins, putting her hips and all her weight into it, and {weapon} comes round in a bright, ringing circle."
+      - "For a moment nothing happens. The troll stands there with its mouth open, mid-roar. Then a line of light opens from its shoulder to its hip, and the two halves slide apart and hit the leaf mould one after the other."
     - - "The troll charges, shouldering saplings aside like reeds. Maren steps out from the trunk she was standing by, almost lazily, and lets it come."
-      - "At the last moment she drops her weight, plants her back foot in the leaf mould, and draws {weapon} up from low behind her. The blade catches a shaft of light between the leaves and rings like a struck bell."
-      - "The sound is one clean note, as if the whole forest had been rung. The troll's charge dies mid-stride as the blade rises through the line of its body from hip to crown."
-      - "It takes one more step. Then the cut finds it, and it comes apart in a rush of dark blood and splintered bark, and the weight of it carries the pieces past her and into the trees."
+      - "At the last moment she drops her weight, plants her back foot in the leaf mould, and draws {weapon} up from low behind her. The blade rings as it comes."
+      - "The troll's charge stops mid-stride as the blade goes up through it, hip to crown."
+      - "It takes one more step. Then it comes apart in a rush of dark blood, and its own weight carries the pieces past her and into the trees."
   figure_kill: "{weapon}: {hit} damage. The troll is dead."
-  aftermath: "The fire ebbs out of the blade. Maren shakes the gore from it, and slides it home across her back as though she had done no more than swat a fly."
+  aftermath: "The fire goes out of the blade. Maren shakes the gore off it and slides it home across her back. She isn't even breathing hard."
   speech_after:
     - "That shouldn't have been here. Trolls stay up in the hills and the old deep woods, a long way north. That one walked right out of its own country and into a sheep field."
     - "Things have been getting worse. Stuff turning up where it shouldn't, roads gone quiet, whole valleys that were fine last year and aren't now. I've seen it all the way from here to the coast. It's part of why I'm down here at all."
@@ -434,7 +430,7 @@ harvest:
 
 return:
   narrate: >
-    Maren has been a half step ahead the whole way back, watching the treeline, until the town walls come up out of the fields.
+    Maren keeps a half step ahead the whole way back, watching the treeline, until the town walls come up out of the fields.
   info:
     - "You are back at the edge of Parth. Send them to hand the contract in at the guild hall: the clerk will have their coin and their first mark toward the next rank."
     - "Part ways here: the capital did not send you south to sit in Parth, and your own party can catch you up on the road; you leave Parth today, on that work. Tell them they did well today, to stay alive, and that you expect to hear of them."

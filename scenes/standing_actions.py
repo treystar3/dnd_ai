@@ -72,7 +72,7 @@ class StandingActions:
         town, day = self.standing_town(), clock.day(self.minutes)
         name = self.world.places[town].name
         if self.world.places[town].danger:
-            console.note("Nobody out here keeps a tally of you.")
+            console.note("There's no one out here to have an opinion of you.")
             return
         console.note(f"In {name}, townsfolk regard you as: {self.reputation_words(town)}.")
         rows = standing.standings(self.player, town, day)
@@ -89,7 +89,7 @@ class StandingActions:
         town = self.standing_town()
         mine = self.rumor_items()
         if mine:
-            console.note(f"What is being said about you in {self.world.places[town].name}:")
+            console.note(f"What people are saying about you in {self.world.places[town].name}:")
             for n, e in enumerate(mine, 1):
                 console.note(f"  {n}. {e['text']}")
             console.note("If a tale is wrong, #correct <number> tries to set it straight.")
@@ -123,11 +123,11 @@ class StandingActions:
         odds = checks.chance(self.player.character, "persuasion", self.conditions(), npc=listeners[0])[0]
         degree, _ = checks.roll(odds, c=self.player.character)
         if not deed["twisted"]:
-            console.note("Those who tell it have it right. There is nothing to correct.")
+            console.note("People already have that one right. There's nothing to set straight.")
             return
         if degree in ("strong success", "success"):
             standing.correct(self.store, self.player, deed["id"], self.minutes)
             self.narrate("The player takes the time to set a false tale about themselves straight, and it is believed.", "")      # (f384) no length
-            console.note("You set the record straight. The tale is told true from now on.")
+            console.note("You set the record straight, and people believe you.")
         else:
-            console.note("You argue your case, but the tale has a life of its own. Nobody is convinced.")
+            console.note("You argue your case. Nobody is convinced.")

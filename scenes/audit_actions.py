@@ -173,7 +173,7 @@ class AuditActions:
         path = folder / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_turn{turn}.json"
         path.write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
         refusals.note("reported", note or "(no note)", "the player flagged what was shown", self.player.location, turn)
-        console.note(f"Reported. What you just read, your note and the calls behind it are saved in {path}. Nothing is sent anywhere.")
+        console.note(f"Reported. What you just read and your note are saved in {path}, with the game's records behind them. Nothing is sent anywhere.")
         return str(path)
 
     def ask_back(self, kind: str, text: str, why: str, meaning: str = "", place: str = "") -> None:
@@ -184,7 +184,7 @@ class AuditActions:
             def give_up():
                 refusals.note("clarify_failed", text, why, self.player.location, self.store.meta.turn)
                 self.pending_clarify = None
-                console.note("That still didn't come through - try it in different words.")
+                console.note("Still not sure what you mean. Try it in different words.")
             self.clarify_commit(text, give_up)
             return
         people = ", ".join(f"{n.id}: {n.label(self.acting)}" for n in self.present) or "nobody"
@@ -206,7 +206,7 @@ class AuditActions:
             elif asked:
                 console.narrate(asked)
             else:
-                console.note("I'm not sure what you meant - could you say it another way?")
+                console.note("I'm not sure what you meant. Could you say it another way?")
             refusals.note(kind, text, why, self.player.location, self.store.meta.turn, asked)
             self.pending_clarify = {"text": text, "question": asked, **({"place": place} if place else {})}   # (f428) a far place asked about
         self.clarify_commit(text, commit)

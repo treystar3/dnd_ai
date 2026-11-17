@@ -1797,9 +1797,9 @@ def can_use(f: Fighter, move: Move, combat: Combat | None = None) -> str | None:
     if why_not:
         return f"{move.name} cannot be used right now: {why_not}."
     if getattr(move, "channel", False) and not (f.damage_type == "physical" and f.reach in ("melee", "extended")):
-        return f"{move.name} is struck through a melee weapon, and you have none in hand."      # (f250: no longer cast bare)
+        return f"{move.name} needs a melee weapon, and you have none in hand."      # (f250: no longer cast bare)
     if move.effect == "relic" and move.uses and f.relic_uses.get(move.id, 0) >= move.uses:
-        return f"{move.name} has given all it has this fight."
+        return f"{move.name} is used up for this fight."
     from engine import combat_perks
     if f.cooldowns.get(move.id, 0) > 0 and not combat_perks.may_overcast(combat, f, move):
         return f"{move.name} isn't ready yet ({f.cooldowns[move.id]} more round{'' if f.cooldowns[move.id] == 1 else 's'})."     # (f672)
@@ -2925,7 +2925,7 @@ def give_order(combat: Combat, ally: Fighter, kind: str, target_id: str = "", sa
     if kind == "focus":
         t = next((e for e in combat.enemies() if e.id == target_id), None)
         if not t:
-            return "There is nothing there for them to take."
+            return "There's no one there for them to attack."
         ally.order_target = t.id
     elif kind == "heal":
         ally.order_target = target_id if target_id == "self" or any(x.id == target_id for x in combat.allies()) else ""

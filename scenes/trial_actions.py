@@ -138,7 +138,7 @@ class TrialActions:
         else:
             wait = T["retry_days"] * clock.MINUTES_PER_DAY
             t["wait_until"] = self.minutes + wait
-            console.note(f"You lose the trial. You keep rank {self.rank}. You may stand again in {clock.describe_duration(wait)}.")
+            console.note(f"You lose the trial. You keep rank {self.rank}, and you can try again in {clock.describe_duration(wait)}.")
             self.narrate(f"[THE GAME HAS DECIDED: the player lost the trial for guild rank {nxt}; {who}, the examiner, stops the blow and "
                          "tells the player plainly what they lacked. The blows were pulled and nobody is hurt.] Describe the moment.", "")
         self.store.save_player(self.player)

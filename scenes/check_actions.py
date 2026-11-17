@@ -56,7 +56,7 @@ class CheckActions:
         if self.place.danger is None and check in checks.SOCIAL + ("performance", "stealth"):
             self.reputation_add(pulse.town_of(self.world, self.player.location), R["bad_standing"])
             hurt.append("the town hears of it")
-        console.note("It goes badly, as it always does when it goes wrong for you (All or Nothing)" + (": " + ", ".join(hurt) if hurt else "") + ".")
+        console.note("When it goes wrong for you, it goes badly (All or Nothing)" +(": " + ", ".join(hurt) if hurt else "") + ".")
 
     def target_npc(self, intent):
         return next((n for n in self.present if n.id == intent.target), None) or \

@@ -32,7 +32,7 @@ class DungeonActions:
                 if d is not None:
                     if self.player.delve and self.player.delve.get("dungeon") == d["id"]:
                         self.player.delve = None
-                        console.note(f"{cap_first(d['name'])} has shifted and been remade - your progress there is lost.")
+                        console.note(f"{cap_first(d['name'])} has shifted and been remade. Your progress there is gone.")
                     fresh["entrance"] = d["entrance"]
                     self.void_dungeon_contracts(d["id"], fresh)
                 known[place.id] = fresh
@@ -73,13 +73,13 @@ class DungeonActions:
         if console.panel("dungeon", {"name": d["name"], "theme": d["theme"], "beneath": self.world.places[d["place"]].name, "remade_days": days,
                                      "floors": floors, "on_floor": (delve["floor"] + 1) if delve else 0}):
             return
-        console.note(f"{d['name'].upper()} - a {d['theme']} beneath {self.world.places[d['place']].name}. "
+        console.note(f"{d['name'].upper()}: a {d['theme']} beneath {self.world.places[d['place']].name}. "
                      f"Remade in {days} days.")
         for i, fl in enumerate(d["floors"]):
             n = len(fl["chambers"])
             done = n if i < cf else (cc + 1 if i == cf else 0)
             boss = " · boss" if i == len(d["floors"]) - 1 else ""
-            console.note(f"  floor {i + 1} [{fl['letter']}] - {done}/{n} chambers cleared{boss}")
+            console.note(f"  floor {i + 1} [{fl['letter']}]: {done}/{n} chambers cleared{boss}")
             if self.owns("arcane_echoes") or (self.owns("spirit_guide") and self.companion_here()):
                 kinds = sorted({self.world.bestiary[ch["creature"]].name.lower() for ch in fl["chambers"] if ch["kind"] == "fight"})
                 traps = sum(ch["kind"] == "trap" for ch in fl["chambers"])
@@ -126,7 +126,7 @@ class DungeonActions:
                 foes.append(combat.fighter_from_creature(creature, chamber["level"], rank, f"e{i + 1}", name, "near"))
             self.dungeon_fight = (d["id"], f, c, d["made"])
             from scenes.combat_scene import CombatScene
-            console.note(label + (" - the master of this place waits here." if rank == "boss" else ""))
+            console.note(label + (". The master of this place waits here." if rank == "boss" else ""))
             self.combat = CombatScene.begin(self, creature, foes, f"In the {d['theme']}'s depths ({label.lower()}),",
                                             big="lair" if rank == "boss" else "")
             return
@@ -248,7 +248,7 @@ class DungeonActions:
         self.player.delve = None
         self.advance(15, exert=True)
         self.store.save_player(self.player)
-        console.note(f"You climb back out of {d['name']}. Your progress is kept until it is remade.")
+        console.note(f"You climb back out of {d['name']}. You'll pick up where you left off, unless the place is remade first.")
         self.narrate(f"The player climbs back up out of {d['name']} into the open air.", text)
 
     def dungeon_search(self, text: str) -> None:

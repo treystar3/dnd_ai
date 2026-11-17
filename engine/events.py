@@ -723,7 +723,7 @@ def finish(ws, state, th, how: str, ending: str, kind: str = "achieved", contrib
             except Exception:
                 pass
     matters.remember(store, world, th, {"partly": "partly", "transformed": "transformed"}.get(kind, "settled"), name, t, ws.store.meta.turn)
-    line = matters.ended_line(th, kind, ws.player_of(ws.acting)) if contributors is not None else f"{th['title']} is ended - {how}."
+    line = matters.ended_line(th, kind, ws.player_of(ws.acting)) if contributors is not None else f"{th['title']} is ended, {how}."
     if line:
         console.note(line)                                 # (f598) told as it ended; (f662) only to one who met it
     if th["tier"] in ("campaign", "cataclysm") and kind in ("achieved", "partly"):
@@ -880,7 +880,7 @@ def fallen_allies(ws, fallen_ids: set[str]) -> None:
             n = ws.store.load_npc(m["npc"])
             if rng.random() < E["allies"]["death_when_down"]:
                 pulse.remove_npc(ws.store, ws.world, n, f"died fighting beside {ws.player.character.name}", ws.minutes, dead=True)
-                console.note(f"{n.name} is dead. They gave their life in the fight.")
+                console.note(f"{n.name} is dead, killed fighting at your side.")
                 _vacancy(ws.store, ws.world, n, ws.minutes, streams.get("events"))
                 state = ws.store.load_world_state() or pulse.empty_state(ws.minutes)
                 pulse.add_news(state, f"{n.name} fell fighting beside {ws.player.character.name}.", n.location, ws.minutes, ["everyone"])
@@ -1376,13 +1376,13 @@ def apply_player_events(ws) -> None:
         if ev["kind"] == "warn" and home and not home.get("ruined"):
             fort = "fortify" in home["upgrades"]
             console.note(f"Word comes that {name} lies in the path of {ev['title']}. Your house there is in danger"
-                         + (" - though it is fortified." if fort else ". Walls (the Fortify upgrade) or your own presence would help."))
+                         + (", though it's fortified." if fort else ". Walls (the Fortify upgrade) or your own presence would help."))
         elif ev["kind"] == "fell" and home and not home.get("ruined"):
             p = C["home"]["fortified" if "fortify" in home["upgrades"] else "ruin_when_falls"]
             if rng.random() < p:
                 home["ruined"] = True
                 changed = True
-                console.note(f"{name} has fallen - and your house there is a ruin. Your things are safe in the item box. "
+                console.note(f"{name} has fallen, and your house there is in ruins. Your things are safe in the item box. "
                              f"You can rebuild it for {C['home']['rebuild_share']:.0%} of its price.")
             else:
                 console.note(f"{name} has fallen, but your house stands.")
@@ -1442,9 +1442,9 @@ def assault_over(ws, outcome: str) -> None:
             ws.reputation_add(a["town"], C.get("held_reputation", 15))
         except Exception:
             pass
-        console.note(f"{name} holds. The gate is yours, and the town knows it.")
+        console.note(f"{name} holds. You kept the gate.")
     else:
-        console.note(f"The gate is lost; what becomes of {name} is in other hands now.")
+        console.note(f"The gate is lost. What happens to {name} now is out of your hands.")
 
 
 def after_ignored(store, world, state, th: dict, t: int) -> None:

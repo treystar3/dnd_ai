@@ -190,7 +190,7 @@ check("without the lines, the goddess's words failing ends creation as before", 
 read_title = next((t for t in kinds if t not in ("GoddessLine",) and "PlayerTurn" in t), None)
 if read_title:
     got, err, shown, _ = create(read_title, overlay=False)
-    check("without the lines, creation's own note is today's", any("The model couldn't make sense of that" in l for l in shown), shown[-5:])
+    check("without the lines, creation's own note is today's", any("She doesn't follow. Try saying it another way." in l for l in shown), shown[-5:])
 _before = dict(failures.F)
 failures.F.update(DORMANT)
 try:

@@ -709,7 +709,7 @@ class RoadActions:
         town = pulse.town_of(self.world, near)
         if not self.world.places[town].danger:
             self.player.reputation[town] = max(-100, min(100, self.player.reputation.get(town, 0) + R["aid"]["reputation"][tier]))
-        console.ledger("Your help is remembered, and repaid.")
+        console.ledger("You're paid for your trouble, and word of your help gets around.")
         self.store.save_player(self.player)
 
     # ---------- after a fight on the road ----------
@@ -737,7 +737,7 @@ class RoadActions:
         item = loot.make_drop(level, max(best, "uncommon", key=RARITY.index), rng, loot.keeps_companions(c))
         left = inv.add(self.pack, item, self.pack_slots())
         console.note(f"You search the camp. Stolen coin: {money.fmt(coins)}. " +
-                     (f"And {inv.label(item)}." if left is None else f"There is {inv.label(item)} too, but your pack is full."))
+                     (f"You also take {inv.label(item)}." if left is None else f"There's {inv.label(item)} too, but your pack is full."))
         from engine import ledger                                           # (f417)
         ledger.add("gained" if left is None else "left", item=item.uid,
                    say=f"In the outlaws' camp the player finds stolen coin and {inv.label(item)}" + (", and takes both." if left is None

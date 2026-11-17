@@ -64,8 +64,8 @@ class ShopActions:
                                     or self.player.free_room_day == clock.day(self.minutes)):
             ware = ware.model_copy(update={"price": 0})
             if announce:
-                console.note("The room is yours tonight, free - " + ("you're well thought of here."
-                             if self.player.free_room_day != clock.day(self.minutes) else "paid for with a song."))
+                console.note("The room is yours tonight, free. " + ("You're well thought of here."
+                             if self.player.free_room_day != clock.day(self.minutes) else "Your song paid for it."))
         return ware
 
     def sell_rate(self, item, buyer) -> float:
@@ -88,7 +88,7 @@ class ShopActions:
     # ---------- doing it ----------
 
     SINGLY = "That is sold one at a time. Ask for one."
-    ROOM_SINGLY = "A room is let one at a time, for the one night. Ask for a room."
+    ROOM_SINGLY = "Rooms go one at a time, for one night. Ask for a room."
     MOST_AT_ONCE = 99                                         # (f646) how_many's own most (scenes/inventory_actions.py)
 
     @staticmethod
@@ -147,7 +147,7 @@ class ShopActions:
             self.refuse(self.ROOM_SINGLY)
             return False
         if n > self.MOST_AT_ONCE:                             # (f646) refused, never cut to what is sold and charged for that
-            self.refuse(f"No more than {self.MOST_AT_ONCE} of a thing are sold at once.")
+            self.refuse(f"No one sells more than {self.MOST_AT_ONCE} of a thing at once.")
             return False
         ware = self.quote_ware(seller, ware, announce=True)
         if n > 1:                                             # (f646) a count asked for is kept whole, or refused in a line
@@ -220,7 +220,7 @@ class ShopActions:
             if ware.kind == "room":
                 console.note("A room upstairs is yours until mid-morning tomorrow.")
             elif ware.kind in ("meal", "drink"):
-                console.note(effect)
+                console.note("You eat, and feel better for it." if ware.kind == "meal" else "You drink.")   # (f712) the player's, not the narrator's
         else:
             self.narrate(f"The player pays {seller.label(self.acting)} for {ware.name}, and the coins change "
                          f"hands. {effect} Describe the exchange.", text)

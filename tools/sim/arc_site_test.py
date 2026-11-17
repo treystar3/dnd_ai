@@ -109,7 +109,7 @@ checks.roll = lambda odds, rng=None, c=None: ("failure", 99)
 notes.clear()
 data, arc = ws.my_arc(); n = arcs.current(arc)
 settled = ws.confront(data, arc, n, tpl) if n and n["kind"] == "boss" else None
-check("...and when it is not enough, it comes to blades", settled is False and any("comes to blades" in x for x in notes), (settled, notes[-2:]))
+check("...and when it is not enough, it comes to a fight", settled is False and any("comes to a fight" in x.lower() for x in notes), (settled, notes[-2:]))
 checks.roll = _roll
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad), bad if bad else "", file=_out)

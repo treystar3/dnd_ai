@@ -60,7 +60,7 @@ class ArcActions:
         one = len(foes) == 1
         names = ", ".join(combat_who(e) for e in foes)
         it = "it" if one else "them"
-        console.note(f"{names[:1].upper() + names[1:]} {'has' if one else 'have'} given up the fight and {'waits' if one else 'wait'} on you. "
+        console.note(f"{names[:1].upper() + names[1:]} {'has' if one else 'have'} given up the fight and {'waits' if one else 'wait'} for you to decide. "
                      f"Spare {it}, or finish {it}? Say what you do.")
 
     def yield_intercept(self, text: str) -> bool:
@@ -106,7 +106,7 @@ class ArcActions:
         self.narrate(f"The player kills {names}, who had yielded and lay beaten. [THE GAME HAS DECIDED: {'it is' if one else 'they are'} "
                      "dead.] Tell it plainly, as it happens.", text)
         if skinnable:
-            console.note(f"The fallen can be {loot.remains_words([e for e in foes if loot.has_remains(e)])} - say so if you want to.")   # (f672)
+            console.note(f"The fallen can be {loot.remains_words([e for e in foes if loot.has_remains(e)])}. Say so if you want to.")   # (f672)
 
     # ---------- the story's state ----------
 
@@ -296,7 +296,7 @@ class ArcActions:
                 if not n.get("body_seen"):
                     n["body_seen"] = True
                     self.store.save_arcs(data)
-                    console.note("A body lies here, and it has something to tell - if only you could make it speak.")
+                    console.note("A body lies here. It could tell you something, if you had a way to make the dead speak.")
             self.work_site(data, arc, n, tpl)
             return False
         if n["kind"] == "boss" and tpl["finale"] == "confront":
@@ -342,16 +342,16 @@ class ArcActions:
                 n["clue_given"] = True
                 self.narrate(f"The player searches at {place} ({tpl['site_desc']}), relying on {skill}, and finds something. "
                              f"Describe the search and what turns up: {sn.get('clue', '')}", "")
-                console.note(f"{skill.capitalize()} - {degree}: you find what the place was hiding.")
+                console.note(f"{skill.capitalize()}: {degree}. You find what the place was hiding.")
                 self.advance_arc(data, arc, n, False, self.secret_text({"kind": "arc", "node": n["id"], "arc": arc["id"], "victim": ""}))
                 return
             self.advance(A["site"]["hours_per_try"] * 60)
             if n["attempts"] >= A["max_attempts"]:
-                console.note(f"You search {place} for hours and the place keeps its secret. You find the thread another way, at a cost of time.")
+                console.note(f"You search {place} for hours and find nothing. In the end you pick up the trail another way, but it takes longer.")
                 n["clue_given"] = True
                 self.advance_arc(data, arc, n, True, self.secret_text({"kind": "arc", "node": n["id"], "arc": arc["id"], "victim": ""}))
                 return
-            console.note(f"{skill.capitalize()} - {degree}: nothing yet. You keep looking.")
+            console.note(f"{skill.capitalize()}: {degree}. Nothing yet. You keep looking.")
 
     def confront(self, data: dict, arc: dict, n: dict, tpl: dict) -> bool:
         """The finale as a reckoning: evidence and a skill. True if it is settled without a fight."""
@@ -365,11 +365,11 @@ class ArcActions:
         who = sn.get("npc_name") or "the one behind it"
         console.debug(f"arc confront: {skill} {odds:.0f}% (evidence +{evidence}) -> {degree}")
         if degree not in ("success", "strong success"):
-            console.note(f"You lay out what you know, but {who} does not break. It comes to blades. ({skill.capitalize()} - {degree})")
+            console.note(f"You lay out what you know, but {who} won't give in. It comes to a fight. ({skill.capitalize()}: {degree})")
             self.narrate(f"The player confronts {who} ({sn.get('npc_looks', '')}) with what they have learned, but it is not enough. "
                          "Describe the confrontation failing and the moment steel is drawn.", "")
             return False
-        console.note(f"{skill.capitalize()} - {degree}: your proof is too strong. {who} gives way.")
+        console.note(f"{skill.capitalize()}: {degree}. Faced with your proof, {who} gives way.")
         self.finish_arc(data, arc, None, yielded=True)
         return True
 
@@ -401,8 +401,8 @@ class ArcActions:
                     self.store.save_arcs(data)
                 elif info.get("people", True):
                     self.standing_report("camp_cleared", None, self.pname(n["place"]))
-                    console.note(f"{sn.get('npc_name') or info['leader']} will not be answering questions. On the body, and among what "
-                                 "the camp leaves behind, you find what you came for.")
+                    console.note(f"{sn.get('npc_name') or info['leader']} won't be answering any questions. On the body and among what's left "
+                                 "of the camp, you find what you came for.")
                     n["clue_given"] = True
                     self.advance_arc(data, arc, n, False, self.secret_text({"kind": "arc", "node": n["id"], "arc": arc["id"], "victim": ""}))
                 else:
@@ -567,7 +567,7 @@ class ArcActions:
             spot = next((p for p in self.world.neighbors(near) if p in self.world.places and self.world.places[p].danger), None) or self.player.location
             if discovery.add_lead(data, spot, "A way off the road the outlaws use, known to a captive.", self.minutes, random.Random(npc.id)):
                 self.store.save_discoveries(data)
-                console.note("You learn of a hidden way near here. (A lead - try exploring.)")
+                console.note("You learn of a hidden way near here. (A lead: try exploring.)")
             self.player.prisoners[npc.id]["tip_given"] = True
             self.store.save_player(self.player)
             return
@@ -580,7 +580,7 @@ class ArcActions:
 
     def trail_goes_cold(self, data: dict, arc: dict, n: dict, npc) -> None:
         """They will not talk. The trail turns up another way - slower."""
-        console.note(f"{cap_first(npc.label(self.acting))} will say no more. You find the thread another way, at a cost of time.")
+        console.note(f"{cap_first(npc.label(self.acting))} won't say any more. You find the trail another way, but it costs you time.")
         n["clue_given"] = True
         text = self.secret_text({"kind": "arc", "node": n["id"], "arc": arc["id"], "victim": ""})
         self.advance_arc(data, arc, n, True, text)
@@ -602,7 +602,7 @@ class ArcActions:
         if nxt:
             console.note(f"Lead: {self.pname(nxt['place'])}.  (+{money.fmt(coins)}, +{xp} XP)")
         if levels:
-            console.note(f"LEVEL UP! You are now level {c.level}. {c.unspent_points} points to spend - #allocate")
+            console.note(f"LEVEL UP! You are now level {c.level}, with {c.unspent_points} points to spend. Type #allocate.")
         if arc["revealed"] and not was_revealed:
             self.reveal_arc(arc)
         self.store.save_arcs(data)
@@ -613,7 +613,7 @@ class ArcActions:
             if q.get("arc") == arc["id"]:
                 q["title"] = f"{s['title']}"
         total = len(arc["nodes"])
-        console.note(f"This is bigger than it looked. The trail now has a name: {s['title']} - {total} steps to its end.")
+        console.note(f"This is bigger than it looked. Now you know what it is: {s['title']}. {total} steps to the end.")
         state = self.store.load_world_state() or pulse.empty_state(self.minutes)
         towns = sorted({n["place"] for n in arc["nodes"] if n["kind"] == "contact"})
         self.arc_effects(arc, state, towns, failure=False)
@@ -681,13 +681,13 @@ class ArcActions:
         self.standing_report("arc_won", None, title)
         self.weight_hint = "major"
         console.note(f"{W['over'].format(name=s['victim_name'][:1].upper() + s['victim_name'][1:])} {title} is over. "
-                     f"+{money.fmt(coins)}, +{xp} XP - hand in the contract at the guild.")
+                     f"+{money.fmt(coins)}, +{xp} XP. Hand in the contract at the guild.")
         if levels:
-            console.note(f"LEVEL UP! You are now level {c.level}. {c.unspent_points} points to spend - #allocate")
+            console.note(f"LEVEL UP! You are now level {c.level}, with {c.unspent_points} points to spend. Type #allocate.")
         gift = arcs.gift_companion(c, arc, self.world)
         if gift:
             c.companions.append(gift)
-            console.note(f"{gift.description[:-1]} - it is yours now. It will fight at your side, though it is no bonded companion.")
+            console.note(f"{gift.description[:-1]}. It's yours now, and it will fight at your side, though it isn't a bonded companion.")
             console.note(f"  {gift.name}: {arcs.perk_text(gift)}")
             self.narrate(f"As the story ends, an animal attaches itself to the player for good: {gift.description} "
                          "Describe the moment it chooses them.", "")
@@ -790,7 +790,7 @@ class ArcActions:
             return
         guard = next((n for n in self.present if n.role in law.L["heat"]["guard_roles"] and n.id not in self.player.prisoners), None)
         if not guard:
-            self.refuse("There is no one from the watch here to hand them to. Find a guard or a watch captain.")
+            self.refuse("There's no one from the watch here to take a prisoner. Find a guard or a watch captain.")
             return
         pr = self.player.prisoners.get(npc.id, {})
         coins = max(1, pr.get("level", 1)) * PR["turn_in"]["coin_per_level"]
@@ -804,7 +804,7 @@ class ArcActions:
         self.drop_prisoner(npc, "handed over to the watch", partial_node=bool(node_pending), state="handed_over")
         self.standing_report("prisoner_handed_over", [guard], npc.label(self.acting))
         console.note(f"{cap_first(guard.label(self.acting))} takes {npc.label(self.acting)} into custody. Paid: {money.fmt(coins)}"
-                     + (" - and it counts toward your bounty." if bounty else "."))
+                     + (". It counts toward your bounty." if bounty else "."))
         self.weight_hint = "brief"
         self.narrate(f"The player hands the bound captive {npc.name} over to {guard.name}, {guard.label(self.acting)}. "
                      "Describe the handover.", text)
@@ -887,10 +887,10 @@ class ArcActions:
     def show_arc(self) -> None:
         data, arc = self.my_arc()
         if not arc:
-            console.note("No chain or arc is running.")
+            console.note("You aren't following any trail right now.")
             return
         s = arc["story"]
-        console.note(f"{s['title'] if arc['revealed'] else s['hook_title']} - {arcs.step_text(arc)}")
+        console.note(f"{s['title'] if arc['revealed'] else s['hook_title']}: {arcs.step_text(arc)}")
         for line in arc["log"]:
             console.note(f"  - {line}")
         n = arcs.current(arc)
