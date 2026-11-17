@@ -167,6 +167,47 @@ Expected: a prompt under 6,000 characters and an answer of about 80 tokens.
 The engine checks the answer as it checks today's (an id that was not offered is dropped; a gift only of a story object; a
 leave only with a parting).
 
+**As built (f725, 17 November):**
+
+- **The task** is `npc_decide` (npc/life.py `decide`), asked once before the reply when the switch is on, outside the talk's
+  transaction like the reply itself. Registered where every task is (budget.yaml, required, 80 answer tokens as a first estimate;
+  audit_log.yaml; not read as prose by the guard).
+- **The answer** (llm/contracts.py `NPCDecision`): the intent, the ids told, a nudge to trust, the names given and learned, what
+  to keep of it, a gift, paid work, a request, and what was promised them (asked for only when the line may promise something,
+  as today). No words of theirs. The contract is made for each call: the server's grammar lets `shares` name only the ids
+  offered and no more than the move allows; where nothing is offered, or the move tells nothing, the answer has no place for an
+  id at all.
+- **More in the answer than the plan listed:** the trust nudge and the line to remember. With them, everything the one commit
+  path takes of a reply (`NPCAnswer`, npc/life.py `apply_answer`) comes from the reading, so A4 can commit from the decision
+  alone. The journal note, when one is due, is not in the reading; A4 places it.
+- **What a move lets them tell** is data (reply.yaml `moves.kinds.<move>.most`): an answer up to four things, a part or a
+  question back one, turning it aside, a joke or a word or two none. With a move that tells nothing the request does not show
+  what they know at all. **The owner's numbers; a first proposal.** Each move also has its words as the model is told them
+  (`says`) and the intent the reply comes to when the reading fails (`intent`).
+- **The engine's checks** (engine/reply.py `take`): an id not offered is dropped, as is one over what the move allows; a secret
+  whose gate the game opened is told whatever was read, over and above the move; a gift only of a named story object and never
+  while bargaining (the one rule, `reply.gift`, which the scene now uses for a reply's gift too); paid work and a request never
+  together; an offer of nothing is none. What was taken out is on the debug line.
+- **Not checked here:** "a leave only with a parting" needs the words, so it stays where the speech is checked and comes with A4.
+- **When the reading fails** (`fallback`): the engine's candidates are the whole decision. They tell what was picked for the
+  line, in its order, as far as the move allows; the reply comes to the move's intent; nothing is offered, given or learned.
+  They speak all the same, and the line is not counted as broken.
+- **The request** (npc/prompts.py `decide_request`, `DECIDE_SYSTEM`): who they are in three lines, how they know and trust the
+  one in front of them, the stance, the move in plain words, the game's lines that bear on what they do, what they could tell
+  (one line an id), the talk's last four lines, what was said. In the stand-in's town it comes to about 4,000 characters (2,400
+  of rules, 1,600 of request). Its size on the real model is for the gate.
+- **Which lines bear on what they do** is said where the lines are made (scenes/world.py `npc_context_parts`): how they stand
+  with this character, what they want and have asked, how they have been. What they know (the guild's rules, their faith, the
+  season, the places around, the index of their lore) is for the speech alone.
+- **With the switch on at this step** the reading is made and kept on the decision, and the reply is still asked for and acted
+  on as before: two calls, the second as large as ever. That is a state for building, not for play; A4 makes the second small.
+- **For A4, before the reply acts on the reading:** it is not yet given what they sell (it may choose to bargain without
+  their prices) or what they remember of this character (it nudges trust and writes what to keep without them); the guard does
+  not read its `remember` for words in another script, which matters once that line is kept; and the reply's old rules for
+  these fields stand beside the reading's until the old path goes.
+- **The gate** does not yet show the reading's size on its own row; A6 adds it with the measure.
+- **The kept recordings** were made again: every input replayed the same; only the rules' hash moved.
+
 ### A4 (f726). Speak: the smaller prompt, given only the decision
 
 The speaking call is given a person first and rules last (doc 09 B5):

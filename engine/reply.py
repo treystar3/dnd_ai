@@ -41,12 +41,21 @@ class Decision:
     around: tuple = ((), ())                     # the town's pieces for this reply (pieces): those asked for, those that may bear on it
     move: str = ""
     candidates: list = field(default_factory=list)
+    given: tuple = ()                            # (f725) the game's lines for this reply that bear on what they do
+    read: str = ""                               # who read the line: "model", or "engine" when the model's reading failed
+    intent: str = ""                             # what the reading settled: what they do with the reply,
+    shares: tuple = ()                           # ...which of the candidates they tell, by id,
+    told_own_name: bool = False                  # ...whether they give their name,
+    answer: object = None                        # ...and what it means for the one spoken to (llm/contracts.py NPCAnswer)
+    dropped: tuple = ()                          # what the engine took out of the reading, and why
 
     def line(self) -> str:
         would = [c.id for c in self.candidates if c.share]
         held = [f"{c.id} ({c.why})" for c in self.candidates if not c.share]
         return (f"move {self.move}{' (the game decided)' if self.forced else ''}, stance {self.stance}; could share: {', '.join(would) or 'nothing'}"
-                + (f"; would not: {', '.join(held)}" if held else ""))
+                + (f"; would not: {', '.join(held)}" if held else "")
+                + (f"; read by the {self.read}: intent {self.intent}, tells {', '.join(self.shares) or 'nothing'}" if self.read else "")
+                + (f"; taken out: {'; '.join(self.dropped)}" if self.dropped else ""))
 
 
 def must_say(lines) -> bool:
@@ -145,6 +154,74 @@ def settle(decision: Decision, npc, picked, rng) -> Decision:
     return decision
 
 
+def offered(decision: Decision) -> list[Candidate]:
+    """(f725) What the reading of the line may choose from: the candidates they would share."""
+    return [c for c in decision.candidates if c.share]
+
+
+def must(decision: Decision) -> list[str]:
+    """(f725) What the game has decided they tell in this reply, whatever is read: a secret whose gate is open."""
+    return [c.id for c in offered(decision) if c.kind == "secret"]
+
+
+def most(move: str) -> int:
+    """(f725) How many of the things they could tell this move lets them tell (reply.yaml)."""
+    return int(R["moves"]["kinds"][move]["most"])
+
+
+def says(move: str) -> str:
+    """(f725) The move in plain words, as the model is told it."""
+    return str(R["moves"]["kinds"][move]["says"])
+
+
+def gift(gives, intent: str, story):
+    """(f725) The gift, if it stands: a named story object (story: the scene's rule of what one is), and not one they are
+    bargaining over. Else None. The one rule, for a reply's gift and a reading's."""
+    if gives is None or story is None or not (gives.name or "").strip() or intent == "bargain" or not story(gives.name):
+        return None
+    return gives
+
+
+def take(decision: Decision, got, who: str, story=None) -> Decision:
+    """(f725) The model's reading of the line (llm/contracts.py NPCDecision), written into the decision after the engine's checks:
+    an id that was not offered is dropped, as is one over what the move lets them tell; what the game decided they tell is told;
+    a gift only of a story object; paid work and a request never together; an offer of nothing is none; sharing with nothing
+    left to tell is ordinary talk."""
+    ids = [c.id for c in offered(decision)]
+    forced = must(decision)
+    named = list(dict.fromkeys(got.shares))
+    free = [i for i in named if i in ids and i not in forced]
+    picked = free[: most(decision.move)]
+    dropped = [f"{i}: not offered" for i in named if i not in ids] + [f"{i}: more than this move tells" for i in free if i not in picked]
+    ans = got.answers(who)[0]
+    if ans.offers_work is not None and not ans.offers_work.task.strip():
+        ans.offers_work = None
+    if ans.offers_quest is not None and (not ans.offers_quest.what.strip() or ans.offers_work is not None):
+        if ans.offers_work is not None:
+            dropped.append("the request: never with paid work")
+        ans.offers_quest = None
+    if ans.gives is not None and gift(ans.gives, got.intent, story) is None:
+        dropped.append(f"the gift '{ans.gives.name}': no story object, or offered for sale")
+        ans.gives = None
+    decision.read, decision.shares = "model", tuple(forced + picked)
+    decision.intent = got.intent if decision.shares or got.intent != "share" else "small_talk"
+    decision.told_own_name, decision.answer, decision.dropped = bool(got.told_own_name), ans, tuple(dropped)
+    return decision
+
+
+def fallback(decision: Decision, answer) -> Decision:
+    """(f725) The reading failed: the engine's own candidates are the whole decision. They tell what was picked for the line, in
+    its order, as far as the move lets them; the reply comes to the move's intent (ordinary talk when there is nothing to tell);
+    nothing is offered, given, learned or promised (answer: the empty block for the one spoken to)."""
+    forced = must(decision)
+    picked = [c.id for c in offered(decision) if c.id not in forced][: most(decision.move)]
+    intent = str(R["moves"]["kinds"][decision.move]["intent"])
+    decision.read, decision.shares = "engine", tuple(forced + picked)
+    decision.intent = intent if decision.shares or intent != "share" else "small_talk"
+    decision.told_own_name, decision.answer, decision.dropped = False, answer, ()
+    return decision
+
+
 def problems(rules: dict | None = None) -> list[str]:
     """Start-up check of data/rules/reply.yaml."""
     from engine import voice_rules, voices
@@ -159,6 +236,24 @@ def problems(rules: dict | None = None) -> list[str]:
     if not kinds or not all(isinstance(s, dict) and isinstance(s.get("weight"), (int, float)) and not isinstance(s.get("weight"), bool)
                             and s["weight"] > 0 and s.get("needs", NEEDS[0]) in NEEDS for s in kinds.values()):
         bad.append(f"reply.yaml moves.kinds: each move with a weight above 0, and needs (if any) one of {', '.join(NEEDS)}")
+    import typing
+    from llm.contracts import NPCDecision                                    # (f725) a move comes to an intent a reply has
+    intents = set(typing.get_args(NPCDecision.model_fields["intent"].annotation))
+    for move, s in kinds.items():
+        if not isinstance(s, dict):
+            continue
+        if not isinstance(s.get("most"), int) or isinstance(s.get("most"), bool) or s["most"] < 0:
+            bad.append(f"reply.yaml moves.kinds.{move}.most: how many things the move tells, a whole number from 0")
+        if s.get("intent") not in intents:
+            bad.append(f"reply.yaml moves.kinds.{move}.intent: one of a reply's intents ({', '.join(sorted(intents))})")
+        if not isinstance(s.get("says"), str) or not s["says"].strip():
+            bad.append(f"reply.yaml moves.kinds.{move}.says: the move in plain words")
+    G = D.get("decide") or {}
+    for k in ("lines", "max_tokens"):
+        if not isinstance(G.get(k), int) or isinstance(G.get(k), bool) or G[k] < 1:
+            bad.append(f"reply.yaml decide.{k}: a whole number above zero")
+    if not isinstance(G.get("temperature"), (int, float)) or isinstance(G.get("temperature"), bool) or not 0 <= G["temperature"] <= 2:
+        bad.append("reply.yaml decide.temperature: a number from 0 to 2")
     if not isinstance(M.get("forced"), str) or M["forced"] not in kinds or (kinds.get(M["forced"]) or {}).get("needs"):
         bad.append("reply.yaml moves.forced: one of the moves, and one that needs nothing")
 

@@ -236,8 +236,9 @@ try:
           d is not None and d.speaker == npc.id and d.to == ws.acting and d.stance == voice_rules.stance_kind(ws.stance)
           and d.move in reply.R["moves"]["kinds"] and all(c.kind in reply.KINDS and isinstance(c.share, bool) for c in d.candidates),
           d)
-    check("...made with no call to the model: the reply's own one, and nothing a reply did not ask for before",
-          on_calls.get("NPCReply") == 1 and set(on_calls) <= set(off_calls) | {"DialogueFrame"} and "NPCReply" in off_calls, (off_calls, on_calls))
+    check("...made by the engine: the reply's own call and (f725) the one reading of the line, and nothing a reply did not ask for before",
+          on_calls.get("NPCReply") == 1 and on_calls.get("NPCDecision", 0) <= 1 and set(on_calls) <= set(off_calls) | {"DialogueFrame", "NPCDecision"}
+          and "NPCReply" in off_calls and "NPCDecision" not in off_calls, (off_calls, on_calls))
     check("...a line that asks nothing of the board has no posting among what they could share; one that asks for work has",
           not any(c.kind == "board" for c in d.candidates), [c.id for c in d.candidates])
     check("...the move is kept with the talk, in the scene and in its record", ws.moves == [d.move] and ws.talk_record().get("moves") == [d.move], (ws.moves, ws.talk_record()))

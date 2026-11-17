@@ -117,6 +117,66 @@ Your reply:
 Respond only with JSON matching the schema."""            # (f307) townsfolk talk like people too: the shared style rules; (f583) the voice shown at the end of each request; and they know their world
 
 
+DECIDE_SYSTEM = """You decide what one person in the fantasy world of Meravia does with what was just said to them. You do not write
+their words: those are written afterwards, from what you decide. Decide as this person would, from who they are, how they are
+today, how far they trust the one in front of them, and what they know.
+
+Your answer:
+  intent: what they do with this reply. small_talk: ordinary talk. share: they tell something they know. withhold: they keep back
+    what was asked for. lie: they say what is not so. bargain: they name a price or terms. help: they agree to do something.
+    refuse: only when they decline outright. threaten. leave: only when they end the talk and walk away, with a word of parting;
+    never while they still have something to ask.
+  shares: the ids under WHAT YOU COULD TELL THEM that they tell in this reply: only what bears on what was said, and no more than
+    its heading allows. Empty when none does.
+  trust_change: -5 to 5. Ordinary talk is 0, even for a wary person. Move it only for what matters: a kindness, a lie caught, a
+    promise kept, a threat, a gift, an insult.
+  told_own_name: true if they give their own name in this reply. learned_name: the name the other gave in THEY SAY, else empty.
+  remember: one short line worth keeping about them from what they just said, about "the stranger" or their name; empty for small
+    talk.
+  gives: only if they hand over an object right now, and only a token, document or key plausibly theirs to give (a pendant, badge,
+    seal, letter, map, ledger, key, note); never weapons, armor, potions, coins or anything of real worth. name short; description
+    one plain sentence; kind quest if it is meant for a task, else key; for_whom: who a quest item should reach. Empty almost always.
+  offers_quest: only when they ask for help with a real need of theirs that takes the other away: hunt (what = the creature, count),
+    gather (what = the herb, food or hide, count), deliver (item, to = the person or their role). Empty almost always; never with
+    offers_work.
+  offers_work: only when they offer paid work right now: task a short phrase, minutes it should take, pay in copper at honest
+    village rates. Never work they have already offered.
+A line in square brackets that begins THE GAME HAS DECIDED is fact: decide in keeping with it.
+Respond only with JSON matching the schema."""            # (f725) the reading before they speak (npc/life.py decide)
+
+
+def decide_request(npc, place, convo: list[tuple[str, str]], player_text: str, stance: str, move: str, could: list, most: int,
+                   given: list[str] = (), *, who: str, work: dict | None = None, pronoun: str = "", promised: bool = False,
+                   forced: list[str] = ()) -> str:
+    """(f725) The request for the reading: who they are in three lines, how they are with the one in front of them, the stance and
+    the move in plain words, the game's lines that bear on what they do, what they could tell (one line an id; `forced`: the ids
+    the game has decided they tell; with a move that tells nothing, none is shown), the talk's last lines, and what was said."""
+    free = [c for c in could if c.id not in forced]
+    rows = [f"  [{c.id}] {' '.join(c.text.split())} (the game has decided: you tell this)" for c in could if c.id in forced]
+    if most >= 1:
+        rows += [f"  [{c.id}] {' '.join(c.text.split())}" for c in free]
+    if rows:
+        tell = (f"WHAT YOU COULD TELL THEM (by id; of those not already decided, at most {most}):\n" if most >= 1 and free
+                else "WHAT YOU TELL THEM:\n") + "\n".join(rows) + "\n"
+    else:
+        tell = ("WHAT YOU COULD TELL THEM: you know things that bear on this, and tell none of them this time.\n" if free
+                else "WHAT YOU COULD TELL THEM: nothing you know bears on this.\n")
+    so_far = "\n".join(f"  {who_}: {what}" for who_, what in convo) or "  (this is the start of the conversation)"
+    return (
+        _who(npc, place)
+        + f"PERSONALITY: {npc.personality}\nON YOUR MIND: {npc.concern}\n"
+        + _them(npc, who, pronoun) + "\n"
+        + (f"RIGHT NOW YOU ARE: {stance}\n" if stance else "")
+        + f"WHAT YOU DO WITH WHAT THEY SAY: {move}\n"
+        + (f"WORK YOU HAVE OFFERED THEM (not yet done): {work['task']} for {work['pay']} copper\n" if work else "")
+        + (("WHAT ELSE IS SO RIGHT NOW:\n" + "\n".join(f"  - {x}" for x in given) + "\n") if given else "")
+        + tell
+        + f"THIS CONVERSATION SO FAR:\n{so_far}\n"
+        + f'THEY SAY: "{player_text}"'
+        + (f"\nA PROMISE? {PROMISE_ASK}" if promised else "")
+    )
+
+
 def trust_words(trust: int) -> str:
     if trust >= 80:
         return "you trust them deeply"
@@ -187,11 +247,29 @@ def conversation_prompt(npc, place, trait_lines: list[str], facts, convo: list[t
     return p
 
 
+def _who(npc, place) -> str:
+    return f"YOU ARE: {npc.name}, a {npc.people.replace('_', '-')} {npc.role.replace('_', ' ')} at {place.name}.\n"
+
+
+def _them(npc, char_id: str, pronoun: str = "") -> str:
+    """How they know the one in front of them and how far they trust them (engine/regard.py: this character's view), in a line."""
+    from engine import regard
+    seen = regard.of(npc, char_id)                                  # (f480) their view of the one in front of them
+    if not seen.met:
+        who = "A stranger you have never met."
+    elif seen.knows_as:
+        who = f"Someone you have met before. They told you their name is {seen.knows_as}."
+    else:
+        who = "Someone you have met before, though you don't know their name."
+    return (f"THE PERSON IN FRONT OF YOU: {who} {trust_words(seen.trust).capitalize()}."
+            + (f" Speak of them as {pronoun}." if pronoun else ""))        # (f486) their pronoun, by id
+
+
 def _identity(npc, place, trait_lines, time_label, nearby, here_with, people_known, buildings, truth_text, land) -> str:
     traits = "\n".join(f"  - {t}" for t in trait_lines)
     return (
-        f"YOU ARE: {npc.name}, a {npc.people.replace('_', '-')} {npc.role.replace('_', ' ')} at {place.name}.\n"
-        f"LOOKS: {npc.description}\nPERSONALITY: {npc.personality}\n"
+        _who(npc, place)
+        + f"LOOKS: {npc.description}\nPERSONALITY: {npc.personality}\n"
         + (f"VOICE: {npc.voice}\n" if npc.voice and (not (getattr(npc, "speech", None) or {}).get("kit")                # (f350) a kit under HOW YOU TALK is the voice,
                                                     or (getattr(npc, "speech", None) or {}).get("own_voice")) else "")     # (f374) unless the person was written by hand
         + f"ON YOUR MIND: {npc.concern}\nRIGHT NOW: {npc.activity}\n"
@@ -208,14 +286,6 @@ def _identity(npc, place, trait_lines, time_label, nearby, here_with, people_kno
 
 
 def _knowledge(npc, facts, convo, wares, extra, now: int | None, char_id: str, work: dict | None = None, pronoun: str = "") -> str:
-    from engine import regard
-    seen = regard.of(npc, char_id)                                  # (f480) their view of the one in front of them
-    if not seen.met:
-        who = "A stranger you have never met."
-    elif seen.knows_as:
-        who = f"Someone you have met before. They told you their name is {seen.knows_as}."
-    else:
-        who = "Someone you have met before, though you don't know their name."
     from engine import memory as _memory
     shared = [m for m in npc.memories if m.kind != "own_life"]        # their own life is given separately (f478: by kind, not by a prefix)
     from engine import clock
@@ -223,8 +293,7 @@ def _knowledge(npc, facts, convo, wares, extra, now: int | None, char_id: str, w
                          for m in shared[-12:]) or "  (none)"
     known = "\n".join(f"  [{f.id}] {' '.join(f.text.split())}" for f in facts) or "  (nothing in particular)"
     return (
-        f"THE PERSON IN FRONT OF YOU: {who} {trust_words(seen.trust).capitalize()}."
-        + (f" Speak of them as {pronoun}." if pronoun else "") + "\n\n"          # (f486) their pronoun, by id
+        _them(npc, char_id, pronoun) + "\n\n"
         f"WHAT YOU KNOW:\n{known}\n\n"
         + (("WHAT YOU SELL (fixed prices - quote them exactly; the player pays through the game when they agree, so "
             "never pretend coins have already changed hands):\n" + "\n".join(f"  - {w}" for w in wares) + "\n\n")

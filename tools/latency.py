@@ -90,7 +90,7 @@ def calls_table(rows: list[dict]) -> list[str]:
 
 # (f475) The speech tasks Bundle D's briefs change, measured before they change (GOALS.md S7: prompt ceilings measured first). The list is
 # the baseline's own (data/measured/bundle_d_baseline.yaml speech_tasks), read when it is there.
-SPEECH = ("npc_conversation", "npc_parting", "npc_profile", "dialogue_frame", "work_offer_read", "hire_chat", "canon_extract", "canon_check",
+SPEECH = ("npc_conversation", "npc_decide", "npc_parting", "npc_profile", "dialogue_frame", "work_offer_read", "hire_chat", "canon_extract", "canon_check",
           "exchange", "overheard", "mentor_chat")
 BASELINE = Path(__file__).resolve().parent.parent / "data" / "measured" / "bundle_d_baseline.yaml"
 

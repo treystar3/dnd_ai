@@ -2259,6 +2259,51 @@ class NPCReplyManyBase(BaseModel):
         return self
 
 
+class NPCDecision(BaseModel):
+    """(f725) What only reading the line can settle before a townsperson speaks (npc/life.py decide; docs/design/28_phase4_plan.md
+    A3): what they do with the reply, which of the things they could tell they tell, a name given, what is offered or handed
+    over, what to keep of it. No words of theirs: those are asked for afterwards. Made per call by decision_contract(ids, most):
+    the server's grammar holds the ids and how many; the engine checks them again (engine/reply.py take)."""
+    intent: Literal["small_talk", "share", "withhold", "lie", "bargain", "help", "refuse", "threaten", "leave"]
+    shares: SkipJsonSchema[list[str]] = []
+    trust_change: int = 0
+    told_own_name: bool = False
+    learned_name: str = ""
+    remember: str = ""
+    gives: GiftProposal | None = None
+    offers_work: WorkOffer | None = None
+    offers_quest: QuestOffer | None = None
+    they_promised: SkipJsonSchema[str] = ""
+
+    _blank = blank_placeholders("learned_name", "remember", "they_promised")
+    _promise = promise_field()
+
+    def answers(self, to: str = "") -> list[NPCAnswer]:
+        """The one block of what it means for the one spoken to, for the one commit path (npc/life.py apply_answer)."""
+        made = NPCAnswerPromised if getattr(self, "ASKS_PROMISE", False) else NPCAnswer
+        return [made(to=to, trust_change=self.trust_change, learned_name=self.learned_name, remember=self.remember,
+                     they_promised=self.they_promised, offers_work=self.offers_work, offers_quest=self.offers_quest, gives=self.gives)]
+
+
+class NPCDecisionPromised(NPCDecision):
+    """(f725) The reading when what was said may promise them something (engine/brief.py promised), as NPCReplyPromised is."""
+    model_config = ConfigDict(title="NPCDecision")
+    ASKS_PROMISE: ClassVar[bool] = True
+    they_promised: str = Field("", json_schema_extra={"maxLength": _PROMISE_CHARS})
+
+
+def decision_contract(ids: list[str], most: int, promised: bool = False):
+    """(f725) The contract for one reading: `shares` may name only these ids, and no more than `most` of them. With nothing
+    offered, or a move that tells nothing, the answer has no place for an id."""
+    from pydantic import create_model
+    base = NPCDecisionPromised if promised else NPCDecision
+    if not ids or most < 1:
+        return base
+    return create_model("NPCDecision", __base__=base,
+                        shares=(list[str], Field(default_factory=list, json_schema_extra={"items": {"type": "string", "enum": list(ids)},
+                                                                                          "maxItems": int(most)})))
+
+
 def many_reply(ids: list[str], promised: bool = False):
     """(f487) The contract for one reply to these characters: as many blocks as there are of them, each `to` one of their ids. (f493)
     Each block may say what was promised only when what was said may promise something."""

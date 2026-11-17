@@ -192,6 +192,12 @@ class Stub:
                 out["offers_quest"] = {"kind": "hunt", "what": self.rng.choice(["wolves", "boars", "goblins", "bandits"]), "count": 3}
         return out
 
+    def a_NPCDecision(self, u, k):
+        """(f725) What a townsperson does with a line: ordinary talk, or what a test planted (decide_extra: the fields, or a
+        function of the request that gives them)."""
+        extra = getattr(self, "decide_extra", None)
+        return {"intent": "small_talk", **((extra(u, k) if callable(extra) else extra) or {})}
+
     def a_NPCReplyMany(self, u, k):
         """(f487) One block per character the format names, or what a test planted (many_extra: a list of blocks, as given)."""
         ids = (((k["format"].get("$defs") or {}).get("NPCAnswer") or {}).get("properties") or {}).get("to", {}).get("enum") or []

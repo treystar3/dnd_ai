@@ -3751,9 +3751,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         matters.bind_for(self.store, self.world, npc)                    # (f317) a clue written for their role settles on them
         from engine import situation_parts
         situation_parts.ask(self, npc)                                   # (f545) what they need of their situation, asked of this character
-        ctx = (self.npc_context(npc) + self.local_knowledge(npc) + matters.talk_lines(self, npc)
-               + court.keeper_lines(self, npc, speech) + court.gated_lines(self, npc)    # (f320) the door, and what is behind it
-               + stakes.talk_lines(self, npc))                                          # (f322) the job they put on the board
+        core, bears = self.npc_context_parts(npc)
+        places = self.local_knowledge(npc)
+        asks = (matters.talk_lines(self, npc)
+                + court.keeper_lines(self, npc, speech) + court.gated_lines(self, npc)   # (f320) the door, and what is behind it
+                + stakes.talk_lines(self, npc))                                         # (f322) the job they put on the board
+        ctx = core + places + asks
         note_due = self.note_due(npc)
         if note_due:
             old_note = regard.of(npc, self.acting).journal_note
@@ -3764,8 +3767,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                           + (f" The old note was: {old_note} - bring it up to date with what has happened since." if old_note else ""))]
         secret_lines, pending_secret = self.secret_lines(npc, speech)
         ctx = ([back] if back else []) + ctx + secret_lines
+        bearing = ([back] if back else []) + bears + asks + secret_lines   # (f725) the lines that bear on what they do: the reading's
         if decided := ledger.decided():                                  # (f416) what the turn has settled so far: never answered against
             ctx = ctx + ["WHAT THE GAME HAS DECIDED THIS TURN (true; say nothing against it): " + " ".join(decided)]
+            bearing = bearing + ctx[-1:]
         if npc.id in self.player.prisoners:
             self.player.prisoners[npc.id]["asked"] = self.player.prisoners[npc.id].get("asked", 0) + 1
         from engine import voices
@@ -3782,7 +3787,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             opened = bool((pending_secret or {}).get("open"))
             decision = reply_rules.Decision(npc.id, self.acting, stance=voice_rules.stance_kind(getattr(self, "stance", "") or ""),
                                             last=tuple(self.moves), forced=reply_rules.must_say([check_note, *ctx]), around=reply_rules.pieces(view, speech),
-                                            candidates=reply_rules.secret(pending_secret, self.secret_text(pending_secret["secret"]) if opened else ""))
+                                            candidates=reply_rules.secret(pending_secret, self.secret_text(pending_secret["secret"]) if opened else ""),
+                                            given=tuple(bearing))
         reply, revealed = converse(npc, self.store, self.world, self.catalog, self.convo,
                                    f"{speech} {check_note}".strip(), ctx, truth_text=view.text(), known=view.scene.known_words(),
                                    stance=getattr(self, "stance", ""), rng=streams.keyed("voice", npc.id, f"{npc.id}", len(self.convo)),   # (f486)
@@ -3791,7 +3797,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                    wares=self.wares_said(npc), who=self.acting,             # (f418) at the prices the game charges; (f480) to whom
                                    exemplars=self.exemplars("speech", self.speech_pool(npc, getattr(self, "stance", "") or "",
                                                                                          view.lines("news") if "news" in view.facets() else [])),
-                                   decision=decision)
+                                   decision=decision, story=self.story_object)
         if decision is not None:
             self.decision = decision
             self.moves = (self.moves + [decision.move])[-int(reply_rules.R["moves"]["running"]):]
@@ -3820,7 +3826,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         elif not offer_open(self.store, npc, self.acting) and not (reply.offers_quest and reply.offers_quest.what.strip()) and self.promises_pay(reply.speech):
             if (offer := self.inferred_offer(npc, reply.speech)) is not None:       # pay was promised in words: make it a real, payable offer
                 self.record_work_offer(offer, npc)
-        if reply.gives and reply.gives.name.strip() and reply.intent != "bargain" and self.story_object(reply.gives.name):
+        if reply_rules.gift(reply.gives, reply.intent, self.story_object) is not None:           # (f725) the one rule of what may be given
             self.receive_key_item(reply.gives, npc)
         elif reply.gives:
             console.debug(f"ignored gift '{reply.gives.name}' - not a story object, or offered for sale")
@@ -4140,11 +4146,20 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def npc_context(self, npc) -> list[str]:
         """What a person should know right now beyond their own life - the guild, offers they've made."""
-        lines = []
+        return self.npc_context_parts(npc)[0]
+
+    def npc_context_parts(self, npc) -> tuple[list[str], list[str]]:
+        """(f725) (every line, those of them that bear on what they do with a reply): how they stand with this character, what
+        they want and have asked, how they have been. The rest is what they know, for the speech alone."""
+        lines, bears = [], []
+
+        def bear(line: str) -> None:
+            lines.append(line)
+            bears.append(line)
         if npc.role == "guild_clerk":
             status = f"a guild member of rank {self.rank}" if self.rank else \
                 f"not a guild member - joining costs {money.words(quests.G['joining_fee'])}, paid through the game"
-            lines.append(f"The person in front of you is {status}.")
+            bear(f"The person in front of you is {status}.")
             lines.append("Ranks run F (lowest) to S. Members take contracts of their letter and below; promotion needs "
                          "both a level and enough completed contracts.")
         if npc.role == "guild_contractor":
@@ -4153,34 +4168,34 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             lines.append(f"You are a rank-{letter} member of the adventurers' guild, between contracts. You know the "
                          "Greywood and its dangers from your own jobs, and you size up newcomers.")
         if (asked := self.request_of(npc)):                                     # (f481) from the registry
-            lines.append(f"You have asked them to: {asked['title']}, and are waiting for their answer.")
+            bear(f"You have asked them to: {asked['title']}, and are waiting for their answer.")
         if npc.mood and (npc.mood_until <= 0 or npc.mood_until > self.minutes):     # (f486) a mood past its time is no longer theirs
-            lines.append(f"How you've been lately: {npc.mood}")
+            bear(f"How you've been lately: {npc.mood}")
         if npc.motive:
-            lines.append(f"What you're working toward (private - share it only if it comes up naturally): {npc.motive}")
+            bear(f"What you're working toward (private - share it only if it comes up naturally): {npc.motive}")
         feelings = pulse.relations_text(self.store, npc)
         if feelings:
             lines.append(f"How you feel about people you know: {feelings}")
         if self.owns("gossips_ear"):                        # (f313) the news itself is in the truth view (NEWS THAT HAS REACHED HERE)
-            lines.append("You like passing on news to the stranger - tell them what you've heard without being asked.")
+            bear("You like passing on news to the stranger - tell them what you've heard without being asked.")
         own = [m.text for m in npc.memories if m.kind == "own_life"][-2:]          # (f478) their own life, by kind
         if own:
             lines.append("What has happened in your own life since you last saw the stranger: " + " ".join(own))
         town = pulse.town_of(self.world, npc.location)
         if not self.world.places[town].danger:
-            lines.append(f"How people around here regard the stranger: {self.reputation_words(town)}.")
+            bear(f"How people around here regard the stranger: {self.reputation_words(town)}.")
             group_line = self.standing_line(npc)
             if group_line:
-                lines.append(group_line)
+                bear(group_line)
         faith = faith_mod.line(self.world, npc)
         if faith:
             lines.append(faith)
         if "orenna_name" in self.player.character.knowledge and "orenna" in (self.last_text or "").lower():   # (f486) only when it is said
-            lines.append("No one living has ever heard the name Orenna. If the stranger says it, it means nothing to you; you do not "
-                         "recognise it, and you do not pretend to.")
+            bear("No one living has ever heard the name Orenna. If the stranger says it, it means nothing to you; you do not "
+                 "recognise it, and you do not pretend to.")
         lines += self.guild_knowledge(npc)
         lines.append(f"The season is {clock.season(self.minutes)}.")
-        return lines
+        return lines, bears
 
     def seek_person(self, seek: str, text: str) -> bool:
         """(f404) 'I look for Brokur Durdal': someone the player names is found, or said to be elsewhere. A night's play had the player

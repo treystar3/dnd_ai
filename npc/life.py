@@ -405,6 +405,7 @@ def converse(
     given_also: list[str] = (),
     exemplars: str = "",
     decision=None,
+    story=None,
 ) -> tuple[NPCReply, list[str]]:
     """One conversation turn. Returns the reply and the ids of facts the player learned. truth_text is this person's view of the moment
     from the truth layer (engine/truth.py, f313): who is here, what the town has, the board, happenings, news; known is the words of the
@@ -415,6 +416,8 @@ def converse(
     promised = brief.promised(player_text)                  # (f493) the promise field only when the line may make one
     prompt, facts, recent = _request(npc, store, world, catalog, convo, player_text, extra, truth_text, stance, rng, worn, wares, who, pronoun,
                                      promised, exemplars, decision)
+    if decision is not None:                                # (f725) what only reading the line can settle, before they speak
+        decide(npc, store, world, convo, player_text, stance, decision, who, pronoun, promised, story)
     from engine import voices
     from llm.contracts import NPCReplyPromised
     reply = generate(
@@ -443,6 +446,31 @@ def converse(
         f"remember={reply.remember!r}"
     )
     return reply, revealed
+
+
+def decide(npc: NPC, store: CampaignStore, world: World, convo: list[tuple[str, str]], player_text: str, stance: str, decision, who: str,
+           pronoun: str = "", promised: bool = False, story=None):
+    """(f725) The reading of the line before they speak (docs/design/28_phase4_plan.md A3): one small call for what only reading
+    it can settle, given the engine's decision so far (the move, what they would share), its answer written into the decision
+    after the engine's checks (engine/reply.py take). story: the scene's rule of what may be given. When the model's reading
+    fails, the engine's own candidates are the whole decision (fallback), and they speak all the same."""
+    from engine import reply as _reply
+    from llm import contracts
+    from llm.gateway import LLMError
+    G = _reply.R["decide"]
+    could, forced = _reply.offered(decision), _reply.must(decision)
+    free = [c.id for c in could if c.id not in forced]
+    most = min(len(free), _reply.most(decision.move))
+    prompt = prompts.decide_request(npc, world.places[npc.location], convo[-int(G["lines"]):], player_text, stance, _reply.says(decision.move),
+                                    could, most, list(decision.given), who=who, work=_offered(store, npc, who), pronoun=pronoun,
+                                    promised=promised, forced=forced)
+    try:
+        got = generate("npc_decide", prompts.DECIDE_SYSTEM, prompt, contracts.decision_contract(free, most, promised),
+                       temperature=float(G["temperature"]), max_tokens=int(G["max_tokens"]))
+    except LLMError as e:                                   # only the model's failure: a replay's parting (an Interrupt) passes through
+        console.debug(f"{npc.name}: the reading of the line failed ({str(e)[:80]}); the engine's candidates stand")
+        return _reply.fallback(decision, contracts.NPCAnswer(to=who))
+    return _reply.take(decision, got, who, story)
 
 
 def apply_answer(npc: NPC, store: CampaignStore, ans, who: str, words: str, intent: str, told_own_name: bool, speech: str):
