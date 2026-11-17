@@ -169,7 +169,12 @@ check("...and console.ask is put back afterwards", uc.ask() == "typed")
 uc.put("ask", no_ask)
 done("stages461_fence")
 src = Path("scenes/world.py").read_text(encoding="utf-8")
-check("the fence stands over every turn, every #command, the arrival after one (f463) and the game's opening (f466)", src.count("questions.fence()") == 4, src.count("questions.fence()"))
+import inspect
+from scenes.world import WorldScene as _WS
+check("the fence stands over every input (f721: a turn, a #command and the game's opening are opened in one place) and the arrival after a command (f463)",
+      src.count("questions.fence()") == 2 and all("questions.fence()" in inspect.getsource(getattr(_WS, k)) for k in ("input", "pane_arrival"))
+      and all(f'self.input({a}' in inspect.getsource(getattr(_WS, k)) for k, a in (("turn", 'text, "line"'), ("command_input", 'text, "command"'), ("open_world", '"#start", "opening"'))),
+      src.count("questions.fence()"))
 
 # ---- the ratchet: no console.ask() inside a turn anywhere under scenes/ or engine/
 left = {}

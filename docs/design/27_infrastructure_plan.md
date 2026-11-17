@@ -227,6 +227,187 @@ line does.
 **Risk:** the highest of the six. `turn()` carries the order of twenty features (f463 to f498). It is moved, not rewritten: the
 steps keep their order and their comments, and the goldens and the 500 tests say whether they still do.
 
+### As built (17 November)
+
+Four things in scenes/world.py, each the only one of its kind (the test reads the code and fails on a second):
+
+- `input(text, kind)` opens and closes an input: the line's fields and the write fence (`begin_line`), no question read inside it,
+  and for a typed input its count, its dice and its budget. It is the only caller of `begin_line`, `new_input` and the budget's
+  close. Three kinds: a typed line, a pane's command, and what the world owes the save as the game opens (`open_world`). When a
+  typed input has run to its end, it says the input's one closing line.
+- `closing_line(text)` chooses that line by how the input stood (a new field of the turn, `stood`, set where the outcome is
+  settled): not taken, stood in part, showed nothing, or none.
+- `play(text)` is the loop's one path: the log's row opened, the input played (`turn` for a line, `command_input` for a command),
+  then `close_input`. The loop in `run` is now the prompt, the quit words and `play`.
+- `close_input(...)` writes the log's row and redraws the header.
+
+`turn` was moved, not rewritten: its body is the same lines in the same order, four columns to the left, under `with
+self.input(text, "line")`.
+
+**The fix.** The tail no longer prints "Nothing comes of that here": it marks the line `silent` (a new field of the turn, put back
+by a failed operation), and the close says it only when the line has no other closing line. A turn that stood in part shows the
+part line alone, whatever fails after the tail.
+
+**The closing line is said where the input closes, not in the loop** (the goals review). The suite and the acceptance tool play a
+turn without the loop (64 tests call `turn`). Said in the loop, the silent line never reached them, and a scene's "this line must
+not say Nothing comes of that" could not fail. Said by the input's close, whoever plays a turn reads the line the player reads:
+those callers now also read the line for a turn not taken and for one that stood in part, which only the loop printed before.
+
+**What moved on the page:** the silent line is now the last line of its input. It used to come from the tail, so it came before
+the tail's quiet line of places first heard of and before anything a deed taken up after the line showed. The same lines, in a
+different order, in that case alone; no recording holds it.
+
+**Older tests changed, each for the reason it exists:** turn_fields_628 and turn_context_631 hold the list of a line's
+fields (two more); tutorial_stages_461 counted four fences in the file and now holds that the one place and the arrival after a
+command have one each and that a turn, a command and the opening go through that place; turn_record_416 called the tail's
+check by hand and read the note there (it now reads the mark and the close's choice). channel_580 and turn_survives_449 played a
+turn and then asked for the not-taken line by hand, as the loop did; they now read the one the turn says.
+
+**Changed from the plan:** the floors are in data/replay/gate.yaml, beside the script, not in data/rules: they are what the
+game is tested against, not the game, and a file in data/rules would have moved the data hash and every kept recording with it.
+
+**For the owner:** the script's forty lines, to read before they are kept; the floors, once the first whole run is in; and a
+line for CLAUDE.md, proposed: "Before a push that touches llm/, the prompts or the reading data: `python tools/live_gate.py`
+(the whole gate, about forty minutes); before a playtest, `--quick`."
+
+**Test:** tools/sim/live_gate_719_test.py, on the stand-in model.
+
+**Goldens:** not moved.
+
+## f720. Rollback by declaration
+
+**What is wrong today** (engine/session.py:155-207, scenes/world.py:1165, engine/actor.py:71-118):
+A failed operation puts the scene back by three means: every `_` attribute is copied and restored wholesale; the names in the
+hand-kept tuple `WorldScene.ROLLED` (36) are copied and restored; `reload_after_rollback` rebuilds a few by hand (the player, the
+fight, the residents, who is present). The comment on the tuple says what happens to a name nobody added: "the next failing
+operation shows it".
+
+Measured 17 November: the scenes' code sets 125 different names on `self`. 44 are in no list. About twenty of those are the world
+scene's own, and about ten are written while a line is played with no declared treatment: `pending_clarify` (the question that is
+waiting), `repairs`, `last_interpret`, `dropped_steps`, `line_text`, `learn_request`, `camp_events`, `revisit`, `first_arrival`,
+`visitors`. Whether any of them survives a rollback wrongly is not known; nothing checks. (f633's test covers names held by
+modules, not a scene's own attributes.)
+
+**The change:**
+1. **Every attribute of the world scene is declared once,** in engine/actor.py, beside FIELDS: its treatment (put back; kept, with
+   the reason; rebuilt from the save; set once and never written in a turn; a cache) and its home for multiplayer (the turn's, one
+   character's view, the scene's). `ROLLED`, `HOMES` and `UNLISTED` are read from that one table and keep their names, so the
+   existing tests pass unchanged.
+2. **Checked two ways.** A census: every name the scenes' code sets on `self` is in the table. And by running: a new test replays
+   a golden and, at each operation in turn, makes it fail, then compares everything the scene holds with what it held before the
+   operation. A name that differs and is not declared "kept" fails the test with its name.
+3. `Session.begin_turn` and `rollback` read the table. `reload_after_rollback`'s hand resets become the table's "rebuilt" rows.
+
+**Test:** rollback_declared_720_test.py (the two checks above). rollback_fields_579, turn_fields_628, turn_context_631 and
+moving_parts_628 must pass unchanged.
+
+**Goldens:** must not move. A name found to leak is a real fault: each is listed for the owner with what a player would have seen,
+and fixed by its declaration.
+
+**Risk:** medium. The table is mechanical; the second check may find several leaks, each needing a decision of "put back" or "kept".
+
+**As built (17 November):** the table is `actor.ATTRS` (54 rows: 37 put back, 5 kept with a reason, 4 written only outside
+operations, 3 read again from the save, 5 set once; a property of the scene, such as its name for the character's record,
+holds nothing of its own and has no row); `HOMES`, `UNLISTED` and `WorldScene.ROLLED` are read from it. Changed from the plan:
+- The run is not a golden replayed: a failed operation ends a golden's line, so the rest of the recording no longer applies. The
+  test plays a session of the stand-in model's bot (forty typed lines, about 210 operations) and fails every third operation at
+  its end. After each it compares everything the scene holds (every attribute, the turn's fields, the character's record, who
+  is here, the fight, the rows told) with what the operation found; a name that differs fails unless it is declared kept or is
+  the line's own record of the failure.
+- turn_context_631_test changed in one check: it pinned `UNLISTED` to four names; it now holds that those four are among the
+  names a failure leaves standing and that every such name has a reason.
+- The census also reads names another module sets on a scene (`ws.x = ...`), which is how `assault` was found.
+
+Found and fixed by declaring each "put back" (what a player would have seen):
+- `first_arrival`, `revisit`: after a walk that failed, the chance of meeting something where the player still stood was worked
+  out as for a place just reached for the first time, until the next walk.
+- `visitors`: someone who came looking for the player inside an operation that failed stayed in the room as a visitor.
+- `assault` (set by engine/events.py): a host reaching the gate inside an operation that failed left the next fight's end to
+  decide whether that town held.
+- `learn_request`: what was asked of an instructor stayed when the lessons offered for it went back.
+- `repairs`, `camp_events` (the goals review): each is appended to inside an operation, so an operation run again for its answer
+  appended twice. Nothing a player reads; the turn log and the sim's bot read them.
+- The ledger's told marks: three callers untold the rows by hand when a passage failed; the world's own operations (the tail,
+  the arrival, a pane command) did not, so a deed could be marked told by a passage nobody read. Now part of every rollback of
+  one operation (engine/session.py), and the three hand calls are gone.
+
+- Where the opening stands the player (the part of the place, set by the entry at the game's start) was in memory only until
+  the first operation stood. A first operation that failed read the record back without it, and the player stood nowhere in
+  the place until they next walked. scenes/world.py `run` now saves the record after the opening's entry. Found by the run's
+  comparison of the character's record, which the first version of the test did not make (the goals review asked for it).
+
+Seen by the run and left: two things are filled in on the character's record by whoever reads them, in memory and outside any
+operation, as a merchant's stock is laid out: the loadout (engine/loadout.py `prepared`) and the pronoun worked out from the
+character's own words (engine/truth.py `player_pronoun`). A failed operation's reload undoes that and the next read does it
+again, to the same result. Nothing shows; the test leaves those four fields out of its comparison and says so.
+
+Not fixed here, for the owner: `assault` is not in the save, so a game closed during the fight at the gate and opened again
+decides nothing about the town when the fight ends. `camp_events` (read by the sim's bot alone) has no cap.
+
+## f721. One turn driver
+
+**What is wrong today** (scenes/world.py:1057-1114 and 1734-1840): an input is played by three stretches of code that each open
+the log's row, the line's fields, the fence, the dice and the budget, and each close them in their own way: a typed line (`turn`),
+a pane button (inline in `run`), and the opening after a load. What is said at the end is decided in two places: the tail says
+"Nothing comes of that here" (`said_nothing`) and `run` then prints the part line, which is how both were printed on 17 November.
+The load's opening retold the last typed line as if it had happened.
+
+**The change:** one driver, `play(input)`, with the same steps for all three kinds of input: open (log row, line fields, fence,
+dice, budget), the body (a typed line's steps, a command, or the opening), its passages, the world's own operations, the tail, and
+one close. The close is the only place that chooses the last line, and it chooses one: the turn failed, it stood in part, it was
+silent, or nothing. The budget's close, the log's row and the header are written there once.
+
+**Behaviour:** one fix, the closing line (a silent-turn line never beside a part line). The opening's retelling is looked at here:
+fixed if the cause is the driver's, else given a feature of its own.
+
+**Test:** turn_driver_721_test.py: a typed line, a pane button and an opening each leave the same things closed (no fence armed, no
+budget open, one log row); a turn that stands in part shows the part line and no silent line; a failed pane button reads as a failed
+line does.
+
+**Goldens:** must not move (none of the three holds a part turn; checked first).
+
+**Risk:** the highest of the six. `turn()` carries the order of twenty features (f463 to f498). It is moved, not rewritten: the
+steps keep their order and their comments, and the goldens and the 500 tests say whether they still do.
+
+### As built (17 November)
+
+Four things in scenes/world.py, each the only one of its kind (the test reads the code and fails on a second):
+
+- `input(text, kind)` opens and closes an input: the line's fields and the write fence (`begin_line`), no question read inside it,
+  and for a typed input its count, its dice and its budget. It is the only caller of `begin_line`, `new_input` and the budget's
+  close. Three kinds: a typed line, a pane's command, and what the world owes the save as the game opens (`open_world`).
+- `play(text)` is the loop's one path: the log's row opened, the input played (`turn` for a line, `command_input` for a command),
+  and closed. The loop in `run` is now the prompt, the quit words and `play`.
+- `closing_line(text, stood)` chooses the one line that closes an input: not taken, stood in part, showed nothing, or none.
+- `close_input(...)` says that line, writes the log's row and redraws the header.
+
+`turn` was moved, not rewritten: its body is the same lines in the same order, four columns to the left, under `with
+self.input(text, "line")`.
+
+**The fix.** The tail no longer prints "Nothing comes of that here": it marks the line `silent` (a new field of the turn, put back
+by a failed operation), and the close says it only when the line has no other closing line. A turn that stood in part shows the
+part line alone. A pane's command that fails now reads by the same choice as a failed line (it did before; it is now the same code).
+
+**Changed from the plan:**
+
+- The opening is opened by the same place but is **not counted as an input**: nothing was typed, so it has no count, no budget
+  and no row, and its dice stay its caller's ("#start"). Making it a counted input would move every recording's dice and the
+  row counts the night tools read. What the plan called "the opening after a load" as a third stretch of code was `open_world`
+  doing its own `begin_line`, fence and `arm(False)`; those are gone from it.
+- The rest of what `run` does before the loop (the entry, the opening passage, a saved fight, a question asked again) is not an
+  input and is left where it is.
+- `collecting` (a telling asked for now is a passage of its own) is cleared whenever an input closes. A line that ended early
+  used to leave it set until the next line began; nothing read it in between.
+
+**Seen and left:**
+
+- A pane's command does not open and close the ledger's turn as a typed line does. Left as found: a recording holds a pane command.
+- **The load's retelling of the last typed line** (the play journal of 16 November: "You move into the Cinder Mug" on opening the
+  save) is not the driver's: the opening passes no typed line to the narrator. It needs a trace on a real save and a feature of
+  its own.
+
+**Goldens:** not moved.
+
 ## f722. One ordered page
 
 **What is wrong today:** what a turn shows comes by two roads. An operation's notes are held and released when it commits; the

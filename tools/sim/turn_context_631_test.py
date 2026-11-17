@@ -39,8 +39,8 @@ kept = {k for k, f in F.items() if actor.KEPT in f.marks}
 check("every field is reset by a new line, put back by a failed operation, both, or kept: one of those, and kept is neither of the others",
       all(f.marks and f.marks <= {actor.LINE, actor.ROLLED, actor.KEPT} and (f.marks == {actor.KEPT} or actor.KEPT not in f.marks) for f in F.values()),
       {k: sorted(f.marks) for k, f in F.items()})
-check("the turn's fields are the thirteen of a line (f715: its plan and its own passages), the step's five, and the four kept across lines",
-      len(line) == 13 and len(rolled - line) == 5 and len(kept) == 4 and len(F) == 22, (len(line), len(rolled - line), len(kept), len(F)))
+check("the turn's fields are the fifteen of a line (f715: its plan and its own passages; f721: whether it was silent, and how it stood), the step's five, and the four kept across lines",
+      len(line) == 15 and len(rolled - line) == 5 and len(kept) == 4 and len(F) == 24, (len(line), len(rolled - line), len(kept), len(F)))
 check("only a field a new line resets has a fresh value, and only two are given by the scene (where the line began)",
       all(f.fresh is None for k, f in F.items() if k not in line) and {k for k in line if F[k].fresh is None} == {"line_from", "line_log"})
 check("every name a failed operation puts back has a home declared: the turn's, one character's view, or the scene's",

@@ -129,11 +129,14 @@ log = Path(config.CRASH_LOG_PATH)
 check("...and the fault is written to logs/crash.log with its traceback, the line and the place", entry and entry["where"] == "turn"
       and "KeyError" in entry["error"] and entry.get("text") == "go the te watchmen" and entry.get("place") == "parth" and log.exists()
       and "Traceback" in log.read_text(encoding="utf-8") and "go the te watchmen" in log.read_text(encoding="utf-8"), entry)
-line1 = ws.failed_line("go the te watchmen")
-check("the player reads a line in the narrator's words, never the machinery", line1 in failures.F["turn_not_taken"]
-      and not failures.MACHINERY.search(line1), line1)
+closers = [t for k, t in SHOWN if k == "note"]         # (f721) said where the input closes, whoever played the turn
+line1 = closers[-1] if closers else ""
+check("the player reads a line in the narrator's words, never the machinery, and one such line", line1 in failures.F["turn_not_taken"]
+      and not failures.MACHINERY.search(line1) and len(closers) == 1, closers)
+SHOWN.clear()
 ws.turn("go the te watchmen")
-line2 = ws.failed_line("go the te watchmen")
+closers = [t for k, t in SHOWN if k == "note"]
+line2 = closers[-1] if closers else ""
 check("...and the same line failing twice running is told to be left", line2 in failures.F["turn_not_possible"] and not failures.MACHINERY.search(line2), line2)
 check("the night tool's list of hesitations holds both kinds", set(failures.F["turn_not_possible"]) <= set(failures.lines()))
 

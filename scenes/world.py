@@ -123,6 +123,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.collecting = False       # (f464) the line's actions are running: a narration is a passage operation of its own, after them
         self.line_plan: list = []     # (f715) every step the line was read as, begun or not
         self.own_steps = False        # (f715) a passage asked for now is the line's own, not the world's
+        self.silent = False           # (f721) the line showed the player nothing: its close says so
+        self.stood = None             # (f721) how the input stood, once settled: True, "part" or False
         self.crash_after_commit = ""  # (f467) the suite's injection (simlib.Game.crash_after_commit): the game stops right after this kind's commit
         self.last_budget: dict = {}   # (f468) the last input's budget, closed: what it estimated, deferred, dropped, stood in for (the turn log's)
         self.recovered_at_load = 0    # (f471) outcomes told at this load (recover_unshown): the first row after it says so, the night tool too
@@ -939,17 +941,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if self.store.find_operation(op_id) is not None:
             console.debug("the world's opening stands from the last open: not run again")
             return
-        self.begin_line()
-        try:
-            with questions.fence(), self.operation("world:open", "#start", world=True, op_id=op_id):
-                self.ensure_discoveries()
-                self.ensure_homes()
-                self.ensure_road_place()
-                self.ensure_dungeons()
-                self.ensure_field_uses()
-                self.run_pulse()
-        finally:
-            self.store.arm(False)
+        with self.input("#start", "opening"), self.operation("world:open", "#start", world=True, op_id=op_id):
+            self.ensure_discoveries()
+            self.ensure_homes()
+            self.ensure_road_place()
+            self.ensure_dungeons()
+            self.ensure_field_uses()
+            self.run_pulse()
 
     def recover_unshown(self) -> bool:
         """(f467) What stood before the game last closed and was never shown (the operations whose presentation entries are still in the
@@ -1066,53 +1064,99 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.store.save_player(self.player)
                 console.note("Saved. Run main.py again to continue.")
                 return
-            if text.startswith("#"):
-                before = self.player.location
-                bar = self.header_key()                                     # (f372) what the top bar shows, to redraw it when a button changed it
-                turnlog.begin(taps=True)                                      # (f385) a button that does something is a row too
-                name = (text[1:].strip().lower().split() or ["command"])[0]
-                self.begin_line()
-                op = None
-                try:
-                    with console.scope(text), questions.fence():             # a pane button is a whole operation too: all of it, or none of it (f463)
-                        self.new_input(text, story=False)                   # (f439) the dice of this input: its own (f639)
-                        self.collecting = True                              # (f498) a telling it asks for (a fight begun from the pack's button,
-                        op, _ = self.asked_operation(f"command:{name}", text, lambda op: self.command(text), where="command")   # a draught's
-                        self.run_passages()                                 # passage) is a passage operation after it, told once it stands
-                except Interrupt:
-                    raise                                                   # (f449) stopped on purpose, never a rolled-back fault
-                finally:
-                    self.collecting = False
-                    self.store.arm(False)
-                    from engine import budget
-                    self.last_budget = budget.close(stand_ins=[o.kind for o in self.line_untold])   # (f468)
-                rolled = op is None or op.state != "committed"
-                crashed = rolled and self.last_crash
-                if rolled:
-                    console.note(self.failed_line(text))                     # (f437) in the narrator's words, never the machinery
-                failed = self.last_failure if rolled and not crashed else ""
-                crash = self.last_failure if crashed else ""
-                if self.to_menu:
-                    turnlog.end(rolled, command=self.command_row(text, before, bar), failure=failed, crash=crash)
-                    self.store.save_player(self.player)
-                    return
+            if not self.play(text):                                         # (f721) one path for a typed line and a pane's command
+                return
+
+    @contextmanager
+    def input(self, text: str, kind: str):
+        """(f721) An input is opened and closed here and nowhere else: a typed line ("line"), a pane's command ("command"), and what
+        the world owes the save as the game opens ("opening"). Opened: the line's fields start fresh and the write fence is armed
+        for its life (begin_line), and no question is read inside it (f461). A line and a command are typed, so each is counted and
+        its dice and its budget begin (new_input, f439, f468), and (f464, f498) a telling asked for inside an operation is a passage
+        operation after it; the opening is not typed: its dice are its caller's ("#start"), and it has no count and no budget.
+        Closed whatever happens: nothing collecting, the fence down, a typed input's budget closed with the stand-ins it showed.
+        Then, for a typed input that ran to its end, its one closing line (closing_line), so whoever played it reads it."""
+        from contextlib import nullcontext
+        typed, ended = kind != "opening", False
+        self.begin_line()
+        try:
+            with (console.scope(text) if kind == "command" else nullcontext()), questions.fence():
+                if typed:
+                    self.new_input(text, story=(kind == "line"))
+                    self.collecting = True
+                yield
+                ended = True
+        finally:
+            self.collecting = False
+            self.store.arm(False)
+            if typed:
+                from engine import budget
+                self.last_budget = budget.close(stand_ins=[o.kind for o in self.line_untold])
+        line = self.closing_line(text) if typed and ended else None
+        if line:
+            console.note(line)
+
+    @actor.bound
+    def play(self, text: str) -> bool:
+        """(f721) One input of the game's loop by one path: the log's row is opened (f385: a button that does something is a row
+        too), the input is played (a typed line: turn; a pane's command: command_input), and its row and the header are written
+        once (close_input). False when the loop ends (the menu was asked for)."""
+        command = text.startswith("#")
+        before = self.player_of(self.acting).location if command else ""
+        bar = self.header_key() if command else None                      # (f372) what the top bar shows, to redraw it when a button changed it
+        turnlog.begin(taps=True)
+        (self.command_input if command else self.turn)(text)
+        return self.close_input(text, command, before, bar)
+
+    def command_input(self, text: str) -> bool:
+        """(f463) A pane's command is a whole operation too: all of it, or none of it. (f498) A telling it asks for (a fight begun
+        from the pack's button, a draught's passage) is a passage operation after it, told once it stands. True when it stood."""
+        name = (text[1:].strip().lower().split() or ["command"])[0]
+        op = None
+        with self.input(text, "command"):
+            op, _ = self.asked_operation(f"command:{name}", text, lambda op: self.command(text), where="command")
+            self.run_passages()
+            self.stood = op is not None and op.state == "committed"
+        return self.stood
+
+    SILENT = "Nothing comes of that here. Try it another way, or say plainly what you want to happen."   # (f391) in the world's words
+
+    def closing_line(self, text: str) -> str | None:
+        """(f721) The one line that closes an input, chosen here and nowhere else, by how it stood: it was not taken (f437, f449:
+        in the narrator's words, never the machinery); it stood in part (f463: which part, and that the rest did not); it showed
+        the player nothing at all (f385, marked by the tail); or there is none."""
+        if self.stood is False:
+            return self.failed_line(text)
+        if self.stood == "part":
+            return self.part_line()
+        return self.SILENT if self.silent else None
+
+    def close_input(self, text: str, command: bool, before: str = "", bar=None) -> bool:
+        """(f721) The loop's one close of an input: the log's row and the header. `before` and `bar` are a pane command's: where
+        its character stood and what the top bar showed. False when the loop ends."""
+        stood = self.stood
+        rolled = stood is False
+        if not command:
+            row = {"failure": "" if stood is True or self.last_crash else self.last_failure,
+                   "crash": self.last_failure if stood is not True and self.last_crash else "",
+                   "stood": {True: "all", False: "none"}.get(stood, "part"), "stand_in": bool(self.line_untold)}
+            leaving = False
+        else:
+            leaving = self.to_menu
+            if not leaving:
                 self.pane_arrival(before)
-                turnlog.end(rolled, command=self.command_row(text, before, bar), failure=failed, crash=crash, world_failed=self.world_failures(),
-                            budget=self.last_budget, ops=self.line_record(), recovered=self.take_recovered())
-                if self.header_key() != bar:
-                    self.show_header()                                      # (f372) a hire, a sale or a walk from a pane moves the coin, the clock or the place
-                continue
-            turnlog.begin(taps=True)                                          # (f385) the row waits for what the turn shows
-            stood = self.turn(text)
-            if stood is False:
-                console.note(self.failed_line(text))                     # (f437, f449) in the narrator's words, never the machinery
-            elif stood == "part":                                           # (f463) what stood stands; the player reads which part, and that the rest did not
-                console.note(self.part_line())
-            turnlog.end(stood is False, failure="" if stood is True or self.last_crash else self.last_failure,
-                        crash=self.last_failure if stood is not True and self.last_crash else "",
-                        stood={True: "all", False: "none"}.get(stood, "part"), stand_in=bool(self.line_untold), world_failed=self.world_failures(),
-                        budget=self.last_budget, ops=self.line_record(), recovered=self.take_recovered())
+            crashed = rolled and self.last_crash
+            row = {"command": self.command_row(text, before, bar), "failure": self.last_failure if rolled and not crashed else "",
+                   "crash": self.last_failure if crashed else ""}
+        if not leaving:
+            row.update(world_failed=self.world_failures(), budget=self.last_budget, ops=self.line_record(), recovered=self.take_recovered())
+        turnlog.end(rolled, **row)
+        if leaving:
+            self.store.save_player(self.player_of(self.acting))
+            return False
+        if not command or self.header_key() != bar:                      # (f372) a hire, a sale or a walk from a pane moves the coin, the clock or the place
             self.show_header()
+        return True
 
     def failed_line(self, text: str) -> str:
         """(f437) What the player reads when the turn could not be taken. (f449) A line that has now failed twice running on the game's own
@@ -1690,9 +1734,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """(f644) How the line stood, by its operations: True, every one of the player's; "part", one did not and another had done
         something; False, nothing of it was done. `taken`: False for a line that was never understood or whose first deed did not
         stand."""
-        if taken and not self.line_failed:
-            return True
-        return "part" if self.line_stood() else False
+        self.stood = True if taken and not self.line_failed else "part" if self.line_stood() else False   # (f721) read by its close
+        return self.stood
 
     def take_recovered(self) -> int:
         """(f471) The outcomes told at the last load, reported once, on the first row after it."""
@@ -1715,100 +1758,90 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.name_ids()
         turnlog.tap()
         shown = turnlog.shown_count()
-        self.begin_line()
-        try:
-            with questions.fence():
-                self.new_input(text, story=True)           # (f439) the dice of this input
-                ledger.begin()                             # (f394) the turn's record
-                self.ran = []
-                plan = None
-                self.collecting = True                     # (f464) a narration asked for by an action is a passage operation after it
-                self.own_steps = True                      # (f715) a passage asked for now is the line's own
-                self.take_up_acts(text)                    # (f596) an act left waiting for its ruling, before this line is read
-                def _line(op):                             # (f470) the line taken whole (an answer, a fight's round, an intercept), or void
-                    self._wrote_turn = False               # (f351) the narrator's mark is a flag, not a turn number; set inside the operation, so a rollback takes it back
-                    got = self.take_line(text)
-                    if got is None:
-                        op.void = True
-                    return got
-                op, taken = self.asked_operation("line", text, _line)
-                if op.state == "rolled_back":
+        with self.input(text, "line"):                 # (f721) the line's fields, the fence, its dice and its budget
+            ledger.begin()                             # (f394) the turn's record
+            self.ran = []
+            plan = None
+            self.own_steps = True                      # (f715) a passage asked for now is the line's own
+            self.take_up_acts(text)                    # (f596) an act left waiting for its ruling, before this line is read
+            def _line(op):                             # (f470) the line taken whole (an answer, a fight's round, an intercept), or void
+                self._wrote_turn = False               # (f351) the narrator's mark is a flag, not a turn number; set inside the operation, so a rollback takes it back
+                got = self.take_line(text)
+                if got is None:
+                    op.void = True
+                return got
+            op, taken = self.asked_operation("line", text, _line)
+            if op.state == "rolled_back":
+                return self.line_outcome(False)
+            if not taken:                              # (f470) the understanding outside any transaction: the interpreter and the audit read
+                plan = self.understood(text)           # committed state; a question asked, or a board refresh due, is an operation of its own
+                if plan is False:
                     return self.line_outcome(False)
-                if not taken:                              # (f470) the understanding outside any transaction: the interpreter and the audit read
-                    plan = self.understood(text)           # committed state; a question asked, or a board refresh due, is an operation of its own
-                    if plan is False:
-                        return self.line_outcome(False)
-                    if plan is not None:
-                        self.line_plan = list(plan)        # (f715) every step it was read as, begun or not
-                        def _first(op):
-                            self._wrote_turn = False
-                            self.pending_clarify = None    # (f470) a question this line answered is spent inside the first action's commit
-                            self.run_step(0, plan, text)
-                        before = len(self.line_ops)
-                        stood = self.prepare_step(0, plan, text) and self.asked_operation(f"action:{plan[0].kind}", text, _first,
-                                                                                            keep=plan)[0].state == "committed"
-                        prepared = any(o.kind in ("action:go", "action:handin") for o in self.line_ops[before:])
-                        if not stood and not prepared:
-                            return self.line_outcome(False)     # the first action did not stand: the line is not taken (a board refresh aside)
-                        if not stood:                      # (f485) its prepare's own operation stood (the walk, the hand-in): what stood stands
-                            plan = plan[:1]
-                self.run_passages()
                 if plan is not None:
-                    for i in range(1, len(plan)):
-                        if self.combat or self.halted:
-                            console.debug(f"stopping after {i} of {len(plan)} actions")
-                            break
-                        if not self.prepare_step(i, plan, text):     # (f485) the step's own prepare (a walk, a hand-in) did not stand
-                            self.run_passages()
-                            break
-                        op, _ = self.asked_operation(f"action:{plan[i].kind}", text, lambda op, i=i: self.run_step(i, plan, text), keep=plan)
+                    self.line_plan = list(plan)        # (f715) every step it was read as, begun or not
+                    def _first(op):
+                        self._wrote_turn = False
+                        self.pending_clarify = None    # (f470) a question this line answered is spent inside the first action's commit
+                        self.run_step(0, plan, text)
+                    before = len(self.line_ops)
+                    stood = self.prepare_step(0, plan, text) and self.asked_operation(f"action:{plan[0].kind}", text, _first,
+                                                                                        keep=plan)[0].state == "committed"
+                    prepared = any(o.kind in ("action:go", "action:handin") for o in self.line_ops[before:])
+                    if not stood and not prepared:
+                        return self.line_outcome(False)     # the first action did not stand: the line is not taken (a board refresh aside)
+                    if not stood:                      # (f485) its prepare's own operation stood (the walk, the hand-in): what stood stands
+                        plan = plan[:1]
+            self.run_passages()
+            if plan is not None:
+                for i in range(1, len(plan)):
+                    if self.combat or self.halted:
+                        console.debug(f"stopping after {i} of {len(plan)} actions")
+                        break
+                    if not self.prepare_step(i, plan, text):     # (f485) the step's own prepare (a walk, a hand-in) did not stand
                         self.run_passages()
-                        if op.state != "committed":
-                            break                              # what stood stands; the rest of the line is not done
-                    if self.pending:                           # (f464) several actions: their one passage, an operation after them all and before the pulse
-                        with self.operation("passage", text) as op:
-                            self.passage(text)
-                        if op.state != "committed":
-                            self.line_failed.remove(op)
-                            self.line_untold.append(op)
-                            for line in self.line_standin(self.rng):
-                                console.narrate(line)
-                            self.pending = []
-                            from engine import operation as _op
-                            _op.present(op.id, "stand_in")         # (f467)
-                    from engine import budget
-                    self.own_steps = False                     # (f715) from here, the world's passages
-                    budget.passage_shown()                     # (f468) the required path is told: the optional calls after it keep no reserve
-                    self.after_steps(text)                     # (f466) outside any operation: the step is over, and what the line did not do is said
-                    with self.operation("world", text, world=True):      # (f466) the world's own operations, apart: each stands or falls alone
-                        self.world_tick()
+                        break
+                    op, _ = self.asked_operation(f"action:{plan[i].kind}", text, lambda op, i=i: self.run_step(i, plan, text), keep=plan)
                     self.run_passages()
-                    with self.operation("arrival", text, world=True):
-                        self.arrival()
-                    self.run_passages()
-                    with self.operation("law", text, world=True):
-                        self.law_check()
-                    self.run_passages()
+                    if op.state != "committed":
+                        break                              # what stood stands; the rest of the line is not done
+                if self.pending:                           # (f464) several actions: their one passage, an operation after them all and before the pulse
+                    with self.operation("passage", text) as op:
+                        self.passage(text)
+                    if op.state != "committed":
+                        self.line_failed.remove(op)
+                        self.line_untold.append(op)
+                        for line in self.line_standin(self.rng):
+                            console.narrate(line)
+                        self.pending = []
+                        from engine import operation as _op
+                        _op.present(op.id, "stand_in")         # (f467)
                 from engine import budget
-                budget.passage_shown()                         # (f468) a fight's round or an answer: told; the tail's calls keep no reserve
-                def _tail(op):                             # (f489) restartable: the party's talk it asks for is asked outside it
-                    if plan is not None:
-                        self.store.meta.turn += 1              # (f466) the line counted, with its tail
-                    self.turn_ticks(text, shown)
-                self.asked_operation("tail", text, _tail, world=True)
-                self.run_passages()                            # (f498) the tail collects too: a road fight walked into as it resumes the
-                if not self.combat:
-                    self.take_up_rulings(text)                 # (f597) a deed left waiting on a situation, after the line, as births are
-                    self.situation_births(text)                # (f546) a situation born given its parts, each in operations of its own
-                self.collecting = False                        # road (resume_road) begins committed, its opening a passage told after it
-                ledger.end()                                   # (f633) its rows are the last turn's now
-                return self.line_outcome()                     # (f644) by what its operations committed
-        except Interrupt:
-            raise
-        finally:
-            self.store.arm(False)
+                self.own_steps = False                     # (f715) from here, the world's passages
+                budget.passage_shown()                     # (f468) the required path is told: the optional calls after it keep no reserve
+                self.after_steps(text)                     # (f466) outside any operation: the step is over, and what the line did not do is said
+                with self.operation("world", text, world=True):      # (f466) the world's own operations, apart: each stands or falls alone
+                    self.world_tick()
+                self.run_passages()
+                with self.operation("arrival", text, world=True):
+                    self.arrival()
+                self.run_passages()
+                with self.operation("law", text, world=True):
+                    self.law_check()
+                self.run_passages()
             from engine import budget
-            self.last_budget = budget.close(stand_ins=[o.kind for o in self.line_untold])   # (f468) the input's budget closes with the line
+            budget.passage_shown()                         # (f468) a fight's round or an answer: told; the tail's calls keep no reserve
+            def _tail(op):                             # (f489) restartable: the party's talk it asks for is asked outside it
+                if plan is not None:
+                    self.store.meta.turn += 1              # (f466) the line counted, with its tail
+                self.turn_ticks(text, shown)
+            self.asked_operation("tail", text, _tail, world=True)
+            self.run_passages()                            # (f498) the tail collects too: a road fight walked into as it resumes the
+            if not self.combat:
+                self.take_up_rulings(text)                 # (f597) a deed left waiting on a situation, after the line, as births are
+                self.situation_births(text)                # (f546) a situation born given its parts, each in operations of its own
+            self.collecting = False                        # road (resume_road) begins committed, its opening a passage told after it
+            ledger.end()                                   # (f633) its rows are the last turn's now
+            return self.line_outcome()                     # (f644) by what its operations committed
 
     def turn_ticks(self, text: str, shown: int) -> None:
         """(f463) What follows every line, however it was read: the road walked on, the hires' words marked, the quest and the mentor and
@@ -1844,7 +1877,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self._narrate_now("Tell what the game did this turn, as the player would see it, and nothing more.", text)
             return
         ran = ", ".join(getattr(self, "ran", []) or []) or "nothing"
-        console.note("Nothing comes of that here. Try it another way, or say plainly what you want to happen.")   # (f391) in the world's words
+        self.silent = True                         # (f721) said by the close, when the line has no other closing line
         refusals.note("silent", text, f"the turn showed nothing; actions run: {ran}", self.player.location, self.store.meta.turn)
 
     WALKS = ("move", "delve", "leave_dungeon", "explore", "look", "wait")      # (f662) the steps that go on, needing nothing picked up

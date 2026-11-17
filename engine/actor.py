@@ -88,6 +88,8 @@ FIELDS: dict[str, Field] = {
     "line_losses": _f(LINE, ROLLED, fresh=int),            # deaths this line
     "line_plan": _f(LINE, fresh=list),                     # the steps it was read as, all of them (f715)
     "own_steps": _f(LINE, fresh=bool),                     # a passage asked for now is its own, not the world's (f715)
+    "silent": _f(LINE, ROLLED, fresh=bool),                # the tail found it showed the player nothing (f721): the close says so
+    "stood": _f(LINE, fresh=type(None)),                   # how the input stood, once settled (f721): True, "part" or False
     # ---- the step being done
     "step": _f(ROLLED, default=None),                      # the plan's step, while one is
     "plan_now": _f(ROLLED, default=()),                    # ...and the plan it is a step of (f645)
