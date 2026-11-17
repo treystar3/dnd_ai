@@ -82,10 +82,10 @@ danger_effect:                  # what an event may leave on the road itself (pe
 barrier:
   at: 0.5                       # where on the shut road the barrier lies, as a share of the way from the road's first end (one fixed point)
   ask_ratio: 2.0                # once met, a long way round more than this many times the shut walk is asked for, not taken unasked
-  meet: "The road on to {onward} is shut here. Back to {back}{round}."
-  round: ", or the long way round to {dest}, {time}"
-  none: "; there is no other way to {dest}"
-  ask: "{road} is shut ({why}). The long way round to {dest} is {time}: say so if you mean to take it."
+  meet: "The road on to {onward} is shut here. You can go back to {back}{round}."
+  round: ", or take the long way round to {dest}, {time}"
+  none: ". There's no other way to {dest}"
+  ask: "{road} is shut ({why}). The long way round to {dest} is {time}. If you want it, say so."
   around: "{road} is shut ({why}), so you go the long way round."
-  refused: "{road} is shut: {why}. There is no other way to {dest} until it opens."
+  refused: "{road} is shut: {why}. There's no other way to {dest}."
   wayfinder: "{road} is shut ({why}), but you know a way around."

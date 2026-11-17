@@ -13,15 +13,15 @@ lines:                       # {label} is the person as the player knows them; {
   arrive_in:
     - "{label} comes in."
     - "{label} comes in, and is soon {doing}."
-    - "The door goes, and it is {label}."
+    - "The door opens. It's {label}."
   arrive_out:
     - "{label} comes by."
     - "{label} comes along, and is soon {doing}."
   leave_in:
     - "{label} goes out."
-    - "{label} is gone out; nobody marks it."
+    - "You glance up, and {label} has gone."
   leave_out:
-    - "{label} goes off down the street."
+    - "{label} heads off."
     - "{label} is gone."
   doing:
     - "{label} has moved on to {doing}."
@@ -37,7 +37,7 @@ weather:                     # by the condition it turns to (weather.yaml ids)
   storm: "The storm breaks."
 weather_in:                  # (f423) the same, as it is heard or seen from indoors; a condition not here is not told inside
   clear: "Light comes back into the windows."
-  windy: "The wind gets up outside; the shutters knock."
+  windy: "The wind gets up outside, and the shutters knock."
   rain: "Rain starts on the roof."
   storm: "The storm breaks outside, loud on the roof."
 
@@ -48,5 +48,5 @@ periods:                     # by the period it turns to
   afternoon: "The afternoon wears on."
   evening: "Evening comes on."
   night: "Night."
-  deep night: "The deep of the night."
+  deep night: "Deep night."
   before dawn: "The hour before dawn."

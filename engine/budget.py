@@ -267,6 +267,15 @@ def deadline() -> float | None:
     return b.deadline() if b is not None and b.mine() else None
 
 
+def room_for_passage() -> bool:
+    """(f711) Whether the turn can still pay for a passage: what is left covers the floor and the reserve kept for a passage
+    (budget.yaml). True with no budget open, or one that is not this thread's."""
+    b = actor.registers().budget
+    if b is None or not b.mine():
+        return True
+    return b.remaining() >= b.floor + b.reserve
+
+
 def passage_shown() -> None:
     """The line's required passage has been shown (or stood in for): the reserve is no longer kept from the optional calls after it."""
     b = actor.registers().budget

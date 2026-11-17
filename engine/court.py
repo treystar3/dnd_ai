@@ -122,6 +122,9 @@ def summon(ws, npc, th: dict) -> bool:
     g = gate(ws.world, npc.location) or {}
     place = ws.world.places[npc.location]
     grant(ws, npc.location, f"sent for by {npc.name}", A.get("summons_minutes", 1440))
+    from engine import ledger
+    ledger.add("arrived", facts={"who": f"a messenger from {place.name}"},                       # (f711) told plainly if its passage is lost
+               say=f"A messenger from {place.name} has found the player: {npc.label(ws.acting)} will see them there today.")
     ws.weight_hint = "rich"
     ws.narrate(f"A messenger from {place.name} (one of the {g.get('keeper', 'keeper').replace('_', ' ')}'s people, or a guard in the crown's colours) finds the player "
                f"and tells them, with no more than that, that {npc.label(ws.acting)} will see them at {place.name}, today. Show the messenger arriving and going; "

@@ -63,6 +63,6 @@ memory:
   ending_share: {achieved: 1.0, partly: 0.5, transformed: 0.75, lost: 0.0}   # (f598) of the tier's reputation, by ending; numbers to tune
   ended:                                    # (f598) what the player is told when the world reads a matter ended
     achieved: "The matter of {title} is settled."           # (f662) "the matter of" keeps the verb right for any title
-    partly: "The matter of {title} is settled, though not without loss."
-    transformed: "The matter of {title} is over, though the one behind it is not done."
-    lost: "The matter of {title} is lost, for all that was done."
+    partly: "The matter of {title} is settled, at a cost."
+    transformed: "The matter of {title} is over, but whoever was behind it isn't finished."
+    lost: "The matter of {title} ends badly."

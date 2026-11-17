@@ -7,6 +7,7 @@ here (told.yaml handin_away, handin_other), and the listener is told nothing was
 but not spoken to (a named listener), and the rest of a mixed hand-in; two titles for one payer are one line; a hand-in to the one
 who pays says nothing of the kind; a talk that hands nothing in, or with nothing finished, says nothing of it either.
 Run: python tools/sim/handin_away_694_test.py"""
+import re
 import shutil
 import sys
 sys.path.insert(0, ".")
@@ -15,6 +16,7 @@ stub = simlib.Stub("warrior", 3)
 simlib.install(stub)
 simlib.quiet_console()
 import ui.console as uc
+AWAY = re.compile(r"\b(?:is ?n.t|not) here\b", re.I)        # (f712) the told lines say "isn't here" now
 NOTES = []
 uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
 from engine import quests
@@ -74,7 +76,7 @@ check("with nothing finished, nothing is said of a payer", "clerk" not in notes.
 ready()
 notes, heard = talk("I hand in the pegasus bounty.", "c694", [nor, clerk])
 check("handed to the clerk at the desk, it is handed in and nothing is said of anyone away",
-      not ws.player.quests and "nothing is handed in" not in heard and "not here" not in notes, (notes, ws.player.quests))
+      not ws.player.quests and "nothing is handed in" not in heard and not AWAY.search(notes), (notes, ws.player.quests))
 
 def request(title, issuer, name):
     q = quests._quest("gather", "F", title, ws.minutes, guild=False, issuer=issuer, issuer_name=name, good="herbs", count=0)
@@ -94,7 +96,7 @@ q2 = dict(ws.player.quests[0], id="q2b", title="Bounty: the gargoyle of the Iron
 ws.player.quests.append(q2)
 store.save_player(ws.player)
 notes, heard = talk("I hand in both bounties.", "n694", [nor])
-check("two titles for the one payer away are told in one line", notes.count("not here") == 1 and "pegasus" in notes and "gargoyle" in notes, notes)
+check("two titles for the one payer away are told in one line", len(AWAY.findall(notes)) == 1 and "pegasus" in notes and "gargoyle" in notes, notes)
 ws.player.quests = ws.player.quests[:1]
 store.save_player(ws.player)
 notes, heard = talk("Norvald, I hand in the pegasus bounty.", "n694", [nor, clerk])

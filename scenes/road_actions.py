@@ -747,5 +747,10 @@ class RoadActions:
     def resume_road(self) -> None:
         dest, text = self.resume_pending
         self.resume_pending = None
+        from engine import budget, told as told_
+        if not budget.room_for_passage():                   # (f711) the arrival could not be told: the walk waits for the player
+            where = self.world.places[dest].name if dest in self.world.places else dest
+            console.note(told_.say("walk_held", self.store.meta.turn, place=where))
+            return
         console.note("You get your breath back and carry on.")
         self.on_move(ActionIntent(kind="move", destination=dest), text)

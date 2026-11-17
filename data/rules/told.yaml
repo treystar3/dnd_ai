@@ -3,42 +3,42 @@
 # without a die. New lines: the owner reads them before they are played.
 
 approach:            # an attack on a foe out of reach: the action is spent closing on them
-  - "{foe} is out of your reach: the turn goes on closing the distance, and the blow waits for your next."
-  - "You cannot strike {foe} from where you stand. You spend the turn getting there."
-  - "{foe} is beyond your reach this turn, so you close on them instead of striking."
+  - "{foe} is too far off to hit. You close the distance instead."
+  - "You can't reach {foe} from here, so you close in."
+  - "Too far to strike. You run at {foe} to close the gap."
 search_failed:       # a search off the known ways that found nothing new
   - "You spend {hours} looking for {seek} and find nothing new."
-  - "{hours} of searching for {seek} turns up nothing you did not already know."
-  - "Nothing new: {hours} spent on {seek}, and only more of {place} to show for it."
+  - "{hours} of searching, and no sign of {seek}."
+  - "You search for {seek} for {hours}. All you find is more of {place}."
 flight_odds:         # a flight tried: how likely it was, in words, never a figure
   - "Getting away was {odds}."
   - "Breaking off was {odds}."
-  - "The chance of getting clear was {odds}."
+  - "Running for it was {odds}."
 flight_words:        # (at most this chance in percent, the words for it)
   - [25, "a long chance"]
   - [50, "uncertain at best"]
   - [75, "likely enough"]
   - [100, "all but sure"]
 rest_no_bed:         # a sleep with no room, camp or temple: a rest, not a full night's recovery
-  - "With no bed of your own here, that was a rest, not a full night's sleep. A room at an inn, a camp or a temple would restore you fully."
-  - "A night without a room is only a rest. Take a room, make camp or sleep at a temple to wake fully restored."
-  - "You rested, but not as you would in a bed: a room, a camp or a temple gives the full night's recovery."
+  - "Without a bed, that's only a rest. A room at an inn, a camp or a temple would restore you fully."
+  - "No bed here, so you don't wake fully restored. For that, take a room, make camp or sleep at a temple."
+  - "It's a rest, not a night's sleep. You need a room, a camp or a temple for that."
 foe_yields:          # (f663) a foe gives up mid-fight: out of the fight, waiting on the player once it ends
-  - "{foe} throws down their weapon and yields. They wait on you once the fight is over."
-  - "{foe} gives up the fight and yields; what becomes of them is yours to say when it ends."
-  - "{foe} yields, out of the fight now, and waits to learn what you will do with them."
+  - "{foe} yields. When the fight is done, what happens to the prisoner is up to you."
+  - "{foe} yields and drops out of the fight."
+  - "{foe} has had enough and yields. Deal with the prisoner once the fighting's over."
 foe_flees:           # (f663) a foe breaks and runs: gone from the fight
   - "{foe} breaks and runs, out of the fight."
   - "{foe} turns and flees the fight."
   - "{foe} has had enough and runs."
 give_wanted:         # (f676) goods a held contract asks for, given to one who does not pay for it: asked first
-  - "{whose} contract (\"{title}\") asks for that, and {name} does not pay for it. Give {goods} to {name} anyway? (y/n)"
-  - "That is for {whose} contract, \"{title}\". Give {goods} to {name} all the same? (y/n)"
-  - "\"{title}\" is {whose} contract, and it asks for that. Hand {goods} to {name} instead? (y/n)"
+  - "That's wanted for {whose} contract, \"{title}\", and {name} isn't the one who pays for it. Give {goods} to {name} anyway? (y/n)"
+  - "You need that for {whose} contract, \"{title}\". Give {goods} to {name} all the same? (y/n)"
+  - "{whose} contract, \"{title}\", asks for that. Hand {goods} to {name} instead? (y/n)"
 give_short:          # (f676) too few of what a contract asks for, given to the one who pays: a gift, not the contract, so asked first
-  - "\"{title}\" asks for {count}, and you hold {held}: given now, it is a gift, not the contract. Give {goods} anyway? (y/n)"
-  - "That is {held} of the {count} \"{title}\" asks for, so it cannot be handed in yet. Give {goods} to {name} as a gift? (y/n)"
-  - "With {held} of {count}, \"{title}\" is not ready to hand in. Give {goods} to {name} for nothing? (y/n)"
+  - "\"{title}\" asks for {count}, and you have {held}. Given now, it's a gift and won't finish the contract. Give {goods} anyway? (y/n)"
+  - "That's {held} of the {count} \"{title}\" asks for, not enough to hand in. Give {goods} to {name} as a gift? (y/n)"
+  - "With {held} of {count}, \"{title}\" isn't ready to hand in. Give {name} {goods} anyway, as a gift? (y/n)"
 lacks_good:          # (f706) an act that needs a catalogued good the character does not carry (Q34: goods are carried)
   - "You have no {thing} with you."
   - "That needs {thing}, and you carry none."
@@ -47,14 +47,18 @@ act_done:            # (f703) an improvised act that works with no roll and noth
   - "It works: {what}."
   - "Done, and this is what it comes to: {what}."
   - "It works, and this is all it comes to: {what}."
+walk_held:           # (f711) after a won road fight on a turn spent: the walk waits for the player
+  - "The road on to {place} is open whenever you're ready."
+  - "{place} is still ahead, and the way is clear."
+  - "Nothing else stands between you and {place}. Walk on when you like."
 handin_away:         # (f694) finished work handed in where the one who pays for it is not here
-  - "For {titles}, only {who} pays, and is not here: nothing is handed in yet."
-  - "Nobody here can take {titles}. Only {who} pays, and is not here."
-  - "Nothing is handed in. For {titles} you need {who}, who is not here."
+  - "Only {who} pays for {titles}, and {who} isn't here."
+  - "Nobody here can take {titles}. You'll need {who}."
+  - "You can't hand in {titles} without {who}, who isn't here."
 handin_other:        # (f694) finished work handed in to someone here who does not pay for it, while the one who does is here
-  - "For {titles}, it is {who} who pays: nothing is handed in yet."
+  - "That's not who pays for {titles}. Find {who}."
   - "Nothing is handed in. For {titles} you need {who}."
-  - "Only {who} takes {titles}. Nothing is handed in yet."
+  - "Wrong person. It's {who} who takes {titles}."
 none_here:           # (f677) one of the game's own goods taken up where none lies
   - "No {thing} lies here to take."
   - "There is no {thing} here for the taking."
@@ -62,8 +66,8 @@ none_here:           # (f677) one of the game's own goods taken up where none li
 arc_contact:         # (f679) an arc's step at a place: who there should know more, by their trade, never what they know
   - "Someone in {place} should know more: {who}."
   - "In {place}, {who} is the one to ask."
-  - "{who} in {place} is said to know something of it."
+  - "Try {who}, in {place}."
 at_hall:             # (f666) a party act done only at a guild hall, before its clerk, asked for elsewhere
-  - "{act} is done at a guild hall, before its clerk. It will wait until you are there."
-  - "{act} is the guild's business, done at a hall with the clerk at the desk; not here."
-  - "That needs a guild hall with its clerk at the desk; it can be done there and nowhere else."
+  - "{act} is done at a guild hall, in front of the clerk."
+  - "{act} is guild business. Find a hall with its clerk at the desk."
+  - "That needs a guild hall, and its clerk at the desk."

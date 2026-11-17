@@ -1365,6 +1365,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """(f464) What the player reads when the line's passage could not be written: one plain line for each row of the line not yet
         told that has facts to fill it from (engine/failures.py stood_lines); with none, one line that the deed stands."""
         rows = [r for r in ledger.this_turn() if r.get("facts") and not r.get("told")]
+        for r in rows:
+            r["told"] = True                                       # (f711) read plainly now: no later passage tells it again
         return failures.stood_lines(rows, rng) if rows else [failures.stood_any(rng)]
 
     def abandon(self, op, pending0: list, world: bool = False, fight0=None) -> None:

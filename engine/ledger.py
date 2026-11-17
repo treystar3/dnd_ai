@@ -31,6 +31,8 @@ KINDS = {                                     # what each row means; add() refus
     "tended": "a companion saw to the player's wounds",
     "took": "a contract or request taken on",
     "gained": "a thing now in the player's pack",
+    "arrived": "(f711) someone of the place has come looking for the player and is here",
+    "happened": "(f711) something of a matter happened here, in front of the player",
     "carried": "a thing in the world the player carries in hand, no item of the pack",
     "left": "a thing left lying here, not taken",
     "paid": "coin the player paid out",

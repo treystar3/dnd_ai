@@ -100,7 +100,7 @@ fall:
   warned: "From the edge the drop is plain: {feet} feet down, and a fall like that would kill them."
   warned_line: "A drop of {feet} feet would kill you."
   died:
-    - "You step off. It is {feet} feet down, and no one lands a fall like that."
-    - "You jump. The ground is {feet} feet below, and it does not forgive that."
-    - "You let go. {feet} feet of air, and then the end of it."
-    - "You go over the edge. It is {feet} feet to the bottom, farther than anyone falls and lives."
+    - "You step off. It's {feet} feet to the ground, and you don't survive it."
+    - "You jump. The ground is {feet} feet below, and the landing kills you."
+    - "You fall {feet} feet, and that's the end of you."
+    - "You go over the edge and fall {feet} feet. You don't get up."

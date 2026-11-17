@@ -53,9 +53,9 @@ ws.player.quests = [{"id": "q1", "thread": "th3"}]
 for kind in ("achieved", "partly", "transformed", "lost"):
     check(f"3.6: a matter never met ends unsaid ({kind})", matters.ended_line(unmet, kind, ws.player) == "")
     line = matters.ended_line(met, kind, ws.player)
-    check(f"...one met is told, its verb fitting a plural title ({kind}): {line!r}", line.startswith("The matter of the tinker's losses is "))
+    check(f"...one met is told, its verb fitting a plural title ({kind}): {line!r}", line.startswith("The matter of the tinker's losses ") and " are " not in line)        # (f712) "is settled", "ends badly"
 check("...as is one the player holds a contract of", matters.ended_line(held, "lost", ws.player) != "")
-check("...and a title with no article is kept as it is", "of Bram's debt is" in matters.ended_line(dict(met, title="Bram's debt"), "lost", ws.player))
+check("...and a title with no article is kept as it is", "of Bram's debt " in matters.ended_line(dict(met, title="Bram's debt"), "lost", ws.player))
 check("the loss reads the matter before marking it touched", "line = matters_line(th, \"lost\", ws.player_of(ws.acting))" in open("engine/events.py").read()
       and open("engine/events.py").read().index("line = matters_line(th") < open("engine/events.py").read().index('th["result"], th["ending_kind"], th["touched"] = "lost"'))
 shutil.rmtree("saves/walk_on_matter_662_test", ignore_errors=True)
