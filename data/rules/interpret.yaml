@@ -23,6 +23,10 @@ generic_words: [the, of, and, hall, house, guild, guildhall, inn, shop, temple, 
                 village, town, city, road, gate, north, south, east, west]
 # (f709) The small words of a sentence, of four letters and more (shorter ones never count): they name nothing seen or said ("I take
 # the Mill Road down to the river with Hollis" shares "down" and "with" with any scene, and names no thing in it).
+# (f713) Words by which a line points back at the question it follows ("I go there", "I'll take the far one"): such a line answers
+# the question and is read with the line it is about, even when it opens on a deed of the player's own.
+answer_back_words: [there, that way, this way, that one, this one, the one, the other, the far one, the near one, either, both, it,
+                    them, him, her, "yes", "no"]
 function_words: [with, from, into, onto, down, over, back, toward, towards, there, where, here, under, along, upon, about, above, below,
                  behind, beside, between, through, across, around, near, past, away, then, than, they, them, their, these, those, this,
                  that, what, when, while, which, your, yours, have, been, were, will, would, could, should, just, still, some, more,

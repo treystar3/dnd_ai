@@ -28,6 +28,12 @@ ROOT = Path(__file__).resolve().parent.parent
 I = yamlio.safe_load((ROOT / "data" / "rules" / "interpret.yaml").read_text(encoding="utf-8"))
 GENERIC = set(I["generic_words"])
 FUNCTION = set(I["function_words"])         # (f709) the small words of a sentence: they name nothing
+BACK = re.compile(r"\b(?:" + "|".join(re.escape(w) for w in sorted(I["answer_back_words"], key=len, reverse=True)) + r")\b", re.I)
+
+
+def points_back(text: str) -> bool:
+    """(f713) Does the line point back at what was asked ("I go there", "the far one")? Then it answers a question, whatever its shape."""
+    return bool(BACK.search(text or ""))
 
 
 def words(text: str) -> set[str]:

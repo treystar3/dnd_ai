@@ -2254,6 +2254,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         operation of its own, ask_back); a board refresh the interpreter's read brings due is a `board` operation of its own
         (scenes/guild_actions.py ensure_board)."""
         asked = getattr(self, "pending_clarify", None)
+        from engine import actions as _actions, candidates as _cand
+        self._question_let_go = bool(asked and _actions.first_person_action(text) and not _cand.points_back(text))
+        if self._question_let_go:                                     # (f713) a deed of the player's own, pointing at nothing asked: a new line
+            console.debug("clarify: the line is a deed of its own; read alone, the question let go")
+            asked = None
         if asked:                                                     # (f321) they were asked a question: this line answers it
             hint = (f"The game asked the player a question about their earlier line \"{asked['text']}\": \"{asked['question']}\". "
                     f"What they have typed now answers it. Read the earlier line and this answer together as one intention, and plan that.")

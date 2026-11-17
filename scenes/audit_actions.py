@@ -180,7 +180,7 @@ class AuditActions:
         """(f321) A line that could not be read is answered with one question in character - from the one being spoken to, or a beat from
         the narrator - and the player's next line is read together with this one. Every one is logged as a refusal."""
         from engine import refusals
-        if getattr(self, "pending_clarify", None):                       # asked once already and still unread: say so plainly, once
+        if getattr(self, "pending_clarify", None) and not getattr(self, "_question_let_go", False):   # asked once already and still unread (f713: not a new line)
             def give_up():
                 refusals.note("clarify_failed", text, why, self.player.location, self.store.meta.turn)
                 self.pending_clarify = None
@@ -208,7 +208,8 @@ class AuditActions:
             else:
                 console.note("I'm not sure what you meant. Could you say it another way?")
             refusals.note(kind, text, why, self.player.location, self.store.meta.turn, asked)
-            self.pending_clarify = {"text": text, "question": asked, **({"place": place} if place else {})}   # (f428) a far place asked about
+            own = getattr(self, "last_text", "") or text                  # (f713) the line the player typed, never an earlier join: questions never chain
+            self.pending_clarify = {"text": own, "question": asked, **({"place": place} if place else {})}   # (f428) a far place asked about
         self.clarify_commit(text, commit)
 
     def clarify_commit(self, text: str, fn) -> None:

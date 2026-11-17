@@ -150,6 +150,7 @@ RAISED = {                 # {file: (how many more, "fNNN: the guard it adds ove
     "engine/intent_audit.py": (1, "f699: the line's own words, read once, for what a longer correction may add (a step the words name)"),
     "engine/world_improv.py": (2, "f695: a sleep whose line asks to take a room or a bed, and does not say no to one, read once for "
                                   "the room taken before it"),
+    "engine/candidates.py": (1, "f713: whether a line after a question points back at it ('I go there', 'the far one'), read once to keep an answer with its question"),
     "scenes/road_actions.py": (1, "f709: where a way out says it goes (after to / toward / for / at), read once for a thing kept on its road"),
     "scenes/guild_actions.py": (1, "f691: the listener a hand-in's line names by name, kept as the one handed to (else the one who pays)"),
     "scenes/combat_scene.py": (6, "f659: the player's acts in a fight line beyond a draught (its parts, the consumable named) and the one foe "

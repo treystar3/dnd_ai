@@ -660,7 +660,7 @@ def check() -> list[str]:
         need(False, p_)
     from engine import candidates as _cd
     need({"most_places", "places_by_meaning", "place_floor", "most_people", "people_by_meaning", "person_floor", "about_floor", "about", "always_if_short",
-          "generic_words", "function_words", "named_town_types", "nearest_of_kind"} <= set(_cd.I) and set(_cd.I["about"]) == {"wares", "abilities", "pack", "recipes", "buyers", "stash"},
+          "generic_words", "function_words", "answer_back_words", "named_town_types", "nearest_of_kind"} <= set(_cd.I) and set(_cd.I["about"]) == {"wares", "abilities", "pack", "recipes", "buyers", "stash"},
          "interpret.yaml: needs the counts and floors, an 'about' sentence for wares, abilities, pack, recipes, buyers and stash, generic_words, function_words, named_town_types")
     need(all(isinstance(w, str) and len(w) >= 4 and w == w.lower() for w in _cd.I.get("function_words", [])),
          "interpret.yaml: function_words are lower case words of four letters or more (f709: shorter ones never count)")
