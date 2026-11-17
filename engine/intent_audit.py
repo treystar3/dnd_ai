@@ -67,6 +67,7 @@ class Result:
     meaning: str = ""
     described: str = ""
     verdict: str = ""
+    dropped: list = field(default_factory=list)   # (f707) the audit's own unasked additions, dropped
     calls: int = 0
 
 
@@ -120,28 +121,30 @@ def surplus(plan: list, proposal: list) -> list:
     return [p for p in proposal if any(p is r for r in rest)]
 
 
-def unasked(text: str, plan: list, proposal: list, sit: Situation) -> list[str]:
-    """(f699) What a longer correction adds that the player's own words do not ask for. An added step stands when it is of a kind the
-    first reading holds and names a word of the line no other step claims ("the bear hunt" beside the wolf's and the boar's), or is one
-    the action table lets the audit add (a wait), asked for by that action's own words in the line and the only one of its kind. Never
-    a new kind of deed, never the same deed again on a word already used."""
+def unasked(text: str, plan: list, proposal: list, sit: Situation) -> list[tuple]:
+    """(f699) What a longer correction adds that the player's own words do not ask for, as (step, why, invented) triples, invented when
+    the step names nothing of the line at all (f707: the audit's own, dropped; one that names the line is asked back). An added step stands when
+    it is of a kind the first reading holds and names a word of the line no other step claims ("the bear hunt" beside the wolf's and the
+    boar's), or is one the action table lets the audit add (a wait), asked for by that action's own words in the line and the only one
+    of its kind. Never a new kind of deed, never the same deed again on a word already used."""
     from engine.actions import BY_KIND
     kinds, said, low = {s.kind for s in plan}, _content(text), (text or "").lower()
     out = []
     for s in surplus(plan, proposal):
         what = s.summary or s.kind
         act = BY_KIND.get(s.kind)
+        claimed = set().union(*(_own(p, sit) for p in proposal if p is not s))
+        invented = not ((_own(s, sit) - claimed) & said)
         if s.kind not in kinds:
             asked = act is not None and act.audit_adds and any(re.search(rf"\b{re.escape(w)}\w*\b", low) for w in act.verbs + act.words)
             if not asked or sum(1 for p in proposal if p.kind == s.kind) > 1:
-                out.append(f"'{what}' is a deed the first reading did not hold; only steps the player's own words ask for may be added")
+                out.append((s, f"'{what}' is a deed the first reading did not hold; only steps the player's own words ask for may be added", invented))
             continue
         if act is not None and act.audit_adds:
-            out.append(f"'{what}' is a second {s.kind}; the player's words ask for one")
+            out.append((s, f"'{what}' is a second {s.kind}; the player's words ask for one", invented))
             continue
-        claimed = set().union(*(_own(p, sit) for p in proposal if p is not s))
-        if not ((_own(s, sit) - claimed) & said):
-            out.append(f"'{what}' adds what the player's words never name; only steps their own words ask for may be added")
+        if invented:
+            out.append((s, f"'{what}' adds what the player's words never name; only steps their own words ask for may be added", True))
     return out
 
 
@@ -269,9 +272,14 @@ def audit(text: str, plan: list, sit: Situation, ask: AuditAsk) -> Result:
         for attempt in range(2):
             proposal = fix(ask.propose(text, hint))
             res.calls += 1
-            still = problems(proposal, sit)
+            still, res.dropped = problems(proposal, sit), []
             if not still and len(proposal) > len(plan):
-                still = unasked(text, plan, proposal, sit)       # (f699) what the player's own words ask for may be added, nothing else
+                added = unasked(text, plan, proposal, sit)       # (f699) what the player's own words ask for may be added, nothing else
+                still = [why_ for _, why_, invented in added if not invented]
+                if added and not still:                          # (f707) a step naming nothing of the line is the audit's own: dropped
+                    res.dropped = [why_ for _, why_, _ in added]
+                    proposal = [p for p in proposal if not any(p is s for s, _, _ in added)]
+                    still = problems(proposal, sit)
             if not still:
                 if [_key(s) for s in proposal] == [_key(s) for s in plan]:
                     return res

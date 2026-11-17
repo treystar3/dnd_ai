@@ -112,6 +112,8 @@ class AuditActions:
             from scenes import plan_repairs
             self.__dict__.setdefault("repairs", []).append({"rule": "audit_fix", "before": plan_repairs.brief(plan), "after": plan_repairs.brief(res.plan)})
         self.log_turn(text, sit, raw_plan, res, time.perf_counter() - start)
+        if res.dropped:
+            console.debug(f"audit dropped its own unasked additions: {'; '.join(res.dropped)}")    # (f707)
         if res.status == "changed":
             console.debug(f"audit changed the plan: {res.verdict or res.reason}")
         if res.status == "failed":
@@ -227,5 +229,5 @@ class AuditActions:
                      partner=self.partner.id if self.partner else "", last_spoken=self.last_spoken or "",
                      raw=raw_plan, final=[s.model_dump(exclude_defaults=True) for s in res.plan],
                      risk=res.risk, audit=res.status, meaning=res.meaning, described=res.described,
-                     verdict=res.verdict, reason=res.reason, calls=res.calls, seconds=round(seconds, 2),
+                     verdict=res.verdict, reason=res.reason, calls=res.calls, seconds=round(seconds, 2), dropped=list(res.dropped),
                      repairs=list(getattr(self, "repairs", [])), interpreter=list(getattr(self, "interpret_calls", [])))

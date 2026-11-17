@@ -5,7 +5,8 @@ first reading ("only remove or correct steps, never add"), and the player was as
 "Do you mean to accept the contract, or are you trying to modify the list of targets?" for three hunts taken in one line.
 Held here: a longer correction stands when every step it has that the first reading lacks is of a kind the first reading already holds,
 or of a kind the action table lets the audit add (a wait: the sleep that was said), and its own words share a word with the line; a
-new kind of deed (a gift of coin, an attack, a purchase not in the first reading) or a repeat the line never names is refused as before.
+new kind of deed (a gift of coin, an attack, a purchase not in the first reading) or a repeat the line never names is refused: (f707) one that
+names nothing of the line is dropped and the first reading stands; one that names the line is asked back.
 Run: python tools/sim/audit_adds_699_test.py"""
 import sys
 sys.path.insert(0, ".")
@@ -56,29 +57,29 @@ st, kinds, why = run(hunts, two, two + [A(kind="accept_quest", item="bear hunt")
 check("the third of a list the line names, added, stands", st == "changed" and kinds == ["accept_quest"] * 3, (st, kinds, why))
 
 st, kinds, why = run(room, first, first + [A(kind="give", item="5 silver", target="guard1", summary="tip the guard")])
-check("a new kind of deed the line never asks for (coin to the guard) is refused", st == "failed", (st, kinds, why))
+check("a new kind of deed the line never asks for (coin to the guard) is refused", st == "unchanged", (st, kinds, why))
 st, kinds, why = run(room, first, first + [A(kind="attack", target="guard1", summary="attack the guard")])
-check("...and an attack", st == "failed", (st, kinds, why))
+check("...and an attack", st == "unchanged", (st, kinds, why))
 st, kinds, why = run("We go to the Tilted Plough and sleep for eight hours.", first[:1], first[:1] + [A(kind="wait", wait_minutes=480, summary="sleep")])
 check("a sleep said with no hour named, added, stands", st == "changed" and kinds == ["move", "wait"], (st, kinds, why))
 st, kinds, why = run(room, first, first + [A(kind="buy", ware="ale", target="inn1", summary="buy an ale for the night")])
-check("a repeat of a kind already read, that the line never names (an ale), is refused", st == "failed", (st, kinds, why))
+check("a repeat of a kind already read, that the line never names (an ale), is refused", st == "unchanged", (st, kinds, why))
 st, kinds, why = run("I take the wolf hunt.", [A(kind="move", destination="parth", summary="go to Parth"), A(kind="look")],
                      [A(kind="move", destination="parth", summary="go to Parth"), A(kind="look"), A(kind="accept_quest", item="wolf hunt")])
-check("a contract taken where the first reading took none is a new kind: refused", st == "failed", (st, kinds, why))
+check("a contract taken where the first reading took none is a new kind: refused, and as it names the line, asked back (f707)", st == "failed", (st, kinds, why))
 sit.present["guard2"] = "the gate guard"
 st, kinds, why = run(room, first, first + [A(kind="buy", ware="room", target="guard1", summary="buy a room for the guard")])
-check("a second buy on a word the first already claims ('room') is refused", st == "failed", (st, kinds, why))
+check("a second buy on a word the first already claims ('room') is refused", st == "unchanged", (st, kinds, why))
 pay = "I pay the innkeeper 5 silver for a room."
 gave = [A(kind="give", item="5 silver", target="inn1", summary="pay the innkeeper")]
 st, kinds, why = run(pay, gave, gave + [A(kind="give", item="5 silver", target="guard1", summary="pay the guard")])
-check("...and a second payment of the same silver to someone else", st == "failed", (st, kinds, why))
+check("...and a second payment of the same silver to someone else", st == "unchanged", (st, kinds, why))
 hit = [A(kind="attack", target="guard1", summary="attack the guard")]
 st, kinds, why = run("I attack the guard.", hit, hit + [A(kind="attack", target="guard2", summary="attack the gate guard")])
-check("...and an attack on a second target who only shares a word ('guard')", st == "failed", (st, kinds, why))
+check("...and an attack on a second target who only shares a word ('guard')", st == "unchanged", (st, kinds, why))
 rest = [A(kind="wait", wait_minutes=480, summary="rest")]
 st, kinds, why = run("I rest until morning.", rest, rest + [A(kind="wait", wait_until="morning", summary="sleep until morning")])
-check("...and a second wait: the night is slept once", st == "failed", (st, kinds, why))
+check("...and a second wait: the night is slept once (named in the line: asked back, f707)", st == "failed", (st, kinds, why))
 st, kinds, why = run("I ask the innkeeper about rooms and sleep until morning.", [A(kind="talk", target="guard1", speech="any rooms?")],
                      [A(kind="talk", target="inn1", speech="any rooms?"), A(kind="wait", wait_until="morning", summary="sleep")])
 check("a corrected step is a correction, not an addition: the talk set right and the sleep added stand",
