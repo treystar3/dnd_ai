@@ -72,6 +72,7 @@ def failed_try(e: BaseException, limit) -> tuple[str, str]:
 FALLBACKS: list[str] = []          # every task that gave up and left its caller to written lines, in order (the live check reads this)
 OUTCOMES: list[tuple[str, bool, int]] = []      # (task, succeeded, attempts used), the most recent few hundred, for anyone measuring
 TALLY: dict[str, dict[str, int]] = {}           # task -> {calls, failed, attempts} for the whole session (engine/turnlog.py writes it out)
+CHECKED: dict[str, int] = {"told": 0, "phantom": 0, "spoken": 0, "stiff": 0}   # (f719) passages and spoken replies checked, and those sent back once
 _TASK = threading.local()                       # (f468) the task the calling thread is making a call for (the recorder files it with the call)
 _SEEN = {"input": None, "count": {}}             # (f585) this input's calls so far, by task: each call's place among its task's
 _SEEN_LOCK = threading.Lock()
@@ -138,6 +139,14 @@ def shape(system: str, typed, user_text) -> dict:
     version = hashlib.sha256(system.encode("utf-8")).hexdigest()[:8] + "." + hashlib.sha256(skel.encode("utf-8")).hexdigest()[:6]
     return {"chars": len(system) + len(str(user_text or "")), "sizes": [["system", "", len(system)]] + [[k, l, n] for k, l, n in parts],
             "tail_chars": tail, "prompt_version": version}
+
+
+def _count(name: str, once: set) -> None:
+    """(f719) One more passage or spoken reply checked, or sent back: each counted once a call, when it happens, so a call that
+    fails after its send-back is still counted."""
+    if name not in once:
+        once.add(name)
+        CHECKED[name] += 1
 
 
 def _tally(task: str, ok: bool, attempts: int) -> None:
@@ -221,6 +230,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
     said = []                                   # (f447) the complaints so far: the same one twice running ends the tries
     phantom_sent = False                        # (f701) a passage sent back once already for a creature not here
     stiff_sent = False                          # (f714) speech sent back once already for reading stiff
+    counted: set = set()                        # (f719) what this call has added to CHECKED
     transport = False                           # (f449) whether the call itself failed (a timeout, the server), as against every answer refused
     failure = ""                                # (f516) the last try's failure kind, '' when it was answered (and the answer refused)
     from engine import budget
@@ -328,9 +338,12 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
                             reason = f"{hygiene.reason(kind)} (not '{found}')"
                         elif not phantom_sent and attempt < retries:     # (f701) a creature not here: sent back once, never the telling lost
                             from engine import phantoms
+                            if task in hygiene.NARRATOR:
+                                _count("told", counted)
                             ghost = phantoms.found(task, " ".join(hygiene.prose_of(result)), str(messages[1]["content"]))
                             if ghost:
                                 reason, phantom_sent = phantoms.reason(ghost), True
+                                _count("phantom", counted)
                     if cat:
                         reason = f"{guard.script_reason() if cat == 'script' else guard.reason(cat)} (not '{hit}')"   # (f370) the word named, or the model writes it again
                         try:
@@ -343,8 +356,11 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
             if not reason and not stiff_sent and not relaxed and attempt < retries and speaks:   # stiff speech: sent back once,
                 from engine import budget, hygiene                                                      # only when the turn has room for it
                 easy = set((validation_context or {}).get("uncontracted_ok", ()))
-                if budget.room_for_passage() and any(hygiene.stiff_speech(text) for who, text in result.spoken() if who not in easy):
-                    reason, stiff_sent = hygiene.stiff_reason(), True
+                if budget.room_for_passage():
+                    _count("spoken", counted)
+                    if any(hygiene.stiff_speech(text) for who, text in result.spoken() if who not in easy):
+                        reason, stiff_sent = hygiene.stiff_reason(), True
+                        _count("stiff", counted)
             if not reason:
                 _log(task, attempt, elapsed, messages, raw, None, usage, shape=form)
                 audit.record(task, attempt, elapsed, messages, raw, None, typed, config.MODEL)

@@ -304,6 +304,33 @@ def ceilings_problems(ceil: dict | None = None) -> list[str]:
     return bad
 
 
+def gate_problems(F: dict | None = None, measured: dict | None = None) -> list[str]:
+    """(f719) data/replay/gate.yaml, the live gate's floors (the owner's numbers; unset until the owner sets them) and the sizes of
+    its quick run; and data/measured/live_gate.yaml, once a whole run has written it: the four measures it holds."""
+    HELD = ("reading_share", "phantoms_per_100", "unknown_names_per_100", "stiff_sent_back_share", "p95_seconds", "over_limit", "stand_ins")
+    if F is None and not (ROOT / "data" / "replay" / "gate.yaml").exists():
+        return []                                                      # a build without the test data has no gate to hold
+    F = _load("data/replay/gate.yaml") if F is None else F
+    bad = []
+    held = F.get("floors")
+    if not isinstance(held, dict) or set(held) != set(HELD):
+        return [f"gate.yaml floors: one for each of {', '.join(sorted(HELD))}"]
+    for name, v in held.items():
+        if v is not None and (isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0):
+            bad.append(f"gate.yaml floors.{name}: a number, or nothing while the owner has not set it")
+        elif v is not None and name.endswith("_share") and v > 1:
+            bad.append(f"gate.yaml floors.{name}: a share, from 0 to 1")
+    quick = F.get("quick") or {}
+    for name in ("cases", "lines"):
+        if not isinstance(quick.get(name), int) or isinstance(quick.get(name), bool) or quick[name] < 1:
+            bad.append(f"gate.yaml quick.{name}: a whole number, at least 1")
+    if measured is None and (ROOT / "data" / "measured" / "live_gate.yaml").exists():
+        measured = _load("data/measured/live_gate.yaml")
+    if measured is not None and not (isinstance(measured, dict) and all(isinstance(measured.get(k), dict) for k in ("reading", "inventions", "speech", "time"))):
+        bad.append("data/measured/live_gate.yaml: the gate's four measures (run tools/live_gate.py again)")
+    return bad
+
+
 def check() -> list[str]:
     broken = []
     for f in sorted((ROOT / "data").rglob("*.yaml")):              # every data file, not only the ones cross-checked below
@@ -847,6 +874,7 @@ def check() -> list[str]:
     bad += told.problems()                                             # (f661) what the engine decided, told to the player
     from storage import statehash
     bad += statehash.wording_problems()                                # (f718) the list of what is wording, held to the tree
+    bad += gate_problems()                                             # (f719) the live gate's floors, and its last measure's shape
     bad += grammar_problems()                                          # (f527) every contract has its grammar
     from llm import runtime as _runtime
     bad += _runtime.runtime_problems()                                 # (f522) the server's settings hold what the game sends

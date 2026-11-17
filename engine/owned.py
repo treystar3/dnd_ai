@@ -122,6 +122,7 @@ STATE: dict[str, Row] = {
     "llm.gateway.TALLY": Row(PROCESS, TALLY + " (logs/sessions.jsonl): each task's calls, failures and attempts"),
     "llm.gateway.OUTCOMES": Row(PROCESS, TALLY + ": the last few hundred calls and how each ended"),
     "llm.gateway.FALLBACKS": Row(PROCESS, TALLY + ": the tasks that gave up, for the live check"),
+    "llm.gateway.CHECKED": Row(PROCESS, TALLY + ": passages and spoken replies checked, and those sent back once, for the live gate"),
     "llm.gateway._writes": Row(PROCESS, "nothing: rows written to the call log, to trim it every so often"),
     "engine.names.REPAIRS": Row(PROCESS, TALLY + ": names and pronouns mended, for a night's summary"),
     "engine.names.BY_TASK": Row(PROCESS, TALLY + ": names mended by task"),

@@ -99,29 +99,38 @@ later).
 measured only by a person playing: whether lines are read right, what the narrator invents, how speech reads, how long a turn takes.
 The corpus's live pass rate had never been recorded before 17 November.
 
-**The change:** one command, `python tools/live_gate.py`, on the real model and this card:
-1. **Reading:** the corpus through `tools/interp_eval.py --live`: the share right, by kind.
-2. **A played script:** a fixed list of about forty typed lines (data/replay/gate_script.yaml: travel, talk, explore, camp, a
-   fight, lines of several steps), played through the real turn from a fixed save and seed. From its logs:
-   - **inventions:** passages sent back for a creature not there (f701), and names in a passage that the scene does not hold, per
-     hundred passages (rough by design, as tools/page_measures.py is);
-   - **stiff speech:** the share of spoken replies sent back as stiff on the first try (f714);
-   - **time:** the median and the 95th percentile of seconds by the turn's shape (talk, walk, explore, a fight's round, several
-     steps), the inputs over the limit, and the stand-ins shown.
-3. **Held against kept numbers:** data/rules/gate.yaml holds the floors (the owner's numbers). The run writes
-   data/measured/live_gate.yaml and a dated report under docs/measure/, and exits non-zero under a floor. Until the owner sets
-   floors it reports only; the first run is the baseline.
-4. `--quick`: sixty cases drawn evenly by kind and fifteen lines, for before a playtest. The full run is for before a push that
-   touches llm/, the prompts or the reading data.
+**The change (as built, 17 November):** one command, `python tools/live_gate.py`, on the real model and this card:
+1. **Reading:** the corpus through tools/interp_eval.py on the real model: the share right, and each kind's.
+2. **A played script:** typed lines (data/replay/gate_script.yaml: forty, a draft until the owner has read them) played through
+   the real turn from one fixed save and seed. tools/nightrun.py plays it (`--script`), with the script as its player, so the
+   gate reads the same turn rows and transcript a night run leaves. From them:
+   - **inventions:** of the passages checked for a creature not there (f701), those sent back, per hundred; and, roughly,
+     capitalised words inside a sentence that are no name of the run's or of the game's data, per hundred passages shown (a
+     count to watch move, not a verdict);
+   - **stiff speech:** of the spoken replies checked (f714 checks while the turn has room for another try), the share sent back;
+   - **time:** the median and the 95th percentile of seconds by the turn's shape (the script's word for each line; "fight" for
+     any line played inside one), the lines over the limit, the stand-ins shown, the lines the model failed.
+   The two send-backs had been flags inside one call and counted nowhere: llm/gateway.py now keeps four counts (`CHECKED`:
+   passages checked, of them sent back for a creature; spoken replies checked, of them sent back as stiff), each counted when
+   it happens, so a call that fails after its send-back is still counted.
+3. **Held against kept numbers:** data/replay/gate.yaml holds the floors (the owner's numbers; none is set yet). A whole run
+   on the real model, played to the script's last line, writes data/measured/live_gate.yaml and a dated report under
+   docs/measure/, and leaves 1 under a set floor (a set floor with nothing measured under it counts as missed). A floor not
+   set is reported and held to nothing. A script that ended early (the server died, the model failed twelve lines running)
+   is no measure: nothing is kept and the gate leaves 2.
+4. `--quick`: sixty cases drawn evenly by kind and the script's first fifteen lines, for before a playtest; it writes only to
+   its own folder. `--stub` is the test suite's.
 
-The script's typed lines are shown to the owner before they are kept (pre-written player lines are the owner's to read first).
+**Changed from the plan:** the floors are in data/replay/gate.yaml, beside the script, not in data/rules: they are what the
+game is tested against, not the game, and a file in data/rules would have moved the data hash and every kept recording with it.
 
-**Not in it:** a line in CLAUDE.md saying when the gate is run. That file is the owner's; the wording is proposed when f719 lands.
+**For the owner:** the script's forty lines, to read before they are kept; the floors, once the first whole run is in; and a
+line for CLAUDE.md, proposed: "Before a push that touches llm/, the prompts or the reading data: `python tools/live_gate.py`
+(the whole gate, about forty minutes); before a playtest, `--quick`."
 
-**Test:** live_gate_719_test.py with the stand-in model: the script plays, each measure is counted from a log made by hand with
-known counts, a number under its floor fails the run, and nothing is written outside data/measured and the report.
+**Test:** tools/sim/live_gate_719_test.py, on the stand-in model.
 
-**Risk:** low (tools only). The full run takes about forty-five minutes of the card.
+**Goldens:** not moved.
 
 ## f720. Rollback by declaration
 

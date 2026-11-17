@@ -94,6 +94,8 @@ class Run:
         self.stop_when = None                        # a run with a goal (tools/eventrun.py) says when it is reached
         self.passage: list[str] = []                 # (f368) everything the game said since the last line: what the bot's next line answers
         self.turn_notes: list[str] = []              # (f391) the notes the game showed this turn (refusals among them), kept in the turn row
+        self.keep_told = False                       # (f719) a scripted run keeps each passage the narrator showed in its turn's row
+        self.turn_told: list[str] = []
         self.cast: dict[str, dict] = {}              # (f391) everyone who travelled with the player, as the game knew them: for the summary's checks
 
     # ---- the console: everything the game prints goes to the transcript, and the first story line stamps the time
@@ -120,6 +122,8 @@ class Run:
     def seen(self, who: str, text: str) -> None:
         if self.first_word is None and self.current is not None:
             self.first_word = time.time() - self.t_line
+        if not who:
+            self.turn_told.append(text.strip())
         self.passage.append((f"{who}: " if who else "") + text.strip())
         self.transcript.write((f"**{who}:** " if who else "") + text.strip() + "\n\n")
 
@@ -176,6 +180,7 @@ class Run:
         text, kind = self.bot.decide()
         self.passage = []
         self.turn_notes = []
+        self.turn_told = []
         self.sub_answers = 0
         self.current = {"n": len(self.rows) + 1, "time": datetime.now().isoformat(timespec="seconds"), "kind": kind, "text": text,
                         "where": self.bot.where(), "turn": self.bot.ws.store.meta.turn, "level": self.bot.c.level,
@@ -209,6 +214,8 @@ class Run:
                    deferred=list(spent.get("deferred") or []), dropped=list(spent.get("dropped") or []),
                    stand_ins=list(spent.get("stand_ins") or []),
                    recovered=int(getattr(getattr(self.bot, "ws", None), "recovered_at_load", 0) or 0) if row["n"] == 1 else 0)   # (f471)
+        if self.keep_told:
+            row["told"] = list(self.turn_told)
         row["crashed"] = bool(row["hesitated"] and getattr(getattr(self.bot, "ws", None), "last_crash", False))   # (f492) the game's fault
         self.crash_streak = self.crash_streak + 1 if row["crashed"] else 0 if not row["hesitated"] else self.crash_streak
         if not row["hesitated"]:
@@ -544,6 +551,8 @@ def main() -> None:
     ap.add_argument("--runs", type=int, default=1, help="(f361) play this many runs one after another, each its own process with the seed counting up from --seed "
                                                         "and the class rotating; --hours is per run. A night left alone (default 1)")
     ap.add_argument("--classes", default="", help="with --runs: the classes to rotate through, comma-separated (default: every class, from --class on)")
+    ap.add_argument("--script", default="", help="(f719) play this file's typed lines in order in place of the bot (tools/live_gate.py); "
+                    "--turns cuts it short")
     ap.add_argument("--start", default="green", help="(f367) the starting point (data/rules/starts.yaml): green, known, veteran, scarred, legend")
     ap.add_argument("--starts", default="", help="with --runs: the starting points to rotate through, comma-separated (default: the file's rotation)")
     ap.add_argument("--persona", default="", help=f"(f368) the kind of player the bot is: {', '.join(PERSONAS)} (default: by the seed, in that order)")
@@ -556,6 +565,8 @@ def main() -> None:
     runtime_cli.add_args(ap)                                                                    # (f529) --attach: the open game's server
     args = ap.parse_args()
     if args.runs > 1:
+        if args.script:
+            die("--script plays one run: leave --runs out")
         batch(args)
         return
 
@@ -632,7 +643,15 @@ def main() -> None:
     party = hire_party(ws, args.party)
 
     run = Run(out, args.hours, args.turns, live=not args.stub)
-    bot = Bot(ws, world, random.Random(args.seed * 7 + 1), stub, persona=persona, run=run, continuity=not args.no_continuity)   # (f473)
+    if args.script:                                                  # (f719) the gate's lines, typed as written
+        import live_gate
+        from nightbot import Scripted
+        typed = live_gate.load_script(Path(args.script))["lines"]
+        run.max_turns = min(args.turns or len(typed), len(typed))
+        run.keep_told = True
+        bot = Scripted(typed, ws, world, random.Random(args.seed * 7 + 1), stub, persona=persona, run=run, continuity=False)
+    else:
+        bot = Bot(ws, world, random.Random(args.seed * 7 + 1), stub, persona=persona, run=run, continuity=not args.no_continuity)   # (f473)
     run.bot = bot
     if stub is not None:
         stub.bot = bot
@@ -690,6 +709,7 @@ def main() -> None:
                     "persona": persona, "bot": bot.report(), "distinct": round(len(set(texts)) / len(texts), 3) if texts else 0,      # (f368)
                     "ended_by_player": ended_by_player(Path(config.PULSE_LOG_PATH)),
                     "save": save, "restarts": restarts, "stub": args.stub, "model": config.MODEL,
+                    "checked": dict(__import__("llm.gateway", fromlist=["CHECKED"]).CHECKED),          # (f719) for the live gate
                     "sampling": {"temp_add": config.TEMP_ADD, "repeat_add": config.REPEAT_ADD,          # (f387) which voice this night tried
                                  "think_tasks": sorted(getattr(config, "THINK_TASKS", ())), "think_room": getattr(config, "THINK_ROOM", None),   # (f533)
                                  "base": dict(_sampling.BASE), "table": {k: dict(v) for k, v in (getattr(config, "SAMPLING", {}) or {}).items()}},
