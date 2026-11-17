@@ -14,6 +14,7 @@
 - server_back waits for a restarting server and gives up on one that failed for good (tools/sim/nightrun_test.py).
 
 Run: python tools/sim/nights_529_test.py"""
+# suite: serial (f717)
 
 import ast
 import glob

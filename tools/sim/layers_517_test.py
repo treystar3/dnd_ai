@@ -12,6 +12,7 @@ whose calls overlapped is refused.
 - The night's counter counts the game's chats and embeds, `main` still meaning the main thread, and never the warm-up.
 
 Run: python tools/sim/layers_517_test.py"""
+# suite: serial (f717)
 
 import gzip
 import itertools

@@ -3,6 +3,7 @@
 same words, after a session of walks, talk, fights and road stops the night bot chooses, a pane command, and a turn the model failed
 that was rolled back and tried again. And the source keeps it so: no unseeded generator, no roll of the global random module, no draw
 from the machine's own entropy outside character creation, and no uuid, in the game's code."""
+# suite: serial (f717)
 import ast, json, os, pathlib, random, shutil, subprocess, sys
 sys.path.insert(0, ".")
 import simlib

@@ -4,6 +4,7 @@ gave them; its ties felt both ways; its conditions laid on places and roads, a m
 holder knows, in words that say how sure they are, or one lying at a place to be found by searching there. The situation's end takes
 back the worries and moods; what people learned and the ties stay. The ferryman and the carpenter join the trades.
 Run: python tools/sim/registration_545_test.py"""
+# suite: serial (f717)
 import random
 import shutil
 import sys
