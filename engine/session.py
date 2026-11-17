@@ -178,12 +178,14 @@ class CampaignSession:
                     rolled[k] = copy.deepcopy(home[k])
                 except Exception:
                     rolled[k] = home[k]
-        turn.snapshot = (self.world.snapshot(), held, rolled)     # (f499) the fight's marks are its row's: the transaction takes them back
+        from engine import ledger                      # (f499) the fight's marks are its row's: the transaction takes them back
+        turn.snapshot = (self.world.snapshot(), held, rolled, ledger.told_marks())   # (f720) ...and which of the turn's rows were told already
 
     def rollback(self, scene, op_id: str = "") -> None:
         """The turn rolled back (scenes/world.py reload_after_rollback, first thing): the map's additions, the scene's private caches,
         the ledger's rows and totals and the casting cache go back to the turn's start. The store's reload follows. (f463) With op_id,
-        one operation of the line rolled back: that operation's ledger rows alone go (engine/ledger.py rollback_op); the rest stand."""
+        one operation of the line rolled back: that operation's ledger rows alone go (engine/ledger.py rollback_op); the rest stand,
+        (f720) untold again where this operation took them to tell."""
         from engine import ledger
         if op_id:
             ledger.rollback_op(op_id)
@@ -193,8 +195,9 @@ class CampaignSession:
         turn = actor.turn_of(scene)
         if turn.snapshot is None:
             return
-        snap, held, rolled = turn.snapshot
+        snap, held, rolled, told = turn.snapshot
         turn.snapshot = None
+        ledger.untell(told)                            # (f720) rows of the line that this operation took to tell are untold again
         self.world.restore(snap)
         for k in [k for k in scene.__dict__ if k.startswith("_")]:
             del scene.__dict__[k]

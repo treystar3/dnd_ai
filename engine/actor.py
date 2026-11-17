@@ -13,9 +13,14 @@ descriptor of the same name (TurnField), so no call site knows the field moved: 
 operation puts it back to what the operation found (ROLLED), or neither (KEPT: it stands across lines and failures until the
 turn's own code writes it). The operation's snapshot is kept here too (engine/session.py begin_turn, rollback).
 
-HOMES declares where every name a failed operation puts back belongs once a scene is split for several characters (multiplayer
-M1): the turn's, one character's view, or the scene's, shared by everyone in it. Only the turn's have moved; the rest are still
-attributes of the scene, and this is the list that split starts from.
+(f720) ATTRS declares every other attribute of the world scene, once: what a failed operation does with it (put back to what
+the operation found; left as it stands, with the reason; written only outside operations, so a failure finds it as it left it;
+read again from the save; set once when the scene is made) and where it
+belongs once a scene is split for several characters (multiplayer M1): one character's view, or the scene's, shared by everyone
+in it. A name that begins with `_` is a private cache, copied and put back whole by the session, and needs no row; nor does a
+property of the scene, which holds nothing of its own. HOMES (every
+name a failed operation puts back, with its home), UNLISTED (what a failure leaves as it stands) and WorldScene.ROLLED are read
+from FIELDS and ATTRS; tools/sim/rollback_declared_720_test.py holds every name the scene's code sets to a declaration.
 
 (f633) Registers is what a turn keeps while it is played, which five modules each held under names of their own: the operation
 open now, what reached the page and the calls made inside a transaction (engine/operation.py), the ledger's rows, the last
@@ -98,24 +103,51 @@ FIELDS: dict[str, Field] = {
 }
 
 TURN, VIEW, SCENE = "turn", "view", "scene"
-HOMES: dict[str, str] = {
-    **{name: TURN for name, f in FIELDS.items() if ROLLED in f.marks},
-    # ---- one character's view: what they were offered, what their own next step carries
-    "weight_hint": VIEW, "exits_due": VIEW, "journey_event_factor": VIEW, "haggle_factor": VIEW, "craft_boost": VIEW,
-    "camp_bonus": VIEW, "rank_options": VIEW, "learn_options": VIEW, "pending_check": VIEW, "pending_beats": VIEW,
-    "last_social": VIEW, "last_plan": VIEW, "sneaking": VIEW, "queued_buffs": VIEW, "fight_text": VIEW,
-    # ---- the scene's, shared by everyone in it: what was told of it, the conversation, the road being walked, the fight that
-    # is coming or was fled and how its beats landed on the party, what is in view
-    "recent_narration": SCENE, "convo": SCENE, "last_spoken": SCENE, "partner": SCENE, "stance": SCENE, "wildlife": SCENE, "wildlife_at": SCENE,
-    "resume_pending": SCENE, "recently_fled": SCENE, "held_yield": SCENE, "orenna_fight": SCENE, "camp_fight": SCENE,
-    "dungeon_fight": SCENE, "surrender_took": SCENE, "last_hits": SCENE,
+SAVED, ONCE, OUTSIDE = "saved", "once", "outside"
+
+
+@dataclass(frozen=True)
+class Attr:
+    how: str                               # ROLLED, KEPT, OUTSIDE (written only outside operations), SAVED (read again from the
+                                           # save) or ONCE (set when the scene is made)
+    home: str                              # VIEW: one character's; SCENE: shared by everyone in the scene
+    why: str = ""                          # for one a failure does not put back: why not
+
+
+def _rows(how: str, home: str, names: str, why: str = "") -> dict[str, Attr]:
+    return {name: Attr(how, home, why) for name in names.split()}
+
+
+ATTRS: dict[str, Attr] = {
+    # ---- put back, one character's view: what they were offered, what their own next step carries, how they arrived
+    **_rows(ROLLED, VIEW, "weight_hint exits_due journey_event_factor haggle_factor craft_boost camp_bonus rank_options learn_options "
+                          "learn_request pending_check pending_beats last_social last_plan sneaking queued_buffs fight_text "
+                          "first_arrival revisit repairs"),
+    # ---- put back, the scene's: what was told of it, the conversation, the fight that is coming or was fled and how its beats
+    # landed on the party, what is in view, who came looking (they stand in the room, for everyone), the host at the gate
+    **_rows(ROLLED, SCENE, "recent_narration convo last_spoken partner stance wildlife wildlife_at resume_pending recently_fled "
+                           "held_yield orenna_fight camp_fight dungeon_fight surrender_took last_hits visitors assault camp_events"),
+    # ---- left as it stands
+    **_rows(KEPT, VIEW, "broken", "the lines that failed on the game's own fault, and how often: a failure is what it counts"),
+    **_rows(KEPT, VIEW, "last_text", "the line last typed: it was typed, whatever came of it"),
+    **_rows(KEPT, SCENE, "crash_after_commit", "the suite's injection: the game stops after this kind's commit"),
+    **_rows(KEPT, VIEW, "rng", "the scene's dice: what a failed operation drew is spent, and the line typed again is a new input "
+                               "with dice of its own; an attempt that stood down to ask has them put back (asked_operation)"),
+    **_rows(KEPT, VIEW, "to_menu", "the player asked for the menu: they leave, whatever became of the command"),
+    # ---- written only outside operations
+    **_rows(OUTSIDE, VIEW, "line_text dropped_steps last_interpret", "the reading of the line, written as it is read, before its operations"),
+    **_rows(OUTSIDE, VIEW, "recovered_at_load", "outcomes told at this load: counted as the save opens, before any line"),
+    # ---- read again from the save, where an operation gives back (scenes/world.py give_back). The character's record is loaded
+    # again there too: it is the actor's, and the scene's name for it is a property, as its name for the save's question is
+    **_rows(SAVED, SCENE, "combat", "the fight, resumed from its row, or none"),
+    **_rows(SAVED, SCENE, "residents present", "the people of the place and who is here now, read again from their rows"),
+    # ---- set when the scene is made
+    **_rows(ONCE, SCENE, "session store world catalog", "the campaign's own: a turn writes through them, never over them"),
+    **_rows(ONCE, VIEW, "actor", "the scene's actor, made as it is given its player"),
 }
-UNLISTED: dict[str, str] = {               # scene fields no list held before this: a failure leaves each as it stands
-    "broken": VIEW,                        # the lines that failed on the game's own fault, and how often
-    "last_text": VIEW,                     # the line last typed
-    "recovered_at_load": VIEW,             # outcomes told at this load
-    "crash_after_commit": SCENE,           # the suite's injection: the game stops after this kind's commit
-}
+HOMES: dict[str, str] = {**{name: TURN for name, f in FIELDS.items() if ROLLED in f.marks},
+                         **{name: a.home for name, a in ATTRS.items() if a.how == ROLLED}}
+UNLISTED: dict[str, str] = {name: a.home for name, a in ATTRS.items() if a.how in (KEPT, OUTSIDE)}
 
 
 class TurnContext:

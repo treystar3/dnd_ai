@@ -132,6 +132,19 @@ def told(but: tuple[str, ...] = ()) -> list[str]:
     return out
 
 
+def told_marks() -> set[int]:
+    """(f720) The rows told so far, by identity: what an operation found told when it began (engine/session.py begin_turn)."""
+    return {id(r) for r in actor.registers().rows if r.get("told")}
+
+
+def untell(found: set[int]) -> None:
+    """(f720) An operation did not stand, so it told nothing: the rows it took to tell (told()) are untold again, for the stand-in
+    or the next passage to tell. Part of every rollback of one operation (engine/session.py rollback)."""
+    for r in actor.registers().rows:
+        if r.get("told") and id(r) not in found:
+            r.pop("told", None)
+
+
 def untold() -> list[str]:
     """(f416) What the turn did that no passage has told yet, without marking it."""
     return [r["say"] for r in actor.registers().rows if r.get("say") and not r.get("told")]

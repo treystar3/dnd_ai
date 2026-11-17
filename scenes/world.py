@@ -997,6 +997,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         recovered = self.recover_unshown()                                  # (f467) first: what stood before the game last closed, never shown
         first_time = self.store.meta.turn == 0
         self.enter(self.player.location)
+        self.store.save_player(self.player_of(self.acting))                 # (f720) where the opening stands them is the save's, for a first operation that fails
         self.weight_hint = "major" if first_time else None                 # a reload narrates nothing on entering; the next passage is weighed on its own
         kit_text = ""
         c = self.player.character
@@ -1162,23 +1163,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             "combat_state", "combat_panel")     # (f497) the fight's pane and its text panel: pushed at the commit, not for an attempt that stood down
     PANE = ("combat_state", "combat_panel")     # (f497) held, but no lines of the page: load re-shows the pane from the row (enter), so they are
     #                                             kept off the record's presentation entry and the turn log's lines
-    ROLLED = ("recent_narration", "convo", "last_spoken", "wildlife", "wildlife_at", "recently_fled", "resume_pending", "held_yield", "orenna_fight", "camp_fight",
-              "last_social", "weight_hint", "exits_due", "last_plan", "journey_event_factor", "haggle_factor", "craft_boost", "camp_bonus",
-              "dungeon_fight", "rank_options", "learn_options", "step", "plan_now", "interpret_calls", "ran",
-              "partner", "stance", "pending_check", "pending_beats", "buffering",
-              "last_hits",                            # (f489) how a beat hit each of the party goes back with the banter that measured it
-              "sneaking", "queued_buffs", "fight_text", "surrender_took",
-              "line_losses")   # (f496) what a fight the player starts this turn opens with (f248:
-    # the creeping up, the buffs readied by name, the line's words), and whether a survivor was taken captive: set by one operation's
-    # attempt and consumed by it, they go back to what the attempt found, so an attempt run again for its answer creeps up again
-    # (f485) the conversation goes back whole: who is being spoken with and how they are this talk, with its lines (convo, last_spoken
-    # above), so a first talk that did not stand opens a new conversation when it is tried again, with the stance it had; and the step's
-    # own state, so an operation run again to be given its answer (engine/asked.py) starts where the first attempt did.
-    # (f583) line_losses: a death this line, for the grief pool, taken back with the operation that made it.
-    # (f465) The scene's own state a line writes outside the save: snapshotted by the session at every operation's start and put back by a
-    # rollback beside the `_` caches (engine/session.py begin_turn, rollback), so a rolled-back operation leaves no trace of itself in what
-    # the narrator remembers, who was last spoken to, what was in view, the plan, the road, the fight that is coming. Declared, not guessed:
-    # an attribute a turn writes and a rollback should take back is added here, or the next failing operation shows it.
+    ROLLED = tuple(actor.HOMES)     # (f720) what a failed operation puts back: declared in engine/actor.py (FIELDS, ATTRS), read by the session
 
     def begin_line(self) -> None:
         """(f463) A line begins: nothing of the last one's operations is kept, and the write fence is armed for its life."""
@@ -1334,14 +1319,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         while self.passages:
             kind, fn, standin, after, owner = self.passages.pop(0)
             halted = self.halted
-            told_before = {id(r) for r in ledger.this_turn() if r.get("told")}
             op, _ = self.asked_operation(kind, self.last_text, lambda op: fn())    # (f498) restartable: the telling's own call is asked
             self.halted = halted                                   # outside it; a telling that did not stand halts nothing: the facts stand
             if op.state != "committed":
                 if op in self.line_failed:
                     self.line_failed.remove(op)
-                self.line_untold.append(op)
-                self.untell(told_before)                           # it told nothing: the rows it took to tell are untold again
+                self.line_untold.append(op)                        # (f720) the rows it took to tell are untold again: the rollback's
                 lines = standin(self.rng) if standin else []
                 for line in ([lines] if isinstance(lines, str) else lines):
                     if line:
@@ -1354,14 +1337,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 if self.unshown_ops[owner] <= 0:
                     del self.unshown_ops[owner]
                     self.store.mark_shown(owner)
-
-    @staticmethod
-    def untell(told_before: set) -> None:
-        """(f464) A passage that did not stand told nothing: the rows it marked told (ledger.told, when its request was built) are untold
-        again, so the stand-in and the next passage can tell them."""
-        for r in ledger.this_turn():
-            if r.get("told") and id(r) not in told_before:
-                r.pop("told", None)
 
     def stood_standin(self, rng) -> list[str]:
         """(f464) What the player reads when the line's passage could not be written: one plain line for each row of the line not yet
@@ -1403,7 +1378,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             states = {k: x.model_copy(deep=True) for k, x in held.items()}       # who is here and who acts, as found: put back in place,
             lists = (list(self.residents), list(self.present), self.partner, self.player)   # the same objects, so a holder sees the re-run
             meta = self.store.meta.model_copy()          # the clock and the input's count as they stand in memory (a give-back reloads the save's)
-            told0 = {id(r) for r in ledger.this_turn() if r.get("told")}        # (f498) what was told before this attempt
             asked.begin(serve)
             result = None
             try:
@@ -1415,7 +1389,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if need is None:
                 return op, result
             streams.restore(snap)                        # the attempt that stood down drew nothing that counts
-            self.untell(told0)                           # (f498) ...and told nothing: the rows it took to tell wait for the attempt that stands
             for k, x in held.items():
                 x.__dict__.update(states[k].__dict__)
             self.residents, self.present, self.partner, self.player = list(lists[0]), list(lists[1]), lists[2], lists[3]
@@ -1793,13 +1766,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                         if op.state != "committed":
                             break                              # what stood stands; the rest of the line is not done
                     if self.pending:                           # (f464) several actions: their one passage, an operation after them all and before the pulse
-                        told_before = {id(r) for r in ledger.this_turn() if r.get("told")}
                         with self.operation("passage", text) as op:
                             self.passage(text)
                         if op.state != "committed":
                             self.line_failed.remove(op)
                             self.line_untold.append(op)
-                            self.untell(told_before)
                             for line in self.line_standin(self.rng):
                                 console.narrate(line)
                             self.pending = []

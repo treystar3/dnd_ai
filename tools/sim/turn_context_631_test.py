@@ -48,9 +48,9 @@ check("every name a failed operation puts back has a home declared: the turn's, 
       sorted(set(actor.HOMES) ^ set(WorldScene.ROLLED)))
 check("...the turn's are the fields the table says a failure puts back, and the scene's list still names each of them",
       {k for k, h in actor.HOMES.items() if h == actor.TURN} == rolled and rolled <= set(WorldScene.ROLLED))
-check("the four scene fields no list held are declared too, apart from the ones a failure puts back",
-      set(actor.UNLISTED) == {"broken", "last_text", "crash_after_commit", "recovered_at_load"} and not set(actor.UNLISTED) & set(WorldScene.ROLLED)
-      and not set(actor.UNLISTED) & set(F))
+check("the scene fields a failure leaves as they stand are declared too, apart from the ones it puts back (f720: every one, with its reason)",
+      {"broken", "last_text", "crash_after_commit", "recovered_at_load"} <= set(actor.UNLISTED) and not set(actor.UNLISTED) & set(WorldScene.ROLLED)
+      and not set(actor.UNLISTED) & set(F) and all(actor.ATTRS[k].why for k in actor.UNLISTED))
 
 # ---- the descriptors
 fields_on_scene = {k for k in dir(WorldScene) if isinstance(getattr(WorldScene, k, None), actor.TurnField)}

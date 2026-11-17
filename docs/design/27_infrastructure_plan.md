@@ -164,6 +164,44 @@ and fixed by its declaration.
 
 **Risk:** medium. The table is mechanical; the second check may find several leaks, each needing a decision of "put back" or "kept".
 
+**As built (17 November):** the table is `actor.ATTRS` (54 rows: 37 put back, 5 kept with a reason, 4 written only outside
+operations, 3 read again from the save, 5 set once; a property of the scene, such as its name for the character's record,
+holds nothing of its own and has no row); `HOMES`, `UNLISTED` and `WorldScene.ROLLED` are read from it. Changed from the plan:
+- The run is not a golden replayed: a failed operation ends a golden's line, so the rest of the recording no longer applies. The
+  test plays a session of the stand-in model's bot (forty typed lines, about 210 operations) and fails every third operation at
+  its end. After each it compares everything the scene holds (every attribute, the turn's fields, the character's record, who
+  is here, the fight, the rows told) with what the operation found; a name that differs fails unless it is declared kept or is
+  the line's own record of the failure.
+- turn_context_631_test changed in one check: it pinned `UNLISTED` to four names; it now holds that those four are among the
+  names a failure leaves standing and that every such name has a reason.
+- The census also reads names another module sets on a scene (`ws.x = ...`), which is how `assault` was found.
+
+Found and fixed by declaring each "put back" (what a player would have seen):
+- `first_arrival`, `revisit`: after a walk that failed, the chance of meeting something where the player still stood was worked
+  out as for a place just reached for the first time, until the next walk.
+- `visitors`: someone who came looking for the player inside an operation that failed stayed in the room as a visitor.
+- `assault` (set by engine/events.py): a host reaching the gate inside an operation that failed left the next fight's end to
+  decide whether that town held.
+- `learn_request`: what was asked of an instructor stayed when the lessons offered for it went back.
+- `repairs`, `camp_events` (the goals review): each is appended to inside an operation, so an operation run again for its answer
+  appended twice. Nothing a player reads; the turn log and the sim's bot read them.
+- The ledger's told marks: three callers untold the rows by hand when a passage failed; the world's own operations (the tail,
+  the arrival, a pane command) did not, so a deed could be marked told by a passage nobody read. Now part of every rollback of
+  one operation (engine/session.py), and the three hand calls are gone.
+
+- Where the opening stands the player (the part of the place, set by the entry at the game's start) was in memory only until
+  the first operation stood. A first operation that failed read the record back without it, and the player stood nowhere in
+  the place until they next walked. scenes/world.py `run` now saves the record after the opening's entry. Found by the run's
+  comparison of the character's record, which the first version of the test did not make (the goals review asked for it).
+
+Seen by the run and left: two things are filled in on the character's record by whoever reads them, in memory and outside any
+operation, as a merchant's stock is laid out: the loadout (engine/loadout.py `prepared`) and the pronoun worked out from the
+character's own words (engine/truth.py `player_pronoun`). A failed operation's reload undoes that and the next read does it
+again, to the same result. Nothing shows; the test leaves those four fields out of its comparison and says so.
+
+Not fixed here, for the owner: `assault` is not in the save, so a game closed during the fight at the gate and opened again
+decides nothing about the town when the fight ends. `camp_events` (read by the sim's bot alone) has no cap.
+
 ## f721. One turn driver
 
 **What is wrong today** (scenes/world.py:1057-1114 and 1734-1840): an input is played by three stretches of code that each open
