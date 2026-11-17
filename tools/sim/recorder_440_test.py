@@ -65,7 +65,8 @@ check("...and its layer taken off and the console put back when it closes", rec.
 # ---- what was kept
 meta = json.loads((OUT / "meta.json").read_text(encoding="utf-8"))
 check("meta: the seed, the data hash, the model, the version and the state the session opened in",
-      meta["seed"] == 40 and meta["data"] == statehash.data_hash() and meta["model"] == config.MODEL and meta["start"] == start, meta.keys())
+      meta["seed"] == 40 and meta["data"] == statehash.data_hash() and meta["words"] == statehash.words_hash()     # (f718) both digests
+      and meta["model"] == config.MODEL and meta["start"] == start, meta.keys())
 db = sqlite3.connect(OUT / "start.db")
 check("start.db is the save as it opened", db.execute("SELECT count(*) FROM kv").fetchone()[0] > 0)
 db.close()

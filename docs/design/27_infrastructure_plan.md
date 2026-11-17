@@ -72,19 +72,26 @@ refused when it differs (tools/rerun.py:341). So any edit to a told line, a fail
 re-blessed even when, as in f715/f716, "no state, call, outcome or shown word differs". The re-bless that changes nothing teaches
 everyone to skim re-blesses.
 
-**The change:** two digests. `data` (rules: every file as today, less the wording) and `words` (the wording alone). What counts as
-wording is declared in one new file, data/rules/wording.yaml: whole files, or keys of a file. Anything not listed is rules, so a new
-file is on the strict side until someone says otherwise. A recording keeps both. Replay refuses on `data`, as today; when only
-`words` differs it replays, and the replay itself says whether a shown word or a call changed, and at which input.
-budget_data_459 and isolation_456 hold the rules digest.
+**The change (as built, 17 November):** two digests. `data` is the rules: every file as before, with a mark where each string
+of wording stood. `words` is the wording alone. What counts as wording is declared in one new file, data/rules/wording.yaml: whole
+files, or keys of a file. Anything not listed is rules, so a new file is on the strict side until someone says otherwise. A
+recording keeps both. Replay warns on `data`, as before; when only `words` differs it replays, and the replay itself says whether
+a state, a call or a shown word changed, and at which input. budget_data_459 and isolation_456 hold the rules digest.
 
-**Test:** datahash_split_718_test.py: a changed told line moves `words` and not `data`; a changed number moves `data`; a file nobody
-listed is rules; a recording whose words moved is replayed and passes when nothing it showed changed, and fails at the right input
-when something did. The seven existing hash tests are updated to the two names.
+**Narrower than first planned, after the goals review:** only a line's words are wording. Its place is a rule: the key it is
+found by, how many lines its list holds (a line is drawn by the count, so one more line changes the draws), whether it is empty.
+So a reworded line moves `words` alone and no recording is made again; a new line or a new kind of line still moves `data`.
+Of the last twenty re-blesses this would have spared the rewording passes (f711/f712), not the features that added lines.
 
-**Goldens:** re-blessed once, for the new meaning of `data` and the new `words` field; no input, state, call or shown word differs.
+**The list:** rules/told.yaml, rules/failures.yaml, rules/launch.yaml (every string); rules/stay.yaml `lines`;
+rules/questions.yaml `dropped`; rules/voice.yaml `frame_stand_in`, `no_words`; rules/moments.yaml `shapes.*.ends`;
+rules/body.yaml `fall.died`, `kinds.*.past`, `kinds.*.nearly`. Left as rules: words the engine reads a line by, words a
+memory keeps, the prompts' own text, and the story content of data/world (its files mix lines with ids; it can be listed by key
+later).
 
-**Risk:** low. The list of wording is decided at build from what forced the last ten re-blesses, and shown to the owner in the commit.
+**Test:** tools/sim/datahash_split_718_test.py.
+
+**Goldens:** re-blessed once, for the new meaning of `data` and the new `words` field; no input, state, call or shown word differed.
 
 ## f719. The live gate
 

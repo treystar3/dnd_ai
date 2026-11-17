@@ -845,6 +845,8 @@ def check() -> list[str]:
     bad += endings_problems()                                          # (f598) how a matter's ending is told and paid
     from engine import told
     bad += told.problems()                                             # (f661) what the engine decided, told to the player
+    from storage import statehash
+    bad += statehash.wording_problems()                                # (f718) the list of what is wording, held to the tree
     bad += grammar_problems()                                          # (f527) every contract has its grammar
     from llm import runtime as _runtime
     bad += _runtime.runtime_problems()                                 # (f522) the server's settings hold what the game sends

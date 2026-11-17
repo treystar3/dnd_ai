@@ -338,7 +338,9 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None, 
     from storage import statehash
     if as_schema is not None and as_schema not in statehash.VIEWS:
         raise ValueError(f"no view of the state as version {as_schema} held it (there is one for: {', '.join(str(v) for v in sorted(statehash.VIEWS))})")
-    if rec["meta"].get("data") != statehash.data_hash():
+    now = statehash.data_hashes()                                  # (f718) held to the rules; other wording only shows in what parts
+    made_on = {k: "same" if rec["meta"].get(k) == now[k] else "other" for k in now}
+    if made_on["data"] == "other":
         print("warning: this recording was made on other rules or content (its data hash differs); differences may be that", file=sys.stderr)
     streams.STRICT = True
     from engine import budget
@@ -463,7 +465,7 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None, 
         config.SAMPLING_ARM = arm_before
     matched = state["input"] - (1 if state["parted"] else 0)
     return {"matched": max(0, matched), "of": len(inputs_main), "parted": state["parted"], "calls": source.at, "recorded_calls": len(calls),
-            "crashed": len(crashlog.SESSION) - crashes0, "logs": str(scratch)}   # (f518) faults the replay hit (its own crash.log)
+            "crashed": len(crashlog.SESSION) - crashes0, "logs": str(scratch), **made_on}   # (f518) faults the replay hit (its own crash.log)
 
 
 TIME_DEADLINE = 900.0       # the seconds one re-timed call may take: a slow card's longest passage is the measure, never cut (the hang guard is 120 s)
@@ -695,6 +697,8 @@ def main() -> int:
     except Failure as e:                                                # --time's server is not answering: a line, not a traceback
         print(f"the server at {a.time} is not answering: {e}")
         return 2
+    if out.get("words") == "other" and out.get("data") == "same":    # (f718)
+        print("the wording has changed since this recording was made; the rules have not")
     if out["parted"]:
         print(f"parted at input {out['parted']['input']} of {out['of']}: {out['parted']['why']}")
         return 1

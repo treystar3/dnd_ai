@@ -48,7 +48,7 @@ rules.write_bytes(rules.read_bytes().replace(b"\n# a changed rule\n", b""))
 check("...and taking the change out restores it", statehash.data_hash(tmp) == base)
 
 src = Path(recording.__file__).read_text(encoding="utf-8")
-check("a recording still keeps the version in its meta, beside the hash", '"version": VERSION' in src and '"data": statehash.data_hash()' in src)
+check("a recording still keeps the version in its meta, beside the hash", '"version": VERSION' in src and "**statehash.data_hashes()" in src)
 
 shutil.rmtree(tmp, ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))

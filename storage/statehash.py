@@ -137,22 +137,112 @@ def _first(x, y, path: str = "") -> str:
     return f"{path or 'value'}: {str(x)[:80]!r} against {str(y)[:80]!r}"
 
 
-def data_hash(root: Path = ROOT) -> str:
-    """The game a recording was made on: every file under data/ (but data/replay, the recordings and cases kept to test against, which
-    are not the game, (f459) data/measured, the card's measured speeds, and (f522) data/runtime, how this machine runs the model
-    server: both describe a machine and not the game), the model, and the save schema. (f572) Not the version: a release that changes
-    no content is the same game; the recording's meta keeps the version, and the replay itself catches a change in the code."""
+WORDING = ("data", "rules", "wording.yaml")    # (f718) which strings of which data files are wording
+WORD = "\0w"                                   # ...and what stands where one was, in the rules
+
+
+def wording(root: Path = ROOT) -> dict[str, list[tuple[str, ...]]]:
+    """(f718) {a data file, from data/: the keys of it whose strings are wording}. A key is a dotted path, * for any one key or
+    place in a list, and covers all under it; ** is the whole file."""
+    f = root.joinpath(*WORDING)
+    if not f.is_file():
+        return {}
+    from core import yamlio
+    raw = (yamlio.safe_load(f.read_text(encoding="utf-8")) or {}).get("wording") or {}
+    return {str(rel): [tuple(str(key).split(".")) for key in keys] for rel, keys in raw.items()}
+
+
+def _covers(key: tuple, path: tuple) -> bool:
+    return key == ("**",) or (len(key) == len(path) and all(k in ("*", p) for k, p in zip(key, path)))
+
+
+def _split(value, keys: list, path: tuple, inside: bool, words: list):
+    """A file's value with a mark where each string of wording was, the strings themselves in words with their paths. The shape
+    stays in the rules: the keys the engine looks a line up by, how many lines a list holds (a draw is by the count), where in a
+    list a line stands, whether a line is empty (code may ask). Numbers stay too, wherever they stand."""
+    inside = inside or any(_covers(k, path) for k in keys)
+    if isinstance(value, dict):
+        return {f"{type(k).__name__} {k}": _split(v, keys, path + (str(k),), inside, words) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_split(v, keys, path + (str(i),), inside, words) for i, v in enumerate(value)]
+    if inside and isinstance(value, str) and value:
+        words.append([list(path), value])
+        return WORD
+    return value if not isinstance(value, str) else f"s {value}"       # no string of the file's own reads as the mark
+
+
+def _strict(value) -> str:
+    """As _h, but a value JSON has no word for is refused: the file is then hashed whole, as rules."""
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def _read(f: Path):
+    from core import yamlio
+    text = f.read_text(encoding="utf-8")
+    return json.loads(text) if f.suffix == ".json" else yamlio.safe_load(text)
+
+
+def data_hashes(root: Path = ROOT) -> dict[str, str]:
+    """The game a recording was made on, in two parts (f718). "data", the rules: every file under data/ (but data/replay, the
+    recordings and cases kept to test against, which are not the game, (f459) data/measured, the card's measured speeds, and (f522)
+    data/runtime, how this machine runs the model server: both describe a machine and not the game), the model, and the save schema.
+    (f572) Not the version: a release that changes no content is the same game; the recording's meta keeps the version, and the
+    replay itself catches a change in the code. "words", the wording: the strings data/rules/wording.yaml lists, each a mark in
+    the rules. A listed file is read as data, so its comments are in neither; one that cannot be read is rules, whole."""
     import config
     from storage import migrations
-    h = hashlib.sha256()
+    h, w = hashlib.sha256(), hashlib.sha256()
+    listed = wording(root)
     for f in sorted((root / "data").rglob("*")):
         rel = f.relative_to(root)
         if f.is_file() and "__pycache__" not in f.parts and rel.parts[:2] not in (("data", "replay"), ("data", "measured"), ("data", "runtime")):
             h.update(rel.as_posix().encode("utf-8") + b"\0")
+            keys = listed.get(rel.relative_to("data").as_posix())
+            if keys:
+                try:
+                    words: list = []
+                    rest = _split(_read(f), keys, (), False, words)
+                    h.update(_strict(rest).encode("utf-8"))
+                    w.update(rel.as_posix().encode("utf-8") + b"\0" + _h(words).encode("utf-8"))
+                    continue
+                except Exception:
+                    pass
             b = f.read_bytes()
             h.update(b if b"\0" in b[:8000] else b.replace(b"\r\n", b"\n"))   # (f560) the game, not the checkout's line endings
     h.update(f"\0{config.MODEL}\0{migrations.CURRENT}".encode("utf-8"))
-    return h.hexdigest()
+    return {"data": h.hexdigest(), "words": w.hexdigest()}
+
+
+def data_hash(root: Path = ROOT) -> str:
+    """The rules a recording was made on: what a kept recording is held to."""
+    return data_hashes(root)["data"]
+
+
+def words_hash(root: Path = ROOT) -> str:
+    """(f718) The wording a recording was made on: kept beside the rules, and held to nothing; a replay shows what a new word changed."""
+    return data_hashes(root)["words"]
+
+
+def wording_problems(listed: dict | None = None, root: Path = ROOT) -> list[str]:
+    """(f718) Start-up check of data/rules/wording.yaml: every file listed is there and read as data, and every key holds a string."""
+    listed = wording(root) if listed is None else {rel: [tuple(str(k).split(".")) for k in keys] for rel, keys in listed.items()}
+    bad = []
+    for rel, keys in listed.items():
+        f = root / "data" / rel
+        if not f.is_file():
+            bad.append(f"wording.yaml {rel}: no such data file")
+            continue
+        try:
+            value = _read(f)
+        except Exception as e:
+            bad.append(f"wording.yaml {rel}: cannot be read as data ({e})")
+            continue
+        for key in keys:
+            words: list = []
+            _split(value, [key], (), False, words)
+            if not words:
+                bad.append(f"wording.yaml {rel}: {'.'.join(key)} holds no words")
+    return bad
 
 
 def _short(v, n: int = 80):

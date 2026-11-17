@@ -117,7 +117,7 @@ class Recorder:
         from npc import life
         self.meta = {
             "made": datetime.now(timezone.utc).isoformat(timespec="seconds"), "seed": store.meta.seed, "steps": store.meta.steps,
-            "turn": store.meta.turn, "data": statehash.data_hash(), "model": config.MODEL, "version": VERSION,
+            "turn": store.meta.turn, **statehash.data_hashes(), "model": config.MODEL, "version": VERSION,     # (f718) "data" and "words"
             "commit": commit(), "start": statehash.digest(store), "embed": embed.available(), "backfill": life.FIRST_BATCH,
             "save": store.meta.name,
             "profile": dict(budget.PROFILE), "limit_seconds": budget.B.get("limit_seconds"),     # (f468) the speeds the budget priced calls at

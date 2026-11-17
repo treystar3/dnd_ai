@@ -34,7 +34,7 @@ SIM = ROOT / "tools" / "sim"
 CODE = (".py", ".yaml", ".js")
 RAN_SITE = Path(__file__).resolve().parent / "suite_ran"      # (f717) loaded by each test's Python: what the test ran
 UNWALKED = {"__pycache__", "saves", "logs", ".git", ".claude", ".venv", ".buildenv", "runtime", "models", "build", "dist"}
-WHOLE = (("storage/statehash.py", "data_hash"),)              # (f717) read every data file: a test that ran one is picked for any data change
+WHOLE = (("storage/statehash.py", "data_hash"), ("storage/statehash.py", "data_hashes"))              # (f717) read every data file: a test that ran one is picked for any data change
 
 
 def walked(root: Path):

@@ -1,0 +1,23 @@
+# (f718) Which strings in data/ are wording: lines written to be read as they stand, whose words the engine decides nothing by.
+# A recording keeps two digests (storage/statehash.py): "data", the rules, which a kept recording is held to, and "words", these
+# strings, which it is not. So a reworded line makes no recording be made again unless a recording drew that line, and then the
+# replay parts where it tells: on the page, in what the narrator is given next, or in the save (a fight keeps its told lines
+# with its state until the round is told).
+#
+# A file, from data/, and its keys: a dotted path, * for any one key or place in a list, covering everything under it; ** is the
+# whole file. Only the words of a line are wording. Everything about its place is still a rule: the key it is found by, how many
+# lines its list holds (a line is drawn by the count), whether it is empty, and any number beside it. So rewording a line moves
+# "words" alone; a new line, a line taken out or a new kind of line moves "data". Whatever is not listed here is rules, and so is
+# this file: moving a key to this side is a change to the rules.
+#
+# Not here, on purpose: a word the engine reads a line by (interpret.yaml, hygiene.yaml, act.yaml), a word a person's memory
+# keeps and is searched by (doors.yaml memory), and the instructions written for the model (the prompts' own text).
+wording:
+  rules/told.yaml: ["**"]              # what the engine decided, told to the player (engine/told.py)
+  rules/failures.yaml: ["**"]          # what stood when a passage could not be written (engine/failures.py)
+  rules/launch.yaml: ["**"]            # the load screen (llm/launch.py)
+  rules/stay.yaml: [lines]             # who comes and goes while the player stays (engine/stay.py)
+  rules/questions.yaml: [dropped]      # a question let go (engine/questions.py)
+  rules/voice.yaml: [frame_stand_in, no_words]     # a speaker shown when no frame or no words came (scenes/world.py)
+  rules/moments.yaml: ["shapes.*.ends"]            # a moment's close, said once (engine/stay.py)
+  rules/body.yaml: [fall.died, "kinds.*.past", "kinds.*.nearly"]   # a feat past the body, and a fall that kills (engine/body.py, engine/act.py)
