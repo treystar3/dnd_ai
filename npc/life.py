@@ -22,6 +22,12 @@ from engine import streams
 
 
 
+def _plain_ok(npc) -> list[str]:
+    """(f714) [""] when this person talks without contractions (their voice kit or their tongue), so stiff speech is theirs; else []."""
+    from engine import voice_profile
+    return [] if voice_profile.contracts({"speech": npc.speech or {}}) else [""]
+
+
 def _unique_id(store: CampaignStore, name: str) -> str:
     base = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_") or "npc"
     candidate, n = base, 2
@@ -402,7 +408,8 @@ def converse(
         NPCReplyPromised if promised else NPCReply, temperature=0.8, max_tokens=config.PROSE_MAX_TOKENS,
         validation_context={"known": known, "recent": recent, "last": npc.said[-1] if npc.said else "",      # (f349) last: no opener twice running
                             "given_also": list(given_also),        # (f486) the town's list, for the checks, given or not
-                            "kit": voices.kit_of(npc.speech), "house": set(house), "worn": list(worn)},      # (f350) their kit; how everyone here talks; the worn words
+                            "kit": voices.kit_of(npc.speech), "house": set(house), "worn": list(worn),      # (f350) their kit; how everyone here talks; the worn words
+                            "uncontracted_ok": _plain_ok(npc)},                                                                   # (f714)
         relaxed_context={"known": known},                   # the fallback ladder: once more without the repeat guard before giving up
     )
     from engine import partings
@@ -504,7 +511,8 @@ def converse_many(npc: NPC, store: CampaignStore, world: World, catalog: TraitCa
         "npc_conversation", prompts.CONVERSATION_SYSTEM, prompt, contracts.many_reply(ids, promised), temperature=0.8,
         max_tokens=config.PROSE_MAX_TOKENS,
         validation_context={"known": known, "recent": recent, "last": npc.said[-1] if npc.said else "", "given_also": list(given_also),
-                            "kit": voices.kit_of(npc.speech), "house": set(house), "worn": list(worn), "to": ids, "words": words},
+                            "kit": voices.kit_of(npc.speech), "house": set(house), "worn": list(worn), "to": ids, "words": words,
+                            "uncontracted_ok": _plain_ok(npc)},                                                                   # (f714)
         relaxed_context={"known": known, "to": ids, "words": words},
     )
     from engine import partings

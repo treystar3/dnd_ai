@@ -14,6 +14,18 @@ narrator_tasks: [narrate, combat_opening, combat_narrate, combat_aftermath, dial
 
 # (f701) A passage may not show a creature of this place the game does not have. A one-word creature counts as one only when written
 # as one: plural, or after one of these words ("the bat", "two wolves"); never a verb ("did not bat an eye").
+# (f714) Speech a person would contract, said in full: two or more such pairs in one speaker's words are stiff, and the reply is sent
+# back once (never on the last try) unless the speaker's own voice or tongue speaks without contractions (quirks.yaml voices
+# no_contractions, a tongue marked contracts: false).
+speech:
+  # a pair counts only when a word follows it that carries the sentence on (not "where they are", "Yes, I am", "who you are and"); main
+  # verbs and pairs often said in full on purpose ("I have a sister", "let us pass", "cannot") are not listed
+  uncontracted: ["it is", "i am", "do not", "does not", "did not", "that is", "you are", "we are", "they are", "will not", "is not",
+                 "are not", "was not", "were not", "there is", "what is", "have not", "has not", "would not", "could not", "should not",
+                 "he is", "she is"]
+  not_after: [and, or, but, so, then, too, now, here, there, yet]
+  most: 1
+  reason: "That reads stiff: say it the way people talk, with contractions (it's, don't, I'm, you're, won't), unless this speaker's own way of talking says otherwise."
 phantom:
   reason: "only creatures the game has here may be shown; this one is not here: write the passage without it, or as signs or talk of it if the GAME EVENT names it"
   before: [a, an, the, one, two, three, four, five, six, several, some, another, that, this, those, these, many, few, its, their, lone, single, giant, huge, great, young, old, wild, dead, dark]

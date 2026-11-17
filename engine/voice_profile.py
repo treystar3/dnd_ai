@@ -119,6 +119,16 @@ def culture(member: dict) -> dict:
     return S["cultures"].get(sp.get("culture", ""), {})
 
 
+def contracts(member: dict) -> bool:
+    """(f714) Whether they talk with contractions: not when their voice is no_contractions or their tongue speaks without them."""
+    if (member.get("quirks") or {}).get("voice") == "no_contractions":
+        return False
+    from engine import voices
+    if voices.kit_of(member).get("contractions") == "full":          # the voice kit's "never a contraction"
+        return False
+    return tongue_of(member).get("contracts", True) is not False
+
+
 def tongue_of(member: dict) -> dict:
     """Their first tongue, if it is not Common: home, habits (how it shows through) and words; with their culture's sayings."""
     from engine import quirks

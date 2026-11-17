@@ -9,7 +9,7 @@ import random
 import config
 from engine import regard                                   # (f480)
 from engine import entities
-from engine import actor, banter, clock, money, mentor, pulse, quirks, weather
+from engine import actor, banter, clock, money, mentor, pulse, quirks, voice_profile, weather
 from engine import party as rules
 from llm.contracts import Exchange, PairDynamic
 from llm.gateway import generate, LLMError
@@ -101,9 +101,11 @@ class BanterActions:
                                              "contradict anything given as true of them." if members else "") if x]
         if for_this:
             P_.instruction("\n".join(f"- {x}" for x in for_this), "FOR THIS EXCHANGE")
+        P_.instruction(self.exemplars("speech", "small_talk"))         # (f714) how people talk, as every single reply is shown
         P_.instruction(f"WRITE {lines[0]} TO {lines[1]} LINES, speakers from: {', '.join(people)}.")
         ctx = {"speakers": list(people), "lines": lines, "all_speak": all_speak, "silent_ok": tuple(silent_ok), "first_speaker": first_speaker, "material": material + [hook or ""], "recent": recent or {},
                "members": members or {}, "player": self.player.character.name, "known": view.scene.known_words(), "must_name": must_name,
+               "uncontracted_ok": [n for n, m in (members or {}).items() if not voice_profile.contracts(m)],          # (f714)
                "gesture_states": {n: quirks.gesture_state(h, [dict(o, name=on) for on, o in holders.items() if o is not h] + self.gesturers(h))
                                   for n, h in holders.items()}}
         try:

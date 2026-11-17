@@ -173,6 +173,7 @@ tongues:
   eldervale:
     home: Eldervale in the Blackpine
     habits: "speaks with an old-fashioned formality; uses longer sentences than most; speaks of time in seasons and generations"
+    contracts: false      # (f714) speaks without contractions: stiff speech is theirs, never sent back
     words: {ithren: "friend, kin of the heart", saelo: "patience, slow time", velun: "a sorrow carried long", lith: "light, or a good omen"}
     offer: [ithren, saelo]
   hrimgard:
@@ -183,6 +184,7 @@ tongues:
   cinderhold:
     home: Cinderhold in the Ashen Reach
     habits: "speaks in a measured, formal way; addresses people by what they do; sometimes ends a sentence on a single hard word"
+    contracts: false      # (f714) speaks without contractions: stiff speech is theirs, never sent back
     words: {zharr: "a tended fire, a home", ashk: "ended, gone to ash", oru: "kin, the clan", drass: "proof, a thing tested in fire"}
     offer: [oru, ashk]
 

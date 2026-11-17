@@ -276,6 +276,7 @@ class QuirkActions:
         view = self.hire_view(m, q, brief_of=True)
         from engine import brief
         ctx = {"recent": lately, "member": m, "player": self.player.character.name, "must": must or [], "retell": retell, "silent_ok": quiet,
+               "uncontracted_ok": [] if voice_profile.contracts(m) else [""],     # (f714)
                "others": self.fellow_names(m), "said": heard if isinstance(heard, str) else "",                       # (f385)
                "gesture_state": quirks.gesture_state(m, self.gesturers(m)), "known": view.scene.known_words(),
                "given_also": view.town_lines}                                              # (f488) the town's list, for the checks, given or not

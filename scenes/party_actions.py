@@ -770,7 +770,8 @@ class PartyActions:
                    "others": self.fellow_names(m), "said": text,                                                   # (f385)
                    "gesture_state": quirks.gesture_state(m, self.gesturers(m)), "answer_to": answer_to, "known": view.scene.known_words(),
                    "given_also": view.town_lines,                                          # (f488) the town's list, for the checks, given or not
-                   "worn": self.worn_words("speech")}                                      # (f582) the words worn in speech, for the check as well
+                   "worn": self.worn_words("speech"),                                      # (f582) the words worn in speech, for the check as well
+                   "uncontracted_ok": [] if voice_profile.contracts(m) else [""]}   # (f714)
             try:
                 r = generate("hire_chat", ppr.TALK_SYSTEM,
                              ppr.talk_prompt(how, core, self.hire_relation(m), now, rules.pick_memories(m, text, day=self.minutes // 1440), list(recent), called, text,

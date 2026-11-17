@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 import config
+from engine.voice_profile import contracts as _contracts      # (f714)
 
 _FILLER = (r"(?:ok(?:ay)?|alright|all right|right|well|then|thanks|thank you|many thanks|much obliged|cheers|good|very well|i see|"
            r"i understand|understood|fair enough|fine|good to know|noted|anyway|and|so|now|again|friend|sir|ma'am|madam|miss|master|"
@@ -99,7 +100,9 @@ def line(ws, npc, text: str) -> tuple[str, str]:
     heard = list(getattr(ws, "_partings_heard", []))
     try:
         r = generate("npc_parting", PARTING_SYSTEM, request(ws, npc, text), Parting, temperature=0.9, max_tokens=config.PROSE_MAX_TOKENS, retries=2,
-                     validation_context={"known": known, "recent": list(npc.said[-6:]), "heard": heard}, relaxed_context={"known": known})
+                     validation_context={"known": known, "recent": list(npc.said[-6:]), "heard": heard,
+                                         "uncontracted_ok": [] if _contracts({"speech": npc.speech or {}}) else [""]},   # (f714)
+                     relaxed_context={"known": known})
         speech, gesture = r.speech.strip(), (r.gesture or "").strip()
     except LLMError:
         speech, gesture = voice_rules.written_parting(npc, ws.rng, list(npc.said) + heard, who=ws.acting), ""

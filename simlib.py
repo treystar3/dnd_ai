@@ -138,7 +138,7 @@ class Stub:
     def a_CompanionReply(self, u, k):
         if getattr(self, "companion", None):
             return self.companion(u)
-        return {"speech": "That is how it is with me.", "gesture": "", "remember": "", "impression": ""}
+        return {"speech": "Like that, mostly. Ask me again tomorrow.", "gesture": "", "remember": "", "impression": ""}
 
     def a_CanonCheck(self, u, k):
         if getattr(self, "canon", None):
@@ -183,7 +183,7 @@ class Stub:
         return {"personality": "Plain.", "voice": "Plain.", "concern": "A small worry.", "motive": motive}
 
     def a_NPCReply(self, u, k):
-        out = {"speech": "It is as it is.", "intent": "small_talk", **(getattr(self, "reply_extra", None) or {})}   # (f482) a test's planted words
+        out = {"speech": "Quiet enough, most days.", "intent": "small_talk", **(getattr(self, "reply_extra", None) or {})}   # (f482) a test's planted words
         if self.ask_help and "WORK YOU HAVE OFFERED" not in u:
             r = self.rng.random()
             if r < 0.5:
@@ -196,7 +196,7 @@ class Stub:
         """(f487) One block per character the format names, or what a test planted (many_extra: a list of blocks, as given)."""
         ids = (((k["format"].get("$defs") or {}).get("NPCAnswer") or {}).get("properties") or {}).get("to", {}).get("enum") or []
         blocks = getattr(self, "many_extra", None) or [{"to": t} for t in ids]
-        return {"speech": "It is as it is.", "intent": "small_talk", "answers": blocks}
+        return {"speech": "Quiet enough, most days.", "intent": "small_talk", "answers": blocks}
 
     def a_DialogueFrame(self, u, k):
         return {"before": "", "after": ""}

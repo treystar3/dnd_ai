@@ -1975,6 +1975,7 @@ class ExchangeLine(BaseModel):
 
 class Exchange(BaseModel):
     """People of the world talking to each other: who may speak, how many lines, and no facts that were not given."""
+    SPEAKS: ClassVar[bool] = True        # (f714) people talking: checked for stiff speech, as every REPLY is
     lines: list[ExchangeLine]
 
     def spoken(self):

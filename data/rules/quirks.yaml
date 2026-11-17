@@ -74,6 +74,7 @@ tongues:
   rime:
     home: the Rimelands of the far north
     habits: "now and then leaves out a small word before a noun, where English would want one; is precise and a little formal, and seldom uses contractions"
+    contracts: false      # (f714) speaks without contractions: stiff speech is theirs, never sent back
     sayings: ["A cold hearth makes a short night.", "Snow remembers every footstep.", "Only a fool counts the winter before it is over.", "The wolf that howls is not the one to fear."]
     words: {vesh: "little brother or little sister, said to someone they are fond of", hrimma: "bad luck, said under the breath", skal: "good, or well done", tor: "enough, stop"}
     offer: [vesh, hrimma, skal, tor]
@@ -81,6 +82,7 @@ tongues:
   sunscar:
     home: the Sunscar in the south
     habits: "uses no contractions and no slang; now and then picks the wrong small joining word, the way a learner does; sometimes checks they were understood; is warm and courteous, a little more formal than the moment needs"
+    contracts: false      # (f714) speaks without contractions: stiff speech is theirs, never sent back
     sayings: ["Shade is a gift you give the next traveller.", "The well does not ask who is thirsty.", "Sand in the bread is still bread."]
     words: {aziri: "friend, said warmly", kesh: "nonsense, said with a wave of the hand", haddim: "by the sun, an oath", sabr: "patience"}
     offer: [aziri, kesh, haddim, sabr]

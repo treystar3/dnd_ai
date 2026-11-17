@@ -220,6 +220,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
     plan = sampling.resolve(task, temperature)                  # (f515) the task's sampling, its ceiling and its shifts, once
     said = []                                   # (f447) the complaints so far: the same one twice running ends the tries
     phantom_sent = False                        # (f701) a passage sent back once already for a creature not here
+    stiff_sent = False                          # (f714) speech sent back once already for reading stiff
     transport = False                           # (f449) whether the call itself failed (a timeout, the server), as against every answer refused
     failure = ""                                # (f516) the last try's failure kind, '' when it was answered (and the answer refused)
     from engine import budget
@@ -337,6 +338,13 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
                             refusals.note("guarded", task, f"{cat}: {hit}")
                         except Exception:
                             pass
+            speaks = getattr(result, "REPLY", False) or getattr(result, "SPEAKS", False)        # (f714) a person's speech, never the world's prose
+            relaxed = bool((getattr(_tag, "fields", None) or {}).get("relaxed"))              # ...and never again on the looser last pass
+            if not reason and not stiff_sent and not relaxed and attempt < retries and speaks:   # stiff speech: sent back once,
+                from engine import budget, hygiene                                                      # only when the turn has room for it
+                easy = set((validation_context or {}).get("uncontracted_ok", ()))
+                if budget.room_for_passage() and any(hygiene.stiff_speech(text) for who, text in result.spoken() if who not in easy):
+                    reason, stiff_sent = hygiene.stiff_reason(), True
             if not reason:
                 _log(task, attempt, elapsed, messages, raw, None, usage, shape=form)
                 audit.record(task, attempt, elapsed, messages, raw, None, typed, config.MODEL)

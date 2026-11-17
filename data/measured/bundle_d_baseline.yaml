@@ -33,6 +33,13 @@
 #                 (2026-11-16, tools/latency.py --rekeep 0.1) f706: the act ruling is asked to name the kit goods and trifles an act
 #                 uses (the owner's Q34), a longer needs line in its prompt; the owner accepted the cost on 2026-11-16 ("Yes accept
 #                 it"). Set again at today's price: stub_short inputs 36
+#                 (2026-11-16, tools/latency.py --rekeep 9) f714: the owner accepted the cost on 2026-11-16 ('Accept the cost'): stiff
+#                 speech is sent back once for a reply in a person's own words, about 6 to 8.5 s a send-back on the measured card. Set
+#                 again at today's price: stub_short inputs 2, 3, 39, 40
+#                 (2026-11-16, tools/latency.py --retold stub_short --from 2) f714: the test stub's canned speech made ordinary ("Quiet
+#                 enough, most days." for "It is as it is.") so tests not about stiff speech see no send-back; the farmer's words change
+#                 from input 2 on, and the requests carrying them. Its 37 inputs from 2 on set to today's prices: kept over the limit,
+#                 plain inputs 33 (67.4 s), 35 (69.7 s), 37 (67.1 s)
 #   priced_at:    (f527) the speeds every estimate above was priced at, read tps, write tps and the embedder's seconds a text: the gate
 #                 (tools/latency.py gate, over_limit) prices today's goldens at these, whatever card_profile.yaml says now
 night: 'pod night 20261103_0520 at ed8fdf4, partial: four runs of 10 hours planned; the summoner (89 turns) and priest (204) stopped on two game
@@ -245,8 +252,8 @@ estimates:
   stub_short:
     0: 10.4
     1: 67.8
-    2: 33.1
-    3: 19.7
+    2: 30.9
+    3: 17.5
     6: 28.1
     7: 20.7
     8: 8.9

@@ -73,6 +73,22 @@ def prose_of(value, key: str = "") -> list[str]:
     return []
 
 
+_SP = H.get("speech") or {}
+_STIFF = re.compile(r"\b(?:" + "|".join(re.escape(w) for w in sorted(_SP.get("uncontracted", []), key=len, reverse=True)) + r")\b"
+                    + r"(?=\s+(?!(?:" + "|".join(re.escape(w) for w in _SP.get("not_after", [])) + r")\b)[A-Za-z])", re.I) \
+    if _SP.get("uncontracted") else None
+
+
+def stiff_speech(text: str) -> list[str]:
+    """(f714) The uncontracted pairs in one speaker's words when there are more of them than hygiene.yaml speech.most, else []."""
+    found = [m.group(0) for m in _STIFF.finditer(text or "")] if _STIFF else []
+    return found if len(found) > int(_SP.get("most", 1)) else []
+
+
+def stiff_reason() -> str:
+    return str(_SP.get("reason", ""))
+
+
 def problem(task: str, value) -> tuple[str, str]:
     """(kind, what was found) for the first thing in this answer's prose that is the machinery's, or ('', '')."""
     for t in prose_of(value):
@@ -329,6 +345,8 @@ def problems() -> list[str]:
     for k in ("mine_after", "mine_opens", "ruler_titles"):                    # (f693)
         if not (H.get("first_person_senses") or {}).get(k):
             bad.append(f"hygiene.yaml: needs first_person_senses.{k}")
+    if not (_SP.get("uncontracted") and isinstance(_SP.get("most"), int) and _SP.get("reason")):          # (f714)
+        bad.append("hygiene.yaml: needs speech.uncontracted, speech.most and speech.reason")
     for k in ("prose_fields", "narrator_tasks", "reasons"):
         if not H.get(k):
             bad.append(f"hygiene.yaml: needs {k}")
