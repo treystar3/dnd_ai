@@ -37,6 +37,14 @@ landmark_margin: 0.05      # never kept nearer either end of its road than this 
 landmark_scene_words: 2   # (f709) the words of what was seen there, besides its road's and its ends', that name a landmark
 # Who is there when the writer names nobody: someone in need, someone met on the way.
 stop_roles: {aid: wanderer, meeting: wanderer}
+# (f710, the owner 2026-11-16) A happening that bears on a matter and is rolled a sight is a meeting: what it shows is said by
+# someone, and a person met stops the walk (Q2). That person holds the matter's next clue. false: it stays a passing sight.
+matter_meets: true
+# (f710) A clue meant for another's lips (written in that holder's voice) held by someone met on the road: as heard, quoted and
+# said whose it is, never as their own words. {who}: the role it was meant for, with its article, or "someone".
+heard_clue: "Something heard from {who}: \"{text}\""
+# (f710) What the road's writer is told of a sight: seen in passing, nobody in it met.
+sight_must: ". A sight seen from the road in passing: no one in it is met or spoken with, and the walk goes on"
 
 # Bandits. Roads draw them more than the wilds do, a world event about bandits makes them the ambushers, and a rare
 # ambush may be a camp. Outlaws avoid anyone who far outlevels the road: they judge the odds, and let you pass.

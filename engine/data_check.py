@@ -554,6 +554,11 @@ def check() -> list[str]:
     need(isinstance(RD_.get("landmarks_kept"), int) and RD_["landmarks_kept"] > 0
          and isinstance(RD_.get("landmark_margin"), (int, float)) and 0 <= RD_["landmark_margin"] < 0.5,
          "road.yaml: landmarks_kept, a count above 0, and landmark_margin, a share under a half (f702)")
+    need(isinstance(RD_.get("matter_meets"), bool) and "meeting" in (RD_.get("stop_roles") or {}) and "meeting" in RD_.get("stops", []),
+         "road.yaml: matter_meets, true or false, with a meeting that stops the walk and a role for it (f710)")
+    need(isinstance(RD_.get("heard_clue"), str) and "{who}" in RD_["heard_clue"] and "{text}" in RD_["heard_clue"]
+         and isinstance(RD_.get("sight_must"), str) and RD_["sight_must"].strip(),
+         "road.yaml: heard_clue with {who} and {text}, and sight_must, the words a sight's writer is told (f710)")
     need(isinstance(RD_.get("landmark_scene_words"), int) and RD_["landmark_scene_words"] >= 2,
          "road.yaml: landmark_scene_words, a count of 2 or more (f709: one shared word names nothing)")
     need(isinstance(RD_.get("ambush_above"), int) and not isinstance(RD_.get("ambush_above"), bool) and RD_["ambush_above"] >= 0,

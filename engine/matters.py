@@ -109,9 +109,10 @@ def _bind_holders(store, world, th: dict) -> None:
             hold(store, th, i, c["npc"], t)                  # (f483) what they know of it is theirs
 
 
-def hold(store, th: dict, i: int, nid: str, t: int) -> None:
+def hold(store, th: dict, i: int, nid: str, t: int, text: str = "", source: str = "self") -> None:
     """(f483) The clue is this person's to know: a knows row about thread:<id>:<n>, in its words, from themselves, held. Written once;
-    it stays among what they know after the matter is over and gone from the world's record."""
+    it stays among what they know after the matter is over and gone from the world's record. (f710) `text` and `source`: a clue
+    held second-hand, in words that say whose it is, source "heard" (not from themselves, nor from a person known by id)."""
     from engine import clock, memory
     if not nid or not store.npc_exists(nid) or i >= len(th.get("clues") or []):
         return
@@ -119,7 +120,7 @@ def hold(store, th: dict, i: int, nid: str, t: int) -> None:
     if any(r["kind"] == "knows" and r["about"] == about for r in memory.records(store, nid)):
         return
     n = store.load_npc(nid)
-    memory.keep(n, th["clues"][i]["text"], day=clock.day(t), turn=-1, kind="knows", subject="", importance=2, source="self", about=about,
+    memory.keep(n, text or th["clues"][i]["text"], day=clock.day(t), turn=-1, kind="knows", subject="", importance=2, source=source, about=about,
                 minute=int(t), state="held")
     store.save_npc(n)
 
@@ -449,6 +450,11 @@ def road_matter(ws, a: str, b: str, rng: random.Random):
     clue = next((c for c in th["clues"] if not c["found"] and not c.get("destroyed")), None)   # (f547's fifth review) never one destroyed
     kill = next((p["target"] for p in th.get("paths", []) if p["kind"] == "kill" and not p["done"] and p["target"] in ws.world.bestiary), "")
     return th, (clue["text"] if clue else th["stages"][th["stage"]]["description"]), kill
+
+
+def next_clue(th: dict) -> int | None:
+    """(f710) The index of the matter's first clue not yet found nor destroyed, or None."""
+    return next((i for i, c in enumerate(th.get("clues") or []) if not c.get("found") and not c.get("destroyed")), None)
 
 
 def road_lines(th: dict, clue: str, hostile: bool) -> str:

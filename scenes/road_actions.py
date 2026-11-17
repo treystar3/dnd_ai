@@ -24,6 +24,7 @@ STOP_MUST = {
     "aid": ". Someone here needs help (meets_role is who they are): the scene shows them and what they need, and ends before the player "
            "does or says anything: whether to help is the player's",
     "meeting": ". Someone is here (meets_role is who they are): the scene shows them, and ends before the player answers",
+    "sight": R["sight_must"],                                                                  # (f710) seen, nobody met
 }
 
 
@@ -345,6 +346,8 @@ class RoadActions:
         if not hostile and not deterred:                     # (f411) the engine picks the kind, so they vary
             kinds = R.get("kinds") or {"find": 1, "meeting": 1, "sight": 1, "hazard": 1, "aid": 1}
             kind = self.rng.choices(list(kinds), weights=list(kinds.values()))[0]
+            if kind == "sight" and matter and R["matter_meets"]:
+                kind = "meeting"                             # (f710) what a matter shows is said by someone: a person met (Q2)
             must += f". KIND: {kind}"
             if kind == "find":                               # (f406) what a find gives is rolled first, and the scene shows that thing
                 prize = self.road_prize(tier, a, b)          # (f427) lying there: whether to take it is the player's
@@ -392,6 +395,8 @@ class RoadActions:
             self.player.road = stop
             self.ensure_road_place()
             self.enter(stop["id"])
+            if matter and not hostile and role:
+                self.hold_road_clue(matter[0]["id"], role, stop["id"])     # (f710) the one met there knows the matter's next clue
             if hostile:
                 creature, enemies = hit
                 if creature.temperament == "territorial" or self.sees_far():
@@ -413,6 +418,27 @@ class RoadActions:
             self.show_exits()
             return "stopped"
         return "go"
+
+    def hold_road_clue(self, th_id: str, role: str, at: str) -> None:
+        """(f710) Anyone met at a stop a matter's happening made holds that matter's next unfound clue, theirs to tell (f483): in its own
+        words when it was meant for one of their trade or for no one, else (another trade's, or a particular person's: a situation's
+        evidence names its speaker in npc) as heard, quoted and said whose it is (road.yaml heard_clue),
+        never another's words as their own. Not bound to them: walking on, they go with the stop, and it stays findable in town."""
+        from engine import matters
+        th = next((t for t in (self.store.load_world_state() or {}).get("threads", []) if t["id"] == th_id), None)
+        i = matters.next_clue(th) if th else None
+        who = next((n.id for n in self.present if n.role == role and n.location == at), "")
+        if i is None or not who:
+            return
+        c = th["clues"][i]
+        person = next((x for x in (c.get("holder", ""), c.get("npc", "")) if x and self.store.npc_exists(x)), "")
+        meant = self.store.load_npc(person).role if person else c.get("holder", "")
+        if not person and (not meant or meant == role):
+            matters.hold(self.store, th, i, who, self.minutes)          # meant for one of their trade, or for no one: theirs to say
+            return
+        trade = meant.replace("_", " ") if meant in self.world.roles else ""
+        said = R["heard_clue"].format(who=f"{'an' if trade[:1] in 'aeiou' else 'a'} {trade}" if trade else "someone", text=c["text"].strip())
+        matters.hold(self.store, th, i, who, self.minutes, text=said, source="heard")     # a particular person's words, or another trade's
 
     # ---------- (f702) a sight passed on the road, kept where it was seen ----------
 
