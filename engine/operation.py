@@ -43,6 +43,7 @@ class Operation:
     actor: str = ""                 # (f629) the character whose entry opened it (engine/actor.py who); "" when none was bound
     did: list = field(default_factory=list)        # (f644) what it did, in the player's terms, said as it ran; kept for the line, not saved
     speech: bool = False            # (f644) it did not stand because someone's spoken words could not be written
+    aim: str = ""                   # (f715) what its step set out to do, as a clause ("speak with the clerk"), named if it did not stand
 
     def record(self) -> dict:
         """What the save keeps of it: no lines (they are the presentation entry's) and no state (a record is a commit)."""

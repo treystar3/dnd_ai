@@ -70,6 +70,8 @@ ability_aiming: ["at", "on", "upon", "against", "toward", "towards", "into"]
 # the room or bed ("take a room", "get a bed for the night"); one named and not asked for ("the common room", "a bed of straw", "make
 # room") or said with a no ("I don't want a room") buys none.
 room_words: "\\b(?:take|takes|taking|took|get|gets|getting|rent|rents|renting|book|books|booking|hire|pay\\s+for|paying\\s+for|ask\\s+for|asking\\s+for|want|need)\\s+(?:(?:us|me|them)\\s+)?(?:(?:a|an|the|our|my|two|three|some|their)\\s+)?(?:\\w+\\s+)?(?:rooms?|beds?|lodgings?)\\b"
+camp_words: "\\b(?:make|makes|making|set|sets|setting|pitch|pitches|pitching|build|builds|building)\\s+(?:up\\s+)?(?:a\\s+|our\\s+|my\\s+|the\\s+|some\\s+)?(?:small\\s+|rough\\s+|quick\\s+)?(?:camp|tents?|shelter)\\b|\\b(?:we|i|let's|let\\s+us)(?:\\s+will|'ll|\\s+can|\\s+should|\\s+shall)?\\s+camp\\b|^\\s*camp\\b|\\b(?:rest|sleep|stop|stay)\\s+in\\s+camp\\b"     # (f716) a line that asks to make camp
+camp_refused: "\\b(?:not|no|never|without|cannot|can't|don't|won't|didn't|instead\\s+of)\\s+(?:[\\w']+\\s+){0,2}?(?:make|making|set|setting|pitch|pitching|build|building|camp|camping|tents?)\\b|\\?\\s*$"     # (f716) ...and does not say no to one, or ask
 room_refused: "\\b(?:not|no|never|without|cannot|can't|don't|won't|didn't)\\b[^.;,]*\\b(?:rooms?|beds?|lodgings?)\\b"
 rest_words: "\\b(go to sleep|fall asleep|sleep|sleeping|nap|lie down|lay down|bed down|get some rest|get some sleep|turn in for the night|rest my eyes)\\b"
 

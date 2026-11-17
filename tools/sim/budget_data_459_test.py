@@ -56,7 +56,7 @@ draws = [failures.stood_lines([{"kind": "found", "facts": {"what": "a cache"}}],
 check("...and never the same line twice running", all(a != b for a, b in zip(draws, draws[1:])), draws[:4])
 v = failures.victory_stood({"xp": "40"}, rng)
 check("part_stood names what stood; shown_later, round_stood and goddess_silent stand alone; victory_stood takes the win's facts",
-      "the herbs bought" in failures.part_stood("the herbs bought", rng) and failures.shown_later(rng) in F["shown_later"] and failures.round_stood(rng) in F["round_stood"]
+      "looked around" in failures.part_stood("looked around", "speak with the clerk", rng) and failures.shown_later(rng) in F["shown_later"] and failures.round_stood(rng) in F["round_stood"]
       and failures.goddess_silent(rng) in F["goddess_silent"] and ("40" in v or v in F["victory_stood"]) and "{" not in v, v)
 d = copy.deepcopy(F)
 d["stood"]["gained"] = d["stood"]["gained"][:5] + ["{item} is yours."]

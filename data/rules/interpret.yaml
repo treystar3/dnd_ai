@@ -25,6 +25,15 @@ generic_words: [the, of, and, hall, house, guild, guildhall, inn, shop, temple, 
 # the Mill Road down to the river with Hollis" shares "down" and "with" with any scene, and names no thing in it).
 # (f713) Words by which a line points back at the question it follows ("I go there", "I'll take the far one"): such a line answers
 # the question and is read with the line it is about, even when it opens on a deed of the player's own.
+# (f715) First words that make an improvised act's summary a sentence about someone, not the act itself ("The player climbs");
+# a name of the party or of the people present does the same.
+not_act_openers: [the, a, an, player, players, character, he, she, they, it, someone, everyone]
+# (f715) Words an improvised act's summary may open on before the act itself ("try to climb"): dropped.
+act_lead_ins: [try to, tries to, tried to, trying to, attempt to, attempts to, attempted to]
+# (f715) The player's own words in an act's summary, as the game says them back to the player.
+act_person_swap: {i: you, me: you, my: your, mine: yours, myself: yourself, we: you, us: you, our: your, ours: yours, ourselves: yourselves}
+# (f715) A first word that makes the summary no clause after "to": a third person verb ("climbs") or a gerund ("leaning").
+not_act_first: "^[a-z]*[^su']s$|^[a-z]{2,}ing$"
 answer_back_words: [there, that way, this way, that one, this one, the one, the other, the far one, the near one, either, both, it,
                     them, him, her, "yes", "no"]
 function_words: [with, from, into, onto, down, over, back, toward, towards, there, where, here, under, along, upon, about, above, below,

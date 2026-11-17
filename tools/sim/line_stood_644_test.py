@@ -44,9 +44,9 @@ NAME = "line_stood_644"
 UNSAID = ["No reply came to that, and so it was not done; nothing was spent.", "The words that should have met that never came; all is as it was.",
           "That waited on a reply, and none came; nothing was given or taken.", "It did not take: no words came back for it, and nothing was paid.",
           "No word came back, so the moment was let go whole; nothing of yours was spent.", "The reply to that was lost, and the deed with it; all you had is yours."]
-check("the data holds no line for a reply that did not come and no phrase for a walk until the owner has read them",
-      "reply_not_come" not in F and "walked" not in F and not failures.problems(), sorted(F)[:40])
-F["reply_not_come"], F["walked"] = list(UNSAID), "the walk to {where}"
+check("the data holds no line for a reply that did not come until the owner has read them, and the walk's phrase the owner read (f715)",
+      "reply_not_come" not in F and F.get("walked") == "walked to {where}" and not failures.problems(), sorted(F)[:40])
+F["reply_not_come"] = list(UNSAID)
 import nightrun
 real = simlib.below()
 FAIL = {"titles": set()}
@@ -175,14 +175,14 @@ check("a contract handed in whose reply fails: the line stood in part, the pay a
       a["stood"] == "part" and paid > 0 and not a["now"]["quests"] and "action:handin" in a["kinds"] and a["failed"] == ["action:talk"]
       and "NPCReply" in a["asked"], (a["stood"], paid, a["kinds"], a["failed"]))
 check("...and the player reads that the hand-in stood, by the contract's name and what it paid",
-      names(a, "Hunt 3 wolves in the Greywood", money.words(paid), never=(SAY["summary"],)), a["read"][-3:])
+      names(a, "Hunt 3 wolves in the Greywood", money.words(paid), never=(SAY["summary"], "spoke with")), a["read"][-3:])
 check("...never 'the first of it', and never that nothing happened", not any("the first of it" in t for t in a["read"]) and a["nothing"] is None, a["read"][-3:])
 
 # ---- as in play: a deed first, then the hand-in, then the reply fails. Both are named, in order
 owed("Hunt 3 boars by the mill", "boar")
 b = typed('I look around the hall and say, "The boars are dead."', [dict(LOOK), dict(SAY, speech="The boars are dead.")], fail={"NPCReply"})
 check("a deed, then a hand-in whose reply fails: both are named, the deed first, and the talk that did not stand is not",
-      b["stood"] == "part" and names(b, LOOK["summary"], "Hunt 3 boars by the mill", money.words(b["now"]["coins"] - b["was"]["coins"]), never=(SAY["summary"],)),
+      b["stood"] == "part" and names(b, "looked around", "Hunt 3 boars by the mill", money.words(b["now"]["coins"] - b["was"]["coins"]), never=(SAY["summary"], "spoke with")),
       (b["stood"], b["read"][-3:]))
 
 # ---- three deeds: the line names what stood, in order, and nothing of what did not
@@ -195,9 +195,9 @@ second = typed("I look around, search the benches, then wait a while.", [dict(LO
 third = typed("I look around, wait a while, then search the benches.", [dict(LOOK), dict(WAIT), dict(SEARCH)])
 del ws.on_search
 check("three deeds failing at the second: the first is named, and neither the one that failed nor the one never begun",
-      second["stood"] == "part" and second["part"] is not None and second["part"][1] == LOOK["summary"], (second["stood"], second["part"]))
+      second["stood"] == "part" and second["part"] is not None and second["part"][1] == "looked around", (second["stood"], second["part"]))     # (f715) clauses
 check("three deeds failing at the third: the first two are named, in order, and the third is not",
-      third["stood"] == "part" and third["part"] is not None and third["part"][1] == f"{LOOK['summary']}; {WAIT['summary']}", (third["stood"], third["part"]))
+      third["stood"] == "part" and third["part"] is not None and third["part"][1] == "looked around, then waited a while", (third["stood"], third["part"]))
 
 # ---- a step the game said no to: told by its refusal, not named as done
 def refusing(intent, text):
@@ -288,7 +288,7 @@ for name, rec in (("a line that could not be read", unread), ("a first deed whos
 
 # ---- a line that stands whole says none of it
 whole = typed("I look around once more.", [dict(LOOK)])
-check("a line that stands whole reads no stand-in for what stood or did not", whole["stood"] == "all" and ws.line_stood() == [LOOK["summary"]]
+check("a line that stands whole reads no stand-in for what stood or did not", whole["stood"] == "all" and ws.line_stood() == ["looked around"]
       and whole["nothing"] is None and whole["part"] is None, (whole["stood"], ws.line_stood(), whole["read"][-2:]))
 plain = typed("I take my leave of the talk.", [{"kind": "leave_conversation"}])
 check("a step with no summary of its own is named in words, never by the engine's name for it", not any("_" in d for d in ws.line_stood()), ws.line_stood())

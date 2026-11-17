@@ -45,6 +45,11 @@ def is_rest(words: str) -> bool:
     return bool(re.search(W["rest_words"], words or "", re.I))
 
 
+def asks_camp(words: str) -> bool:
+    """(f716) A line that asks to make camp for its sleep."""
+    return bool(re.search(W["camp_words"], words or "", re.I)) and not re.search(W["camp_refused"], words or "", re.I)
+
+
 def asks_room(words: str) -> bool:
     """(f695) A line that asks to take a room or a bed to sleep in, and does not say no to one."""
     return bool(re.search(W["room_words"], words or "", re.I)) and not re.search(W["room_refused"], words or "", re.I)

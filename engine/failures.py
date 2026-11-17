@@ -59,9 +59,9 @@ def lines() -> list[str]:
 
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
 DASH = re.compile(r"\u2014|\u2013|--| - ")
-FACTS = {"what": "a bundle of herbs", "who": "the smith", "amount": "12 copper", "done": "the herbs bought", "xp": "40", "coins": "9 copper",
+FACTS = {"what": "a bundle of herbs", "who": "the smith", "amount": "12 copper", "done": "looked around", "missed": "speak with the clerk", "xp": "40", "coins": "9 copper",
          "fallen": "the wolf", "found": "a worn knife", "foe": "wolf", "count": "two of them"}   # sample facts the startup check fills every template with
-STAND_INS = {"stood_any": set(), "part_stood": {"done"}, "shown_later": set(), "round_stood": set(),
+STAND_INS = {"stood_any": set(), "part_stood": {"done", "missed"}, "shown_later": set(), "round_stood": set(),
              "victory_stood": {"xp", "coins", "fallen", "found"}, "goddess_silent": set(),
              "fight_begun": {"foe", "count"}, "fight_let_go": set()}     # the placeholders each list may use; (f498) a fight's opening untold;
 #                                                                           (f507) a saved fight this game could not take up again
@@ -97,10 +97,62 @@ def stood_any(rng: random.Random | None = None) -> str:
     return _fill("stood_any", F["stood_any"], {}, rng)
 
 
-def part_stood(done: str, rng: random.Random | None = None) -> str:
-    """The line for a typed line of several actions of which some stood and a later one did not: `done` names what stood."""
-    return _fill("part_stood", F["part_stood"], {"done": done}, rng)
+def part_stood(done: str, missed: str, rng: random.Random | None = None) -> str:
+    """(f463, f715) A line that stood in part: what stood, then what did not, each as clauses after "you"."""
+    return _fill("part_stood", F["part_stood"], {"done": done, "missed": missed}, rng)
 
+
+def done_clause(kind: str, facts: dict) -> str:
+    """(f715) What a step of this kind did, as a clause after "you" ("spoke with the clerk"), from failures.yaml done."""
+    return _clause("done", kind, facts)
+
+
+def missed_clause(kind: str, facts: dict) -> str:
+    """(f715) What a step of this kind set out to do, as a clause ("speak with the clerk"), from failures.yaml missed; the default when
+    its kind has none or a fact it needs is missing."""
+    return _clause("missed", kind, facts)
+
+
+CLAUSE_FACTS = {"who", "where", "what", "act"}       # (f715) what a step's clause may name
+
+
+def _clause(table: str, kind: str, facts: dict) -> str:
+    """(f715) The fullest of this kind's clauses whose facts are known, else its plainer one, else the table's default."""
+    M = F.get(table) or {}
+    facts = {k: str(v) for k, v in (facts or {}).items() if v not in (None, "")}
+    for tpl in list(M.get(kind) or []) + list(M.get("default") or []):
+        if _placeholders(tpl) <= set(facts):
+            return tpl.format_map(facts)
+    return ""
+
+
+def clause_problems() -> list[str]:
+    """(f715) Every action kind has a clause in done and missed, each list ending in one that needs no fact, naming only what a step
+    knows, with no dash; and a default."""
+    from engine.actions import BY_KIND
+    bad = []
+    for table in ("done", "missed"):
+        M = F.get(table)
+        if not isinstance(M, dict):
+            bad.append(f"failures.yaml {table}: needs a clause for every kind of action")
+            continue
+        for kind in sorted(set(BY_KIND) - set(M)):
+            bad.append(f"failures.yaml {table}.{kind}: no clause for this kind of action")
+        for kind in sorted(set(M) - set(BY_KIND) - {"default"}):
+            bad.append(f"failures.yaml {table}.{kind}: no such kind of action")
+        for kind, lines_ in M.items():
+            if not isinstance(lines_, list) or not lines_ or not all(isinstance(l, str) and l.strip() for l in lines_):
+                bad.append(f"failures.yaml {table}.{kind}: a list of clauses")
+                continue
+            for l in lines_:
+                if not _placeholders(l) <= CLAUSE_FACTS:
+                    bad.append(f"failures.yaml {table}.{kind}: '{l}' names what a step does not know")
+                if DASH.search(l):
+                    bad.append(f"failures.yaml {table}.{kind}: '{l}' has a dash")
+        for kind, lines_ in M.items():
+            if isinstance(lines_, list) and lines_ and isinstance(lines_[-1], str) and _placeholders(lines_[-1]):
+                bad.append(f"failures.yaml {table}.{kind}: its last clause must name nothing, for a step whose facts are unknown")
+    return bad
 
 def shown_later(rng: random.Random | None = None) -> str:
     """Before an outcome shown on the next load, once: it happened before the game closed and was never told."""

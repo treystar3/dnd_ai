@@ -148,8 +148,9 @@ RAISED = {                 # {file: (how many more, "fNNN: the guard it adds ove
     "scenes/plan_repairs.py": (1, "f683: a social act said of the player's own deed, outside what they say aloud ('I try to persuade him: ...'), "
                                   "read once for the check a talk rolls"),
     "engine/intent_audit.py": (1, "f699: the line's own words, read once, for what a longer correction may add (a step the words name)"),
-    "engine/world_improv.py": (2, "f695: a sleep whose line asks to take a room or a bed, and does not say no to one, read once for "
-                                  "the room taken before it"),
+    "engine/world_improv.py": (4, "f695: a sleep whose line asks to take a room or a bed, and does not say no to one, read once for "
+                                  "the room taken before it; f716: a line in the wilds that asks to make camp, and does not say no to one, "
+                                  "read once for the camp made first"),
     "engine/candidates.py": (1, "f713: whether a line after a question points back at it ('I go there', 'the far one'), read once to keep an answer with its question"),
     "scenes/road_actions.py": (1, "f709: where a way out says it goes (after to / toward / for / at), read once for a thing kept on its road"),
     "scenes/guild_actions.py": (1, "f691: the listener a hand-in's line names by name, kept as the one handed to (else the one who pays)"),

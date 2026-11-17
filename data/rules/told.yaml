@@ -67,6 +67,13 @@ arc_contact:         # (f679) an arc's step at a place: who there should know mo
   - "Someone in {place} should know more: {who}."
   - "In {place}, {who} is the one to ask."
   - "Try {who}, in {place}."
+camp_made:           # (f716) a plain camp made for the night's sleep, in the wilds
+  - "You clear a spot and make camp."
+  - "You find a level patch of ground and make camp there."
+  - "You get a small camp together."
+  - "You set your packs down and make camp."
+  - "You pick a spot and set up camp."
+  - "You put together a rough camp."
 at_hall:             # (f666) a party act done only at a guild hall, before its clerk, asked for elsewhere
   - "{act} is done at a guild hall, in front of the clerk."
   - "{act} is guild business. Find a hall with its clerk at the desk."

@@ -210,6 +210,14 @@ pass_without_trace:              # (f247) an exploration buff: a lasting state f
 shelter:
   lasts_minutes: 720             # the camp holds this long, while you stay in the same spot
 
+# (f716, the owner 2026-11-16, option A) A plain camp anyone can make in the wilds, asked for with the night's sleep: it takes `minutes`,
+# gives the full night's rest, and while asleep in it the chance of being found is `share` of the open ground's (a shelter
+# ability's camp is the better one: nothing finds it). For the balance pass to tune.
+plain_camp:
+  minutes: 60
+  share: 0.5
+  lasts_minutes: 720             # it holds this long, while you stay in the same spot
+
 scout:
   light_minutes: 120             # a scouting spell that makes light holds for this long in a dark dungeon
 

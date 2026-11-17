@@ -559,6 +559,15 @@ def check() -> list[str]:
     need(isinstance(RD_.get("heard_clue"), str) and "{who}" in RD_["heard_clue"] and "{text}" in RD_["heard_clue"]
          and isinstance(RD_.get("sight_must"), str) and RD_["sight_must"].strip(),
          "road.yaml: heard_clue with {who} and {text}, and sight_must, the words a sight's writer is told (f710)")
+    from engine import failures as _fl
+    for _p in _fl.clause_problems():                                         # (f715)
+        need(False, _p)
+    from engine.field import F as _FF
+    from engine import world_improv as _WI
+    _pc = _FF.get("plain_camp") or {}
+    need(isinstance(_pc.get("minutes"), int) and _pc["minutes"] >= 0 and isinstance(_pc.get("share"), (int, float)) and 0 <= _pc["share"] <= 1
+         and isinstance(_pc.get("lasts_minutes"), int) and _pc["lasts_minutes"] > 0 and bool(_WI.W.get("camp_words")) and bool(_WI.W.get("camp_refused")),
+         "field.yaml plain_camp: minutes, share (0 to 1) and lasts_minutes; improv.yaml camp_words and camp_refused (f716)")
     need(isinstance(RD_.get("landmark_scene_words"), int) and RD_["landmark_scene_words"] >= 2,
          "road.yaml: landmark_scene_words, a count of 2 or more (f709: one shared word names nothing)")
     need(isinstance(RD_.get("ambush_above"), int) and not isinstance(RD_.get("ambush_above"), bool) and RD_["ambush_above"] >= 0,
@@ -660,7 +669,7 @@ def check() -> list[str]:
         need(False, p_)
     from engine import candidates as _cd
     need({"most_places", "places_by_meaning", "place_floor", "most_people", "people_by_meaning", "person_floor", "about_floor", "about", "always_if_short",
-          "generic_words", "function_words", "answer_back_words", "named_town_types", "nearest_of_kind"} <= set(_cd.I) and set(_cd.I["about"]) == {"wares", "abilities", "pack", "recipes", "buyers", "stash"},
+          "generic_words", "function_words", "answer_back_words", "not_act_openers", "act_lead_ins", "act_person_swap", "not_act_first", "named_town_types", "nearest_of_kind"} <= set(_cd.I) and set(_cd.I["about"]) == {"wares", "abilities", "pack", "recipes", "buyers", "stash"},
          "interpret.yaml: needs the counts and floors, an 'about' sentence for wares, abilities, pack, recipes, buyers and stash, generic_words, function_words, named_town_types")
     need(all(isinstance(w, str) and len(w) >= 4 and w == w.lower() for w in _cd.I.get("function_words", [])),
          "interpret.yaml: function_words are lower case words of four letters or more (f709: shorter ones never count)")

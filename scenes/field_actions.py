@@ -124,13 +124,30 @@ class FieldActionsBase:
     # ---------- shelter ----------
 
     def camp_pos(self):
-        dv = self.player.delve
+        dv = self.player_of(self.acting).delve
         return [dv["floor"], dv["chamber"]] if dv else None
 
     def camp_active(self) -> bool:
         camp = self.fld.get("camp")
-        return bool(camp and camp["loc"] == self.player.location and camp["until"] > self.minutes
+        return bool(camp and camp["loc"] == self.player_of(self.acting).location and camp["until"] > self.minutes
                     and camp["pos"] == self.camp_pos())
+
+    def plain_camp(self) -> dict:
+        """(f716) The plain camp's numbers (field.yaml plain_camp)."""
+        return dict(F.get("plain_camp") or {})
+
+    def make_plain_camp(self) -> None:
+        """(f716) A plain camp, made for the night's sleep in the wilds: its time, told; the full night's rest, found less often."""
+        self.advance(int(self.plain_camp()["minutes"]))
+        self.fld["camp"] = {"loc": self.player_of(self.acting).location, "pos": self.camp_pos(), "until": self.minutes + int(self.plain_camp()["lasts_minutes"]),
+                            "plain": True}
+        self.told("camp_made")
+
+    def camp_asked(self, text: str) -> bool:
+        """(f716) The line asks to make camp here: the wilds, no delve, no room held, no camp standing."""
+        from engine import world_improv
+        return bool(self.place.danger and not self.player_of(self.acting).delve and not self.has_room() and not self.camp_active()
+                    and world_improv.asks_camp(text))
 
     def field_shelter(self, ability, intent, text: str) -> str | None:
         self.advance(15)

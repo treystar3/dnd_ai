@@ -196,13 +196,108 @@ stood:
     - "You never got as far as {what}."
     - "Still to do: {what}."
 # A line of several actions in which some committed and a later one did not (decision 13): what stood is named in {done}.
+# (f715) A line that stood in part: what stood, as finished clauses ({done}: "walked to the guild hall and handed in the contract
+# 'Bounty: ...' and were paid 27 silver"), then what did not, as the clause its step set out to do ({missed}: "speak with the clerk");
+# never "the rest", never a pasted summary.
 part_stood:
-  - "You got as far as {done}. The rest didn't happen."
-  - "Part of it worked: {done}. The rest didn't."
-  - "Only {done} happened. Try the rest again."
-  - "You managed {done}, and no more."
-  - "You did {done}, but not the rest. Say it again if you still want it."
-  - "You stopped after {done}."
+  - "You {done}, but you never got to {missed}."
+  - "You {done}. You didn't get to {missed}."
+  - "You {done}, but that's as far as it went. You never got to {missed}."
+  - "You {done}, and that was all. You didn't {missed}."
+  - "You {done}, but you didn't manage to {missed}. Try that part again."
+  - "You {done}. You didn't {missed}. Say it again if you still want to."
+# (f644, f715) What a walk did, as a clause after "you" (the owner read it in docs/design/25_speech_parts_camp.md).
+walked: "walked to {where}"
+# (f715) What a step did, as a clause after "you", by its kind: the fullest form whose facts are known ({who} as the player
+# knows them, {where} a place, {what} a thing, {act} an improvised act's own words), else a plainer one; every kind has a line
+# (data_check), default for one the table does not know.
+done:
+  move: ["went to {where}", "set off"]
+  explore: ["explored {where}", "went exploring"]
+  look: ["looked around"]
+  search: ["searched for {what}", "searched {where}", "searched the place"]
+  talk: ["spoke with {who}", "spoke up"]
+  leave_conversation: ["took your leave"]
+  buy: ["bought {what}", "made your purchase"]
+  sell: ["sold {what}", "made your sale"]
+  ability: ["used {what}", "used your ability"]
+  use: ["used {what}", "used what you had"]
+  drop: ["dropped {what}", "put it down"]
+  pick_up: ["picked up {what}", "picked it up"]
+  give: ["gave {what} to {who}", "gave {what}", "handed it over"]
+  show: ["showed {what} to {who}", "showed {what}", "showed it"]
+  discard: ["got rid of {what}", "got rid of it"]
+  store: ["put {what} away", "put it away"]
+  retrieve: ["took out {what}", "took it out"]
+  equip: ["put on {what}", "changed your gear"]
+  forage: ["foraged for {what}", "foraged"]
+  craft: ["made {what}", "set to work"]
+  work: ["did the work for {who}", "did the work"]
+  harvest: ["took what you could from {what}", "took what you could"]
+  join_guild: ["joined the guild"]
+  board: ["looked over the board"]
+  accept_quest: ["took on {what}", "took on the job"]
+  abandon_quest: ["gave up {what}", "gave up the job"]
+  train: ["trained with {who}", "trained"]
+  learn_ability: ["learned {what}", "learned something new"]
+  delve: ["went down into {where}", "went down"]
+  leave_dungeon: ["climbed back out"]
+  commission: ["ordered {what} from {who}", "put in an order"]
+  wait: ["waited a while"]
+  attack: ["attacked {who}", "attacked"]
+  release: ["let {who} go", "let them go"]
+  hand_over: ["handed {who} over", "handed them over"]
+  steal: ["took {what}", "took what you wanted"]
+  unlock: ["opened {what}", "got it open"]
+  pray: ["prayed"]
+  gamble: ["gambled"]
+  haggle: ["haggled with {who}", "haggled"]
+  other: ["tried to {act}", "tried something of your own"]
+  default: ["did what you set out to"]
+# (f715) What a step set out to do, as a clause after "you never got to", by its kind, as above.
+missed:
+  move: ["go to {where}", "set off"]
+  explore: ["explore {where}", "go exploring"]
+  look: ["look around"]
+  search: ["search for {what}", "search {where}", "search the place"]
+  talk: ["speak with {who}", "say your piece"]
+  leave_conversation: ["take your leave"]
+  buy: ["buy {what}", "make your purchase"]
+  sell: ["sell {what}", "make your sale"]
+  ability: ["use {what}", "use your ability"]
+  use: ["use {what}", "use it"]
+  drop: ["drop {what}", "put it down"]
+  pick_up: ["pick up {what}", "pick it up"]
+  give: ["give {what} to {who}", "give {what}", "hand it over"]
+  show: ["show {what} to {who}", "show {what}", "show it"]
+  discard: ["get rid of {what}", "get rid of it"]
+  store: ["put {what} away", "put it away"]
+  retrieve: ["take out {what}", "take it out"]
+  equip: ["put on {what}", "change your gear"]
+  forage: ["forage for {what}", "forage"]
+  craft: ["make {what}", "finish the work"]
+  work: ["do the work for {who}", "do the work"]
+  harvest: ["take what you could from {what}", "take what you could"]
+  join_guild: ["join the guild"]
+  board: ["look over the board"]
+  accept_quest: ["take on {what}", "take on the job"]
+  abandon_quest: ["give up {what}", "give up the job"]
+  train: ["train with {who}", "train"]
+  learn_ability: ["learn {what}", "learn it"]
+  delve: ["go down into {where}", "go down"]
+  leave_dungeon: ["climb back out"]
+  commission: ["order {what} from {who}", "put in an order"]
+  wait: ["wait a while"]
+  attack: ["attack {who}", "attack"]
+  release: ["let {who} go", "let them go"]
+  hand_over: ["hand {who} over", "hand them over"]
+  steal: ["take {what}", "take what you wanted"]
+  unlock: ["open {what}", "get it open"]
+  pray: ["pray"]
+  gamble: ["gamble"]
+  haggle: ["haggle with {who}", "haggle"]
+  other: ["{act}", "try what you had in mind"]
+  default: ["finish what you set out to do"]
 # An outcome that committed but was never shown before the game closed (decision 8): told once on the next load, before its lines.
 shown_later:
   - "To pick up where you were:"

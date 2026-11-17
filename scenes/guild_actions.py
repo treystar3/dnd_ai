@@ -643,7 +643,7 @@ class GuildActions:
                     console.ledger(f"The guild adds a {codex.name} to the payment.")
             handed.append(f"the finished {'contract' if q['guild'] else 'request'} '{q['title']}', paid {money.words(coins)}")
             from engine import operation as _op
-            _op.did(handed[-1])                                             # (f644) said by the operation it was paid in, whichever that is
+            _op.did(f"handed in the {'contract' if q['guild'] else 'request'} '{q['title']}'" + (f" and were paid {money.words(coins)}" if coins > 0 else ""))   # (f644, f715) a clause after "you"
             from engine import stakes
             stakes.done(self, q)                                            # (f322) the result lands; the issuer and the town remember
             if levels:

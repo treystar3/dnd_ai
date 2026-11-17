@@ -121,6 +121,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.line_untold: list = []   # (f464) the passage operations of the line that did not stand and were told by a stand-in
         self.unshown_ops: dict = {}   # (f464) operations whose later lines wait on a passage: id -> segments still to release
         self.collecting = False       # (f464) the line's actions are running: a narration is a passage operation of its own, after them
+        self.line_plan: list = []     # (f715) every step the line was read as, begun or not
+        self.own_steps = False        # (f715) a passage asked for now is the line's own, not the world's
         self.crash_after_commit = ""  # (f467) the suite's injection (simlib.Game.crash_after_commit): the game stops right after this kind's commit
         self.last_budget: dict = {}   # (f468) the last input's budget, closed: what it estimated, deferred, dropped, stood in for (the turn log's)
         self.recovered_at_load = 0    # (f471) outcomes told at this load (recover_unshown): the first row after it says so, the night tool too
@@ -1104,7 +1106,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if stood is False:
                 console.note(self.failed_line(text))                     # (f437, f449) in the narrator's words, never the machinery
             elif stood == "part":                                           # (f463) what stood stands; the player reads which part, and that the rest did not
-                console.note(failures.part_stood("; ".join(self.line_stood()), self.rng))
+                console.note(self.part_line())
             turnlog.end(stood is False, failure="" if stood is True or self.last_crash else self.last_failure,
                         crash=self.last_failure if stood is not True and self.last_crash else "",
                         stood={True: "all", False: "none"}.get(stood, "part"), stand_in=bool(self.line_untold), world_failed=self.world_failures(),
@@ -1635,6 +1637,77 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         rows += [{"id": o.id, "kind": o.kind, "index": o.index, "state": "stand_in"} for o in self.line_untold]
         return sorted(rows, key=lambda r: (r["index"], r["state"] != "stood"))
 
+    def line_standin(self, rng) -> list[str]:
+        """(f715) The line's own passage lost: when a step of the line also failed, the part line says what stood and what did not, and
+        is the one line; else as any passage."""
+        if self.line_failed and not [r for r in ledger.this_turn() if r.get("facts") and not r.get("told")]:
+            return []
+        return self.stood_standin(rng)
+
+    def aim_of(self, intent) -> str:
+        """(f715) What a step set out to do, as a clause after "you never got to": its kind's words (failures.yaml missed) with who, where
+        and what as the player knows them."""
+        return failures.missed_clause(intent.kind, self.step_facts(intent))
+
+    def done_of(self, intent) -> str:
+        """(f715) What a step did, as a clause after "you" (failures.yaml done)."""
+        return failures.done_clause(intent.kind, self.step_facts(intent))
+
+    def step_facts(self, intent) -> dict:
+        from engine import truth
+        who = next((n.label(self.acting) for n in self.present if n.id == getattr(intent, "target", "")), "") or \
+            next((p.label for p in truth.scene_of(self).present_people() if p.id == getattr(intent, "target", "")), "")
+        dest = getattr(intent, "destination", "") or ""
+        where = self.world.places[dest].name if dest in self.world.places else (self.place.name if intent.kind == "search" else "")
+        ability = getattr(intent, "ability", "") or ""
+        if ability:
+            ability = next((a.name for a in getattr(self.player_of(self.acting).character, "actives", []) or [] if a.id == ability), ability.replace("_", " "))
+        what = self.thing_named(intent) or ability or getattr(intent, "seek", "") or ""
+        return {"who": who, "where": where, "what": what, "act": self.act_words(intent)}
+
+    def thing_named(self, intent) -> str:
+        """(f715) The ware or the carried thing a step names, by its name, never its id."""
+        ware, item = getattr(intent, "ware", "") or "", getattr(intent, "item", "") or ""
+        if ware:
+            seller = next((n for n in self.present if n.id == getattr(intent, "target", "")), None)
+            found = self.ware_asked(self.wares_of(seller), ware) if seller is not None else None
+            return found.name if found is not None else inv.good_name(ware)
+        if item:
+            found = inv.find(self.player_of(self.acting).character.inventory, item)
+            return items.display_name(found) if found is not None else item.replace("_", " ")
+        return ""
+
+    def act_words(self, intent) -> str:
+        """(f715) An improvised act's own words as a clause after "to" ("scramble up the crag"), or "" when its summary is no such clause
+        (it opens on someone, by a word of interpret.yaml not_act_openers or a name of the party or the people present, or on a third
+        person verb)."""
+        if intent.kind != "other":
+            return ""
+        from engine import candidates
+        I = candidates.I
+        words = " ".join((getattr(intent, "summary", "") or "").split()).strip().rstrip(".!").split()
+        if words and words[0].lower() in ("i", "we", "you"):
+            words = words[1:]
+        lead = next((n for n in (len(l.split()) for l in I["act_lead_ins"]) if " ".join(words[:n]).lower() in I["act_lead_ins"]), 0)
+        words = [I["act_person_swap"].get(w.lower(), w) for w in words[lead:]]
+        me = self.player_of(self.acting)
+        names = [me.character.name] + [m.get("name", "") for m in me.party] + [getattr(p, "name", "") for p in self.present]
+        openers = {w.lower() for w in I["not_act_openers"]} | {w.lower() for n in names for w in (n or "").split()}
+        first = (words or [""])[0].lower()
+        if not words or first in openers or re.match(I["not_act_first"], first):
+            return ""
+        return " ".join([first] + words[1:])
+
+    def part_line(self) -> str:
+        """(f715) The one line for a line that stood in part: what did not happen, by what its failed steps set out to do."""
+        begun = {o.aim for o in list(self.line_ops) + list(self.line_failed) if getattr(o, "aim", "")}
+        aims = [o.aim for o in self.line_failed if getattr(o, "aim", "")]
+        aims += [a for a in (self.aim_of(s) for s in self.line_plan) if a and a not in begun]   # never begun
+        aims = list(dict.fromkeys(aims)) or [str(((failures.F.get("missed") or {}).get("default") or [""])[0])]
+        missed = (", ".join(aims[:-1]) + " or " + aims[-1]) if len(aims) > 1 else aims[0]
+        did = list(dict.fromkeys(self.line_stood()))
+        return failures.part_stood(", then ".join(did), missed, self.rng)
+
     def line_stood(self) -> list[str]:
         """(f644) What the line's operations that stood did, in order, each as the operation said of itself (engine/operation.py
         `did`): read from what was committed, never from a list of steps."""
@@ -1677,6 +1750,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.ran = []
                 plan = None
                 self.collecting = True                     # (f464) a narration asked for by an action is a passage operation after it
+                self.own_steps = True                      # (f715) a passage asked for now is the line's own
                 self.take_up_acts(text)                    # (f596) an act left waiting for its ruling, before this line is read
                 def _line(op):                             # (f470) the line taken whole (an answer, a fight's round, an intercept), or void
                     self._wrote_turn = False               # (f351) the narrator's mark is a flag, not a turn number; set inside the operation, so a rollback takes it back
@@ -1692,6 +1766,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     if plan is False:
                         return self.line_outcome(False)
                     if plan is not None:
+                        self.line_plan = list(plan)        # (f715) every step it was read as, begun or not
                         def _first(op):
                             self._wrote_turn = False
                             self.pending_clarify = None    # (f470) a question this line answered is spent inside the first action's commit
@@ -1725,12 +1800,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                             self.line_failed.remove(op)
                             self.line_untold.append(op)
                             self.untell(told_before)
-                            for line in self.stood_standin(self.rng):
+                            for line in self.line_standin(self.rng):
                                 console.narrate(line)
                             self.pending = []
                             from engine import operation as _op
                             _op.present(op.id, "stand_in")         # (f467)
                     from engine import budget
+                    self.own_steps = False                     # (f715) from here, the world's passages
                     budget.passage_shown()                     # (f468) the required path is told: the optional calls after it keep no reserve
                     self.after_steps(text)                     # (f466) outside any operation: the step is over, and what the line did not do is said
                     with self.operation("world", text, world=True):      # (f466) the world's own operations, apart: each stands or falls alone
@@ -2286,6 +2362,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         intent = plan[i]
         text = getattr(self, "line_text", text) or text
         console.debug(f"intent {i + 1}/{len(plan)}: {intent.model_dump(exclude_defaults=True)}")
+        from engine import operation as _op0
+        if _op0.current() is not None:
+            _op0.current().aim = self.aim_of(intent)                 # (f715) named if this step does not stand
         self.pending_check, self.pending_beats = "", []
         self.step = intent                                 # (f416) what a refusal says did not happen
         self.plan_now = plan
@@ -2316,7 +2395,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         from engine import operation as _op
         op = _op.current()
         if op is not None and not any(r.get("kind") == "refused" for r in op.rows):     # (f644) a step the game said no to did not do it
-            _op.did((getattr(intent, "summary", "") or "").strip() or intent.kind.replace("_", " "))
+            _op.did(self.done_of(intent))                                          # (f715) a finished clause, never the summary
 
     def after_steps(self, text: str) -> None:
         """(f463) After the plan's steps, (f466) outside any operation: the step is over and the line's buffering with it, the notes time
@@ -2883,7 +2962,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             return
         from engine import operation as _op
         if self.collecting and _op.current() is not None:
-            self.mark_passage("passage", lambda: self._narrate_now(event, player_text), self.stood_standin)
+            self.mark_passage("passage", lambda: self._narrate_now(event, player_text),
+                              self.line_standin if self.own_steps else self.stood_standin)
             return
         self._narrate_now(event, player_text)
 
@@ -4216,6 +4296,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 and self.has("safe_camp") is None and not (barrow and self.owns("tomb_sleeper")):
             self.refuse("It's too dangerous to rest here. Find a quiet chamber, or climb back out.")
             return
+        from engine import world_improv
+        if self.camp_asked(text):
+            self.make_plain_camp()                                 # (f716) the camp the line asks for, anyone's to make; the wait is measured after it
+            camped = True
         named = clock.hour_named(text)
         if named:                                          # (f687) "until eight in the morning": the hour named, not the period's start
             minutes = clock.minutes_until_hour(self.minutes, *named)
@@ -4225,13 +4309,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             minutes = intent.wait_minutes or clock.DEFAULT_WAIT_MINUTES
         minutes = max(1, min(minutes, clock.MAX_WAIT_MINUTES))
         sleeping = minutes >= 360
-        from engine import world_improv
         if sleeping and not self.has_room() and not camped and world_improv.asks_room(text):     # (f695) the room the sleep asks for
             seller = next((n for n in self.present if any(w.kind == "room" for w in self.wares_of(n))), None)
             if seller is not None:
                 self.__dict__.setdefault("repairs", []).append({"rule": "room_for_sleep", "before": "wait", "after": "buy room, wait"})
                 console.debug("room_for_sleep: the sleep asks for a room; one is taken first")
                 self.buy_ware(seller, next(w for w in self.wares_of(seller) if w.kind == "room"), text, quiet=True)   # no coin: told
+        plain = bool(camped and (self.fld.get("camp") or {}).get("plain"))
         if sleeping and self.owns("restless"):
             minutes = max(180, minutes // 2)
         self.end_conversation()
@@ -4243,9 +4327,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             step = min(60, minutes - waited)
             self.advance(step, wait="sleep" if sleeping else "rest")
             waited += step
-            if self.place.danger and not self.owns("night_watch") and not camped:
+            if self.place.danger and not self.owns("night_watch") and (not camped or plain):
+                share = float(self.plain_camp().get("share", 1.0)) if plain else 1.0       # (f716) a plain camp is found less often
                 hit = encounters.roll(self.store, self.world, self.player.location,
-                                      encounters.E["chance_per_hour"] * step / 60, self.rng)
+                                      encounters.E["chance_per_hour"] * step / 60 * share, self.rng)
                 if hit and self.temperament(hit[0]) != "passive":
                     break
                 hit = None
@@ -4339,6 +4424,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def on_other(self, intent: ActionIntent, text: str) -> None:
         """(f321) What the interpreter could not name is an improvisation: read for what it is after, rolled, and made true either way."""
         from engine import world_improv
+        if self.camp_asked(text) and not world_improv.is_rest(text):
+            self.make_plain_camp()                         # (f716) "We make camp.": anyone's to make in the wilds, never a gamble
+            return
+        if self.camp_asked(text):
+            self.on_wait(self.rest_asked(text), text)      # (f716) "...and sleep": the sleep makes the camp first
+            return
         if world_improv.is_rest(text) and len(re.findall(r"[a-z']+", text.lower())) <= 12:
             self.on_wait(self.rest_asked(text), text)
             return                                          # (f386) a line that only goes to sleep is a rest, not a gamble rolled as hiding
