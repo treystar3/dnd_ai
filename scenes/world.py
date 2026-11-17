@@ -3165,6 +3165,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     return n
         return None
 
+    def ask_landmark(self, m: dict) -> None:
+        """(f428) A sight kept on a road, half named: asked about before a long walk, by its name, its road and how far."""
+        way = self.landmark_way(m)
+        self.refuse(f"Do you mean {m['title'][:1].lower() + m['title'][1:]}, on {m['road'] or 'the road'} "
+                    f"({clock.walk_words(way[1]) if way else 'a way off'})? Name it, or pick it under Places.")
+
     def no_such_place(self, dest: str) -> str:
         """(f418) The answer to a walk somewhere the game does not know, in the world's words and with the ways that are real: 'There's
         no such place.' read as the innkeeper's answer to 'I head up to our rooms', four times a night. (Rooms, doors and the party as
@@ -3305,14 +3311,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     intent.seek = ""
                     self.on_search(intent, text)
                     return
-                named = self.landmark_named(dest or text)                               # (f702) back to a sight kept on a road
+                named = self.landmark_named(f"{dest} {text}")                           # (f702, f709) back to a sight kept on a road, by what was seen
                 if named is not None and named[1]:
                     self.go_landmark(named[0], text)
                     return
-                if named is not None:                                                   # half named: a long walk is asked first (f428)
-                    m = named[0]
-                    self.refuse(f"Do you mean {m['title'][:1].lower() + m['title'][1:]}, on {m['road'] or 'the road'} "
-                                f"({clock.walk_words(self.landmark_way(m)[1]) if self.landmark_way(m) else 'a way off'})? Name it, or pick it under Places.")
+                titled = self.landmark_named(f"{dest} {text}", seen=False)
+                if titled is not None:                                                  # half named by its title: a long walk is asked first (f428)
+                    self.ask_landmark(titled[0])
                     return
                 if self.part_move(dest, text, adopt=True):                              # (f394) a part a place like this would have
                     return
@@ -3323,6 +3328,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                                             "ruin", "hollow", "overlook") or self.looks_like_exploring(dest, text):
                     intent.seek = intent.seek or dest
                     self.on_explore(intent, text)
+                    return
+                if named is not None:                                                   # (f709) half named by what was seen: asked, once nothing here fits
+                    self.ask_landmark(named[0])
                     return
                 console.debug(f"'{dest}' is not a place - stopping the action chain")
                 self.refuse(self.no_such_place(dest))

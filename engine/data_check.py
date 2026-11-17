@@ -554,6 +554,8 @@ def check() -> list[str]:
     need(isinstance(RD_.get("landmarks_kept"), int) and RD_["landmarks_kept"] > 0
          and isinstance(RD_.get("landmark_margin"), (int, float)) and 0 <= RD_["landmark_margin"] < 0.5,
          "road.yaml: landmarks_kept, a count above 0, and landmark_margin, a share under a half (f702)")
+    need(isinstance(RD_.get("landmark_scene_words"), int) and RD_["landmark_scene_words"] >= 2,
+         "road.yaml: landmark_scene_words, a count of 2 or more (f709: one shared word names nothing)")
     need(isinstance(RD_.get("ambush_above"), int) and not isinstance(RD_.get("ambush_above"), bool) and RD_["ambush_above"] >= 0,
          "road.yaml ambush_above: a whole number of levels, 0 or more (f705)")
     for k_, r_ in (RD_.get("stop_roles") or {}).items():
@@ -653,8 +655,10 @@ def check() -> list[str]:
         need(False, p_)
     from engine import candidates as _cd
     need({"most_places", "places_by_meaning", "place_floor", "most_people", "people_by_meaning", "person_floor", "about_floor", "about", "always_if_short",
-          "generic_words", "named_town_types", "nearest_of_kind"} <= set(_cd.I) and set(_cd.I["about"]) == {"wares", "abilities", "pack", "recipes", "buyers", "stash"},
-         "interpret.yaml: needs the counts and floors, an 'about' sentence for wares, abilities, pack, recipes, buyers and stash, generic_words, named_town_types")
+          "generic_words", "function_words", "named_town_types", "nearest_of_kind"} <= set(_cd.I) and set(_cd.I["about"]) == {"wares", "abilities", "pack", "recipes", "buyers", "stash"},
+         "interpret.yaml: needs the counts and floors, an 'about' sentence for wares, abilities, pack, recipes, buyers and stash, generic_words, function_words, named_town_types")
+    need(all(isinstance(w, str) and len(w) >= 4 and w == w.lower() for w in _cd.I.get("function_words", [])),
+         "interpret.yaml: function_words are lower case words of four letters or more (f709: shorter ones never count)")
     from engine import severity as _sv
     SVD = _sv.SV
     need(set(SVD.get("level") or {}) == {"light", "personal", "heavy"} and all(set(row) == {"self", "close", "known", "distant"}

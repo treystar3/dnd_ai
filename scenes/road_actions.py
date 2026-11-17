@@ -452,19 +452,33 @@ class RoadActions:
     def landmarks(self) -> list[dict]:
         return list((self.store.load_world_state() or {}).get("landmarks", []))
 
-    def landmark_named(self, words: str) -> tuple[dict, bool] | None:
-        """(the landmark the words name best, whether they name all of its title's own words) or None. Common words name nothing
-        ('the road', 'back', 'over': interpret.yaml generic_words)."""
-        from engine.candidates import GENERIC
+    AIM = re.compile(r"\b(?:to|toward|towards|for|at)\s+(?P<rest>.*)", re.I)
+
+    def landmark_named(self, words: str, seen: bool = True, aimed: bool = False) -> tuple[dict, bool] | None:
+        """(the landmark the words name best, whether they name it wholly) or None. Named by its title's own words, all of them for
+        wholly; or (f709, with seen) by what was seen there, landmark_scene_words of them at least, and wholly only with its road named
+        too. With aimed, what was seen counts only where the line says where it goes (after to / toward / for / at), never in how the
+        walk goes ('through the trees to the river'). Never by its road's or its ends' own words, nor common or small words."""
+        from engine.candidates import FUNCTION, GENERIC
         from engine.inventory import _stem
         def own(s: str) -> set[str]:
-            return {_stem(w) for w in re.findall(r"[a-z]+", (s or "").lower()) if len(w) >= 4 and w not in GENERIC and _stem(w) not in GENERIC}
-        said, best = own(words), None
+            return {_stem(w) for w in re.findall(r"[a-z]+", (s or "").lower())
+                    if len(w) >= 4 and w not in GENERIC and w not in FUNCTION and _stem(w) not in GENERIC and _stem(w) not in FUNCTION}
+        said, best, least = own(words), None, int(R["landmark_scene_words"])
+        aim = self.AIM.search(words or "") if aimed else None
+        toward = own(aim.group("rest")) if aim else (set() if aimed else said)
         for m in self.landmarks():
-            title = own(m["title"])
+            road = own(m.get("road", ""))
+            ends = set().union(*(own(self.world.places[e].name) for e in (m["a"], m["b"]) if e in self.world.places))
+            title = own(m["title"]) - road - ends
             hit = len(title & said)
-            if hit and (best is None or hit >= best[1]):
-                best = (m, hit, hit == len(title))
+            n_seen = len((own(m.get("scene", "")) - road - ends - title) & toward) if seen else 0
+            if not hit and n_seen < least:
+                continue
+            whole = bool(title and hit == len(title)) or bool(n_seen >= least and road and road <= said)
+            key = (whole, hit, n_seen)
+            if best is None or key >= best[1]:
+                best = (m, key, whole)
         return (best[0], best[2]) if best else None
 
     def landmark_way(self, m: dict) -> tuple[dict, int] | None:

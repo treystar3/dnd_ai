@@ -34,6 +34,7 @@ landmarks_kept: 12
 # leader (a level 32 pudding on an ordinary road met a level 17 mage).
 ambush_above: 3
 landmark_margin: 0.05      # never kept nearer either end of its road than this part of it
+landmark_scene_words: 2   # (f709) the words of what was seen there, besides its road's and its ends', that name a landmark
 # Who is there when the writer names nobody: someone in need, someone met on the way.
 stop_roles: {aid: wanderer, meeting: wanderer}
 

@@ -49,6 +49,10 @@ class ExitActions:
             return False
         deeds = self.own_deeds(text)                     # (f654) words told to someone are no way out
         gp, why = exits.match(self.world, top, deeds)
+        named = self.landmark_named(deeds, aimed=True) if gp or why else None
+        if named is not None and named[1]:               # (f709) down a road to a thing kept on it, named wholly: there, not the far end
+            self.go_landmark(named[0], text)
+            return True
         if gp:
             self.leave_by(gp, text)
             return True

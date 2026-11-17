@@ -27,6 +27,7 @@ from engine import relevance
 ROOT = Path(__file__).resolve().parent.parent
 I = yamlio.safe_load((ROOT / "data" / "rules" / "interpret.yaml").read_text(encoding="utf-8"))
 GENERIC = set(I["generic_words"])
+FUNCTION = set(I["function_words"])         # (f709) the small words of a sentence: they name nothing
 
 
 def words(text: str) -> set[str]:
