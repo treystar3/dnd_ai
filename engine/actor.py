@@ -91,6 +91,7 @@ FIELDS: dict[str, Field] = {
     "own_steps": _f(LINE, fresh=bool),                     # a passage asked for now is its own, not the world's (f715)
     "silent": _f(LINE, ROLLED, fresh=bool),                # the tail found it showed the player nothing (f721): the close says so
     "stood": _f(LINE, fresh=type(None)),                   # how the input stood, once settled (f721): True, "part" or False
+    "decision": _f(LINE, ROLLED, fresh=type(None)),        # what the engine decided for the line's reply (f724)
     # ---- the step being done
     "step": _f(ROLLED, default=None),                      # the plan's step, while one is
     "plan_now": _f(ROLLED, default=()),                    # ...and the plan it is a step of (f645)
@@ -128,7 +129,7 @@ ATTRS: dict[str, Attr] = {
                           "first_arrival revisit repairs"),
     # ---- put back, the scene's: what was told of it, the conversation, the fight that is coming or was fled and how its beats
     # landed on the party, what is in view, who came looking (they stand in the room, for everyone), the host at the gate
-    **_rows(ROLLED, SCENE, "recent_narration convo last_spoken partner stance wildlife wildlife_at resume_pending recently_fled "
+    **_rows(ROLLED, SCENE, "recent_narration convo last_spoken partner stance moves wildlife wildlife_at resume_pending recently_fled "
                            "held_yield orenna_fight camp_fight dungeon_fight surrender_took last_hits visitors assault camp_events"),
     # ---- left as it stands
     **_rows(KEPT, VIEW, "broken", "the lines that failed on the game's own fault, and how often: a failure is what it counts"),

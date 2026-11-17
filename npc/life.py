@@ -336,15 +336,19 @@ def _offered(store, npc, who: str) -> dict | None:
     return offer_open(store, npc, who)
 
 
-def _request(npc, store, world, catalog, convo, player_text, extra, truth_text, stance, rng, worn, wares, who, pronoun, promised=False, exemplars=""):
+def _request(npc, store, world, catalog, convo, player_text, extra, truth_text, stance, rng, worn, wares, who, pronoun, promised=False, exemplars="",
+             decision=None):
     """(f487) A townsperson's request for one reply, whichever contract it goes under: the lore for the line, how they talk, what they
     sell, the request itself; promised (f493): what was said may promise them something, so the reply asks what. Returns (prompt,
-    facts, recent)."""
+    facts, recent). decision (f724): the engine's decision for this reply (engine/reply.py), made whole here."""
     from engine import banter, matters, voice_profile
     from engine import circumstance                         # (f483) by the circles they were raised among and the place they live now
     every = world.facts_known_by(circumstance.groups(world, npc)) + matters.clue_facts(store, world, npc)      # (f317) what they know of the town's matters
     from engine import brief                                # (f486) the lore that bears on this line, every clue held, and the rest named
-    facts, index = brief.lore(every, player_text, [w for _, w in convo])
+    whole, maybe = decision.around if decision is not None else ((), ())
+    picked, index = brief.lore(every, player_text, [w for _, w in convo], also=maybe, whole=whole)
+    from engine import reply as _reply
+    facts = [f for f in picked if _reply.kind_of(f) in ("lore", "clue")] if decision is not None else picked    # (f724) the request has what it had
     extra = list(extra) + ([index] if index else [])
     _, people_known = social_circle(npc, store, world)
     here_with = []                                          # (f313) who is here comes with the truth text, as this person knows them
@@ -352,6 +356,8 @@ def _request(npc, store, world, catalog, convo, player_text, extra, truth_text, 
     from engine import voices
     ensure_speech(npc, store, world)                                                                      # (f347, f350) where they were raised, how they talk
     voice_fact, voice_lines, material = voice_profile.resident_lines(npc, rng, char_id=who)
+    if decision is not None:                                # (f724) the move on a die of its own: no other draw moves
+        _reply.settle(decision, npc, picked, streams.keyed("move", npc.id, f"{npc.id}", len(convo)))
     recent = [s for h, s in zip(npc.heard[-6:], npc.said[-6:]) if not banter.asked_again(player_text, [h])]   # the same question may get much the same answer
     prompt = prompts.conversation_prompt(
             npc, world.places[npc.location], catalog.describe(npc.traits), facts, convo, player_text,
@@ -398,6 +404,7 @@ def converse(
     pronoun: str = "",
     given_also: list[str] = (),
     exemplars: str = "",
+    decision=None,
 ) -> tuple[NPCReply, list[str]]:
     """One conversation turn. Returns the reply and the ids of facts the player learned. truth_text is this person's view of the moment
     from the truth layer (engine/truth.py, f313): who is here, what the town has, the board, happenings, news; known is the words of the
@@ -407,7 +414,7 @@ def converse(
     from engine import brief
     promised = brief.promised(player_text)                  # (f493) the promise field only when the line may make one
     prompt, facts, recent = _request(npc, store, world, catalog, convo, player_text, extra, truth_text, stance, rng, worn, wares, who, pronoun,
-                                     promised, exemplars)
+                                     promised, exemplars, decision)
     from engine import voices
     from llm.contracts import NPCReplyPromised
     reply = generate(

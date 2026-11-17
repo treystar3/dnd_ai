@@ -11,6 +11,7 @@ townsfolk:
   lore: 4                  # at most this many lore facts for one line
   prefilter: 12            # ...chosen from the facts sharing a word with the line and the last lines of the talk
   recent_lines: 4          # how many of the conversation's last lines count with the line for what bears on it
+  town_pieces: 2           # (f724) at most this many of the town's news and happenings that bear on a line that did not ask for them
   index_label: "YOU ALSO KNOW OF (say what you know if it comes up; it is yours to tell)"
   asked:                   # a facet in full when the line is about it
     land: [herb, herbs, grow, grows, growing, forage, foraging, hunt, hunting, hunted, game, deer, boar, hare, plant, plants, root, roots,
@@ -18,6 +19,7 @@ townsfolk:
     town: [where, smith, smithy, forge, inn, tavern, temple, shrine, shop, store, guild, healer, herbalist, buy, sell, market, trader,
            merchant, room, bed, stay, eat, drink, ale, priest, chapel, workshop, stable]
     board: [work, job, jobs, contract, contracts, board, bounty, bounties, posting, postings, guild, coin, pay, paid, hire, hiring, task, quest]
+    news: [news, rumour, rumours, rumor, rumors, gossip, tidings, happening, lately, afoot]   # (f724)
   about_them:              # (f488) the facets' words asked of the speaker's own life, not the place: these never bring a facet in
     - where are you from
     - where you are from

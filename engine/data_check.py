@@ -569,6 +569,8 @@ def check() -> list[str]:
     bad += _tm.problems()
     from engine import brief as _brief                                                          # (f486) the brief's numbers and words
     bad += _brief.problems()
+    from engine import reply as _reply, voice_rules as _stances                                 # (f724) the decision for a reply: its tables
+    bad += _reply.problems() + _stances.stance_problems()
     from engine import voices as _voices                                                      # (f350) voice kits: behaviour, never sound
     bad += _voices.problems()
     from engine import situations as _sit                                                    # (f542) a situation's parts: lists, caps, phrases

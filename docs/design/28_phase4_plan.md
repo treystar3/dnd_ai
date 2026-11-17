@@ -80,6 +80,26 @@ Then the gate is run once more: that run is the "before".
 - **The script:** eight lines are marked (the clerk's line about the postings is not: their subjects are often the news; the two camp lines after the fight tempt only news: the happening there is the fight itself). Six were there already; two are new, for the owner's reading with the forty: "I ask
   the smith how long they've had this forge." and "I ask whoever's serving what's in the stew."
 
+**The "before" (17 November, the whole gate on the real model, 42 lines, the switch not yet built):**
+
+| Measure | Before |
+|---|---|
+| What a townsperson's reply reads, characters | median 17,750, 95th percentile 19,541 (9 replies; the target is 14,000) |
+| What a companion's reply reads, characters | median 8,696, 95th percentile 9,282 (6 replies) |
+| Replies accepted on the first try | 15 of 15 |
+| Leaks | 0 of 4 marked lines answered |
+| A talk turn, seconds | median 7.5, 95th percentile 12.8 (10 lines) |
+| Spoken replies sent back as stiff | 0 of 16 |
+| Lines read right | 217 of 252 (0.861) |
+
+**What the run showed about the leak count:** the script begins in a town where nothing has happened yet. For its first thirty
+lines the town had no news and no happening at all, so the four marked lines that counted had only the board's postings to
+leak, and news reached the script only at its second town (line 32 on). As it stands the count cannot fail on news. Before the
+measure of A6 the script needs its tempting lines where the town has news (after the road, or after days have passed), and the
+report should say of the marked lines how many had news or a happening around them. The lines are the owner's to read.
+
+(Part of f724's tests ran on the same machine's processor while the script was played; the model's time is the card's.)
+
 ### A2 (f724). The engine decides what it can
 
 Before any call, the engine settles what it already knows how to settle, and writes it down as one **decision** for the reply
@@ -95,6 +115,45 @@ Before any call, the engine settles what it already knows how to settle, and wri
 - **The slip** (A5).
 
 No model call yet. This step alone changes nothing a player reads; the old prompt is still built from the same things.
+
+**As built (f724, 17 November):**
+
+- **The switch** is data/rules/reply.yaml `decide_then_speak` (false). Off, nothing below is rolled or kept. On, the decision is
+  made for each reply to one character and shown on the debug console; the request for the reply is the one it was.
+- **The decision** (engine/reply.py `Decision`): who speaks, to which character, the stance by its key, the move, whether the game
+  forced it, and the candidates. It is the line's, a field of the turn's context: a new line has none, and a failed operation
+  puts it back. The talk's last moves (no more than the run) are the scene's: put back by a failed operation, gone when the talk
+  ends, and in the talk's record in the save once there are any.
+- **The stance by its key:** `voice_rules.stance_kind` reads it from the line the talk was told, by the words before its colon
+  (each stance's are its own, checked at startup), as the exemplar pool read it before; a talk kept in an old save needs nothing
+  new.
+- **The move:** seven moves and their weights in reply.yaml, bent by the stance, by trust (under 35, from 65) and by the voice
+  kit's habits (one who never asks back never makes that move). Turning to their own trouble needs a concern. At most two the
+  same running. When one of the lines they are given says, in the game's own words, what they must say in this reply (a check's
+  result, work handed in, a secret's gate opened or shaken) the move is to answer; what the turn has settled so far, which they
+  may only not speak against, forces nothing. Rolled on a die of its own (`move`, by the speaker and the reply's place in the
+  talk), so no other draw moves. **The numbers are a first proposal and are the owner's.**
+- **What they could share:** the truth's news, happenings and postings now carry ids (`news:`, `happening:`, `board:`); the
+  ordinary day, "nothing is posted" and what the player holds are no pieces. `brief.lore` ranks the lore in the call it was, so
+  the lore picked is the lore picked without the town; the pieces that share a word with the line are ranked in a call of their
+  own, and at most `town_pieces` (2, brief.yaml) come with the lore. A facet the line asks for comes in whole: the board as
+  before (it is in the view only then), the news and happenings when the line has one of the new `asked.news` words. Nothing
+  comes in twice: a piece in the very words of lore they hold is left out.
+- **Whether they would:** reply.yaml `share`, by kind. News needs trust at or over the line under which a person's examples are
+  refusals (voice.yaml `refusal_trust`, 30); lore, a clue, a happening in the street and a posting are for anyone; a secret is
+  theirs to tell only while its gate is open, and while it is shut nothing of it is written down (the owner's rule of f486). The
+  gate is the secret's rule alone (checked at startup).
+- **What it costs with the switch on:** no call to the speaking model. Where a piece of the town's shares a word with the line,
+  the helper model that ranks the lore reads those pieces too (at most twelve short texts, on the turn's budget like the lore).
+- **The words that ask for the news** (brief.yaml `asked.news`) are few on purpose: news, rumour, gossip, tidings, happening,
+  lately, afoot. "Did you hear me?" and "What happened to your arm?" do not ask for the town's news. A line that asks in other
+  words still gets the pieces that bear on it.
+- **A piece's id is its place in today's window** (`news:0`), good for the one reply it is decided in. It is not the piece's
+  identity: nothing may keep it to remember what was said (A4 keeps the words, as `reveals` does).
+- **A line with two replies** keeps the last one's decision.
+- **Not yet:** a reply to several characters at once (f487) has no decision; A4 gives it one.
+- **The kept recordings** were made again: every input replayed the same; only the rules' hash moved (a new rules file, two new
+  entries in brief.yaml).
 
 ### A3 (f725). Decide: a small call for what only reading the line can settle
 

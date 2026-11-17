@@ -105,6 +105,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.partner: NPC | None = None
         self.last_spoken: str | None = None
         self.convo: list[tuple[str, str]] = []
+        self.moves: list[str] = []    # (f724) the moves of this talk's last replies (engine/reply.py), no more than the table's run
+        self.decision = None          # ...and what the engine decided for this line's reply (the turn's: a new line has none)
         self._talk_saved = store.load_talk()  # (f485) a save opened mid-talk: put back once the one spoken with is here (restore_talk)
         self.to_menu = False          # (f345) #menu: the run loop ends and main.py shows the home page
         self.last_crash = False       # (f449) the last turn rolled back on the game's own fault (logs/crash.log), not the model's
@@ -378,8 +380,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """(f583) Which pool a person's exemplars are drawn from: refusal when they are wary or busy or trust the one speaking little,
         gossip when their brief carries news, else small talk. Never by what the model will say."""
         from engine import regard, voice_rules as vr
-        moods = tuple(vr.V["stances"][k]["text"].split(":")[0] for k in ("wary", "busy"))      # the stance's own words, as voice.yaml has them
-        if stance.startswith(moods) or regard.of(npc, self.acting).trust < int(vr.V["exemplars"]["refusal_trust"]):
+        if vr.stance_kind(stance) in ("wary", "busy") or regard.of(npc, self.acting).trust < int(vr.V["exemplars"]["refusal_trust"]):
             return "refusal"
         return "gossip" if news else "small_talk"
 
@@ -1561,7 +1562,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         from engine import presence
         lines = [list(x) for x in (self.convo or [])][-presence.lines_cap():]
         return {"speaker": self.partner.id if self.partner else "", "stance": getattr(self, "stance", "") or "", "lines": lines,
-                "last_spoken": self.last_spoken or ""}
+                "last_spoken": self.last_spoken or "", **({"moves": list(self.moves)} if self.moves else {})}     # (f724)
 
     def save_talk(self) -> None:
         rec = self.talk_record()
@@ -1582,6 +1583,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if who is not None:
             self.partner, self.stance = who, rec.get("stance", "")
             self.convo = [tuple(x) for x in rec.get("lines") or []]
+            from engine import reply as reply_rules
+            self.moves = [str(m) for m in rec.get("moves") or []][-int(reply_rules.R["moves"]["running"]):]
 
     def fight_memory(self):
         """(f496) What the fight's scene keeps outside the save (what the player has read of this fight, who was tamed) and which fight it is
@@ -3288,6 +3291,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.partner = None
         self.convo = []
         self.stance = ""
+        self.moves = []                 # (f724) the talk's; the decision is the line's
 
     @staticmethod
     def looks_like_exploring(dest: str, text: str) -> bool:
@@ -3772,6 +3776,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         town_lines = view.lines("town")                                 # about them, or the role's work is them; the checks read the list always
         view.drop |= {f for f in ("town", "board") if not brief.asked(f, speech, npc.role)}
         console.debug(f"truth view for {npc.name}: " + ", ".join(f"{h.split(' (')[0].lower()} {len(l)}" for h, l in view.sections()))
+        from engine import reply as reply_rules
+        decision = None
+        if reply_rules.on():                                            # (f724) what the engine settles before they are asked to speak
+            opened = bool((pending_secret or {}).get("open"))
+            decision = reply_rules.Decision(npc.id, self.acting, stance=voice_rules.stance_kind(getattr(self, "stance", "") or ""),
+                                            last=tuple(self.moves), forced=reply_rules.must_say([check_note, *ctx]), around=reply_rules.pieces(view, speech),
+                                            candidates=reply_rules.secret(pending_secret, self.secret_text(pending_secret["secret"]) if opened else ""))
         reply, revealed = converse(npc, self.store, self.world, self.catalog, self.convo,
                                    f"{speech} {check_note}".strip(), ctx, truth_text=view.text(), known=view.scene.known_words(),
                                    stance=getattr(self, "stance", ""), rng=streams.keyed("voice", npc.id, f"{npc.id}", len(self.convo)),   # (f486)
@@ -3779,7 +3790,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                    house=voices.house_phrases(self, town, npc.id),          # (f350) what everyone else here has been saying
                                    wares=self.wares_said(npc), who=self.acting,             # (f418) at the prices the game charges; (f480) to whom
                                    exemplars=self.exemplars("speech", self.speech_pool(npc, getattr(self, "stance", "") or "",
-                                                                                         view.lines("news") if "news" in view.facets() else [])))
+                                                                                         view.lines("news") if "news" in view.facets() else [])),
+                                   decision=decision)
+        if decision is not None:
+            self.decision = decision
+            self.moves = (self.moves + [decision.move])[-int(reply_rules.R["moves"]["running"]):]
+            console.debug(f"{npc.name} decided: {decision.line()}")
         voices.heard(self, town, npc.id, reply.speech)
         from engine import presence                                            # (f485) what was said aloud reaches those standing by
         claimed = (getattr(reply, "learned_player_name", "") or "").strip()

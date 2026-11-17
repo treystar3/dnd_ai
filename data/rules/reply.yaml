@@ -1,0 +1,57 @@
+# (f724) THE DECISION FOR A REPLY (docs/design/28_phase4_plan.md, Part A; engine/reply.py). Before a townsperson is asked to speak,
+# the engine settles what it can settle without reading the line: how they are for this talk (the stance, voice.yaml), the move
+# they make, and what they could share with the one in front of them and whether they would. The model is then asked only to say
+# it (f726).
+
+# The switch. false: people speak as they did, and nothing below is rolled or kept. The owner turns it on once the measures say
+# so (f728: no leaks in the gate's talk lines, talk time within a fifth of before, the owner's blind reading).
+decide_then_speak: false
+
+# THE MOVE: what they do with what was asked, one a reply, on the reply's own die. weight: how often, all else being equal.
+# needs: what must be true of them for the move to be theirs at all (concern: something weighs on them). by_stance, by_trust and
+# by_kit multiply a move's weight (a move not named is times 1; 0 takes it away): the stance of this talk, their trust in this
+# character (low: under `below`; high: `from` and over), and the habits of their voice (voices.yaml axes, option by option).
+# The same move comes at most `running` times in a row. When the game has decided something they must say in this reply (work
+# handed in, a check that won them over), the move is `forced`, whatever the dice and the run.
+# The numbers are the owner's; these are the first proposal.
+moves:
+  running: 2
+  forced: answer
+  kinds:
+    answer:      {weight: 40}                    # they answer what was asked
+    part:        {weight: 18}                    # they answer the part they care about and leave the rest
+    ask_back:    {weight: 12}                    # they want to know something first, or in return
+    own_trouble: {weight: 8, needs: concern}     # they turn to what weighs on them
+    deflect:     {weight: 8}                     # they turn it aside: not theirs to say, ask someone else
+    joke:        {weight: 6}                     # they make light of it
+    quiet:       {weight: 6}                     # a word or two, or only a look
+  by_stance:
+    busy:      {answer: 0.8, part: 1.6, quiet: 1.6, joke: 0.5, own_trouble: 0.5}
+    wary:      {answer: 0.5, ask_back: 2.5, deflect: 2.0, joke: 0.3}
+    tired:     {part: 1.5, quiet: 2.0, joke: 0.5, ask_back: 0.5}
+    grievance: {own_trouble: 6.0}
+    after:     {ask_back: 2.0, own_trouble: 1.5}
+  by_trust:
+    low:  {below: 35, answer: 0.6, deflect: 2.0, quiet: 1.5, joke: 0.5}
+    high: {from: 65, answer: 1.3, joke: 1.5, deflect: 0.3, quiet: 0.5}
+  by_kit:
+    questions:
+      never: {ask_back: 0}
+      after: {ask_back: 1.5}
+      first: {ask_back: 2.0}
+    refusing:
+      flat:   {quiet: 1.5}
+      excuse: {deflect: 1.5}
+      turn:   {ask_back: 1.3}
+
+# WHAT THEY WOULD SHARE. Each thing they could say in this reply is of a kind; a kind under `trust` is told only to someone they
+# trust that far ("refusal": voice.yaml exemplars refusal_trust, the line under which their examples are refusals). What anyone
+# standing there can see (a happening in the street, a posting on the wall) is told to anyone. A clue is what the talk is for.
+# A secret has its own gate (scenes/arc_actions.py), and is theirs to tell only while it is open.
+share:
+  lore:      {trust: 0}
+  clue:      {trust: 0}
+  news:      {trust: refusal}
+  happening: {trust: 0}
+  board:     {trust: 0}
+  secret:    {gate: true}

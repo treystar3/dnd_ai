@@ -446,7 +446,8 @@ def _board(scene: Scene):
     rank = ws.rank or "F"
     out = []
     for q in ws.ensure_board():
-        out.append(Fact("board", f"[{q['letter']}] {q['title']}" + ("" if quests.at_or_below(q["letter"], rank) else " (above the player's rank)"), known))
+        out.append(Fact("board", f"[{q['letter']}] {q['title']}" + ("" if quests.at_or_below(q["letter"], rank) else " (above the player's rank)"), known,
+                        id=f"board:{q.get('id', len(out))}"))             # (f724) a posting is a thing a reply can be decided to share
     if not out:
         out.append(Fact("board", "nothing is posted", known))
     held = [q["title"] for q in ws.player.quests if q.get("guild")]
@@ -462,6 +463,8 @@ def _happenings(scene: Scene):
     ws = scene.ws
     out = [Fact("happenings", h) for h in pulse.happenings_at(ws.store, ws.world, ws.player.location, ws.minutes)]
     out += [Fact("happenings", h) for h in moments.lines_at(ws.store, ws.player.location, ws.minutes)]       # (f348) a moment under way here
+    for i, f in enumerate(out):
+        f.id = f"happening:{i}"                                        # (f724) the town's own, by id; the ordinary day below has none
     out += [Fact("ambient", h) for h in ambient.lines(ws.store, ws.world, ws.player.location, ws.minutes, ws.player)]
     return out
 
@@ -472,8 +475,8 @@ def _news(scene: Scene):
     from engine import pulse
     ws = scene.ws
     state = ws.store.load_world_state()
-    return [Fact("news", pulse.news_text(n, ws.minutes), frozenset(f"groups:{g}" for g in n["groups"]))                      # (f356) a window that turns over by the day
-            for n in pulse.news_window(state or {}, ws.world, ws.player.location, ws.minutes, 8, key=str(ws.store.meta.seed))]
+    return [Fact("news", pulse.news_text(n, ws.minutes), frozenset(f"groups:{g}" for g in n["groups"]), id=f"news:{i}")      # (f356) a window that turns over by the day
+            for i, n in enumerate(pulse.news_window(state or {}, ws.world, ws.player.location, ws.minutes, 8, key=str(ws.store.meta.seed)))]
 
 
 @facet("fallen")

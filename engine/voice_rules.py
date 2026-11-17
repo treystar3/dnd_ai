@@ -54,6 +54,28 @@ def roll_stance(npc, minutes: int, rng, *, who: str) -> str:
                                motive=getattr(npc, "motive", ""))
 
 
+def _head(spec: dict) -> str:
+    return (spec.get("text") or "").split(":")[0].split("{")[0].strip()
+
+
+def stance_kind(text: str) -> str:
+    """(f724) Which stance a talk's line is (voice.yaml stances, by its key; 'none' for no stance): read from the line as it was
+    told, by the words before its colon, so a talk kept in a save needs nothing new and a line reworded after the colon is still
+    its stance."""
+    for k, spec in V.get("stances", {}).items():
+        if _head(spec) and (text or "").startswith(_head(spec)):
+            return k
+    return "none"
+
+
+def stance_problems(stances: dict | None = None) -> list[str]:
+    """(f724) A stance is known again by how its line begins: no two begin alike."""
+    S = V.get("stances", {}) if stances is None else stances
+    heads = {k: _head(spec) for k, spec in S.items() if _head(spec)}
+    return [f"voice.yaml stances.{a}: begins as {b} does, so the two cannot be told apart" for a in heads for b in heads
+            if a != b and heads[a].startswith(heads[b])]
+
+
 def _trust(npc, who: str) -> int:
     from engine import regard
     return regard.of(npc, who).trust
