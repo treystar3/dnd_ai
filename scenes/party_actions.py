@@ -639,6 +639,16 @@ class PartyActions:
             return "warned_self"
         return ""
 
+    def hire_move(self, m: dict, text: str, feeling: str | None = None) -> str:
+        """(f728) What a companion does with what was said to them, settled before they are asked to speak (engine/reply.py): on a die
+        of its own; '' with decide then speak off. Told of a loss in the character's own life, they answer it."""
+        from engine import quirks, reply as reply_rules, streams
+        if not reply_rules.on():
+            return ""
+        feeling = self.hire_feeling(m, text) if feeling is None else feeling
+        return reply_rules.companion_move(m, streams.keyed("move", str(m.get("id", "")), "hire", len(m.get("said") or [])),
+                                          forced=feeling in quirks.Q["answer_told"]["when"])
+
     def hire_subtext(self, m: dict, text: str) -> str:
         """What they feel and will not say, when there is real feeling in the moment."""
         from engine import quirks
@@ -756,6 +766,10 @@ class PartyActions:
         fix = ""
         from engine import voice_profile
         feeling = self.hire_feeling(m, text)
+        from engine import reply as reply_rules
+        move = self.hire_move(m, text, feeling)                   # (f728) settled before they speak
+        if move:
+            console.debug(f"{m['name']} decided: move {move}")
         how, core, recalled, held = self.companion_brief(m, text, emotion=voice_profile.emotion_for(feeling),            # (f488) in its parts
                                                          relation=voice_profile.relation_kind(bond_tier=rules.bond_tier(m)), toward="the player")
         answer_to = None
@@ -768,7 +782,8 @@ class PartyActions:
             heard = [t for who, t in recent[-6:] if who not in ("Player", m["name"].split()[0])]           # (f382) what the others just said
             ctx = {"recent": convo.others_lately(m.get("said", []), before), "member": m, "player": player, "heard": heard,
                    "others": self.fellow_names(m), "said": text,                                                   # (f385)
-                   "gesture_state": quirks.gesture_state(m, self.gesturers(m)), "answer_to": answer_to, "known": view.scene.known_words(),
+                   "gesture_state": dict(quirks.gesture_state(m, self.gesturers(m)), **({"gesture_now": True} if move and reply_rules.wordless(move) else {})),   # (f728) a look may be the reply
+                   "answer_to": answer_to, "known": view.scene.known_words(),
                    "given_also": view.town_lines,                                          # (f488) the town's list, for the checks, given or not
                    "worn": self.worn_words("speech"),                                      # (f582) the words worn in speech, for the check as well
                    "uncontracted_ok": [] if voice_profile.contracts(m) else [""]}   # (f714)
@@ -782,7 +797,7 @@ class PartyActions:
                                              again_how=convo.again_rule(quirks.repeat_manner(m)) if before else "", fix=fix, truth_text=view.text(),
                                              worn=self.worn_words("speech"), others=self.fellow_names(m), recalled=recalled,
                                              open_=self.hire_open(m, held), pronoun=brief.pronoun(self, self.acting),
-                                             exemplars=self.exemplars("speech", "small_talk")),
+                                             exemplars=self.exemplars("speech", "small_talk"), move=reply_rules.says(move) if move else ""),
                              CompanionReply, temperature=0.8, max_tokens=config.PROSE_MAX_TOKENS, retries=1, validation_context=ctx,
                              relaxed_context=dict(ctx, recent=[] if before else m.get("said", [])[-1:], answer_to=None, kit=False, worn=[]))
             except LLMError:
@@ -809,6 +824,8 @@ class PartyActions:
             self.companion_show(m, quirks.shown(reply, gesture, m["name"], rules.pronoun_of(m)), text)   # (f325) framed like Maren's and the townsfolk's
             rules.said(m, reply)
         quirks.note_line(m, gesture)
+        if move and (reply or gesture):                      # (f728) kept for the next roll, no longer than the rule looks back
+            m["moves"] = (list(m.get("moves") or []) + [move])[-int(reply_rules.R["moves"]["running"]):]
         said = [["Player", text[:250]]] + ([[m["name"].split()[0], reply[:300]]] if reply else ([[m["name"].split()[0], f"({gesture})"]] if gesture else []))
         recent += said
         brief.page(recent)                                  # (f488) cut only when full: a page turned, never slid each reply

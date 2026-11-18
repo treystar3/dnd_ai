@@ -43,7 +43,7 @@ Respond only with JSON matching the schema: {"speech": "...", "gesture": "", "re
 def talk_prompt(how: str, core: str, relation: str, now: list[str], memories: list[str], recent: list, player: str, text: str, unsaid: str = "",
                 notes: str = "", props: str = "", leaned: str = "", subtext: str = "", offers: list[str] | None = None, again: str = "",
                 again_how: str = "", fix: str = "", truth_text: str = "", worn: list[str] = (), others: list[str] = (), recalled: str = "",
-                open_: list[str] = (), pronoun: str = "", exemplars: str = ""):
+                open_: list[str] = (), pronoun: str = "", exemplars: str = "", move: str = ""):
     """A hire's request, built from typed parts (engine/prompt.py) so the gateway knows instruction from fact. (f488) In the brief's order:
     first what holds through a talk (who they are, what presses on them, the moment as they know it from the truth layer, the one who hired
     them and what is open between them); then the talk so far; then this line's tail (what it brings to mind, the checks' notes, how they
@@ -82,4 +82,6 @@ def talk_prompt(how: str, core: str, relation: str, now: list[str], memories: li
         p.instruction(", ".join(worn), "WORDS EVERYONE HAS WORN OUT LATELY (find other words)")       # (f349)
     p.instruction(exemplars)                                     # (f583) drawn for this call, near the end: the system stays cached
     p.fact(text, f"{player.upper()} SAYS TO YOU")
+    if move:                                                     # (f728) the engine's, told last as a townsperson's is
+        p.instruction(move, "WHAT YOU DO IN THIS REPLY (the game has settled it: do that, in your own manner; it is never words to say)")
     return p

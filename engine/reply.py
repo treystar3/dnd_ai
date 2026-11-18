@@ -118,6 +118,25 @@ def roll_move(w: dict[str, float], last, rng, forced: bool = False) -> str:
     return rng.choices(list(opts), weights=list(opts.values()))[0]
 
 
+def companion_weights(member: dict) -> dict[str, float]:
+    """(f728) The moves a companion might make: the table's, with the tier of their bond where a townsperson's trust in the
+    character is (reply.yaml companion.trust), the habits of their voice, and no stance. A move that needs a concern is not
+    theirs: what weighs on a companion is felt and shown, never the subject (quirks.yaml subtext)."""
+    from engine import party, voices
+    return weights("none", int(R["companion"]["trust"][party.bond_tier(member)]), voices.kit_of(member))
+
+
+def companion_move(member: dict, rng, forced: bool = False) -> str:
+    """(f728) A companion's move for one reply, on the die given: never the one they have made `running` times running (the
+    moves kept on them); the forced move when the game has decided what the reply is."""
+    return roll_move(companion_weights(member), member.get("moves") or [], rng, forced)
+
+
+def wordless(move: str) -> bool:
+    """(f728) Whether a look alone is a whole reply under this move (reply.yaml)."""
+    return bool(((R["moves"]["kinds"].get(move) or {}).get("wordless")))
+
+
 def would_share(kind: str, trust: int, gate: bool | None = None) -> tuple[bool, str]:
     """Whether they would tell this character a thing of this kind, and why not (reply.yaml share)."""
     spec = R["share"][kind]
@@ -303,6 +322,15 @@ def problems(rules: dict | None = None) -> list[str]:
     said = D.get("intents") or {}                                           # (f726) the decision in plain words
     if set(said) != intents or not all(isinstance(v, str) for v in said.values()):
         bad.append(f"reply.yaml intents: one line of words (or none) for each of a reply's intents ({', '.join(sorted(intents))})")
+    CO = D.get("companion") or {}                                           # (f728) a companion's move
+    from engine import party
+    tiers = [name for _, name in party.P["bond"]["tiers"]]
+    CT = CO.get("trust")
+    if (not isinstance(CT, dict) or set(CT) != set(tiers) or not all(isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 100 for v in CT.values())
+            or [CT[t] for t in tiers] != sorted(CT[t] for t in tiers)):
+        bad.append(f"reply.yaml companion.trust: a whole number from 0 to 100 for each tier of the bond ({', '.join(tiers)}), a closer tier never less")
+    if not all(isinstance(s_.get("wordless", False), bool) for s_ in kinds.values() if isinstance(s_, dict)):
+        bad.append("reply.yaml moves.kinds: wordless (if given) is true or false")
     K2 = D.get("speak") or {}
     if not isinstance(K2.get("lived"), int) or isinstance(K2.get("lived"), bool) or K2["lived"] < 0:
         bad.append("reply.yaml speak.lived: how many things of their own days the one who speaks is given, a whole number from 0")

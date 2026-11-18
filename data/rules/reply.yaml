@@ -16,6 +16,7 @@ decide_then_speak: false
 # (f725) most: how many of the things they could tell the move lets them tell in one reply (what the game has decided they
 # tell, an opened secret, is over and above it). intent: what the reply comes to when the reading of the line fails and the
 # engine's own candidates are the whole decision. says: the move in plain words, as the model is told it.
+# (f728) wordless: under this move a look alone is a whole reply, so a companion's gesture is not held back for coming too soon.
 # The numbers are the owner's; these are the first proposal.
 moves:
   running: 2
@@ -27,7 +28,7 @@ moves:
     own_trouble: {weight: 8, needs: concern, most: 0, intent: small_talk, says: "You turn to what weighs on you instead of what was asked."}
     deflect:     {weight: 8, most: 0, intent: withhold, says: "You turn it aside: it is not yours to say, or they should ask someone else."}
     joke:        {weight: 6, most: 0, intent: small_talk, says: "You make light of it."}
-    quiet:       {weight: 6, most: 0, intent: small_talk, says: "You give a word or two, or only a look."}
+    quiet:       {weight: 6, most: 0, intent: small_talk, wordless: true, says: "You give a word or two, or only a look."}
   by_stance:
     busy:      {answer: 0.8, part: 1.6, quiet: 1.6, joke: 0.5, own_trouble: 0.5}
     wary:      {answer: 0.5, ask_back: 2.5, deflect: 2.0, joke: 0.3}
@@ -46,6 +47,15 @@ moves:
       flat:   {quiet: 1.5}
       excuse: {deflect: 1.5}
       turn:   {ask_back: 1.3}
+
+# (f728) A COMPANION'S MOVE. One who travels with the character makes a move each reply too: the same table, a die of their
+# own. They need no reading of the line (nothing of theirs is gated or offered), and they have no stance. trust: how each tier of
+# their bond (party.yaml bond.tiers) stands where a townsperson's trust in the character does, for by_trust above; a closer tier
+# is never less. What weighs on a companion is felt and shown, never the subject (quirks.yaml subtext), so a move that needs
+# a concern is not theirs. Told of a loss in the character's own life (quirks.yaml answer_told) the move is the forced one.
+# The numbers are the owner's; these are the first proposal.
+companion:
+  trust: {cold: 20, hired hand: 50, trusted: 70, devoted: 90}
 
 # (f725) THE READING: what only reading the line can settle (do they leave, refuse, bargain; which of the things they could
 # tell answers what was asked; a name given; work, a request or a thing offered; a promise made them). One small call before they

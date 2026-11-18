@@ -368,6 +368,30 @@ engine decides, reply by reply, whether a slip of grammar shows, telling the mod
   listed, and one feature later the old path and the switch are removed. If not kept: the switch stays off, the measures are
   written up, and A5 and the measures of A1 stand on their own.
 
+**As built, the companions (f728, 17 November):**
+
+- **The move.** With the switch on, a companion's reply has a move as a townsperson's has: the same table (reply.yaml moves),
+  a die of its own, told last in the request in the move's plain words ("WHAT YOU DO IN THIS REPLY", after what was said to
+  them). No reading call. The tier of their bond stands where a townsperson's trust does (reply.yaml `companion.trust`: cold 20,
+  hired hand 50, trusted 70, devoted 90, a first proposal), so one gone cold turns things aside more and one who is close jokes
+  more; they have no stance. Told of a loss in the character's own life (the rule that such a thing is answered first) the move
+  is the forced one. The last moves are kept on the companion, no more than the run the rule looks back over.
+- **Their own trouble is no move of theirs.** The first build let a companion who is hurt, or who has warned the character,
+  roll "turn to what weighs on you". The review found that those are the very moments the request already says the feeling is
+  felt and never stated (the subtext rule), so the two instructions contradicted each other. What weighs on a companion stays
+  where the engine had it: shown, never the subject. A move that needs a concern is not a companion's.
+- **A look alone.** The quiet move ("a word or two, or only a look") is marked `wordless` in the table: under it a companion's
+  look is a whole reply and is not held back for coming too soon after their last gesture (the check sent such a reply back,
+  the engine refusing what it had just asked for).
+- **Left as it is, to be read in the measure:** the words of "turn it aside" include "or they should ask someone else", which
+  sits oddly on someone travelling with you. The moves' words are shared with the townsfolk; a wording of their own for
+  companions is the owner's call.
+- **Only the reply to the character.** A companion's line at an event, a word thrown in after another's reply and the party's
+  talk among themselves are not replies to what the character said and roll no move.
+- **The order of the request** was already the brief's (f488: who they are first, the talk, then this line's tail with how
+  they speak near the end and the words said to them last), so nothing was moved; the move is added after the words said.
+- **Not built:** the feeling and the subtext are as they were (the engine's already). Nothing changes with the switch off.
+
 ### What Part A does not do
 
 - **The conversation as real chat turns** (doc 09 B5): the gateway and the recorder carry one system and one user message today.
