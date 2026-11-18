@@ -404,10 +404,32 @@ engine decides, reply by reply, whether a slip of grammar shows, telling the mod
   medians added (the call log does not pair a reading with its reply, so it is not the median of the sums).
 - **The script** (a draft, not in the repository until the owner has read it): the town has no news for its first eight hours,
   and the script's first sixteen lines were played inside them (measured on the stand-in: none at 0, 2 and 4 hours, one piece
-  of news and one happening at 8, two and two at 24). The one change proposed is a night at the inn between the guild hall and
-  the market, in three lines the script already has ("I find the inn.", "I take a room for the night.", "I sleep until
-  morning."), so the innkeeper is still asked for news on a day with none (nothing to invent from) and the market and the
-  smithy are marked lines with news around them. 45 lines.
+  of news and one happening at 8, two and two at 24). Its lines were put in a new order with no line changed: the first look,
+  then the Greywood (the rise, the tracks, the fight, the wounds, the camp, the watch, the night's sleep), then Parth on the
+  second morning (the inn, the guild hall, the market, the smith, the south road), then Willowmead. 42 lines, 8 marked; at seed
+  719 six marked lines are answered with news or a happening around them. A night at the inn was tried first and dropped: with
+  a room held, "I sleep until morning." was refused (the fault f730 mends).
+
+**As measured (17 November; docs/measure/2026-11-17_decide_then_speak.md has the tables):**
+
+- **Bar 1, leaks: held, and it did not separate the two.** No reply leaked with the switch off or on, in three pairs of runs,
+  on marked lines that all had news around them. The gate counted one with the switch on; read, it is none (the counter took
+  the town's own name for a word of the news). That fault of the counter is not yet mended.
+- **Bar 2, time: held on the clean runs together, inside the noise.** The 95th percentile of a talk turn is 13% slower with
+  the switch on (8.4 s to 9.5 s over three clean pairs of runs; the bar is 20%), and single runs ran from 23% faster to 24%
+  slower. The usual talk turn is about a second and a half slower (two calls where one was). Not measured on the minimum card.
+- **Bar 3, the blind reading: the owner's, not yet done.** Twenty pairs are in docs/measure/2026-11-17_blind_pairs.md.
+- **What a reply reads did not fall.** The speaking request is a quarter smaller (median 17,300 to 18,150 characters down to
+  13,350 to 14,050) and the reading before it (4,000 to 4,550) takes the saving back. The speaking request's 95th percentile
+  (15,040 to 15,800) is still over the 14,000 aimed for.
+- **The model chose ids the engine accepted every time** (31 readings, none sent back): the risk named below did not show.
+- **The script holds its course only at seed 719** (elsewhere a fight breaks out and the town lines are typed in the middle
+  of it), and a run played again is nearly the same run, so the pairs came from two classes at one seed. A script that waits
+  for a fight to end is a follow-up.
+- **Read by its maker (not blind):** the new replies are shorter and lose the stiff register and the counsellor's question;
+  three moves misfire: "turn to what weighs on you" leaves the question unanswered, the quiet move cuts a reply that was
+  showing something, and the ask-back gives a stock question. These are weights and words in reply.yaml, the owner's.
+- **The switch is still off.** It is turned on by the owner after the blind reading, or not.
 
 ### What Part A does not do
 

@@ -149,6 +149,9 @@ class ShopActions:
         if n > self.MOST_AT_ONCE:                             # (f646) refused, never cut to what is sold and charged for that
             self.refuse(f"No one sells more than {self.MOST_AT_ONCE} of a thing at once.")
             return False
+        if ware.kind == "room" and self.player.room == self.player.location and self.player.room_until > self.minutes:
+            console.note("You already have a room here until mid-morning tomorrow. No charge.")   # (f730) theirs already: no refusal, no quote, the line goes on
+            return True
         ware = self.quote_ware(seller, ware, announce=True)
         if n > 1:                                             # (f646) a count asked for is kept whole, or refused in a line
             total = ware.price * n
@@ -172,9 +175,6 @@ class ShopActions:
                 self.narrate(f"The player tries to pay {seller.label(self.acting)} for {ware.name}, which costs {money.words(ware.price)}, "
                              f"but they only have {money.words(c.coins)}. Show the awkward moment.", text)
                 self.halted = True
-            return False
-        if ware.kind == "room" and self.player.room == self.player.location and self.player.room_until > self.minutes:
-            self.refuse("You already have a room here until mid-morning tomorrow. No charge.")
             return False
         c.coins -= ware.price
         self.use_barter()                                    # (f418) the price it bought was the bargained one

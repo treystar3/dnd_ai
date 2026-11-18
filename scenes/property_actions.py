@@ -110,6 +110,9 @@ class PropertyActions:
         if not BUY_WORDS.search(words):
             return False
         town = prop.town_of(self.world, self.player.location)
+        if town in self.player.homes:
+            console.note("You already own a house here. Walk over to it to build.")   # (f730) theirs already: no refusal, the line goes on
+            return True
         if not prop.for_sale(town):
             self.refuse("No houses are for sale here. Land is sold only in the far lands, to those who have earned a place there."
                          if town in P["homes"] else "No houses are for sale here.")
@@ -117,9 +120,6 @@ class PropertyActions:
         agent = next((n for n in self.present if n.role == P["agent_role"]), None)
         if not agent:
             self.refuse("The land agent isn't here right now.")
-            return True
-        if town in self.player.homes:
-            self.refuse("You already own a house here. Walk over to it to build.")
             return True
         if self.one_only(intent):                                     # (f646)
             return True
