@@ -426,9 +426,8 @@ engine decides, reply by reply, whether a slip of grammar shows, telling the mod
 - **The script holds its course only at seed 719** (elsewhere a fight breaks out and the town lines are typed in the middle
   of it), and a run played again is nearly the same run, so the pairs came from two classes at one seed. A script that waits
   for a fight to end is a follow-up.
-- **Read by its maker (not blind):** the new replies are shorter and lose the stiff register and the counsellor's question;
-  three moves misfire: "turn to what weighs on you" leaves the question unanswered, the quiet move cuts a reply that was
-  showing something, and the ask-back gives a stock question. These are weights and words in reply.yaml, the owner's.
+- **Read by its maker (not blind):** kept with the key (docs/measure/2026-11-17_blind_pairs_key.md) so that it is not read
+  before the owner's blind reading. What it points at is the weights and words of three moves in reply.yaml, the owner's.
 - **The switch is still off.** It is turned on by the owner after the blind reading, or not.
 
 ### What Part A does not do
