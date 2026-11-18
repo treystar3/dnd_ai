@@ -308,7 +308,8 @@ def gate_problems(F: dict | None = None, measured: dict | None = None) -> list[s
     """(f719) data/replay/gate.yaml, the live gate's floors (the owner's numbers; unset until the owner sets them) and the sizes of
     its quick run; and data/measured/live_gate.yaml, once a whole run has written it: the four measures it holds."""
     HELD = ("reading_share", "phantoms_per_100", "unknown_names_per_100", "stiff_sent_back_share", "p95_seconds", "over_limit", "stand_ins",
-            "leaks", "townsperson_prompt_p95_chars", "first_try_share")       # (f723) the speech work's three
+            "leaks", "townsperson_prompt_p95_chars", "first_try_share",       # (f723) the speech work's three
+            "leak_lines_with_news")                                           # (f729) whether the leak count could have failed
     if F is None and not (ROOT / "data" / "replay" / "gate.yaml").exists():
         return []                                                      # a build without the test data has no gate to hold
     F = _load("data/replay/gate.yaml") if F is None else F
@@ -325,6 +326,10 @@ def gate_problems(F: dict | None = None, measured: dict | None = None) -> list[s
     known = set(_load("data/rules/budget.yaml").get("tasks") or {})
     if not isinstance(speakers, dict) or not speakers or not all(isinstance(v, list) and v and set(v) <= known for v in speakers.values()):
         bad.append("gate.yaml speakers: each kind of speaker with a list of budget.yaml tasks")
+    readings = F.get("readings")                                       # (f729) the calls that read a line before someone speaks
+    if (not isinstance(readings, dict) or not set(readings) <= set(speakers if isinstance(speakers, dict) else {})
+            or not all(isinstance(v, list) and v and set(v) <= known for v in readings.values())):
+        bad.append("gate.yaml readings: a kind of speaker (one of speakers) with the budget.yaml tasks that read a line before they speak")
     quick = F.get("quick") or {}
     for name in ("cases", "lines"):
         if not isinstance(quick.get(name), int) or isinstance(quick.get(name), bool) or quick[name] < 1:

@@ -392,6 +392,23 @@ engine decides, reply by reply, whether a slip of grammar shows, telling the mod
   they speak near the end and the words said to them last), so nothing was moved; the move is added after the words said.
 - **Not built:** the feeling and the subtext are as they were (the engine's already). Nothing changes with the switch off.
 
+**As built, the gate before the measure (f729, 17 November):**
+
+- **Whether the leak count could have failed.** Of the marked lines answered aloud where the town had something, the gate now
+  counts those with news or a happening around them among what the line marks (`leak_lines_with_news`), holds it against a floor
+  of its own (more is better; not set until the owner sets it), and the report says in words when none had: "this count could
+  only have failed on a posting".
+- **The reading's row.** gate.yaml `readings` names, for a kind of speaker, the calls that read a line before they speak
+  (townsperson: npc_decide). They are measured as a speaker's are (how many, the median and 95th percentile read, the first
+  tries) and never counted among the speakers. The report also gives roughly what a townsperson's reply reads in all: the two
+  medians added (the call log does not pair a reading with its reply, so it is not the median of the sums).
+- **The script** (a draft, not in the repository until the owner has read it): the town has no news for its first eight hours,
+  and the script's first sixteen lines were played inside them (measured on the stand-in: none at 0, 2 and 4 hours, one piece
+  of news and one happening at 8, two and two at 24). The one change proposed is a night at the inn between the guild hall and
+  the market, in three lines the script already has ("I find the inn.", "I take a room for the night.", "I sleep until
+  morning."), so the innkeeper is still asked for news on a day with none (nothing to invent from) and the market and the
+  smithy are marked lines with news around them. 45 lines.
+
 ### What Part A does not do
 
 - **The conversation as real chat turns** (doc 09 B5): the gateway and the recorder carry one system and one user message today.

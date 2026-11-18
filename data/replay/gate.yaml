@@ -8,6 +8,7 @@ floors:
   unknown_names_per_100:      # names the game's data does not hold, per hundred passages shown, at most (a rough count)
   stiff_sent_back_share:      # of the spoken replies checked, the share sent back as stiff, at most (0 to 1)
   leaks:                      # (f723) replies that said news, a happening or a posting to a line that asked about something else, at most
+  leak_lines_with_news:       # (f729) of the marked lines answered aloud, those with news or a happening around them, at least: under it the leak count measures little
   townsperson_prompt_p95_chars:   # (f723) the 95th percentile of what a townsperson's reply reads, in characters, at most
   first_try_share:            # (f723) of the spoken replies asked for, the share accepted on the first try, at least (0 to 1)
   p95_seconds:                # the 95th percentile of a turn's seconds, at most
@@ -16,6 +17,8 @@ floors:
 speakers:                     # (f723) kind of speaker -> the tasks that ask for its reply (budget.yaml), for the speech measures
   townsperson: [npc_conversation]
   companion: [hire_chat]
+readings:                     # (f729) the calls that read a line before a kind of speaker speaks: measured as theirs are, never counted among them
+  townsperson: [npc_decide]
 quick:                        # the quick gate (--quick), for before a playtest
   cases: 60                   # reading cases, drawn evenly by kind
   lines: 15                   # the script's first lines
