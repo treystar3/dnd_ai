@@ -28,11 +28,11 @@ speak = quirks.blueprint(member)
 check("a hire who never asks back is not told to ask a question back before giving anything away", not any(l.startswith("Asks") for l in speak), speak)
 check("...nor to say a question back as a question", not any("as a question" in l for l in voices.lines(kit)), voices.lines(kit))
 check("...and an accent's 'checks they were understood' goes for them", "understood" in voices.drops(kit))
-tongue = next((t for t in quirks.Q.get("tongues", {}).values() if "understood" in (t.get("habits") or "")), None)
+tongue = next((t for t in quirks.Q.get("tongues", {}).values() if "understood" in (t.get("manner") or "")), None)
 if tongue is not None:
     real = voice_profile.tongue_of
     voice_profile.tongue_of = lambda m: tongue
-    line = voice_profile.accent({"speech": {"kit": kit, "fluency": "fluent"}})
+    line = voice_profile.manner({"speech": {"kit": kit, "fluency": "fluent"}})
     voice_profile.tongue_of = real
     check("...in the accent they are told", line and "understood" not in line, line)
 asker = {"questions": "after", "opening": "echo"}

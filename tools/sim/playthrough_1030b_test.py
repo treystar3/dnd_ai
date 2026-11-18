@@ -188,12 +188,13 @@ SP = yaml.safe_load(open("data/rules/speech.yaml", encoding="utf-8"))
 member = {"id": "brokur", "name": "Brokur Durdal", "people": "dwarf", "said": [],
           "speech": {"culture": next(c for c, s in voice_profile.S["cultures"].items() if s.get("tongue") == "ironvein"), "fluency": "learner",
                      "strength": "light"}}
-acc = voice_profile.accent(member)
-check("(f410) a speaker with an accent has it in every reply, not on a roll", "verb at the end" in acc and "in every line" in acc, acc)
+acc = voice_profile.manner(member)
+check("(f410, f727) a speaker with a tongue of their own has its manner in every reply, not on a roll; the slip of grammar is no part of it",
+      "counts and measures" in acc and "verb" not in acc and "in every line" in acc, acc)
 rolled = [voice_profile.culture_feature(member, random.Random(i))[0] for i in range(200)]
 check("...and it is no longer one of the touches rolled per reply", "transfer" not in rolled, set(rolled))
 member["speech"]["fluency"] = "native"
-check("...someone raised on Common has none", voice_profile.accent(member) == "")
+check("...someone raised on Common has none", voice_profile.manner(member) == "")
 from engine import mentor as _mentor
 check("Maren is told to say each point once, briefly", any("Use no more words than the points need" in r for r in _mentor.M["voice"]["speech_rules"]))
 check("a name run into a word with an underscore is written as words", hygiene.clean("Right_Nickkelly.") == "Right Nickkelly.")

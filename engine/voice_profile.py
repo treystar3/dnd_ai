@@ -72,8 +72,8 @@ def resident_lines(npc, rng: random.Random, toward: str = "the stranger", *, cha
     from engine import regard
     relation = relation_kind(score=regard.of(npc, char_id).trust - 50)          # (f480) how they are with this character
     feature = culture_feature(member, rng)
-    lines = voices.lines(voices.kit_of(npc.speech)) + ([accent(member)] if accent(member) else []) \
-        + compile(member, rng, relation=relation, toward=toward, budget=2, feature=feature)   # (f350) the kit first: it is the voice; (f410) the accent always
+    lines = voices.lines(voices.kit_of(npc.speech)) + [l for l in (manner(member), slip(member)) if l] \
+        + compile(member, rng, relation=relation, toward=toward, budget=2, feature=feature)   # (f350) the kit first: it is the voice; (f727) the manner always, the slip as rolled
     from engine import entities                                     # (f422) about them, in their own pronoun: a she was told "they have its
     pron = entities.GENDER.get(getattr(npc, "gender", ""), "")      # way of talking"
     return who(member), [entities.gendered(l, pron) for l in lines], material_for_feature(member, feature)
@@ -130,7 +130,7 @@ def contracts(member: dict) -> bool:
 
 
 def tongue_of(member: dict) -> dict:
-    """Their first tongue, if it is not Common: home, habits (how it shows through) and words; with their culture's sayings."""
+    """Their first tongue, if it is not Common: home, manner and slips (how it shows through) and words; with their culture's sayings."""
     from engine import quirks
     sp = member.get("speech") or {}
     c = culture(member)
@@ -235,21 +235,44 @@ def culture_feature(member: dict, rng: random.Random) -> tuple[str, object]:
     return kind, payload
 
 
-def accent(member: dict) -> str:
-    """(f410) How their Common sounds, in every reply: an accent is how someone talks, not a flourish rolled for some replies. A smith
-    whose first tongue puts the verb last said 'Hammer in hand, work to finish I have', and his next reply had no trace of it."""
+def manner(member: dict) -> str:
+    """(f410, f727) How their Common sounds, in every reply: a voice is how someone talks, not a flourish rolled for some replies.
+    The manner of their first tongue only (their words, their rhythm), never broken grammar: whether a slip of grammar shows is
+    the engine's to roll, reply by reply (slip). Told a slip was theirs "in every line", a model broke every sentence or none."""
     sp = member.get("speech") or {}
     t = tongue_of(member)
     fl = sp.get("fluency", "native")
-    if not t or fl == "native" or not t.get("habits"):
+    if not t or fl == "native" or not t.get("manner"):
         return ""
     from engine import voices
     gone = voices.drops(voices.kit_of(member))                      # (f431) one who never asks is not told to check they were understood
-    habits = "; ".join(c for c in t["habits"].split("; ") if not any(w in c for w in gone)) if gone else t["habits"]
+    how = "; ".join(c for c in t["manner"].split("; ") if not any(w in c for w in gone)) if gone else t["manner"]
+    if not how:
+        return ""
     if fl == "learner":
-        return (f"Their Common, in every line and the same each time (it is how they talk, not a flourish): {habits}. "
+        return (f"Their Common, in every line and the same each time (it is how they talk, not a flourish): {how}. "
                 "Never broken, never comic.")
-    return f"Their Common is good, with a light touch of home in most lines, the same each time: {habits}. Never broken, never comic."
+    return f"Their Common is good, with a light touch of home in most lines, the same each time: {how}. Never broken, never comic."
+
+
+def slip(member: dict, rng: random.Random | None = None) -> str:
+    """(f727) This reply's line on their grammar, the engine's to decide (speech.yaml slip): one slip of their first tongue's,
+    once, in one reply in `one_in` by how well they speak Common; otherwise that it is clean. '' for one raised on Common, or
+    whose tongue has no slip to show: nothing is rolled. rng: the die for it; with none, a die of its own keyed by who they are
+    and how many lines they have said, so that no other roll moves."""
+    sp = member.get("speech") or {}
+    t = tongue_of(member)
+    fl = sp.get("fluency", "native")
+    slips = list(t.get("slips") or []) if t else []
+    if fl == "native" or not slips:
+        return ""
+    L = S["slip"]
+    if rng is None:
+        from engine import streams
+        rng = streams.keyed("slip", str(member.get("id", "")), "", len(member.get("said") or []))
+    if rng.random() * int(L["one_in"].get(fl, L["one_in"]["fluent"])) < 1:
+        return L["shown"].format(slip=rng.choice(slips))
+    return L["clean"]
 
 
 def tell_for(member: dict, emotion: str) -> str:

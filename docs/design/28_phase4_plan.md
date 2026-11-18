@@ -270,8 +270,8 @@ decision, not from the speech. `reveals` are the decided facts whose words the s
   reading were set before the note and are to be measured in A6). The guard reads it now that its lines are kept.
 - **Their own work is answered: not in this step.** With the move rolled by the engine, a clerk asked about the board, or a
   seller asked a price, can roll a move that turns it aside. A rule for that was built with this step and taken out again on
-  review: it is not in the plan, it changes the move rules of A2, and it is the owner's to keep or strike, so it is a feature of
-  its own (f727, below).
+  review: it is not in the plan and it changes the move rules of A2, so it is a proposal of its own (A4b, below), waiting on
+  the owner.
 - **A clue is never forced.** Under a move that tells nothing (a joke, a word or two, turning it aside) a clue they hold is not
   told, and the player asks again. A6's measure is where to see whether that slows a matter.
 - **The examples follow the decision:** the sound of gossip is drawn only when news is told (before: whenever the town had news).
@@ -288,13 +288,26 @@ decision, not from the speech. `reveals` are the decided facts whose words the s
   size and time on the real model; whether these are needed is decided there.
 - **The kept recordings** were made again: every input replayed the same, no request different; only the rules' hash moved.
 
-### A4b (f727). Their own work is answered (not in the plan as approved; the owner's to keep or strike)
+### A4b. Their own work is answered (a proposal, not in the plan as approved; not built; waiting on the owner)
 
 With the move rolled by the engine, someone asked for the very thing they are there for can roll a move that turns it aside: the
-clerk and the board, the seller and a price. Built as a feature of its own so that striking it is one commit. As built: see its
-notes when it lands.
+seller and a price, the clerk and the board. Two moves in the table do that (turn it aside; turn to their own trouble), about
+one reply in six at the first weights.
 
-### A5 (f728). The voice in every line; the engine decides when grammar slips (the change to f410)
+- **Proposed:** the reading of the line (A3) gains one yes or no, `own_work`: what was said asks about this person's own work
+  (what they sell and its price, the task or post they hold, how their trade is done). The engine does the rest: each move in
+  reply.yaml says whether it turns away from what was asked (`away`), and when the reading says yes under such a move, the move
+  becomes the forced one (answer). A joke or a word or two is still theirs to make; an intent alone lifts nothing; a failed
+  reading lifts nothing.
+- **Why the reading and not a list of words:** the first version (in f726's first draft) asked engine/brief.py whether the line
+  had one of a role's words in it. Those lists are loose on purpose (they bring a facet into the brief), and the review found
+  that as a rule for the move they would make every innkeeper answer any line with "where" or "room" in it. The reading reads
+  the line already.
+- **Size:** engine/reply.py, llm/contracts.py, npc/prompts.py, reply.yaml, a test. It changes nothing with the switch off.
+- **If struck:** the measure of A6 will show how often it happens and how it reads; the weights of the two moves are the other
+  way to make it rarer.
+
+### A5 (f727). The voice in every line; the engine decides when grammar slips (the change to f410)
 
 The owner's decision: a speaker's voice holds in every line (their words, their rhythm, the sayings the engine offers), and the
 engine decides, reply by reply, whether a slip of grammar shows, telling the model so in plain words either way.
@@ -310,7 +323,36 @@ engine decides, reply by reply, whether a slip of grammar shows, telling the mod
   both, so the kept recordings are made again, each change listed.
 - For townsfolk and companions alike. This feature does not need the switch: it replaces f410 outright, as decided.
 
-### A6 (f729). Companions and the mentor; the measure; the switch
+**As built (f727, 17 November):**
+
+- **The data.** Each tongue's `habits` became two things (quirks.yaml: rime, sunscar, salt; speech.yaml: ironvein, eldervale,
+  hrimgard, cinderhold): `manner`, how their Common sounds in every reply and never broken grammar, and `slips`, the slips of
+  grammar that tongue gives (a list; Eldervale and Cinderhold have none). The split is a first proposal and the owner's to
+  reword, like the rest of that file: what counted as a slip was the verb at the end and a joining word left out (Ironvein,
+  which has two), a small word left out (Rime, Hrimgard), the wrong joining word (Sunscar), and a word reached for and
+  described around (Salt). Two of these are judgement calls for the owner: Hrimgard's "rarely bothers with words for small
+  things" was read as dropping small words, and could have meant not speaking of small matters; Salt's reaching for a word is
+  a slip of vocabulary, not grammar, and was in every reply before, where now it comes one reply in two or six.
+- **The voice line** (engine/voice_profile.py `manner`): as f410's line was, with the manner only. In every reply.
+- **The slip** (`slip`): rolled for each reply on a die of its own (keyed by who they are and how many lines they have said, so
+  no other roll moves): one reply in two for a learner, one in six for one whose Common is good (speech.yaml `slip.one_in`, the
+  owner's numbers). The model is told which in plain words either way (`slip.shown`, `slip.clean`, data): "their Common slips
+  once, in one sentence and no other", or "their Common is clean" (Common and not grammar, so the line is true of every kind
+  of slip). A tongue with no slips has none rolled and nothing said of it; with more than one, the die picks which. Someone
+  raised on Common is told nothing of either, as before.
+- **Where:** a townsperson's reply and parting (`resident_lines`), with the switch on or off; a companion's reply and the
+  party's talk among themselves (scenes/banter_actions.py). Where everything about a companion is given at once and no reply is
+  being made, the manner is there and nothing is rolled. The mentor is untouched (her voice is written by hand).
+- **The check** (engine/data_check.py `voice_problems`): a manner and a list of slips for every tongue, behaviour with no
+  quoted words, `habits` refused; the odds whole numbers from 1; the two lines.
+- **The kept recordings:** stub_short and stub_fight replayed with no request different. stub_party has two companions with a
+  tongue of their own (Rime, Salt): three requests changed (two companion replies and one exchange), each only in that
+  companion's line of habits becoming their manner and this reply's line on their Common (clean in four, slipped in one). No
+  outcome and no shown word changed: the stand-in model answers the same.
+- **Not measured here:** whether the real model now slips once and not everywhere. That is read in A6's blind pairs and in the
+  next playtest (the standing note on whether speech reads as a person's).
+
+### A6 (f728). Companions and the mentor; the measure; the switch
 
 - **Companions:** no decide call is needed (a companion's reply has no facts to gate and no offers). The engine's decision for
   them is the move, the subtext and feeling they already have, and the slip. Their prompt is put in the same order (person first,
@@ -370,9 +412,9 @@ passages released a sentence at a time.
 | f724 | The engine's decision for a reply | no |
 | f725 | The decide call | a short run |
 | f726 | The speaking prompt | a short run |
-| f727 | Their own work is answered (added on review of f726; the owner's to keep or strike) | no |
-| f728 | The voice and the slip (f410) | a short run |
-| f729 | Companions; the measure; the switch | yes, two runs, and the owner's reading |
+| f727 | The voice and the slip (f410) | a short run |
+| f728 | Companions; the measure; the switch | yes, two runs, and the owner's reading |
+| (none yet) | Their own work is answered (A4b: proposed on review of f726; the owner's to approve or strike) | no |
 
 ## Questions for the owner
 

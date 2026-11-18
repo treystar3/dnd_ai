@@ -336,6 +336,29 @@ def gate_problems(F: dict | None = None, measured: dict | None = None) -> list[s
     return bad
 
 
+def voice_problems(tongues: dict | None = None, slip: dict | None = None) -> list[str]:
+    """(f727) A voice in every line, a slip as rolled (engine/voice_profile.py manner, slip): each tongue has a manner and its slips
+    of grammar apart from it, both behaviour with no quoted words (habits is no longer read); the slip's odds by fluency and its
+    two lines (speech.yaml slip). With nothing given, the data's own."""
+    if tongues is None:
+        tongues = {**(_load("data/rules/quirks.yaml").get("tongues") or {}), **(_load("data/rules/speech.yaml").get("tongues") or {})}
+    SL = (_load("data/rules/speech.yaml").get("slip") if slip is None else slip) or {}
+    bad: list[str] = []
+    for t, spec in tongues.items():
+        if not (isinstance(spec.get("manner"), str) and spec["manner"].strip() and not QUOTED.search(spec["manner"])) or "habits" in spec:
+            bad.append(f"tongue '{t}': manner (how their Common sounds in every reply) must describe behaviour, no quoted words; habits is no longer read")
+        if not (isinstance(spec.get("slips"), list) and all(isinstance(x, str) and x.strip() and not QUOTED.search(x) for x in spec["slips"])):
+            bad.append(f"tongue '{t}': slips is a list of its slips of grammar (none is allowed), behaviour only, no quoted words")
+    odds = SL.get("one_in") or {}
+    if set(odds) != {"learner", "fluent"} or not all(isinstance(v, int) and not isinstance(v, bool) and v >= 1 for v in odds.values()):
+        bad.append("speech.yaml slip.one_in: learner and fluent, each a whole number from 1 (one reply in so many)")
+    if not isinstance(SL.get("shown"), str) or "{slip}" not in SL["shown"]:
+        bad.append("speech.yaml slip.shown: the line for a reply whose grammar slips, with {slip} in its place")
+    if not isinstance(SL.get("clean"), str) or not SL["clean"].strip():
+        bad.append("speech.yaml slip.clean: the line for a reply whose grammar is clean")
+    return bad
+
+
 def check() -> list[str]:
     broken = []
     for f in sorted((ROOT / "data").rglob("*.yaml")):              # every data file, not only the ones cross-checked below
@@ -387,12 +410,13 @@ def check() -> list[str]:
     for t, spec in tongues.items():
         words = spec.get("words", {}) or {}
         need(bool(spec.get("home")), f"tongue '{t}': needs a home")
-        need(bool(spec.get("habits")) and not QUOTED.search(spec.get("habits", "")), f"tongue '{t}': habits must describe behaviour, no quoted words")
         for w in spec.get("offer", []) or []:
             need(w in words, f"tongue '{t}': offers '{w}', which is not one of its words")
         for w in words:
             need(w not in seen, f"the word '{w}' belongs to both '{seen.get(w)}' and '{t}'")
             seen[w] = t
+
+    bad.extend(voice_problems(tongues, S.get("slip")))
 
     # ---- the profile tables
     strengths = set(S.get("strength", {}).get("weights", {}))

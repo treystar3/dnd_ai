@@ -76,7 +76,7 @@ stub.companion = None
 
 # ---- instructions carry nothing quotable
 Q = quirks.Q
-texts = [v["prompt"] for v in Q["voices"].values()] + [t["habits"] for t in Q["tongues"].values()] + [Q["tongue_prompt"]] + \
+texts = [v["prompt"] for v in Q["voices"].values()] + [x for t in Q["tongues"].values() for x in [t["manner"], *t["slips"]]] + [Q["tongue_prompt"]] + \
         [b["say"] for bs in Q["blueprints"].values() for b in bs] + list(Q["maren"]["blueprint"])
 check("no voice, tongue or temperament line carries an example in brackets to copy", not [t for t in texts if re.search(r"\('|\(\"", t)], [t for t in texts if re.search(r"\('|\(\"", t)])
 check("sayings live in the tongues as material", all(t.get("sayings") for t in Q["tongues"].values()))

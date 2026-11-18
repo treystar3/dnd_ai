@@ -59,7 +59,7 @@ culture:
   show: {light: 0.25, moderate: 0.4, strong: 0.6}   # the chance, per reply, that their culture shows
   weights:                                          # which feature, when it does
     dialect: 4                                      # a line of their culture's way of talking
-    transfer_learner: 4                             # (f410) unused: an accent is in every reply now (engine/voice_profile.accent), not rolled
+    transfer_learner: 4                             # (f410) unused: the manner of their tongue is in every reply (engine/voice_profile.manner), not rolled
     transfer_fluent: 1.5
     saying: 1.5                                     # a saying from home, offered to be said as it is
     imagery: 1                                      # one image from home, allowed as a turn of phrase
@@ -160,30 +160,44 @@ cultures:
     imagery: [fire, ash, the anvil, tempering]
     sayings: ["What survives the fire is the blade.", "Ash is honest; it hides nothing.", "Tend the flame or be warmed by none."]
 
-# The tongues not already in quirks.yaml (rime, sunscar, salt live there). habits: how the first tongue shows through in Common, as
-# behaviour only. words: always used for the same thing, and never shared with another tongue. offer: the words that may be offered to
+# (f727) THE SLIP. A voice holds in every line: each tongue's `manner`, below and in quirks.yaml. Whether a slip of grammar shows
+# is the engine's, rolled for each reply on a die of its own: one reply in `one_in`, by how well they speak Common (the owner's
+# numbers, 17 November). The model is told which in plain words either way (shown, with the slip in its place; clean). A tongue
+# with no `slips` has none rolled, and nothing is said of it. With more than one, the reply's die picks which.
+slip:
+  one_in: {learner: 2, fluent: 6}
+  shown: "In this reply their Common slips once, in one sentence and no other: {slip}. Every other sentence is correct."
+  clean: "In this reply their Common is clean: every sentence is correct. Their voice is in their words and rhythm."
+
+# The tongues not already in quirks.yaml (rime, sunscar, salt live there). manner: how the first tongue shows through in Common
+# in every reply, as behaviour only and never broken grammar. slips: its slips of grammar, each shown once in a reply and only
+# when rolled (slip, above). words: always used for the same thing, and never shared with another tongue. offer: the words that may be offered to
 # be said - endearments, exclamations, a yes or a no; the rest are known to the game (so they are never borrowed by someone else) but are
 # not offered, because a model given a noun from an invented tongue tends to misuse it.
 tongues:
   ironvein:
     home: Ironvein under the Grey Mountains
-    habits: "now and then puts the verb at the end of a sentence, the way their own tongue does; counts and measures things exactly; uses few small joining words"
+    manner: "counts and measures things exactly"
+    slips: ["the verb put at the end of the sentence, the way their own tongue has it", "a small joining word left out, where their own tongue has none"]
     words: {khaz: "solid, well made, sound", brund: "a fool, fondly or not", orrum: "home, the hall", taak: "agreed, it is done"}
     offer: [brund, taak]
   eldervale:
     home: Eldervale in the Blackpine
-    habits: "speaks with an old-fashioned formality; uses longer sentences than most; speaks of time in seasons and generations"
+    manner: "speaks with an old-fashioned formality; uses longer sentences than most; speaks of time in seasons and generations"
+    slips: []
     contracts: false      # (f714) speaks without contractions: stiff speech is theirs, never sent back
     words: {ithren: "friend, kin of the heart", saelo: "patience, slow time", velun: "a sorrow carried long", lith: "light, or a good omen"}
     offer: [ithren, saelo]
   hrimgard:
     home: Hrimgard in the Stormcrown
-    habits: "uses short, weighty sentences with the important word first; rarely bothers with words for small things"
+    manner: "uses short, weighty sentences with the important word first"
+    slips: ["a small word dropped, the kind their own tongue does not bother with"]
     words: {haug: "high ground, and the honour of standing on it", skorr: "a small person, kindly meant", drev: "a storm, or a temper", ulm: "yes, it is so"}
     offer: [skorr, ulm]
   cinderhold:
     home: Cinderhold in the Ashen Reach
-    habits: "speaks in a measured, formal way; addresses people by what they do; sometimes ends a sentence on a single hard word"
+    manner: "speaks in a measured, formal way; addresses people by what they do; sometimes ends a sentence on a single hard word"
+    slips: []
     contracts: false      # (f714) speaks without contractions: stiff speech is theirs, never sent back
     words: {zharr: "a tended fire, a home", ashk: "ended, gone to ash", oru: "kin, the clan", drass: "proof, a thing tested in fire"}
     offer: [oru, ashk]

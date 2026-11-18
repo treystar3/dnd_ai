@@ -153,7 +153,7 @@ def my_curses(member: dict) -> list[str]:
 
 
 def tongue(member: dict) -> dict:
-    """Their first tongue if it is not Common (engine/voice_profile.py): home, habits, words, and their culture's sayings."""
+    """Their first tongue if it is not Common (engine/voice_profile.py): home, manner, slips, words, and their culture's sayings."""
     from engine import voice_profile
     return voice_profile.tongue_of(member)
 
@@ -163,7 +163,7 @@ def tongue_prompt(member: dict) -> str:
     if not t:
         return ""
     words = "; ".join(f"'{w}' ({m})" for w, m in t["words"].items())
-    return Q["tongue_prompt"].format(home=t["home"], habits=t["habits"], words=words)
+    return Q["tongue_prompt"].format(home=t["home"], habits=t.get("manner", ""), words=words)       # (f727) the manner; a slip is the engine's roll
 
 
 def habit_prompt(member: dict) -> str:

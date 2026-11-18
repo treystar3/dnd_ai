@@ -68,12 +68,15 @@ curses:
   strong: ["shit", "piss", "fuck", "arse"]
   pick: 3          # how many a cursing hire has for their own
 
-# ---- English is not their first language. Each tongue has a home in Meravia, a few consistent grammar habits, and its own words, always used
-# for the same thing. The engine supplies the words and their meanings; the model may use no others.
+# ---- English is not their first language. Each tongue has a home in Meravia, a manner, and its own words, always used for the same
+# thing. The engine supplies the words and their meanings; the model may use no others. (f727) manner: how their Common sounds in
+# every reply, never broken grammar. slips: the slips of grammar their tongue gives them, each shown once in a reply and only when
+# the engine rolls it (speech.yaml slip); a tongue may have none.
 tongues:
   rime:
     home: the Rimelands of the far north
-    habits: "now and then leaves out a small word before a noun, where English would want one; is precise and a little formal, and seldom uses contractions"
+    manner: "is precise and a little formal, and seldom uses contractions"
+    slips: ["a small word left out before a noun, where English would want one"]
     contracts: false      # (f714) speaks without contractions: stiff speech is theirs, never sent back
     sayings: ["A cold hearth makes a short night.", "Snow remembers every footstep.", "Only a fool counts the winter before it is over.", "The wolf that howls is not the one to fear."]
     words: {vesh: "little brother or little sister, said to someone they are fond of", hrimma: "bad luck, said under the breath", skal: "good, or well done", tor: "enough, stop"}
@@ -81,7 +84,8 @@ tongues:
     fond_word: vesh
   sunscar:
     home: the Sunscar in the south
-    habits: "uses no contractions and no slang; now and then picks the wrong small joining word, the way a learner does; sometimes checks they were understood; is warm and courteous, a little more formal than the moment needs"
+    manner: "uses no contractions and no slang; sometimes checks they were understood; is warm and courteous, a little more formal than the moment needs"
+    slips: ["the wrong small joining word, the way a learner picks one"]
     contracts: false      # (f714) speaks without contractions: stiff speech is theirs, never sent back
     sayings: ["Shade is a gift you give the next traveller.", "The well does not ask who is thirsty.", "Sand in the bread is still bread."]
     words: {aziri: "friend, said warmly", kesh: "nonsense, said with a wave of the hand", haddim: "by the sun, an oath", sabr: "patience"}
@@ -89,12 +93,13 @@ tongues:
     fond_word: aziri
   salt:
     home: the Saltmarches on the coast
-    habits: "now and then reaches for an English word, does not find it, and describes around it; borrows the language of boats and weather for moods and plans without noticing; keeps sentences short and practical"
+    manner: "borrows the language of boats and weather for moods and plans without noticing; keeps sentences short and practical"
+    slips: ["an English word reached for and not found, and described around instead"]
     sayings: ["A calm sea never made a sailor.", "Mend the net before you need it.", "The tide does not wait for the slow."]
     words: {mora: "trouble, or a storm coming", leet: "small, or a small amount", brennan: "a friend you would sail with", wey: "yes, or all right"}
     offer: [mora, brennan, wey]
     fond_word: brennan
-tongue_prompt: "English is not their first language; they grew up speaking the tongue of {home}. They speak it well and plainly: their sentences are in normal English word order, and most lines are fully correct. Only now and then does home show through: {habits}. A word of their own tongue, or a saying from home, only when one is offered to them, and never any other. Never broken, never comic, never a caricature: a capable adult speaking a second language."
+tongue_prompt: "English is not their first language; they grew up speaking the tongue of {home}. They speak it well and plainly: their sentences are in normal English word order, and most lines are fully correct. Home shows through in how they say it: {habits}. A word of their own tongue, or a saying from home, only when one is offered to them, and never any other. Never broken, never comic, never a caricature: a capable adult speaking a second language."
 # ---- material: words that may be said as they are. The engine offers at most one of each kind per reply, this often, and not one used lately.
 material:
   curse: 0.35
