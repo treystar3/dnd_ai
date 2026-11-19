@@ -1298,9 +1298,9 @@ def restore(combat: Combat | None, f: Fighter, amount: float, source: Fighter | 
         tell(combat, f"the healing meant for {who(f)} is drawn away into {who(thief)} (Life Theft)")
         return restore(combat, thief, amount, source, rng)
     if "unraveled" in f.statuses and combat is not None:
-        dealt = take_damage(combat, f, amount, source, rng or streams.get("combat"), "magical")
-        combat.log.append(f"{f.name}'s healing turns on it: {dealt} damage (Unraveled)")
-        tell(combat, f"the healing curdles in {who(f)} and tears at {vb(f, 'you', 'it')} instead ({dealt})")
+        dealt = side_damage(combat, f, amount, source, rng or streams.get("combat"), "magical",
+                            told=lambda d: f"the healing curdles in {who(f)} and tears at {vb(f, 'you', 'it')} instead ({d})",
+                            logged=lambda d: f"{f.name}'s healing turns on it: {d} damage (Unraveled)")
         return -float(dealt)
     before = f.hp
     f.hp = min(f.max_hp, f.hp + amount)
@@ -1314,6 +1314,21 @@ def take_damage(combat: Combat, dfn: Fighter, amount: float, source: Fighter | N
     data/rules/stages.yaml declares it and engine/damage.py runs it: one calculation, the value and its explanation together."""
     from engine import damage
     return damage.resolve("blow", combat, dfn, amount, source, rng, damage_type, rec)
+
+
+def side_damage(combat: Combat, dfn: Fighter, amount: float, source: Fighter | None, rng: random.Random,
+                damage_type: str = "physical", told=None, logged=None) -> int:
+    """(f757) Damage outside a blow's own path, told in order: the caller's lines (told for the story, logged for the log; a line, or
+    a function of what was dealt, "" to tell nothing) go before whatever the damage set off. Returns what was dealt."""
+    at, log_at = len(combat.story), len(combat.log)
+    dealt = take_damage(combat, dfn, amount, source, rng, damage_type)
+    line = logged(dealt) if callable(logged) else logged
+    if line:
+        combat.log.insert(log_at, line)
+    line = told(dealt) if callable(told) else told
+    if line:
+        tell(combat, line, at=at)
+    return dealt
 
 
 def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, label: str, rng: random.Random,
@@ -1491,6 +1506,7 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
         taken += extra
         if rec is not None:
             rec["extras"].append(["Spellblade (magic, after defence)", f"+{round(extra)}"])
+    at, log_at = len(combat.story), len(combat.log)     # (f757) the blow's lines go here, before all the blow sets off
     if "deflect" in D and rng.uniform(0, 100) < D["deflect"]:
         taken *= 0.5
         if rec is not None:
@@ -1503,8 +1519,7 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
             taken -= moved
             if rec is not None:
                 rec["extras"].append(["Guardian takes a share", f"-{round(moved)}"])
-            take_damage(combat, guard, moved, att, rng, att.damage_type)
-            tell(combat, f"{who(guard)} throws itself in the way and takes {round(moved)} of it")
+            side_damage(combat, guard, moved, att, rng, att.damage_type, told=f"{who(guard)} throws itself in the way and takes {round(moved)} of it")
     pre_shield = taken
     taken = take_damage(combat, dfn, taken, att, rng, att.damage_type, rec=rec)
     att.counters["last_hit"] = int(taken)               # what this blow dealt, for an ignite it sets (engine/afflictions.py)
@@ -1531,38 +1546,37 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
             tell(combat, f"{who(att)} {vb(att, 'strike', 'strikes')} the ice around {who(dfn)} and the cold bites deep - {vb(att, 'you are', 'it is')} slowed (Frost Armor)")
     if "thorn_pct" in D and att.reach in ("melee", "extended") and att.alive and att.side != dfn.side:
         back = D.get("thorn_flat", 0) + dfn.armor * D["thorn_pct"] / 100          # Thorns (buff): a little for anyone, a lot for the armored
-        back = take_damage(combat, att, back, dfn, rng, "physical")
-        combat.log.append(f"{att.name} is hurt by {dfn.name}'s thorns: {back}")
-        tell(combat, f"{who(att)} {vb(att, 'are', 'is')} torn for {back} by the thorns around {who(dfn)} (Thorns)")
+        side_damage(combat, att, back, dfn, rng, "physical",
+                    told=lambda d: f"{who(att)} {vb(att, 'are', 'is')} torn for {d} by the thorns around {who(dfn)} (Thorns)",
+                    logged=lambda d: f"{att.name} is hurt by {dfn.name}'s thorns: {d}")
     if "thorns" in D and att.reach == "melee" and att.alive and att.side != dfn.side:
         floor = AT.T["thorns_floor"] * RULES["mitigation"]["armor_k"] * growth(att.level)
         back = max(dfn.armor, floor) * D["thorns"] / 100
-        back = take_damage(combat, att, back, dfn, rng, "physical")
-        combat.log.append(f"{att.name} is hurt by {dfn.name}'s thorns: {back}")
-        tell(combat, f"{who(att)} {vb(att, 'are', 'is')} hurt for {back} as the blow rebounds (Thorns)")
+        side_damage(combat, att, back, dfn, rng, "physical", told=lambda d: f"{who(att)} {vb(att, 'are', 'is')} hurt for {d} as the blow rebounds (Thorns)",
+                    logged=lambda d: f"{att.name} is hurt by {dfn.name}'s thorns: {d}")
     note = {"graze": " (graze)", "crit": " (critical)"}.get(outcome, "")
     soak = f", {round(absorbed)} absorbed" if absorbed >= 1 else ""
-    combat.log.append(f"{att.name} {label} {dfn.name}: {taken} damage{note}{soak}")
+    combat.log.insert(log_at, f"{att.name} {label} {dfn.name}: {taken} damage{note}{soak}")
     quality = {"graze": "only a glancing blow", "crit": "a perfect strike, " + severity(taken, dfn.max_hp)}.get(outcome, severity(taken, dfn.max_hp))
     turned = f"; {whose(dfn)} {cover(dfn)} turns part of it" if absorbed > taken * 0.4 else ""
     after = f" - {who(dfn)} {vb(dfn, 'are', 'is')} {condition(dfn)}" if dfn.alive else ""
-    tell(combat, f"{who(att)} {vb(att, 'hit', 'hits')} {who(dfn)} {how}: {quality}{turned}{after}", rec)
+    tell(combat, f"{who(att)} {vb(att, 'hit', 'hits')} {who(dfn)} {how}: {quality}{turned}{after}", rec, at=at)
     emult = multiplier * {"graze": 0.5, "hit": 1.0, "crit": crit_multiplier(att)}[outcome]
     for el in elements.ELEMENTS:
         flat = flat_bonus(att, f"{el}_damage", {"always"})
         if flat > 0 and dfn.alive:
             part, _ = mitigate(dfn, flat * emult, "magical", att.level, combat, att)
             held, att.hit_element = att.hit_element, el
-            dealt = take_damage(combat, dfn, part, att, rng, "magical")
+            dealt = side_damage(combat, dfn, part, att, rng, "magical",          # (f349) told once a fight (lightning was narrated 56 rounds running); a kill by it is always told
+                                told=lambda d: (f"{el} damage follows the {'spell' if att.spell_kind == 'spell' else 'blow'} into {who(dfn)}"
+                                                + (f" - {who(dfn)} {vb(dfn, 'are', 'is')} {condition(dfn)}" if dfn.alive else ""))
+                                if not combat.burn_told or not dfn.alive else "",
+                                logged=lambda d: f"{att.name}'s {el} damage from gear hits {dfn.name}: {d}")       # (f419) lightning does not burn
             att.hit_element = held
             taken += dealt
-            combat.log.append(f"{att.name}'s {el} damage from gear hits {dfn.name}: {dealt}")       # (f419) lightning does not burn
             if rec is not None:
                 rec["extras"].append([f"{el.capitalize()} damage from gear", f"+{round(dealt)}"])
-            if not combat.burn_told or not dfn.alive:           # (f349) told once a fight (lightning was narrated 56 rounds running); a kill by it is always told
-                tell(combat, f"{el} damage follows the {'spell' if att.spell_kind == 'spell' else 'blow'} into {who(dfn)}"
-                     + (f" - {who(dfn)} {vb(dfn, 'are', 'is')} {condition(dfn)}" if dfn.alive else ""))
-                combat.burn_told = True
+            combat.burn_told = True
     if "acid_weapon" in A and dfn.alive and taken > 0 and att.spell_kind != "spell" and not warded(dfn, "acid"):
         cap = AT.BUFFS.get("acidcoat", {}).get("cap", 75)
         cut = min(cap, dfn.corroded + A["acid_weapon"] * (ATTUNE["acid"] if attuned(att, "acid") else 1))   # Acid Coating
@@ -1576,20 +1590,20 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
         el = buff.get("element") or "fire"
         part, _ = mitigate(dfn, dmg * A["elemental_weapon"] / 100, "magical", att.level, combat, att)
         held, att.hit_element = att.hit_element, el
-        extra = take_damage(combat, dfn, part, att, rng, "magical")
+        extra = side_damage(combat, dfn, part, att, rng, "magical",
+                            told=f"{el} flares along the blow and bites into {who(dfn)} ({buff.get('name') or 'Elemental Weapon'})",
+                            logged=lambda d: f"{att.name}'s {el} weapon hits {dfn.name}: {d}")
         att.hit_element = held
-        combat.log.append(f"{att.name}'s {el} weapon hits {dfn.name}: {extra}")
         if rec is not None:
             rec["extras"].append([f"{el.capitalize()} weapon", f"+{round(extra)}"])
-        tell(combat, f"{el} flares along the blow and bites into {who(dfn)} ({buff.get('name') or 'Elemental Weapon'})")
         if buff.get("exprs"):
             from engine import spellcraft
             spellcraft.carried(combat, att, dfn, buff["exprs"], buff.get("etier", "light"), buff.get("name", ""), taken, rng)
     att.counters["storm"] = att.counters.get("storm", 0) + 1 if "stormcaller" in A else 0
     if "stormcaller" in A and dfn.alive and att.counters["storm"] % 3 == 0:
         bolt, _ = mitigate(dfn, dmg * 0.5, "magical", att.level, combat, att)
-        combat.log.append(f"lightning strikes {dfn.name}: {take_damage(combat, dfn, bolt, att, rng, 'magical')} damage (Stormcaller)")
-        tell(combat, f"lightning answers {whose(att)} weapon and cracks down onto {who(dfn)} (Stormcaller)")
+        side_damage(combat, dfn, bolt, att, rng, "magical", told=f"lightning answers {whose(att)} weapon and cracks down onto {who(dfn)} (Stormcaller)",
+                    logged=lambda d: f"lightning strikes {dfn.name}: {d} damage (Stormcaller)")
     if outcome == "crit" and "bloodlust" in A:
         gain = round(att.max_hp * A["bloodlust"] / 100)
         restore(combat, att, gain)
@@ -2437,7 +2451,7 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
         tell(combat, "the sky answers the fourth spell, and stars fall (Starfall)")
         for e in combat.enemies():
             dealt, _ = mitigate(e, base, "magical", att.level, combat, att)
-            combat.log.append(f"starfall hits {e.name}: {take_damage(combat, e, dealt, att, rng, 'magical')} damage")
+            side_damage(combat, e, dealt, att, rng, "magical", logged=lambda d: f"starfall hits {e.name}: {d} damage")
     if att.alive:
         combat_perks.after_cast(combat, att, move, target, rng, give, echo, cost)
     return None

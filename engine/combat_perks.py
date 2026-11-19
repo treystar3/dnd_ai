@@ -207,9 +207,8 @@ def after_hit(combat: C.Combat, att: C.Fighter, dfn: C.Fighter, outcome: str, ta
                     burst += left * taken * P["thermal_shock"]["per_round"]
                 E.end_status(dfn, s)                          # (f507) the strength goes with the row, after the burst read it
             if burst > 0:
-                dealt = C.take_damage(combat, dfn, burst, att, rng, "magical")
-                combat.log.append(f"{dfn.name} suffers a thermal shock: {dealt}")
-                C.tell(combat, f"{el} meets its opposite in {C.who(dfn)} and both go off at once {tag(att, 'thermal_shock')}")
+                C.side_damage(combat, dfn, burst, att, rng, "magical", told=f"{el} meets its opposite in {C.who(dfn)} and both go off at once {tag(att, 'thermal_shock')}",
+                              logged=lambda d: f"{dfn.name} suffers a thermal shock: {d}")
     conduct(combat, att, dfn, taken, rng)
     if taken > 0 and dfn.side == "enemy":
         if att is p:
@@ -229,9 +228,8 @@ def after_hit(combat: C.Combat, att: C.Fighter, dfn: C.Fighter, outcome: str, ta
             E.end_status(dfn, "poisoned")                     # (f507) the stacks go with the row, after the burst read them
         dfn.counters.pop("dormant", None)
         if burst > 0:
-            dealt = C.take_damage(combat, dfn, burst, att, rng, "physical")
-            combat.log.append(f"the gathered venom in {dfn.name} bursts: {dealt} (Dormant Venom)")
-            C.tell(combat, f"everything the poison had been saving in {C.who(dfn)} goes off at once {tag(att, 'dormant_venom')}")
+            C.side_damage(combat, dfn, burst, att, rng, "physical", told=f"everything the poison had been saving in {C.who(dfn)} goes off at once {tag(att, 'dormant_venom')}",
+                          logged=lambda d: f"the gathered venom in {dfn.name} bursts: {d} (Dormant Venom)")
     if att.side == "ally" and p is not None and p.alive and taken > 0 and p.max_mana and has(p, "shared_strength", combat) \
             and any(b.get("from") == p.id for b in att.buffs.values()):
         back = p.max_mana * has(p, "shared_strength", combat) / 100
@@ -241,11 +239,12 @@ def after_hit(combat: C.Combat, att: C.Fighter, dfn: C.Fighter, outcome: str, ta
         others = [e for e in bf.standing(combat, dfn.zone_id) if e is not dfn and e.alive and bf.hostile(att, e)]
         if others:
             held, att.hit_element = att.hit_element, "lightning"
+            at = len(combat.story)                                  # (f757) the arcs are told before what they set off
             for e in others:
                 arc, _ = C.mitigate(e, taken * P["storm_chosen"]["arc"], "magical", att.level, combat, att)
-                combat.log.append(f"lightning arcs to {e.name}: {C.take_damage(combat, e, arc, att, rng, 'magical')}")
+                C.side_damage(combat, e, arc, att, rng, "magical", logged=lambda d: f"lightning arcs to {e.name}: {d}")
             att.hit_element = held
-            C.tell(combat, f"the storm answers: lightning leaps from the blow into {', '.join(C.who(e) for e in others)} {tag(att, 'storm_chosen')}")
+            C.tell(combat, f"the storm answers: lightning leaps from the blow into {', '.join(C.who(e) for e in others)} {tag(att, 'storm_chosen')}", at=at)
     if att.summon_form and p is not None and p.alive and p.max_mana and taken > 0 and has(p, "bound_pair", combat):
         back = p.max_mana * P["bound_pair"]["mana"]
         p.mana = min(p.max_mana, p.mana + back)
@@ -374,10 +373,9 @@ def before_damage(combat: C.Combat, dfn: C.Fighter, amount: float, source: C.Fig
         amount -= moved
         p.counters["martyring"] = 1
         try:
-            C.take_damage(combat, p, moved, source, rng, damage_type)
+            C.side_damage(combat, p, moved, source, rng, damage_type, told=f"half of what was meant for {C.who(dfn)} lands on you instead {tag(p, 'martyr')}")
         finally:
             p.counters.pop("martyring", None)
-        C.tell(combat, f"half of what was meant for {C.who(dfn)} lands on you instead {tag(p, 'martyr')}")
     if dfn is p and has(p, "shared_skin", combat) and not p.counters.get("sharing"):
         s = summon_of(combat)
         if s is not None and source is not s:
@@ -385,10 +383,9 @@ def before_damage(combat: C.Combat, dfn: C.Fighter, amount: float, source: C.Fig
             amount -= moved
             p.counters["sharing"] = 1
             try:
-                C.take_damage(combat, s, moved, source, rng, damage_type)
+                C.side_damage(combat, s, moved, source, rng, damage_type, told=f"a share of the hurt passes through the bond into {C.who(s)} {tag(p, 'shared_skin')}")
             finally:
                 p.counters.pop("sharing", None)
-            C.tell(combat, f"a share of the hurt passes through the bond into {C.who(s)} {tag(p, 'shared_skin')}")
     return amount
 
 
@@ -583,11 +580,12 @@ def after_cast(combat: C.Combat, att: C.Fighter, move: C.Move, target: C.Fighter
             undead = [u for u in undead if u is not None and u.alive and u.category == "undead"]
             if undead:
                 held, att.hit_element = att.hit_element, P["consecration"]["element"]
+                at = len(combat.story)                              # (f757) the searing is told before what it sets off
                 for u in undead:
                     burn, _ = C.mitigate(u, amount * P["consecration"]["share"], "magical", att.level, combat, att)
-                    combat.log.append(f"{u.name} is seared by the healing: {C.take_damage(combat, u, burn, att, rng, 'magical')}")
+                    C.side_damage(combat, u, burn, att, rng, "magical", logged=lambda d: f"{u.name} is seared by the healing: {d}")
                 att.hit_element = held
-                C.tell(combat, f"the same light that mends {C.who(att)} sears the dead that press {C.vb(att, 'you', 'them')} {tag(att, 'consecration')}")
+                C.tell(combat, f"the same light that mends {C.who(att)} sears the dead that press {C.vb(att, 'you', 'them')} {tag(att, 'consecration')}", at=at)
     if echo:
         return
     if att.counters.pop("echo_now", None):
@@ -614,16 +612,17 @@ def unmaking(combat: C.Combat, att: C.Fighter, move: C.Move, rng: random.Random)
     from engine import battlefield as bf
     power = C.RULES["spell_base_damage"] * C.growth(att.level) * C.RULES["damage"]["multiplier"][P["unmaking"]["tier"]]
     victims = [e for e in bf.standing(combat, s.zone_id) if e.alive and bf.hostile(s, e)] if combat.battlefield else combat.enemies()
+    at = len(combat.story)                                          # (f757) the unmaking is told before what its burst sets off
     for e in victims:
         hit, _ = C.mitigate(e, power, "magical", att.level, combat, att)
-        combat.log.append(f"{e.name} is caught in the unmaking: {C.take_damage(combat, e, hit, att, rng, 'magical')}")
+        C.side_damage(combat, e, hit, att, rng, "magical", logged=lambda d: f"{e.name} is caught in the unmaking: {d}")
     for f in mine:
         f.hp = 0
         f.counters["dead"] = 1
         bf.release(combat, f)
     combat.log.append(f"{s.name} is unmade")
     C.tell(combat, f"{C.who(att)} {C.vb(att, 'speak', 'speaks')} {move.name} with {C.who(s)} already standing, and {C.vb(s, 'you come', 'it comes')} apart in a burst that takes "
-           + (", ".join(C.who(e) for e in victims) if victims else "nothing but the air") + f" with it {tag(att, 'unmaking')}")
+           + (", ".join(C.who(e) for e in victims) if victims else "nothing but the air") + f" with it {tag(att, 'unmaking')}", at=at)
     return True
 
 
@@ -755,13 +754,14 @@ def conduct(combat: C.Combat, att: C.Fighter, dfn: C.Fighter, taken: float, rng:
     others.sort(key=lambda e: 0 if e.zone_id == dfn.zone_id else 1)
     hit = others[:n]
     att.counters["conducting"] = 1
+    at = len(combat.story)                                          # (f757) the leap is told before what it sets off
     try:
         for e in hit:
             leap, _ = C.mitigate(e, taken * P["conduit"]["share"], "magical", att.level, combat, att)
-            combat.log.append(f"the spell leaps to {e.name}: {C.take_damage(combat, e, leap, att, rng, 'magical')} (Conduit)")
+            C.side_damage(combat, e, leap, att, rng, "magical", logged=lambda d: f"the spell leaps to {e.name}: {d} (Conduit)")
     finally:
         att.counters.pop("conducting", None)
-    C.tell(combat, f"the afflictions on {C.who(dfn)} carry the spell on into {', '.join(C.who(e) for e in hit)} {tag(att, 'conduit')}")
+    C.tell(combat, f"the afflictions on {C.who(dfn)} carry the spell on into {', '.join(C.who(e) for e in hit)} {tag(att, 'conduit')}", at=at)
 
 
 # ---------- round two (f217): movement, stillness, ground and the turncoat ----------

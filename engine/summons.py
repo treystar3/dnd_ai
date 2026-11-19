@@ -166,12 +166,13 @@ def burst(combat: C.Combat, f: C.Fighter, rng: random.Random) -> None:
     from engine import battlefield as bf
     victims = [e for e in bf.standing(combat, f.zone_id) if e.alive and bf.hostile(f, e)] if combat.battlefield else combat.enemies()
     held, f.hit_element = f.hit_element, f.element
+    at = len(combat.story)                                          # (f757) the burst is told before what it sets off
     for e in victims:
         hit, _ = C.mitigate(e, f.weapon_damage * spec["burst"], "magical", f.level, combat, f)
-        combat.log.append(f"{f.name} bursts over {e.name}: {C.take_damage(combat, e, hit, f, rng, 'magical')}")
+        C.side_damage(combat, e, hit, f, rng, "magical", logged=lambda d: f"{f.name} bursts over {e.name}: {d}")
     f.hit_element = held
     if victims:
-        C.tell(combat, f"{f.name} bursts apart" + (f" in {f.element}" if f.element else "") + f", and the blast takes {', '.join(C.who(e) for e in victims)}")
+        C.tell(combat, f"{f.name} bursts apart" + (f" in {f.element}" if f.element else "") + f", and the blast takes {', '.join(C.who(e) for e in victims)}", at=at)
 
 
 def on_fall(combat: C.Combat, f: C.Fighter, rng: random.Random) -> None:
@@ -196,11 +197,12 @@ def turn(combat: C.Combat, a: C.Fighter, rng: random.Random) -> bool:
         if a.element:
             victims = [e for e in bf.standing(combat, a.zone_id) if e.alive and bf.hostile(a, e)] if combat.battlefield else combat.enemies()
             held, a.hit_element = a.hit_element, a.element
+            at = len(combat.story)                                  # (f757) the pulse is told before what it sets off
             for e in victims:
                 hit, _ = C.mitigate(e, a.weapon_damage * spec["pulse"], "magical", a.level, combat, a)
-                combat.log.append(f"{a.name} pulses {a.element} into {e.name}: {C.take_damage(combat, e, hit, a, rng, 'magical')}")
+                C.side_damage(combat, e, hit, a, rng, "magical", logged=lambda d: f"{a.name} pulses {a.element} into {e.name}: {d}")
             a.hit_element = held
-            C.tell(combat, f"{a.name} pulses, and {a.element} washes over " + (", ".join(C.who(e) for e in victims) if victims else "empty ground"))
+            C.tell(combat, f"{a.name} pulses, and {a.element} washes over " + (", ".join(C.who(e) for e in victims) if victims else "empty ground"), at=at)
         else:
             pct = spec["empower"].get(a.summon_tier, 10)
             near = [f for f in combat.player_side() if f.alive and f is not a and (not combat.battlefield or f.zone_id == a.zone_id)]
