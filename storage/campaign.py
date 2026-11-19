@@ -517,7 +517,8 @@ class CampaignStore:
                     m["memories"] = memory.hire_window(memory.records(self, f"hire:{m['id']}"))
         return player
 
-    def save_player(self, player: PlayerState) -> None:
+    def save_player(self, player: PlayerState, who: str = FIRST) -> None:
+        """The acting character's record, the first; (f736) another the save holds by its id (`who`), as characters() reads it."""
         with self.transaction():                     # the clock and turn count live beside the player; one without the other lost the time on reload
             body = json.loads(player.model_dump_json())
             if self._memory_typed():                 # (f479) a hire's memories are rows; the player's record carries none of them
@@ -526,7 +527,7 @@ class CampaignStore:
                         self._save_hire_memories(m, player.character.id)
                     out.pop("memories", None)
                     out.pop("memories_unsaved", None)
-            self._players.put(body)
+            self._players.put(body, who)
             self.save_meta()
 
     def _save_hire_memories(self, member: dict, owner: str) -> None:

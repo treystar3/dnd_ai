@@ -105,6 +105,7 @@ class CampaignSession:
         from scenes.world import WorldScene
         made = WorldScene(self.store, self.world, catalog, player, session=self)
         made.restore_map()                                 # (f733) the save's own places on its map, whoever builds the scene and runs it or not
+        made.stand_read()                                  # (f736) ...and its character, if the save stands them off it, where they would wake
         return made
 
     def record(self, apart: bool = False, folder=None, rows: bool = False):

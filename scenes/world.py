@@ -295,13 +295,14 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                    "breath, said only once in the whole passage, then what they see.")
         ws.show_exits()
 
-    def waking_place(self, actor_id: str) -> str:
+    def waking_place(self, actor_id: str, record=None) -> str:
         """(f736) Where this character wakes after a death: where the world starts if they have never rested, their last rest while it
         is on the map and no road stop (a stop leaves the map when the walk goes on), else the town behind them, else the start."""
-        rest = self.player_of(actor_id).character.last_rest
+        rec = self.player_of(actor_id) if record is None else record     # (f736) a saved character's record: the open reads every one
+        rest = rec.character.last_rest
         if rest in self.world.places and not roads.is_stop(self.world, rest):
             return rest
-        return (self.town_behind(actor_id) if rest else "") or self.world.start_location
+        return (self.town_behind(actor_id, rec) if rest else "") or self.world.start_location
 
     def goddess_now(self, said: list, event: str) -> None:
         """(f464) The goddess at a death: her words from the model, remembered against her next return; a passage operation of its own,
@@ -954,41 +955,73 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         for record in records:
             self.mend_road_place(record)
 
-    def stand_on_map(self) -> list[str]:
-        """(f736) Each character of the scene the save stands at a place no longer on the map is stood where they would wake
-        (waking_place), the fault written to logs/crash.log, before anything reads where they stand. Returns the lines that tell them."""
-        from engine import crashlog, told
-        lines = []
-        for cid in [c.id for c in self.characters()]:
-            rec = self.player_of(cid)
-            if rec.location in self.world.places:
-                continue
-            lost, rec.location = rec.location, self.waking_place(cid)
-            rec.delve = None                                                 # (f736) stood where they would wake, never inside a dungeon
-            crashlog.record(RuntimeError(f"stood at '{lost}', which is not on the map: stood at '{rec.location}' instead"), "a save opened",
-                            place=lost)
-            self.store.save_player(rec)
-            lines.append(told.say("place_gone", self.store.meta.turn, place=self.world.places[rec.location].name))
-        return lines
+    def off_map(self) -> list[tuple]:
+        """(f736) Every character the save holds (store.characters()) whom it stands at a place no longer on the map, with where they
+        would wake, read from their saved record: (id, the place gone, where they go, the record). Reads; writes nothing."""
+        return [(r.character.id, r.location, self.waking_place(r.character.id, r), r) for r in self.store.characters()
+                if r.location not in self.world.places]
+
+    def stand_read(self) -> None:
+        """(f736) The reading half, where every scene is built (engine/session.py scene, after restore_map): the scene's own character,
+        whom the save stands off the map, stands where they would wake, in memory, never inside a dungeon, so nothing that reads where
+        they stand meets a place off the map. It writes nothing: the opening writes it (stand_on_map)."""
+        for cid, lost, at, _ in self.off_map():
+            rec = self.player_of(cid) if cid == self.acting else None
+            if rec is not None and rec.location not in self.world.places:
+                rec.location, rec.delve = at, None
+
+    def stand_on_map(self) -> None:
+        """(f736) The writing half, inside the opening's operation: each character the save stands off the map (off_map) is saved where
+        they would wake, the scene's own as the scene stands them. What the crash log and the scene's own character are told is kept
+        for open_world, which writes and returns it once the operation stands: a failed opening gives all of it back."""
+        from engine import told
+        stood = []
+        for cid, lost, at, rec in self.off_map():
+            own = cid == self.acting
+            rec = self.player_of(cid) if own else rec
+            if rec.location not in self.world.places:
+                rec.location, rec.delve = at, None                          # (f736) stood where they would wake, never inside a dungeon
+            if own:
+                self.store.save_player(rec)
+            else:
+                self.store.save_player(rec, cid)                             # (f736) another character the save holds, under their own id
+            stood.append((cid, lost, rec.location, told.say("place_gone", self.store.meta.turn, place=self.world.places[rec.location].name)
+                          if own else ""))
+        if stood:
+            self._stood = stood                                              # (f736) a `_` name: the operation's rollback takes it back
 
     @actor.bound
-    def open_world(self) -> None:
+    def open_world(self) -> list[str]:
         """(f466) What the world owes the save as the game opens (the dungeons made or remade, the field's uses kept whole, and the
         pulse up to now), as one world operation, world:open, under the "#start" dice (f439). Its id is drawn before it opens and
         repeats at the same count of inputs: an open stopped in the middle of it finds nothing committed and runs it again; an open
         after a stood one finds its record and runs nothing, so the load-time pulse never runs twice (survey 12.1). Its failure is the
         world's: rolled back alone, written to logs/crash.log, the player told nothing. (f733) The map it opens on is the save's
-        already (restore_map), so a skipped opening loses nothing of it."""
-        from engine import operation as _op
+        already (restore_map), so a skipped opening loses nothing of it. (f736) First it writes who the save stands off the map
+        (stand_on_map); an opening that did not (it stood at an open before, or did not stand now) leaves them to an operation of the
+        opening's own, and if that fails too they stand where they would wake for this sitting alone. Returns the lines that tell the
+        scene's own character, for run() to show after the passage read last."""
+        from engine import crashlog, operation as _op
         streams.begin(self.store.meta.seed, self.store.meta.steps, "#start")    # (f439) what happens as the game opens is decided too
         op_id = streams.new_id(_op.ID_DIGITS, stream="ops")
         if self.store.find_operation(op_id) is not None:
             console.debug("the world's opening stands from the last open: not run again")
-            return
-        with self.input("#start", "opening"), self.operation("world:open", "#start", world=True, op_id=op_id):
-            self.ensure_dungeons()
-            self.ensure_field_uses()
-            self.run_pulse()
+        else:
+            with self.input("#start", "opening"), self.operation("world:open", "#start", world=True, op_id=op_id):
+                self.stand_on_map()                                          # (f736) first: the pulse may read the record again
+                self.ensure_dungeons()
+                self.ensure_field_uses()
+                self.run_pulse()
+        if self.off_map():
+            with self.input("#start", "opening"), self.operation("world:open", "#start", world=True):
+                self.stand_on_map()                                          # (f736) the moves alone, the opening's work not run twice
+        self.stand_read()                                                    # (f736) a failed operation gave the record back from the save
+        lines = []
+        for cid, lost, at, line in self.__dict__.pop("_stood", ()):
+            crashlog.record(RuntimeError(f"stood at '{lost}', which is not on the map: stood at '{at}' instead"), "a save opened",
+                            place=lost, character=cid)
+            lines += [line] if line else []
+        return lines
 
     def recover_unshown(self) -> bool:
         """(f467) What stood before the game last closed and was never shown (the operations whose presentation entries are still in the
@@ -1033,8 +1066,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     @actor.bound
     def run(self) -> None:
-        moved = self.stand_on_map()                                         # (f736) before the opening reads where anyone stands
-        self.open_world()
+        moved = self.open_world()                                           # (f736) and the lines that tell who it stood elsewhere
         recovered = self.recover_unshown()                                  # (f467) first: what stood before the game last closed, never shown
         first_time = self.store.meta.turn == 0
         self.enter(self.player.location)

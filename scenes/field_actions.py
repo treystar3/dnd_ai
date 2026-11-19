@@ -914,10 +914,10 @@ class FieldFunctions:
             towns.remove(town)
         towns.append(town)
 
-    def town_behind(self, actor_id: str) -> str:
+    def town_behind(self, actor_id: str, record=None) -> str:
         """(f735) The newest town this character stood in that is on the map, settled and not where they stand, or '' (an older save's
         stop or dungeon's mouth is passed over)."""
-        rec = self.player_of(actor_id)
+        rec = self.player_of(actor_id) if record is None else record     # (f736) a saved character's record: the open reads every one
         here = pulse.town_of(self.world, rec.location)
         return next((t for t in reversed(rec.field.get("towns", [])) if t != here and pulse.settled(self.world, t)), "")
 
