@@ -934,7 +934,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """(f733) The campaign's own places put back on the map from the save, at every open whatever its count of inputs (world:open
         runs once for each count), wherever the scene is made over the save (engine/session.py scene): every character's homes and
         the road's stop they stand at, then what was found (a place found from inside a house hangs from the house), then each
-        dungeon's entrance and its way (a dungeon may lie beneath a found place). It reads the save and writes nothing to it."""
+        dungeon's entrance and its way (a dungeon may lie beneath a found place). It reads the save and writes nothing to it.
+        (f734) Last, each stop keeps only its ways to places now on the map."""
         records = self.store.characters()
         for record in records:
             self.ensure_homes(record)
@@ -942,6 +943,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.ensure_road_place(record)
         self.ensure_discoveries()
         self.place_dungeons(self.store.load_dungeons())
+        for record in records:
+            self.mend_road_place(record)
 
     @actor.bound
     def open_world(self) -> None:
@@ -3176,21 +3179,16 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             console.note(f"  Road {r['dir']}: {r['name'].lower()} - leads somewhere you have not been")
 
     def places_click(self, text: str, back_to: str = "places") -> None:
-        """The pane's hidden command:  #goto <place id>  (#mapgo from the map pane, which redraws the map instead of the places list)."""
-        from llm.contracts import ActionIntent
+        """The pane's hidden command:  #goto <place id>  (#mapgo from the map pane, which redraws the map instead of the places list).
+        (f734) Walked by walk_to, as a walk taken up after a road fight is: a sight kept on a road (f702) as one, a place as any walk."""
         parts = text.split()
         dest = parts[1] if len(parts) > 1 else ""
-        mark = next((m for m in self.landmarks() if m["id"] == dest), None)
-        if mark is not None:                                                    # (f702) a sight kept on a road
-            self.go_landmark(mark, "")
-            self.halted = False
-        elif dest not in self.world.places:
-            console.note("You don't know a way there.")
-        elif not any(r["id"] == dest for r in self.places_data()["local"] + self.places_data()["far"]):
+        if dest in self.world.places and not any(r["id"] == dest for r in self.places_data()["local"] + self.places_data()["far"]):
             console.note("You don't know a way there from here.")
-        else:
-            self.on_move(ActionIntent(kind="move", destination=dest, summary=f"I go to {self.world.places[dest].name}."), "")
+        elif self.walk_to(dest, "", f"I go to {self.world.places[dest].name}." if dest in self.world.places else ""):
             self.halted = False
+        else:
+            console.note("You don't know a way there.")
         if not self.combat:
             if back_to == "map":
                 with console.scope("#map"):
@@ -3565,8 +3563,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             own = {t for n in names for t in re.findall(r"[a-z]+", n.lower()) if len(t) > 3}
         return bool(own & said)
 
-    def travel_route(self, dest: str, text: str, already: int = 0, events: int = 0) -> None:
-        """Walk the quickest way to dest. `already` is time already spent on the way (a fork's shared stretch), taken off the walk."""
+    def travel_route(self, dest: str, text: str, already: int = 0, events: int = 0, goal: str = "") -> None:
+        """Walk the quickest way to dest. `already` is time already spent on the way (a fork's shared stretch), taken off the walk.
+        `goal` (f734): where the walk is bound when dest is a stop made for it (a kept sight's), named by a stop made on the way."""
         found = self.world.path(self.player.location, dest) if dest in self.world.places else None
         if not found:
             self.refuse("You don't know a way there from here.")
@@ -3637,7 +3636,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.end_conversation()
         self.last_spoken = None
         console.debug(f"walking {walk} minutes: {' -> '.join(route)}" + (f" (to the barrier on {barrier[1]})" if barrier else ""))
-        self.run_journey(route, walk, text, events, barrier=barrier)
+        self.run_journey(route, walk, text, events, barrier=barrier, goal=goal)
 
     def on_look(self, intent: ActionIntent, text: str) -> None:
         from engine import matters

@@ -67,7 +67,7 @@ def home_town(world, place_id: str) -> str:
     nearer. A night run's player was on such roads at three ticks in a row, and each tick tried to start a situation at the road itself,
     which no template fits."""
     p = world.places.get(place_id)
-    if p is not None and p.type == "road" and not p.parent and p.connects:
+    if roads.is_stop(world, place_id) and p.connects:
         return town_of(world, min(p.connects, key=lambda k: p.connects[k]))
     return town_of(world, place_id)
 
@@ -143,7 +143,7 @@ def happenings_at(store, world, place_id: str, now: int) -> list[str]:
                 far = next((x for x in ends if town_of(world, x) != town), "")
                 out.append(f"The road{' to ' + world.places[far].name if far else ''} ({r.name}) is closed: {e['text']}")
     p = world.places.get(place_id)
-    if p is not None and p.type == "road" and not p.parent and len(p.connects or {}) == 2:     # (f541) a stop on a shut road: the barrier
+    if roads.is_stop(world, place_id) and len(p.connects or {}) == 2:                        # (f541) a stop on a shut road: the barrier
         r = world.road_between(*list(p.connects))
         hit = next((e for e in state.get("effects", []) if r is not None and e["kind"] == "closed" and e["place"] == r.id
                     and e["until"] > now and e.get("cause") != "improvised"), None)

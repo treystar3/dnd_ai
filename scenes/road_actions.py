@@ -37,6 +37,17 @@ class RoadActions:
         if road and road["id"] not in self.world.places:
             self.world.add_place(Place(**road["place"]))             # (f451) through the campaign's world
 
+    def mend_road_place(self, record) -> None:
+        """(f734) A stop put back from the save keeps only its ways to places on the map, asked once the whole map is back (restore_map):
+        a save made before stops named real places only may hold a way to a stop tidied since, which no walk from it could pass."""
+        road = record.road
+        if not road or road["id"] not in self.world.places:
+            return
+        ways = road["place"].get("connects") or {}
+        kept = {k: v for k, v in ways.items() if k in self.world.places}
+        if kept != ways:
+            self.world.add_place(Place(**{**road["place"], "connects": kept}), replace=True)
+
     def leave_road(self, new_place: str) -> None:
         """Called when the player stands anywhere but the stop: tidy it away."""
         road = self.player.road
@@ -54,9 +65,10 @@ class RoadActions:
 
     # ---------- walking ----------
 
-    def run_journey(self, route: list[str], walk: int, text: str, events: int = 0, barrier: tuple | None = None) -> None:
+    def run_journey(self, route: list[str], walk: int, text: str, events: int = 0, barrier: tuple | None = None, goal: str = "") -> None:
         """`barrier` (f541): (stretch index, road id, why) of a road a situation has shut, met on this walk for the first time: the walk
-        goes as far as the barrier and stops there, and nothing on the road happens on the shut stretch itself."""
+        goes as far as the barrier and stops there, and nothing on the road happens on the shut stretch itself. `goal` (f734): where the
+        walk is bound when that is not the route's end (a kept sight, whose stop goes when the walk is stopped short of it)."""
         stretches = roads.edges(self.world, route, walk)
         upto = self.barrier_minutes(stretches, barrier) if barrier else walk
         legs = roads.plan_legs(upto)
@@ -75,13 +87,13 @@ class RoadActions:
                 continue                                          # (f541) the shut stretch is the barrier's
             if m < R["min_edge_minutes"] or self.rng.random() >= R["chance_per_leg"] * quiet:
                 continue
-            outcome = self.road_event(route, a, b, m, frac, text, log, walked=done)
+            outcome = self.road_event(route, a, b, m, frac, text, log, walked=done, goal=goal)
             if outcome:
                 events += 1
             if outcome in ("stopped", "fight"):
                 return
         if barrier:
-            self.meet_barrier(route, stretches, barrier, text, log, upto)
+            self.meet_barrier(route, stretches, barrier, text, log, upto, goal)
             return
         self.finish_journey(route, walk, text, log)
 
@@ -108,7 +120,7 @@ class RoadActions:
         key = next((k for k in self.shut_roads() if roads.on_road(self.world, stop["id"], k)), "")
         if not key:
             return ""
-        far = roads.far_side(self.world, stop["id"], key, R["barrier"]["at"], stop.get("from", ""))
+        far = roads.far_side(self.world, stop["id"], key, R["barrier"]["at"], roads.stop_ends(self.world, stop)[0])
         return next((e for e in self.world.places[stop["id"]].connects if e != far), "")
 
     def shut_stretch(self, x: str, y: str, shut: dict[str, str]) -> str:
@@ -123,7 +135,7 @@ class RoadActions:
             if stop.get("barrier") == key:
                 return "" if y == stop.get("behind") else key
             if roads.on_road(self.world, x, key):
-                return key if y == roads.far_side(self.world, x, key, R["barrier"]["at"], stop.get("from", "")) else ""
+                return key if y == roads.far_side(self.world, x, key, R["barrier"]["at"], roads.stop_ends(self.world, stop)[0]) else ""
         return key
 
     def shut_on(self, route: list[str]) -> tuple[int, str, str] | None:
@@ -180,7 +192,7 @@ class RoadActions:
                 e["met_by"] = list(e.get("met_by") or []) + [self.acting]
         self.store.save_world_state(state)
 
-    def meet_barrier(self, route: list[str], stretches: list, barrier: tuple, text: str, log: list[str], walked: int) -> None:
+    def meet_barrier(self, route: list[str], stretches: list, barrier: tuple, text: str, log: list[str], walked: int, goal: str = "") -> None:
         """The walk comes to where a situation has shut the road: a stop on the road at the barrier, told; the way back open, the way
         on shut until the situation lifts it (no pushing through, as a hazard may be got past), the long way round named when there is
         one."""
@@ -191,7 +203,7 @@ class RoadActions:
         name = r.name[:1].upper() + r.name[1:]
         stop = roads.make_stop(self.world, a, b, roads.barrier_frac(self.world, a, b, key, B["at"]), m, why, "", f"{name} shut", why)
         ends = list(stop["place"]["connects"])
-        stop.update(log=log[-6:], text=text, resume="", bound=route[-1], kind="barrier", tier="normal", barrier=key, behind=ends[0])
+        stop.update(log=log[-6:], text=text, resume="", bound=goal or route[-1], kind="barrier", tier="normal", barrier=key, behind=ends[0])
         if (self.player.road or {}).get("id") not in stop["place"]["connects"]:
             self.leave_road(stop["id"])                     # the stop they set out from is tidied away, as a road event's is
         self.player.road = stop
@@ -290,8 +302,9 @@ class RoadActions:
         return (f"You set out from {self.world.places[route[0]].name}{by}, bound for {self.world.places[route[-1]].name}. "
                 f"You have been walking {clock.describe_duration(max(5, walked))}.")
 
-    def road_event(self, route, a, b, minutes, frac, text, log, resume: str | None = None, stop_name: str = "", walked: int = 0):
-        """`resume` is where a won fight carries on to (default: the end of the route); `stop_name` names a stop on the road."""
+    def road_event(self, route, a, b, minutes, frac, text, log, resume: str | None = None, stop_name: str = "", walked: int = 0, goal: str = ""):
+        """`resume` is where a won fight carries on to (default: the walk's goal, else the end of the route); `stop_name` names a stop on
+        the road."""
         tier = roads.roll_tier(self.rng)
         wilds = roads.nearby_wilds(self.world, a, b)
         hostile = bool(wilds) and self.rng.random() < min(R["hostile_max"], R["hostile"] * self.road_danger(a, b))
@@ -384,8 +397,9 @@ class RoadActions:
             role = "" if hostile else ev.meets_role if ev.meets_role in self.world.roles else \
                 R["stop_roles"].get(kind, "") if kind in ("aid", "meeting") else ""      # (f427) someone in need is someone there
             stop = roads.make_stop(self.world, a, b, frac, minutes, ev.scene, role, ev.title, ev.detail, stop_name)
-            stop.update(log=log[-6:], text=text, resume=(route[-1] if resume is None else resume) if hostile else "",
-                        bound=route[-1], kind=kind, tier=tier)
+            bound = goal or route[-1]                                # (f734) a kept sight's own id: its stop goes when the walk stops short
+            stop.update(log=log[-6:], text=text, resume=(bound if resume is None else resume) if hostile else "",
+                        bound=bound, kind=kind, tier=tier)
             back, onward = list(stop["place"]["connects"])[0], list(stop["place"]["connects"])[-1]   # (f492) the stop's own ends, real places:
             back, onward = self.world.places[back].name, self.world.places[onward].name               # `a` may be the stop left behind, tidied next
             if camp:
@@ -413,7 +427,7 @@ class RoadActions:
                     bf.gain(self.combat.fight.player, "concealed")
                     console.note("You saw them before they saw you (Scout Ahead).")
                 return "fight"
-            self.stop_waits(ev, kind, tier, b, prize)
+            self.stop_waits(ev, kind, tier, prize)
             console.note(f"You stop here, on the road. Onward to {onward}, or back to {back}.")
             self.show_exits()
             return "stopped"
@@ -443,15 +457,8 @@ class RoadActions:
     # ---------- (f702) a sight passed on the road, kept where it was seen ----------
 
     def road_spot(self, x: str) -> tuple[str, str, float] | None:
-        """(a, b, how far from a) of a point on a road: a real place is its own end; a stop stands between the two real places it
-        is joined to (f426), as far along as its walks to them say."""
-        p = self.world.places.get(x)
-        if p is None:
-            return None
-        if p.type == "road" and not p.parent and len(p.connects) == 2:
-            (ea, da), (eb, db) = sorted(p.connects.items())
-            return ea, eb, da / max(1, da + db)
-        return x, x, 0.0
+        """(a, b, how far from a) of a point on a road (roads.spot)."""
+        return roads.spot(self.world, x)
 
     def keep_landmark(self, ev, a: str, b: str, frac: float) -> None:
         """A sight kept as a landmark of its road: the two real places the road joins, how far along it was seen, and its title (what
@@ -526,7 +533,8 @@ class RoadActions:
 
     def go_landmark(self, m: dict, text: str) -> None:
         """Back to a sight kept on a road: a stop made where it was seen, joined to the road's ends, and walked to as any journey is
-        (the road's happenings, a shut road, a mount, one passage on arrival). A walk stopped on the way leaves no stop behind."""
+        (the road's happenings, a shut road, a mount, one passage on arrival). A walk stopped on the way leaves no stop behind.
+        (f734) The stop stood at is joined to it by a link, which goes with either; a stop made on the way names the sight."""
         way = self.landmark_way(m)
         if way is None:
             self.refuse("You don't know a way there from here.")
@@ -534,11 +542,14 @@ class RoadActions:
         joins, _ = way
         edge = self.world.path(m["a"], m["b"])[1]
         stop = roads.make_stop(self.world, m["a"], m["b"], m["frac"], edge, f"{m['title']} (seen here before, and still here)", "", m["title"])
-        stop["place"]["connects"] = joins
+        stop["place"]["connects"] = {e: joins[e] for e in (m["a"], m["b"])}
         stop.update(log=[], text=text, resume="", bound=m["b"], kind="sight", tier="")
         self.world.add_place(Place(**stop["place"]))
+        for e, minutes in joins.items():
+            if e not in stop["place"]["connects"]:
+                self.world.link(stop["id"], e, minutes)
         me = self.player_of(self.acting)
-        self.travel_route(stop["id"], text)
+        self.travel_route(stop["id"], text, goal=m["id"])
         if me.location == stop["id"]:
             me.road = stop                                      # tidied as any stop is, once they walk on
             self.store.save_player(me)
@@ -547,7 +558,7 @@ class RoadActions:
 
     # ---------- (f427) what waits at a stop, for the player to do something about ----------
 
-    def stop_waits(self, ev, kind: str, tier: str, ahead: str, prize=None) -> None:
+    def stop_waits(self, ev, kind: str, tier: str, prize=None) -> None:
         """Nothing at a stop is settled for the player (the owner, review Q2): a find lies where it is until they pick it up, a hazard
         stands in the way until they decide how to get past it, and someone in need is helped only if the player helps them."""
         from engine import ledger
@@ -560,8 +571,7 @@ class RoadActions:
             ledger.add("found", item=prize.uid, say=f"{inv.label(prize)} lies here on the road, untouched: the player has not picked it up. "
                                                     "Never show it taken unless they do.")
         elif kind == "hazard":
-            ends = list(self.world.places[road["id"]].connects)
-            behind = road["from"] if road["from"] in ends else next((k for k in ends if k != ahead), "")
+            behind = roads.stop_ends(self.world, road)[0]
             road["hazard"] = {"tier": tier,                         # (f447) what it is and how hard; how to get past is the player's
                               "what": (ev.detail or ev.title).strip(), "behind": behind}       # going back the way they came passes nothing
         elif kind == "aid":
@@ -579,8 +589,9 @@ class RoadActions:
         aid = road.get("aid")
         if aid and not aid.get("helped") and self.helps(intent, aid):
             aid["helped"] = True
-            self.road_outcome(type("Aid", (), {"kind": "aid", "check": ""})(), aid.get("tier", "normal"), road["from"], road["to"],
-                              road["from"])
+            behind, ahead = roads.stop_ends(self.world, road)                # (f734) never a stop tidied away
+            if behind:
+                self.road_outcome(type("Aid", (), {"kind": "aid", "check": ""})(), aid.get("tier", "normal"), behind, ahead, behind)
             self.need_deed("road_help")
         hz = road.get("hazard")
         if hz and not hz.get("dealt") and intent.kind == "other":       # their own way past it, ruled as any attempt is (engine/ruling.py)
@@ -748,9 +759,32 @@ class RoadActions:
         dest, text = self.resume_pending
         self.resume_pending = None
         from engine import budget, told as told_
+        where = self.walk_name(dest)
+        if not where:                                       # (f734) nowhere the map or the kept sights know: the walk waits, the ways shown
+            self.show_exits()
+            return
         if not budget.room_for_passage():                   # (f711) the arrival could not be told: the walk waits for the player
-            where = self.world.places[dest].name if dest in self.world.places else dest
             console.note(told_.say("walk_held", self.store.meta.turn, place=where))
             return
         console.note("You get your breath back and carry on.")
-        self.on_move(ActionIntent(kind="move", destination=dest), text)
+        self.walk_to(dest, text)
+
+    def walk_name(self, dest: str) -> str:
+        """(f734) What a walk to `dest` (a place's id, or a kept sight's) is told as: the place's name, the sight's title, or '' when
+        neither is known, so an id is never shown."""
+        mark = next((m for m in self.landmarks() if m["id"] == dest), None)
+        if mark is not None:
+            return mark["title"][:1].lower() + mark["title"][1:]
+        return self.world.places[dest].name if dest in self.world.places else ""
+
+    def walk_to(self, dest: str, text: str, summary: str = "") -> bool:
+        """(f734) A walk by id, as the Places pane and a walk taken up again after a road fight name it: a kept sight is walked to as one
+        (its stop made again), a place on the map as any walk is. False for anything else, which is never walked to."""
+        mark = next((m for m in self.landmarks() if m["id"] == dest), None)
+        if mark is not None:
+            self.go_landmark(mark, text)
+            return True
+        if dest not in self.world.places:
+            return False
+        self.on_move(ActionIntent(kind="move", destination=dest, summary=summary), text)
+        return True
