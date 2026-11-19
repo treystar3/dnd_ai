@@ -381,8 +381,8 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
                 return result
             last_error = LLMError(reason)
         except ValidationError as e:
-            last_error = e
             reason = _summarize(e)
+            last_error = LLMError(reason)               # (f738) the words, not the error: a contract's refusal held would pin the line's stack
         _log(task, attempt, elapsed, messages, raw, reason, usage, shape=form)
         audit.record(task, attempt, elapsed, messages, raw, reason, typed, config.MODEL)
         _debug(f"rejected {task} (attempt {attempt + 1}): {reason[:200]}")
