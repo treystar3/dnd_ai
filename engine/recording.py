@@ -134,9 +134,74 @@ def read_calls(source, member: str = "") -> list[dict]:
 def _calls_out(folder: Path):
     """(f732) The call log opened for writing, in the form its place keeps: plain under data/replay (a kept recording, and the folder a
     re-bless renames into place); anywhere else gzipped, with no time in its header, so the same rows give the same bytes."""
-    if folder.resolve().is_relative_to(Path(KEPT).resolve()):
-        return (folder / CALLS[0]).open("w", encoding="utf-8", newline="\n")
-    return io.TextIOWrapper(gzip.GzipFile(folder / CALLS[1], "wb", mtime=0), encoding="utf-8", newline="\n")
+    return _log_writer(folder / CALLS[0 if folder.resolve().is_relative_to(Path(KEPT).resolve()) else 1])
+
+
+def _log_writer(path: Path):
+    """(f732) A call log opened for writing in the form its name says: plain, or gzipped with no time in its header."""
+    if path.name.endswith(".gz"):
+        return io.TextIOWrapper(gzip.GzipFile(path, "wb", mtime=0), encoding="utf-8", newline="\n")
+    return path.open("w", encoding="utf-8", newline="\n")
+
+
+CLOCK = ("seconds",)                     # (f732) a call row's wall-clock time: how long it took, no part of what the call was
+MADE_AT = ("kv", "campaign", "created")  # (f732) the start save's clock time of making, as storage/statehash.py NOT_STATE sets it aside
+
+
+def _content(db: Path):
+    """(f732) A save database read whole: its version, its schema, every table's rows in their order, with the time it was made
+    (MADE_AT) set aside. None when there is none."""
+    if not db.is_file():
+        return None
+    table, key, field = MADE_AT
+    con = sqlite3.connect(db.resolve().as_uri() + "?mode=ro&immutable=1", uri=True)   # (f732) no -wal or -shm left beside a recording
+    try:
+        out = [con.execute("PRAGMA user_version").fetchone()[0]]
+        for kind, name, sql in con.execute("SELECT type, name, sql FROM sqlite_master ORDER BY type, name").fetchall():
+            out.append((kind, name, sql))
+            if kind != "table":
+                continue
+            try:
+                rows, at = con.execute(f'SELECT rowid, * FROM "{name}" ORDER BY rowid').fetchall(), 1
+            except sqlite3.OperationalError:                    # a table with no rowid: its rows, in an order of their own
+                rows, at = sorted(con.execute(f'SELECT * FROM "{name}"').fetchall(), key=repr), 0
+            if name == table:
+                rows = [r[:at + 1] + (_without(r[at + 1], field),) + r[at + 2:] if r[at] == key else r for r in rows]
+            out.append(rows)
+    finally:
+        con.close()
+    return out
+
+
+def _without(text, field: str):
+    try:
+        value = json.loads(text)
+    except (TypeError, ValueError):
+        return text
+    return {k: v for k, v in value.items() if k != field} if isinstance(value, dict) else value
+
+
+def keep_unchanged(kept: Path, made: Path) -> dict:
+    """(f732) A recording made again (made) keeps the kept one's bytes wherever only the clock moved, so a re-bless that changes
+    nothing leaves the files as they were and a real change is the only line that moves. A call row that is the kept row in its
+    place in every field but its time (CLOCK) is written as the kept line, its time included; the start save, when its content is
+    the kept one's but for the time it was made, is the kept file. Returns {"calls": rows written anew, "of": rows, "start": "kept",
+    "new" or "none"}."""
+    kept, made = Path(kept), Path(made)
+    old = [l if l.endswith("\n") else l + "\n" for l in call_lines(kept) if l.strip()] if calls_file(kept) else []
+    new = [l if l.endswith("\n") else l + "\n" for l in call_lines(made) if l.strip()]
+
+    def timeless(line: str) -> dict:
+        return {k: v for k, v in json.loads(line).items() if k not in CLOCK}
+    same = [j < len(old) and timeless(old[j]) == timeless(line) for j, line in enumerate(new)]
+    with _log_writer(calls_file(made)) as f:
+        f.write("".join(old[j] if s else line for j, (s, line) in enumerate(zip(same, new))))
+    start = "none"
+    if (made / "start.db").is_file():
+        start = "kept" if _content(kept / "start.db") == _content(made / "start.db") else "new"
+        if start == "kept":
+            shutil.copyfile(kept / "start.db", made / "start.db")
+    return {"calls": same.count(False), "of": len(new), "start": start}
 
 
 class Recorder:

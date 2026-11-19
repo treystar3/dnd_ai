@@ -700,6 +700,10 @@ def main() -> int:
                       + ("every request the same, written anew" if not unmatched else f"{len(unmatched)} without a match:"))
                 for line in unmatched[:40]:
                     print("  " + line)
+            from engine import recording
+            kept = recording.keep_unchanged(target, tmp)               # (f732) what moved only in its time keeps its bytes
+            print(f"call rows written anew: {kept['calls']} of {kept['of']}; the start save "
+                  f"{'kept as it was' if kept['start'] == 'kept' else 'written anew'} (the rest as they were, their time included)")
         else:
             print(f"{a.golden}: kept for the first time ({len(new['inputs'])} inputs, {len(new['calls'])} calls)")
             for t, w in sorted(placement(new).items()):
