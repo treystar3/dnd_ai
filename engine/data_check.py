@@ -918,7 +918,19 @@ def check() -> list[str]:
     bad += _runtime.runtime_problems()                                 # (f522) the server's settings hold what the game sends
     from llm import launch as _launch
     bad += _launch.problems()                                          # (f526) the load screen's lines, once the owner's are in
+    bad += goods_problems()                                            # (f740) a good that carries its own state, one to a slot
     return bad
+
+
+OWN_STATE = ("codex",)                                                 # (f740) the goods whose Item holds state of its own (a codex its spell)
+
+
+def goods_problems(G: list | None = None) -> list[str]:
+    """(f740) A good whose Item carries its own state is one to a slot: read_codex spends the Item whole, and a stack shares one state."""
+    from engine.inventory import Good
+    rows, unset = (_load("data/world/goods.yaml") if G is None else G), Good.model_fields["stack"].default
+    return [f"goods.yaml {g.get('id')}: a {g.get('kind')} carries its own state, so its stack must be 1 (it is {g.get('stack', unset)})"
+            for g in rows or [] if g.get("kind") in OWN_STATE and g.get("stack", unset) != 1]
 
 
 def endings_problems(D: dict | None = None) -> list[str]:
