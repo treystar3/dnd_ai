@@ -26,6 +26,8 @@ DELETED = "_deleted"
 LEGACY = re.compile(r"^main(_backup_\d{8}_\d{6})?$")
 MARK = "game.json"
 MARKED = "marked"                                   # (f741) the older games are marked: from here the index is only a cache
+# (f742) discard() erases on no character, or no database, alone
+READY, NO_CHARACTER, UNREADABLE, NEWER = "ready", "no_character", "unreadable", "newer"
 
 
 def _index_path(saves_dir: Path) -> Path:
@@ -134,14 +136,14 @@ def touch(name: str, saves_dir: Path | None = None) -> None:
 def summary(name: str, saves_dir: Path | None = None) -> dict | None:
     """What the home page shows of one game, read straight from its database without opening it as a game: the character, their
     class and level, where they are, the in-game day. None when the folder holds no database; `ready: False` with a reason when it
-    cannot be played here (no character yet, or a save from a newer build)."""
+    cannot be played here, and `state` says which: no character yet, a save that cannot be read, or one from a newer build."""
     saves_dir = Path(saves_dir or SAVES_DIR)
     from storage import migrations, playerstable
     path = Path(saves_dir) / name / DB_NAME
     if not path.exists():
         return None
-    out = {"name": name, "ready": False, "why": "", "character": "", "class": "", "level": 0, "place": "", "minutes": 0,
-           "played": datetime.fromtimestamp(path.stat().st_mtime).isoformat(timespec="seconds")}
+    out = {"name": name, "ready": False, "state": UNREADABLE, "why": "", "character": "", "class": "", "level": 0, "place": "",
+           "minutes": 0, "played": datetime.fromtimestamp(path.stat().st_mtime).isoformat(timespec="seconds")}
     try:
         db = sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True, timeout=2)
         try:
@@ -157,19 +159,20 @@ def summary(name: str, saves_dir: Path | None = None) -> dict | None:
         out["why"] = f"the save could not be read ({e})"
         return out
     if version > migrations.CURRENT:
-        out["why"] = "made by a newer version of the game: update to play it"
+        out["why"], out["state"] = "made by a newer version of the game: update to play it", NEWER
         return out
     try:
         meta = json.loads(rows.get("campaign") or "{}")
         out["minutes"] = int(meta.get("minutes") or 0)
         player = json.loads(rows["player"]) if rows.get("player") else None
-    except (ValueError, TypeError):
-        player = None
+    except (ValueError, TypeError, AttributeError) as e:
+        out["why"] = f"the save could not be read ({e})"   # (f742) a character's row that does not read is no proof there is none
+        return out
     if not player:
-        out["why"] = "no character yet: creation was not finished"
+        out["why"], out["state"] = "no character yet: creation was not finished", NO_CHARACTER
         return out
     c = player.get("character") or {}
-    out.update(ready=True, character=c.get("name", ""), level=int(c.get("level") or 1),
+    out.update(ready=True, state=READY, character=c.get("name", ""), level=int(c.get("level") or 1),
                place=player.get("location", ""))
     out["class"] = c.get("custom_class") or ""
     return out
@@ -218,19 +221,38 @@ def last(saves_dir: Path | None = None) -> dict | None:
 
 
 def discard(name: str, saves_dir: Path | None = None) -> bool:
-    """Forget a game left before it had a character (Main menu during creation): its folder goes and so does its place in the index.
-    A game with a character is never discarded - delete() keeps a copy of those. Returns whether it was."""
+    """Forget a game left before it had a character (any way out of creation): its folder goes and so does its place in the index,
+    but only when its save says plainly that it has no character. A folder marked as the player's game is never touched, a game with
+    a character never discarded, and a save that cannot be read here (damaged, or from a newer build) is moved aside as delete()
+    moves it. Returns whether it was discarded."""
     saves_dir = Path(saves_dir or SAVES_DIR)
-    s = summary(name, saves_dir)
-    if s is not None and s["ready"]:
+    folder = Path(saves_dir) / name
+    if (folder / MARK).exists():
         return False
-    shutil.rmtree(Path(saves_dir) / name, ignore_errors=True)
+    s = summary(name, saves_dir)
+    gone = s is None or s["state"] == NO_CHARACTER
+    if gone:
+        shutil.rmtree(folder, ignore_errors=True)
+    elif s["state"] == READY:
+        return False
+    else:
+        try:
+            folder.rename(_set_aside(name, saves_dir))          # (f742) it may hold a character: kept, as delete() keeps a game
+        except OSError:
+            return False
     index = load_index(saves_dir)
     index["saves"].pop(name, None)
     if index["last"] == name:
         index["last"] = ""
     _write_index(index, saves_dir)
-    return True
+    return gone
+
+
+def _set_aside(name: str, saves_dir: Path) -> Path:
+    """Where a game goes when it is moved aside: saves/_deleted/, under its name and the time."""
+    dest_dir = Path(saves_dir) / DELETED
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    return dest_dir / f"{name}_{datetime.now():%Y%m%d_%H%M%S}"
 
 
 def delete(name: str, saves_dir: Path | None = None) -> Path | None:
@@ -240,9 +262,7 @@ def delete(name: str, saves_dir: Path | None = None) -> Path | None:
     index = load_index(saves_dir)
     if name not in index["saves"] or not src.exists():
         return None
-    dest_dir = Path(saves_dir) / DELETED
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest = dest_dir / f"{name}_{datetime.now():%Y%m%d_%H%M%S}"
+    dest = _set_aside(name, saves_dir)
     shutil.move(str(src), str(dest))
     index["saves"].pop(name, None)
     if index["last"] == name:

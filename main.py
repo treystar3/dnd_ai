@@ -143,7 +143,8 @@ def play(args):
         except SaveRefused as e:                       # save's), the work it starts in the background, and what it closes when it ends
             console.note(str(e))
             continue
-        saves.touch(name)
+        if kind != "new":
+            saves.touch(name)                          # (f742) a new game is listed once its character is saved, so no way out leaves a dead row
         console.home_done()
         if screen is not None:
             screen.flush()                             # (f526's review) what the load said, now, on this thread, at a page's edge;
@@ -153,14 +154,25 @@ def play(args):
             player = store.load_player()
             console.note(f"Continuing as {player.character.name}, {player.character.custom_class}.")
         else:
-            character = ThresholdScene(session=session).run()
-            if character is None:                      # Main menu during creation: there is no game yet, so a new one is not kept
-                session.close()
-                if kind == "new":
-                    saves.discard(name)
-                continue
-            player = PlayerState(character=character, location=world.start_location)
-            store.save_player(player)
+            player = None
+            try:
+                character = ThresholdScene(session=session).run()
+                if character is not None:
+                    made = PlayerState(character=character, location=world.start_location)
+                    store.save_player(made)
+                    player = made
+                    saves.touch(name)
+            finally:
+                if player is None:                     # (f742) any way out with no character; closed first, or Windows keeps the folder
+                    try:
+                        session.close()
+                        if kind == "new":
+                            saves.discard(name)
+                    except Exception as e:             # (f742) a cleanup that fails is written down, never in place of the way out
+                        from engine import crashlog
+                        crashlog.record(e, "leaving character creation")
+            if player is None:
+                continue                               # Main menu during creation
 
         if screen is not None:
             screen.flush()                             # (f539) a load that finished during creation: its warning before the story
