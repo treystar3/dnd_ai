@@ -307,6 +307,33 @@ class FightService:
         # a fighter's float left as the int it was given (bleed 0, armor 0) is written 0.0 live as it is resumed, so a round run again from
         # the resumed row saves the row its first attempt would have (the digests of a stood-down round and a straight one agree)
 
+    @staticmethod
+    def apart(row: str, stored: str | None, most: int = 8) -> list[str]:
+        """(f760) Where a fight's row and the one stored differ, as paths into the row (".fight.shown"), the first `most`; [] when the two
+        are the same text."""
+        if row == stored:
+            return []
+        if stored is None:
+            return ["a fight with no row"]
+        out: list[str] = []
+
+        def walk(a, b, path: str) -> None:
+            if len(out) >= most:
+                return
+            if isinstance(a, dict) and isinstance(b, dict):
+                for k in sorted(set(a) | set(b)):
+                    walk(a.get(k), b.get(k), f"{path}.{k}")
+            elif isinstance(a, list) and isinstance(b, list) and len(a) == len(b):
+                for i, (x, y) in enumerate(zip(a, b)):
+                    walk(x, y, f"{path}[{i}]")
+            elif a != b:
+                out.append(path)
+        try:
+            walk(json.loads(row), json.loads(stored), "")
+        except ValueError:
+            return ["a row that does not read"]
+        return out or ["the same fight, written otherwise"]
+
     def save(self, fight: combat.Combat, creature: str) -> None:
         self.store.save_combat(self.row(fight, creature))
 

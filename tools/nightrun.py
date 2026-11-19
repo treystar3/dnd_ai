@@ -357,6 +357,7 @@ class Run:
         info = {"ended": datetime.now().isoformat(timespec="seconds"), "turns": len(self.rows), "reason": self.reason,
                 "hours": round((time.time() - self.started) / 3600, 2), "cast": self.cast, "hygiene": dict(hygiene.REPAIRS),
                 "stale_world_saves": list(getattr(getattr(self.bot.ws.store, "_world", None), "stale", None) or []),   # (f589) for the owner to rule on
+                "fight_out_of_step": dict(getattr(self.bot.ws.store, "fight_watch", None) or {}),     # (f760) inputs that ended with the fight apart from its row
                 "name_repairs": dict(names.BY_TASK), "sampling_arm": __import__("config").SAMPLING_ARM, **extra}       # (f587) for A1
         (self.out / "run.json").write_text(json.dumps(info, indent=1), encoding="utf-8", newline="\n")
 

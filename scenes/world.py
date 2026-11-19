@@ -1184,6 +1184,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         line = self.closing_line(text) if typed and ended else None
         if line:
             console.note(line)
+        self.watch_fight(text)                                  # (f760) the suite's check: the fight is its row as an input ends
 
     @actor.bound
     def play(self, text: str) -> bool:
@@ -1350,6 +1351,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     op.did.append(failures.walked(self.world.places[here].name if here in self.world.places else here.replace("_", " ")))
                 self.save_talk()                               # (f485) the conversation, with the operation that moved it
                 self.save_visitors()                           # (f759) who came looking, with the operation that changed them
+                self.save_fight()                              # (f760) and the fight: memory and row never part at a commit
                 self.store.save_player(self.player)            # (f464) what the operation changed of the player is its to keep: a later
                 self.store.commit_operation(op, first_of_line=(index == 0))   # operation's rollback reloads the player from the save
             _op.end("committed")
@@ -1681,6 +1683,39 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         rows = [list(v) for v in getattr(self, "visitors", [])]
         if self.store.load_visitors() != rows:
             self.store.save_visitors(rows)
+
+    def save_fight(self) -> None:
+        """(f760) The fight's row, written with the operation that moved the fight, as the conversation is: the next line (give_back
+        resumes the fight from its row) and a reopen find the fight as the operation left it. Compared with the row stored now, never a
+        copy kept from the last write, which a rollback would make untrue. A fight that ended in the operation dropped its row there."""
+        if self.combat is None:
+            return
+        row = self.combat.to_json()
+        if self.store.load_combat() != row:
+            self.store.save_combat(row)
+
+    def fight_out_of_step(self) -> list[str]:
+        """(f760) Where the fight in memory and its row differ, as a few paths into the row; [] when they agree or no fight is on (as
+        the game opens, the row waits for the entry to resume it). The one comparison: the watch at an input's end reads it, and so
+        may a test."""
+        from services.fight import FightService
+        if self.combat is None:
+            return []
+        return FightService.apart(self.combat.to_json(), self.store.load_combat())
+
+    FIGHT_WATCH_KEPT = 5            # (f760) the watch keeps the last few notes, never a growing log
+
+    def watch_fight(self, text: str) -> None:
+        """(f760) Under the suite's and the night's watch (storage/worldrow.py WATCH_STALE): a fight out of step with its row as an
+        input ends is counted on the store, the last few kept with where it differs. Shipped play reads nothing here."""
+        from storage import worldrow
+        if not worldrow.WATCH_STALE:
+            return
+        apart = self.fight_out_of_step()
+        if apart:
+            w = self.store.fight_watch
+            w["count"] += 1
+            w["last"] = (w["last"] + [{"input": text[:80], "who": self.acting, "apart": apart}])[-self.FIGHT_WATCH_KEPT:]
 
     def restore_talk(self) -> None:
         """(f485) A save opened mid-talk: the conversation as it was, once the one spoken with is here. (f759) Who spoke last, and the

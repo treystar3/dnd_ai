@@ -287,6 +287,7 @@ class CampaignStore:
         from storage.worldtables import TableWorld
         self._world = TableWorld(self)   # (f589) the world's state behind one seam (engine/worldstate.py reads through it)
         self._players = TablePlayers(self)   # (f638) where the characters' records are kept (storage/playerstable.py)
+        self.fight_watch = {"count": 0, "last": []}   # (f760) the suite's notes of a fight out of step with its row (scenes/world.py watch_fight)
 
     # ---------- opening ----------
 

@@ -404,8 +404,6 @@ MOMENT = r"state places( \(this input wrote apart: \['places\.changed\.\w+ \{\"1
 KNOWN = {
     "travel": ("RELOAD-8", "the opening's entry rolls the period's moment again, as an arrival (a place's moment_roll)", MOMENT, False),
     "town": ("RELOAD-8", "the opening's entry rolls the period's moment again, as an arrival (a place's moment_roll)", MOMENT, False),
-    "fight": ("FIGHT_SCENE-2", "the fight's row is not written after its telling: what was shown of it and its ground is told again",
-              r"state kv$|request Narration .*ALREADY SHOWN IN THIS FIGHT", True),
 }
 OWN_LINES = ("You are still in the middle of a fight!", *failures.F["shown_later"])   # what an opening says of its own, beside what was shown
 
