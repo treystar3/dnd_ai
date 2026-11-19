@@ -6,8 +6,8 @@ Where the game wrote the id as the word "player" (the journal's "lately", a hire
 memory's default subject) it writes the character's own id: shown with a character whose id is not that word.
 Then the fences. No function that takes a character's id reads the scene's player, its place or its acting id; the three modules
 of the act read the player nowhere;
-the reads left in the engine and the literal "player" strings left in the game's code (a fight's side apart) are counted per file,
-and a count only falls.
+the reads left in the engine of the scene's player and of a fight's first player fighter (combat.player), and the literal "player"
+strings left in the game's code (a fight's side apart), are counted per file, and a count only falls.
 Run: python tools/sim/acting_character_630_test.py"""
 import ast
 import shutil
@@ -20,6 +20,7 @@ simlib.quiet_console()
 import config
 from engine import act, body, brief, canon, memory, objects, quirks, ruling, targets, truth
 from llm.gateway import LLMError
+from player_reads import engine_reads, players_read, unrecorded
 
 bad = []
 def check(n, ok, x=""):
@@ -126,7 +127,6 @@ shutil.rmtree("saves/acting_character_630", ignore_errors=True)
 # ---- the fences
 ROOT = Path(__file__).resolve().parent.parent.parent
 FOLDERS = ("engine", "scenes", "services", "npc", "llm", "core", "storage", "ui", "world")
-SCENE = ("ws", "scene", "self")
 trees = {}
 for folder in FOLDERS:
     for path in sorted((ROOT / folder).rglob("*.py")):
@@ -134,16 +134,6 @@ for folder in FOLDERS:
 for path in sorted(ROOT.glob("*.py")):
     if path.name not in ("simlib.py", "simbot.py"):
         trees[path.name] = ast.parse(path.read_text(encoding="utf-8"))
-
-
-def players_read(node, names=SCENE, also=()) -> list[int]:
-    """The lines where a scene's player is read: ws.player, scene.player, self.player, x.ws.player, or getattr(ws, "player"). With
-    `also`, the scene's other names for the one player's (ws.place, ws.acting)."""
-    attrs = ("player",) + tuple(also)
-    scene = lambda v: isinstance(v, ast.Name) and v.id in names or isinstance(v, ast.Attribute) and v.attr == "ws"
-    return sorted([n.lineno for n in ast.walk(node) if isinstance(n, ast.Attribute) and n.attr in attrs and scene(n.value)]
-                  + [n.lineno for n in ast.walk(node) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "getattr"
-                     and len(n.args) >= 2 and scene(n.args[0]) and isinstance(n.args[1], ast.Constant) and n.args[1].value in attrs])
 
 
 taking = {}
@@ -163,11 +153,18 @@ READS = {                                                # ws.player read in the
     "engine/matters.py": 17, "engine/moment_prompts.py": 1, "engine/moments.py": 10, "engine/obligations.py": 2, "engine/presence.py": 1,
     "engine/reactions.py": 13, "engine/situation_parts.py": 4, "engine/stakes.py": 6, "engine/stay.py": 2, "engine/truth.py": 26,
 }
-found = {name: len(players_read(tree, ("ws", "scene"))) for name, tree in trees.items() if name.startswith("engine/") and players_read(tree, ("ws", "scene"))}
-check("the engine reads the scene's player in the recorded places and no more (new code takes an id and asks player_of)",
-      all(n <= READS.get(f, 0) for f, n in found.items()), {f: (n, READS.get(f, 0)) for f, n in found.items() if n > READS.get(f, 0)})
-check("...and a count that fell is lowered here", all(found.get(f, 0) == n for f, n in READS.items()),
-      {f: (found.get(f, 0), n) for f, n in READS.items() if found.get(f, 0) != n})
+reads = engine_reads(trees)
+over, fell = unrecorded(reads["scene"], READS)
+check("the engine reads the scene's player in the recorded places and no more (new code takes an id and asks player_of)", not over, over)
+check("...and a count that fell is lowered here", not fell, fell)
+FIGHT_READS = {                                          # (f748) combat.player read in the engine, per file: a count only falls
+    "engine/battlefield.py": 1, "engine/bosses.py": 7, "engine/combat.py": 33, "engine/combat_perks.py": 1, "engine/damage.py": 3,
+    "engine/parley.py": 1, "engine/relics.py": 1, "engine/summons.py": 3, "engine/techniques.py": 2,
+}
+over, fell = unrecorded(reads["fight"], FIGHT_READS)
+check("the engine reads a fight's first player fighter (combat.player) in the recorded places and no more (new fight code takes the "
+      "fighter it means)", not over, over)
+check("...and a count that fell is lowered here", not fell, fell)
 
 
 def a_side(node, parents) -> bool:
