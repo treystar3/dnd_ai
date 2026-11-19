@@ -37,7 +37,7 @@ hits = [f"{p}:{i + 1}" for p in list(pathlib.Path("scenes").glob("*.py")) + list
         for i, l in enumerate(p.read_text(encoding="utf-8").split("\n")) if PAT.search(l)]           # (f503) services too
 check("no name or label goes through str.capitalize()", not hits, hits)
 src = pathlib.Path("services/fight.py").read_text(encoding="utf-8")                                 # (f503) the captives are the service's
-check("a captive's name is drawn apart from every name already in the save", "store.npc_names()" in src and "taken.add(" in src)
+check("a captive's name is drawn apart from every name already in the save", "store.npc_names()" in src and "names.pick(" in src)
 
 # ---- the scene
 shutil.rmtree("saves/people_422_test", ignore_errors=True)

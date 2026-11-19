@@ -1300,7 +1300,8 @@ class CombatScene:
         camp leader is taken by the camp's own way, arc_actions.camp_fight_over); made here (make_prisoner takes the record). Returns the
         fighters taken."""
         leader = (getattr(self.ws, "camp_fight", None) or {}).get("leader")
-        taken = self.service.captives(self.fight, yielded, leader)
+        here = self.ws.player_of(self.ws.acting).location          # (f746) where the fight is, by id: its people name the captives
+        taken = self.service.captives(self.fight, yielded, here, leader)
         if not taken:
             return [e for e in yielded if e.name == leader]
         self.ws.surrender_took = True

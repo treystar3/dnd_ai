@@ -121,7 +121,7 @@ goldens:
       reruns: 0
       simulations: 0
     17:
-      estimate: 18.4
+      estimate: 18.5
       calls:
         combat_opening: 1
       operations: 6

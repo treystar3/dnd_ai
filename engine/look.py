@@ -32,6 +32,15 @@ def flags_for(people: str) -> list[str]:
     return [f for f, spec in L["flags"].items() if spec["axis"] in axes_for(people)]
 
 
+def people_named(words: str, peoples: dict) -> str:
+    """(f746) A captive's people, decided where they are made: the people their kind's words name (an orc war chief is an orc), else
+    the most of the place's."""
+    low = f" {re.sub(r'[^a-z]+', ' ', words.lower())} "
+    named = next((p for p, spec in L["peoples"].items() if f" {spec['word'].replace('-', ' ')} " in low), "")
+    peoples = peoples or {"human": 100}
+    return named or max(peoples, key=peoples.get)
+
+
 def clean(choice: dict) -> dict:
     """The choices as the engine keeps them: a known people and pronoun, a known option on each of its axes (the default otherwise),
     known flags on, and 'anything else' as plain words, shortened."""

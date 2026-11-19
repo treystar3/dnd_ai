@@ -416,15 +416,15 @@ class ArcActions:
 
     def make_prisoner(self, name: str, looks: str, arc: str = "", node: str = "", tip: bool = False, named: bool = False,
                       kind: str = "outlaw", fighter=None) -> NPC:
-        """(f392) A captive: a person who yielded, with a gender and a people of their own (the people their kind names - an orc war
-        chief is an orc - else the place's), in the registry, escorted: they walk bound at the player's side until handed over,
-        released, put to death, or they slip their bonds (data/rules/lifecycles.yaml captive)."""
+        """(f392) A captive: a person who yielded, with a gender and a people of their own (a fight's captive brings both in its record,
+        f746; otherwise the people their kind names, an orc war chief an orc, else the place's, and a gender rolled here), in the
+        registry, escorted: they walk bound at the player's side until handed over, released, put to death, or they slip their bonds
+        (data/rules/lifecycles.yaml captive)."""
         from engine import entities, look
-        peoples = self.world.peoples_at(self.player.location) or {"human": 100}
-        words = f" {re.sub(r'[^a-z]+', ' ', (getattr(fighter, 'creature', '') + ' ' + kind).lower())} "
-        folk = next((p for p, spec in look.L["peoples"].items() if f" {spec['word'].replace('-', ' ')} " in words), "") or max(peoples, key=peoples.get)
+        folk = getattr(fighter, "people", "") or look.people_named(f"{getattr(fighter, 'creature', '')} {kind}",
+                                                                   self.world.peoples_at(self.player.location))
         rng = random.Random(f"{self.store.meta.seed}:captive:{name}:{self.minutes}")
-        gender = rng.choice(["male", "female"])
+        gender = getattr(fighter, "gender", "") or rng.choice(["male", "female"])     # (f746) the one their name was built for
         epithet = "the captured leader" if named else "the captured " + re.sub(r" ?\d+$", "", kind)
         npc = NPC(id=_unique_id(self.store, f"prisoner {name}"), name=name, gender=gender, people=folk, role="prisoner",
                   location=self.player.location, epithet=epithet,

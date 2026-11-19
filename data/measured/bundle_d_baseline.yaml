@@ -40,6 +40,8 @@
 #                 enough, most days." for "It is as it is.") so tests not about stiff speech see no send-back; the farmer's words change
 #                 from input 2 on, and the requests carrying them. Its 37 inputs from 2 on set to today's prices: kept over the limit,
 #                 plain inputs 33 (67.4 s), 35 (69.7 s), 37 (67.1 s)
+#                 (2026-11-19, tools/latency.py --retold stub_fight --from 15) f746: the captives are renamed from input 15, a first and
+#                 a family name in the requests. Its 5 inputs from 15 on set to today's prices, none over the limit
 #   priced_at:    (f527) the speeds every estimate above was priced at, read tps, write tps and the embedder's seconds a text: the gate
 #                 (tools/latency.py gate, over_limit) prices today's goldens at these, whatever card_profile.yaml says now
 night: 'pod night 20261103_0520 at ed8fdf4, partial: four runs of 10 hours planned; the summoner (89 turns) and priest (204) stopped on two game
@@ -322,6 +324,6 @@ estimates:
     14: 13.2
     15: 48.9
     16: 18.4
-    17: 18.4
+    17: 18.5
     18: 17.4
     19: 19.2

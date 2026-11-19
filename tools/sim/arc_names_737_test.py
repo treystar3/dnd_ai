@@ -5,8 +5,7 @@ missing-person contract could not be taken on any turn its story call was deferr
 raised the same way). Each person step of a plain story is named by npc/names.pick for the step's own people, apart from the save's
 names and from each other, on the arc's own dice; a site step keeps no name; the save's names are read once. Cases: the save holding
 all sixteen names (the accept with the story deferred, typed as a line too, and redress_arc's tail); the model's story failing its
-check; a save with twenty captives taken over twenty fights; steps of other peoples; the same arc named the same; the startup check
-on the list the captives still read.
+check; a save with twenty captives taken over twenty fights; steps of other peoples; the same arc named the same.
 Run: python tools/sim/arc_names_737_test.py"""
 import shutil
 import sys
@@ -17,7 +16,7 @@ stub = simlib.Stub("warrior", 3)
 simlib.install(stub)
 SHOWN = simlib.quiet_console()
 import config
-from engine import arcs, budget, clock, data_check, failures, quests, streams
+from engine import arcs, budget, clock, failures, quests, streams
 from engine.arcs import A
 from llm.contracts import ActionIntent
 from npc import names
@@ -33,7 +32,8 @@ def check(n, ok, x=""):
         bad.append(n)
 
 
-LIST = list(A["prisoner"]["names"])
+LIST = ["Dorn", "Kell", "Marek", "Sorin", "Vask", "Tobren", "Hale", "Garrick", "Brannoc", "Ferrow", "Jessk", "Orlen", "Ruddick", "Skarn",
+        "Teague", "Wynn"]                                         # (f746) the old captive list, gone from arcs.yaml
 _roll_scale = arcs.roll_scale
 arcs.roll_scale = lambda *a, **k: ("arc", "forced")            # the longest trail: contacts, a lair or site, the boss
 TID = next(t for t, tpl in arcs.TEMPLATES.items() if tpl["subject_kind"] == "person")
@@ -265,13 +265,12 @@ svc = combat_scene.service_of(ws2)
 taken_names = []
 for i in range(20):
     foe = types.SimpleNamespace(category=A["people_categories"][0], name=f"Bandit {i + 1}", level=3, creature="bandit", id=f"e{i}")
-    for cap in svc.captives(types.SimpleNamespace(serial=500 + i), [foe]):
+    for cap in svc.captives(types.SimpleNamespace(serial=500 + i), [foe], ws2.player_of(ws2.acting).location):
         npc = ws2.make_prisoner(cap.name, "", tip=cap.tip, named=False, kind=cap.kind, fighter=cap)
         taken_names.append(npc.name)
         ws2.settle_prisoner(npc, "release", "I let them go.")
 check("(twenty captives taken, one a fight, and let go)", len(taken_names) == 20, taken_names)
-check("(...their names fill the captive list, and some come twice)", set(LIST) <= set(store2.npc_names()) and len(set(taken_names)) < 20,
-      sorted(set(taken_names)))
+check("(...their names are in the save)", set(taken_names) <= set(store2.npc_names()), sorted(set(taken_names)))
 before = store2.npc_names()
 arc3, err = accept(ws2)
 check("on a save with twenty captives taken, a missing-person contract is taken with its story deferred", err is None and arc3 is not None,
@@ -280,12 +279,6 @@ ok, rows = apart(arc3, before) if arc3 else (False, [])
 check("...its people named apart from every captive's name and from each other", ok, rows)
 store2.close()
 shutil.rmtree(f"saves/{NAME2}", ignore_errors=True)
-
-# ---- the startup check: the list the captives still draw from may not be empty
-probe = getattr(data_check, "captive_names_problems", None)
-check("data_check holds the captive list to a list of names, not empty", probe is not None and probe({"prisoner": {"names": []}})
-      and probe({"prisoner": {"names": ["Dorn", ""]}}) and not probe({"prisoner": {"names": ["Dorn"]}}))
-check("...and the shipped data passes it", probe is not None and not probe())
 
 arcs.roll_scale = _roll_scale
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad), file=sys.__stdout__)

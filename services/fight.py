@@ -177,6 +177,8 @@ class Captive:
     creature: str
     id: str
     tip: bool
+    people: str = ""                     # (f746) decided with the name, so the name is built for them
+    gender: str = ""
 
 
 class FightService:
@@ -186,7 +188,7 @@ class FightService:
         self.party = party                   # PartyService: a hire going down is its decision (decide_down)
         self.dice = dice                     # the fight's stream (streams.get("combat")), reseeded at every input
         self.actor = actor                   # (f632) who fights (engine/actor.py): their record is read when it is asked for
-        self.world = world                   # read for the bestiary
+        self.world = world                   # read for the bestiary and a place's peoples
         self.now = now                       # the game's minute
         self.given = list(characters) if characters else None   # (f508) who fights as a player, when the caller or the fight's spec says
 
@@ -886,12 +888,15 @@ class FightService:
         c.coins += coins
         return leveling.gain_xp(c, xp)
 
-    def captives(self, fight: combat.Combat, yielded: list, leader: str | None = None) -> list:
+    def captives(self, fight: combat.Combat, yielded: list, place: str, leader: str | None = None) -> list:
         """Foes who yielded and are taken: people can be bound and kept (questioned, let go, handed to the watch); the rest wait on the
         player (f385). (f392) No more than walk bound at once (lifecycles.yaml captive.most_escorted): the rest wait on the player's word
         like any foe who yields. An arc's camp leader is taken by the camp's own way (arc_actions.camp_fight_over). Returns the records,
-        strongest first, each named apart from every name already in the save (f422)."""
+        strongest first, each with a people (the one their kind names, else that of `place`, the id of the place the fight is in) and a
+        name and gender built for it by npc/names.pick, apart from every name already in the save and from each other (f422)."""
+        from engine import look
         from engine.arcs import A as R
+        from npc import names
         present = tuple(entities.L["captive"]["present_with_player"])
         escorted = list(dict.fromkeys(e.links.get("npc", "") for e in self.store.find_entities(kind="captive", state=present, owner="player")))
         room = entities.L["captive"]["most_escorted"] - len(escorted)
@@ -899,14 +904,16 @@ class FightService:
         if not ppl:
             return []
         rng = streams.keyed("surrender", fight.serial)                                               # (f501) the fight's own die
-        taken = {n.split()[0].lower() for n in self.store.npc_names() if n}            # (f422) no two captives, or a captive and a
-        out = []                                                                            # townsman, share a name in one save
-        for e in ppl:
-            free = [n for n in R["prisoner"]["names"] if n.split()[0].lower() not in taken] or R["prisoner"]["names"]
-            name = rng.choice(free)
-            taken.add(name.split()[0].lower())
+        peoples = self.world.peoples_at(place)
+        taken = list(self.store.npc_names())
+        out = []
+        for i, e in enumerate(ppl):
             kind = re.sub(r" ?\d+$", "", re.sub(r"\s*\([^)]*\)", "", e.name)).strip()            # (f422) no "(bounty)" on what they are
-            out.append(Captive(name, kind, e.level, e.creature, e.id, rng.random() < R["prisoner"]["tip_chance"]))
+            folk = look.people_named(f"{e.creature} {kind}", peoples)
+            namer = streams.keyed("captive_name", fight.serial, n=i)                     # (f746) its own die: the tip's keep theirs
+            name, gender = names.pick(folk, taken, namer)
+            taken.append(name)
+            out.append(Captive(name, kind, e.level, e.creature, e.id, rng.random() < R["prisoner"]["tip_chance"], folk, gender))
         return out
 
     FALLBACK_FIRST = ["Ashen", "Hollow", "Ember", "Gloam", "Thorn", "Dusk", "Varr", "Kestrel", "Wraith", "Sable", "Oath", "Rime"]
