@@ -14,7 +14,8 @@ game makes in its place: a call that asks for something else (another kind of an
 sign the code now plays differently. After every input the save's fingerprint (storage/statehash.py), the turn's outcomes and the
 words shown are compared with the recording's. Recorded failures are raised again, so retries and rolled-back turns repeat.
 
-Run it from the repository root. Exit status 0 when every input matched."""
+Run it from the repository root. Exit status 0 when every input matched and the session ended where the recording's did: every
+recorded line asked, every recorded call made, every line played compared with its turn row."""
 from __future__ import annotations
 
 import argparse
@@ -367,7 +368,7 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None, 
     life.FIRST_BATCH = rec["meta"].get("backfill", life.FIRST_BATCH)
 
     calls, inputs, turns = list(rec["calls"]), list(rec["inputs"]), list(rec["turns"])
-    state = {"call": 0, "input": 0, "shown": [], "parted": None}
+    state = {"call": 0, "input": 0, "shown": [], "parted": None, "compared": set()}
     source = Replay(calls, rec["meta"], loose=loose, on_call=on_call)
     crashes0 = len(crashlog.SESSION)
     no_server = _NoServer()
@@ -423,6 +424,7 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None, 
             raise Parted(f"after input {i} ({inputs_main[i - 1]['text']!r}) the player was shown other words "
                          f"({len(state['shown'])} lines against {want['lines']})")
         state["shown"] = []
+        state["compared"].add(i)                    # (f731) an input counts as matched only when its turn row was compared
 
     inputs_main = [r for r in inputs if r["main"]]
     queue = list(inputs)
@@ -443,11 +445,36 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None, 
             state["input"] += 1
         return row["text"]
 
+    def short_of() -> dict | None:
+        """(f731) Where the session ended short of the recording, or None: a line played with no turn row to compare, recorded lines
+        the game never asked, recorded calls it never made. The end of a session is compared as every input before it is."""
+        said, at, lines = [], [], []
+        unrowed = [i for i in range(1, state["input"] + 1) if i not in state["compared"]]
+        if unrowed:
+            i = unrowed[0]
+            said.append(f"input {i} ({inputs_main[i - 1]['text']!r}) was played, but the recording has no turn row for it"
+                        + (" (its session ended before that line closed)" if i == len(inputs_main) else ""))
+            at.append(i)
+        if queue:
+            r = queue[0]
+            lines.append(f"{len(queue)} recorded line(s) never asked, the first "
+                         + (f"input {r['i']} ({r['text']!r})" if r["main"] else f"is the answer to a question in input {r['i']} ({r['text']!r})"))
+            at.append(r["i"])
+        if source.at < len(calls):
+            c = calls[source.at]
+            lines.append(f"{len(calls) - source.at} recorded call(s) never made, the first call {c['i']} "
+                         f"(input {c['input']}, a {c['kind']} '{c.get('title', '')}')")
+            at.append(c["input"])
+        if lines:
+            said.append("the game stopped short of the recording, with " + ", and ".join(lines))
+        return {"input": min(at), "why": "; ".join(said)} if said else None
+
     console.put("ask", ask)
     try:
         ws.run()
         if state["input"]:
             check_input()
+        state["parted"] = short_of()
     except Parted as e:
         state["parted"] = {"input": state["input"], "why": str(e)}
     finally:
@@ -463,7 +490,7 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None, 
         budget.CACHED = cached_before
         config.THINK_TASKS, config.THINK_ROOM = think_before
         config.SAMPLING_ARM = arm_before
-    matched = state["input"] - (1 if state["parted"] else 0)
+    matched = sum(1 for i in state["compared"] if not state["parted"] or i < state["parted"]["input"])   # (f731) compared, before any part
     return {"matched": max(0, matched), "of": len(inputs_main), "parted": state["parted"], "calls": source.at, "recorded_calls": len(calls),
             "crashed": len(crashlog.SESSION) - crashes0, "logs": str(scratch), **made_on}   # (f518) faults the replay hit (its own crash.log)
 
@@ -705,7 +732,10 @@ def main() -> int:
     if out.get("crashed"):                                             # (f518) a turn that faulted is no match, whatever the state
         print(f"{out['crashed']} turn(s) faulted while it replayed (see {out['logs']}/crash.log), though the state matched")
         return 1
-    print(f"all {out['of']} inputs matched ({out['calls']} model calls served)")
+    if out["matched"] != out["of"]:                                    # (f731) never "all matched" short of the whole recording
+        print(f"{out['matched']} of {out['of']} inputs matched ({out['calls']} of {out['recorded_calls']} model calls served)")
+        return 1
+    print(f"all {out['matched']} inputs matched ({out['calls']} model calls served)")
     return 0
 
 
