@@ -175,7 +175,7 @@ class ArcActions:
             out = story.model_dump()
         except LLMError as e:
             console.debug(f"arc story: model failed ({e}); using plain wording")
-            out = self.plain_story(arc, nodes)
+            out = self.plain_story(arc, nodes, taken)
             from engine import budget
             if isinstance(e, budget.Deferred):
                 out["plain"] = True                             # (f469) plain for now: a later turn's tail dresses it (redress_arc)
@@ -201,16 +201,19 @@ class ArcActions:
         q["title"] = story.get("hook_title") or q.get("title", "")
         self.store.save_player(self.player)
 
-    def plain_story(self, arc: dict, nodes: list[dict]) -> dict:
+    def plain_story(self, arc: dict, nodes: list[dict], taken: list[str]) -> dict:
+        from npc import names
         rng = random.Random(arc["id"])
-        pool = [x for x in PR["names"] if x not in self.store.npc_names()]
-        rng.shuffle(pool)
+        taken = list(taken)
         tpl = arcs.TEMPLATES[arc["template"]]
         victim = arc["victim_phrase"]
         out = []
         for i, n in enumerate(nodes):
             clue = f"The trail leads on to {n['next']}." if n["next"] else "This is where it ends, and it was all for coin."
-            name = "" if n["kind"] == "site" else (pool[i] if i < len(pool) else f"{pool[i % len(pool)]} {i + 1}")
+            name = ""
+            if n["kind"] != "site":
+                name = names.pick(n["people"], taken, rng)[0]          # (f737) built for the step's people, apart from the save: never runs dry
+                taken.append(name)
             out.append({"id": n["id"], "title": f"Step {i + 1}", "clue": clue, "npc_name": name,
                         "npc_looks": "" if n["kind"] == "site" else "A weathered figure.",
                         "npc_manner": "" if n["kind"] == "site" else "Guarded and short."})

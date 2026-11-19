@@ -912,6 +912,7 @@ def check() -> list[str]:
     from storage import statehash
     bad += statehash.wording_problems()                                # (f718) the list of what is wording, held to the tree
     bad += gate_problems()                                             # (f719) the live gate's floors, and its last measure's shape
+    bad += captive_names_problems()                                    # (f737) the names a captive is drawn from
     bad += grammar_problems()                                          # (f527) every contract has its grammar
     from llm import runtime as _runtime
     bad += _runtime.runtime_problems()                                 # (f522) the server's settings hold what the game sends
@@ -934,6 +935,14 @@ def endings_problems(D: dict | None = None) -> list[str]:
         if "{title}" not in str(M.get(how, "")) or "{name}" not in str(M.get(how, "")):
             bad.append(f"doors.yaml memory.{how}: needs the town's words, naming {{title}} and {{name}}")
     return bad
+
+
+def captive_names_problems(R: dict | None = None) -> list[str]:
+    """(f737) services/fight.py captives() draws from arcs.yaml prisoner.names, the whole list once all are taken: none may be empty."""
+    N = ((_load("data/rules/arcs.yaml") if R is None else R).get("prisoner") or {}).get("names")
+    if not (isinstance(N, list) and N and all(isinstance(n, str) and n.strip() for n in N)):
+        return ["arcs.yaml prisoner.names: needs a list of names, none of them empty"]
+    return []
 
 
 def world_caps_problems(E: dict | None = None, P: dict | None = None) -> list[str]:
