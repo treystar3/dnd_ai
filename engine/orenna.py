@@ -100,14 +100,14 @@ def seal_attempt(combat, boss) -> bool:
     """(f460) The player wrests at the seal: freed and gone from the fight, or the Executioner hits harder. True when freed. The roll is
     decided by the round and the boss, as it was."""
     from ui import console
-    from engine.combat import tell
+    from engine.combat import leave, tell
     S = O["confront"]["seal"]
     bound = next((f for f in combat.enemies() if f.bound and f.alive), None)
     if not bound:
         return False
     rng = random.Random(f"{combat.round}:{boss.id}:seal")
     if rng.random() < seal_chance(boss.boss.get("evidence", 0.0)):
-        combat.fighters = [f for f in combat.fighters if f is not bound]
+        leave(combat, bound, "gone")
         console.note(S["success"])
         tell(combat, S["success"])
         return True

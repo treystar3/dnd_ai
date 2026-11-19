@@ -705,7 +705,6 @@ def is_challenge(text: str) -> bool:
 def challenge(combat: C.Combat, text: str, rng: random.Random) -> bool:
     """Challenger: the player calls for single combat in a fight with people. Their leader steps out to face the player alone; the rest
     stand down - out of the fight, bound by the result - and the player's own companions hold back. True when it happened."""
-    from engine import battlefield as bf
     p = player_of(combat)
     if p is None or not has(p, "challenger", combat) or p.counters.get("challenged"):
         return False
@@ -717,8 +716,7 @@ def challenge(combat: C.Combat, text: str, rng: random.Random) -> bool:
     leader = max(people, key=lambda e: (e.rank == "elite", e.level, e.max_hp))
     rest = [e for e in people if e is not leader]
     for e in rest:
-        bf.release(combat, e)
-        e.fled = True
+        C.leave(combat, e, "fled")
         e.counters["stood_down"] = 1
     for a in combat.allies():
         if a.ally_role != "mentor":
@@ -925,7 +923,7 @@ def turned_turn(combat: C.Combat, e: C.Fighter, rng: random.Random) -> None:
     from engine import battlefield as bf
     others = [o for o in combat.enemies() if o is not e]
     if not others:
-        e.fled = True
+        C.leave(combat, e, "fled")
         C.tell(combat, f"{C.who(e)} flees, its old side broken")
         return
     t = bf.closest(combat, e, others) or others[0]

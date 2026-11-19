@@ -444,6 +444,17 @@ class Combat(BaseModel):
                 setattr(self, name, there)
         return self
 
+    @model_validator(mode="after")
+    def no_stale_tie(self) -> "Combat":
+        """(f766) A fight read from its row holds no tie to someone out of it: one a writer saved without the release is let go of
+        here, and the fight's log says so. It runs on every construction and pydantic keeps the fighters it is handed, so a
+        throwaway Combat is built from fresh fighters, never from live ones whose ties it would drop."""
+        from engine import battlefield as bf
+        for f, oid in bf.let_go_stale(self):
+            o = self.get(oid)
+            self.log.append(f"{f.name} is no longer tied to {o.name if o else oid}, who is out of the fight")
+        return self
+
     def get(self, fid: str) -> Fighter | None:
         return next((f for f in self.fighters if f.id == fid), None)
 
@@ -992,6 +1003,27 @@ def in_fight(f: Fighter) -> bool:
     return f.alive and not f.fled
 
 
+LEAVINGS = ("fled", "yielded", "gone")       # (f766) how a fighter leaves: out of it alive, out of it a prisoner, off the field
+
+
+def leave(combat: Combat, f: Fighter, how: str) -> bool:
+    """(f766) The one way a living fighter goes out of the fight: every tie released first, then fled (it ran, stood down or bolted),
+    yielded (fled, and can be taken prisoner) or gone (off the field: tamed, bound, freed by the seal). One who is down or already
+    out does not leave: False, and the fight's log says so."""
+    if how not in LEAVINGS:
+        raise ValueError(f"a fighter leaves a fight {' or '.join(LEAVINGS)}, not {how!r}")
+    if not in_fight(f):
+        combat.log.append(f"{f.name} is down and cannot leave the fight" if not f.alive else f"{f.name} has already left the fight")
+        return False
+    from engine import battlefield as bf
+    bf.release(combat, f)
+    if how == "gone":
+        combat.fighters[:] = [x for x in combat.fighters if x is not f]
+    else:
+        f.fled, f.surrendered = True, how == "yielded"
+    return True
+
+
 FOE_EFFECTS = ("damage", "control", "influence")       # (f763) the abilities that need a foe to land on
 
 
@@ -1085,10 +1117,10 @@ def hit_parts(att: Fighter, dfn: Fighter, combat: Combat) -> tuple[float, list[l
         steps.append(["conditions", st])
     if "elevated" in att.position_tags and "elevated" not in dfn.position_tags:
         steps.append(["high ground", RULES["elevated_accuracy"]])
-    if att.reach == "ranged" and att.damage_type == "physical" and att.engaged_with:
-        steps.append(["point-blank (a ranged weapon with a foe on top of you)", -h.get("point_blank", 0)])
+    from engine import battlefield as bfm
+    if att.reach == "ranged" and att.damage_type == "physical" and (bfm.tied(combat, att) if combat is not None else att.engaged_with):
+        steps.append(["point-blank (a ranged weapon with a foe on top of you)", -h.get("point_blank", 0)])     # (f766) only someone standing on them
     if combat is not None:
-        from engine import battlefield as bfm
         steps += [st for st in bfm.hit_modifiers(combat, att, dfn) if st[0] != "high ground"]
     chance = sum(v for _, v in steps)
     return max(h["min"], min(h["max"], chance)), [[n, round(v, 1)] for n, v in steps if abs(v) >= 0.05]
@@ -2823,9 +2855,7 @@ def enemy_turn(combat: Combat, e: Fighter, rng: random.Random) -> None:
     pinned = {"slowed", "stunned", "prone", "grappled"} & set(e.statuses)
     if e.temperament == "passive" and combat.round > 1 and not pinned and not combat.gentle and \
             rng.random() < FLEE_CHANCE_PASSIVE.get(_pressed(combat, e), 0.4):
-        e.fled = True
-        from engine import battlefield as bf
-        bf.release(combat, e)
+        leave(combat, e, "fled")
         combat.log.append(f"{e.name} bolts and escapes")
         tell(combat, f"{who(e)} bolts for the trees and is gone")
         return

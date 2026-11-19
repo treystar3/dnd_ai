@@ -180,6 +180,12 @@ def engaged(fight, f) -> list:
     return [o for o in standing(fight) if o.id in f.engaged_with and hostile(f, o)]
 
 
+def tied(fight, f) -> list:
+    """(f766) Everyone standing this fighter is tied up with, of either side (a turned foe's ties are to its old side): never an id left
+    by someone down or gone."""
+    return [o for o in fight.fighters if engaged_pair(f, o)]
+
+
 def hold_of(f) -> int:
     """How many enemies this fighter can hold at the line now: its own hold, and more while Enlarged (data/rules/ability_traits.yaml)."""
     from engine.ability_traits import BUFFS
@@ -417,6 +423,19 @@ def release(fight, f) -> None:
         if f.id in o.engaged_with:
             o.engaged_with.remove(f.id)
     f.engaged_with = []
+
+
+def let_go_stale(fight) -> list[tuple]:
+    """(f766) Every tie someone standing holds to someone who is not (down, gone, or off the field) ends: [(the fighter, the id let
+    go)]. The mend for a row saved by a writer that forgot the release; validate stays a check that repairs nothing."""
+    up = {f.id for f in standing(fight)}
+    out = []
+    for f in standing(fight):
+        stale = [i for i in f.engaged_with if i not in up]
+        if stale:
+            f.engaged_with = [i for i in f.engaged_with if i in up]
+            out += [(f, i) for i in stale]
+    return out
 
 
 def gain(f, tag: str) -> None:

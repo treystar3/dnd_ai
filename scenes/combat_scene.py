@@ -354,11 +354,12 @@ class CombatScene:
         """Where someone stands, in a few plain words: whom they are on, their row, or which part of the field they are in."""
         f = self.fight
         p = f.player
-        if x.engaged_with:
-            if p.id in x.engaged_with and x.side == "enemy":
+        from engine import battlefield as bf
+        ties = bf.tied(f, x)                                 # (f766) someone standing, never a tie left by the fallen or the gone
+        if ties:
+            if any(o is p for o in ties) and x.side == "enemy":
                 return "on you"
-            names = [o.name.split()[0] for o in f.fighters if o.id in x.engaged_with and o.alive]
-            return f"tied up with {names[0]}" if names else "in the melee"
+            return f"tied up with {ties[0].name.split()[0]}"
         here = f.battlefield.zones.get(x.zone_id).name if f.battlefield and x.zone_id in f.battlefield.zones else ""
         if f.battlefield and x.zone_id != p.zone_id:
             return f"at {here}" if here else "at a distance"

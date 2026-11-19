@@ -89,11 +89,11 @@ def attempt(combat, target, approach: str, character, rng: random.Random) -> str
         return None
     if approach == "intimidate":
         yields = behaviors.can_surrender(target) or target.category in ("hostile people", "person template", "monstrous race")
-        behaviors._break(combat, target, yields)
-        if degree == "strong success" or target.level >= max([e.level for e in combat.enemies()] + [0]):
+        if behaviors._break(combat, target, yields) and \
+                (degree == "strong success" or target.level >= max([e.level for e in combat.enemies()] + [0])):
             behaviors.morale(combat, target, rng)
     elif approach == "persuade":
-        target.fled = True
+        C.leave(combat, target, "fled")
         combat.log.append(f"{target.name} stands down")
         C.tell(combat, f"{C.who(target)} lowers {C.whose(target)} guard, thinks it over, and stands down - it leaves the fight")
     else:

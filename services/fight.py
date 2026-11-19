@@ -541,7 +541,7 @@ class FightService:
         field_rules.start_cooldown(self.player.field, ability, self.now())
         if self.dice.random() < taming.bind_chance(c, target, creature, ability.tier):
             comp = taming.bind(c, creature, target.name)
-            f.fighters.remove(target)
+            combat.leave(f, target, "gone")
             f.tamed.append(comp.name)
             f.log.append(f"{f.player.name} binds {target.name} with {ability.name}; it is now a companion")
             combat.tell(f, f"{target.name} stops fighting and settles beside you - it is yours now ({comp.name}, a new companion)")
@@ -560,7 +560,7 @@ class FightService:
             return
         if self.dice.random() < taming.chance(c, target, creature):
             comp = taming.bind(c, creature, target.name)
-            f.fighters.remove(target)
+            combat.leave(f, target, "gone")
             f.tamed.append(comp.name)
             f.log.append(f"{f.player.name} tames {target.name}; it is now a companion")
             combat.tell(f, f"{target.name} stops fighting and settles beside you - it is yours now ({comp.name}, a new companion)")
