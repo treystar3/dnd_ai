@@ -179,6 +179,60 @@ uncommitted edit, so it was left alone. f744 reverses what docs/design/20_phase3
 old layout. SITUATIONS-3 was built before LONG_SAVE-3, so the captives kept arcs.yaml's sixteen names until f746 took the list
 and its startup check out.
 
+## Phases 2 and 3 as built
+
+19 November 2026, branch play/faults, f748 to f767 (`git log 711d2cd..05f6313`), on the owner's "continue on to phase 2 and
+3". Phase 2's seven features that do not wait on FIGHT_CORE-1's design and all thirteen of phase 3 landed, in the order they
+were ready; RELOAD-10 and BUDGET_FLOW-9 were built as one change (f753), as the plan said. Each was checked by the full suite
+when it landed. Every suite from f748 to f767 failed the same two tests, rename_meravia_test and rename_lethoria_test, on the
+old world and capital names quoted in this audit's documents; the docs commit after f767 rewords those quotes.
+
+| Feature | Phase | The commit that built it | The owner's answer it was built on |
+|---|---|---|---|
+| FIGHT_CORE-9 | 2 | 9bae0e7 f748: the fight's rules gain no new read of the first player fighter: combat.player is counted per engine file and only falls (infrastructure; checklist 8) | none asked |
+| FIGHT_ABILITIES-3 | 2 | 87ff83c f749: a Bound summon made anew in a fight walks into the next one (pillars 6, 1) | none asked; the trial's case waits on FIGHT_CORE-4 |
+| FIGHT_SCENE-4 | 2 | 52e0f77 f750: the passage after a fight is told only of the player's own who died in that fight (pillars 1, 4) | none asked |
+| RELOAD-1 | 3 | 6313947 f751: an opening by declaration: every name the scene holds says what an opening does with it, and a session closed and opened part-way is held to the same session played straight (infrastructure; checklist 4, 7, 8) | the plan's default for each name neither saved nor rebuilt: what a check, a prompt or the next line's routing reads is kept; what only spaces out chatter inside one sitting is declared forgotten, each with its reason (the list is in f751's commit) |
+| FIGHT_SCENE-1 | 3 | 07d40d5 f752: a fighter is rebuilt from the character by one step that keeps what the fight took, so a point spent in a fight leaves an ooze's wear on the armour (pillar 6, infrastructure) | none asked |
+| RELOAD-10, BUDGET_FLOW-9 | 3 | 24b65fb f753: an input keeps its count when an operation fails before the line's first commit, and the count reaches the save with whichever operation stands first (infrastructure; checklist 4, 7) | none asked |
+| RELOAD-7 | 3 | c9fe910 f754: a place made in play sits in the same spot on the map, with the same direction word, in every session (pillars 1, 7) | none asked |
+| LONG_SAVE-18 | 3 | 10bcc63 f755: a stop left takes only its own people: a captive walked through it goes on, and a companion is never let go there (pillars 1, 7) | none asked |
+| FIGHT_ABILITIES-12 | 2 | 8acb095 f756: each summon casting has its own serial, whoever has left the fight since (pillar 6) | none asked |
+| FIGHT_CORE-5 | 2 | 87f3112 f757: the line of a blow comes before what the blow set off, in the story and in the fight's log (pillars 5, 1) | none asked; one live gate run on the card is owed before it is kept |
+| RELOAD-9 | 3 | 3806a35 f758: what waits on the next line after a fight is in the save: a yielded foe's question and the walk to take up after a road fight survive a close (pillars 2, 1) | none asked |
+| RELOAD-4 | 3 | 2b3f36d f759: a talk in progress, the companion who spoke last and someone who came looking are all there when the save is opened again (pillar 4) | none asked |
+| FIGHT_SCENE-2 | 3 | c04835b f760: the fight's row is written with every operation's commit, so a point spent in a fight stays spent through the next line and a reopen (infrastructure, pillar 6) | none asked |
+| RELOAD-6 | 3 | c896dc4 f761: what the checks and prompts remember of the telling is kept in one capped row of the save, so a close no longer lets worn words and a town's stock phrases through again (pillars 5, 3) | (a) what the checks and prompts remember of the telling is kept across a close, as planned. |
+| REMOVALS_2-12 | 3 | 4b92ced f762: a commit saves the campaign's meta once, with its player, and the comments say so (infrastructure; checklist 4, 7) | none asked |
+| FIGHT_ABILITIES-1 | 2 | d259e35 f763: an ability lands only on a fighter still in the fight, and no blow fells anyone twice (pillars 1, 6) | none asked |
+| RELOAD-8 | 3 | 15859f9 f764: opening a save puts the scene back and rolls nothing, since an opening is not an arrival (infrastructure, pillar 1) | (a) a period's moment is rolled on arriving only, as data/rules/moments.yaml says. |
+| RELOAD-3 | 3 | 337680a f765: what a fight is for is saved with the fight, so a fight resumed after a close or a crash ends with its consequences (pillars 1, 6) | none asked |
+| FIGHT_CORE-6 | 2 | 4f3661e f766: a fighter leaves a fight one way, released first, and a runner cut down is told fallen, never fled (pillars 1, 6) | none asked |
+| FIGHT_ABILITIES-6 | 3 | 05f6313 f767: a two-turn ability lands with what was settled when it was begun: its bonuses, its recipient and its repeats (pillar 6) | none asked |
+
+Left for later in phase 2: FIGHT_CORE-1 (a design first: docs/design/34_one_fall_step.md, with its questions for the owner),
+and the six that wait on it: FIGHT_CORE-2, FIGHT_CORE-3, FIGHT_CORE-4, FIGHT_ABILITIES-2, FIGHT_ABILITIES-4 and
+FIGHT_ABILITIES-5.
+
+Owed on the card, none run yet: one live gate run for f757 (tools/live_gate.py: the order of what the fight's narrator is
+handed changed), to be shared with FIGHT_CORE-1 and FIGHT_ABILITIES-5; tools/acceptance.py --live for f751, whose reopen now
+runs the whole opening; and, offered by f761, a live gate run with the save closed and opened part-way.
+
+Found by the review across these commits and left for a later change:
+- Three rows are each written at the commit by a call placed by hand in WorldScene.operation (f759 the visitors, f760 the
+  fight, f761 the telling, beside the older talk row); nothing ties a name engine/actor.py declares kept to its writer.
+- f736 and f765 each run an extra world:open operation from the opening, written twice.
+- The `target.alive else enemies[0]` fallbacks f763 left for FIGHT_ABILITIES-6 (engine/spellcraft.py targets and control,
+  engine/martial.py control) are still there after f767.
+- f764 restores a character f736 has just moved off a vanished place as if they had stood there at the close; no test covers
+  the two together.
+- f749 updates every character's Bound summon bond and saves only the first player.
+- Tests still name the real saves folder by a literal path (turn logs, crash logs and `rmtree("saves/<name>")` of their own
+  folders); f741's fence only stops new ones.
+- stub_fight was re-blessed four times in the run (f746, f757, f759, f760) and stub_short three, where note 9 asks for one
+  re-bless a phase; each reason was checked against the later commits and none is undone.
+- f759 makes GOALS.md's f711 row ("Keeping a summoned person in the save waits for a later fix") out of date.
+
 ## The phases
 
 Each phase opens with why it is there. The ordering's criteria, in this order: (a) what stops the game, loses a save or the

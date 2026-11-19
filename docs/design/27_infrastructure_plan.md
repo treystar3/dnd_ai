@@ -200,7 +200,8 @@ character's own words (engine/truth.py `player_pronoun`). A failed operation's r
 again, to the same result. Nothing shows; the test leaves those four fields out of its comparison and says so.
 
 Not fixed here, for the owner: `assault` is not in the save, so a game closed during the fight at the gate and opened again
-decides nothing about the town when the fight ends. `camp_events` (read by the sim's bot alone) has no cap.
+decides nothing about the town when the fight ends (fixed since by f765: what a fight is for, the gate's assault included, is
+saved with the fight). `camp_events` (read by the sim's bot alone) has no cap.
 
 ## f721. One turn driver
 
@@ -342,7 +343,8 @@ character's own words (engine/truth.py `player_pronoun`). A failed operation's r
 again, to the same result. Nothing shows; the test leaves those four fields out of its comparison and says so.
 
 Not fixed here, for the owner: `assault` is not in the save, so a game closed during the fight at the gate and opened again
-decides nothing about the town when the fight ends. `camp_events` (read by the sim's bot alone) has no cap.
+decides nothing about the town when the fight ends (fixed since by f765: what a fight is for, the gate's assault included, is
+saved with the fight). `camp_events` (read by the sim's bot alone) has no cap.
 
 ## f721. One turn driver
 
