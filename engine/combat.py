@@ -2139,25 +2139,28 @@ def apply_rider(combat: Combat, att: Fighter, t: Fighter, move: Move, rng: rando
 
 
 def act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | None, rng: random.Random,
-                give: list[Fighter] | None = None, echo: bool = False) -> str | None:
+                give: list[Fighter] | None = None, echo: bool = False, released: dict | None = None) -> str | None:
     """One ability, resolved. An echo (engine/combat_perks.py) is the same ability happening again on a perk's account: nothing is
-    paid or counted for it, and what it kills raises no further echoes."""
+    paid or counted for it, and what it kills raises no further echoes. A landing (released: the gathering's row, from
+    spellcraft.release) is a gathered ability going off: nothing asked or paid at its beginning is asked or paid again, and what
+    that payment settled lands with it."""
     from engine import combat_perks
-    problem = None if echo else can_use(att, move, combat)
+    again = echo or released is not None                # (f767) asked and paid already: a perk's repeat, or a gathering's landing
+    problem = None if again else can_use(att, move, combat)
     if problem:
         return problem
     named, target = target, aim(combat, att, move, target)
     if target is None and ((move.effect in FOE_EFFECTS and not combat.enemies()) or (echo and named is not None)):
         return f"You have no one left to aim {move.name} at."     # (f763) before the cost; a perk's repeat is dropped by it
     if move.effect == "buff" and move.buff != "manashield" and combat_perks.has(att, "selfless", combat) \
-            and not [r for r in (give or []) if r is not att]:
+            and not [r for r in (give or []) if r is not att] and released is None:
         return f"{move.name} is for others: your blessings are not yours to keep (Selfless). Name who it is for."
-    if move.effect == "summon" and not echo:
+    if move.effect == "summon" and not again:
         from engine import summons
         why = summons.refuse(combat, att, move)
         if why:
             return why
-    if move.effect == "mobility" and not echo:
+    if move.effect == "mobility" and not again:
         from engine import movement
         if move.movement == "shadowmark" and att.shadow:
             movement.shadow_return(combat, att, move, "called back")   # the return is free: the price was paid going in
@@ -2170,7 +2173,7 @@ def act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | None
     att.counters["tier_now"] = 0 if move.effect == "buff" else combat_perks.TIER_CODE.get(move.tier, 0)    # (f400) a buff has no tier
     att.counters["reach_now"] = {"ranged": 1, "melee": 2, "extended": 2, "area": 3}.get(move.reach, 0)
     try:
-        return _act_ability(combat, att, move, target, rng, give, echo)
+        return _act_ability(combat, att, move, target, rng, give, echo, released)
     finally:
         from engine import movement as _mv
         _mv.reveal_after(att)
@@ -2182,8 +2185,11 @@ def act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | None
 
 
 def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | None, rng: random.Random,
-                 give: list[Fighter] | None, echo: bool) -> str | None:
+                 give: list[Fighter] | None, echo: bool, released: dict | None = None) -> str | None:
     from engine import combat_perks
+    from engine import spellcraft as _sc
+    again = echo or released is not None                # (f767) a repeat or a landing: nothing is paid or counted again
+    gathering = not again and _sc.cast_turns(move) > 1   # (f767) begun now, landing later: nothing lands or follows it yet
     if (move.effect != "buff" and move.effect != "healing") or (move.effect == "buff" and not AT.BUFFS.get(move.buff, {}).get("allies", True)):
         give = None                                    # only a blessing or a heal can go on someone else; a mana shield is your own
     if give:
@@ -2220,12 +2226,12 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
             tell(combat, f"{who(att)} {vb(att, 'are', 'is')} {access.why}" + (f" - {who(att)} {story}" if story else ""))   # (f419) what is kept is the log's
             told_player(combat, att, "approach", foe=aim.name)
             return None
-    cost = cost_of(att, move, combat) if not echo else 0
-    body = stamina_part(att, move, combat) if not echo else 0   # a channeled strike's stamina (f260)
+    cost = cost_of(att, move, combat) if not again else 0
+    body = stamina_part(att, move, combat) if not again else 0   # a channeled strike's stamina (f260)
     att.stamina -= body
     am = mechanics(att, combat)
-    free_cast = move.resource == "mana" and not att.archmage_used and "archmage" in am and not echo
-    if att.cooldowns.get(move.id, 0) > 0 and not echo:
+    free_cast = move.resource == "mana" and not att.archmage_used and "archmage" in am and not again
+    if att.cooldowns.get(move.id, 0) > 0 and not again:
         att.counters["overcasting"] = 1                  # Overcast: the cooldown is bought through (cost_of doubled it)
     if move.resource == "stamina":
         att.stamina -= cost
@@ -2239,22 +2245,24 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
              + (", and the spell burns the hotter for it" if "overchannel" in att.mech_names else "") + " (Overchannel)")
     else:
         att.mana -= cost
-    if att.counters.get("free_fire") and getattr(move, "element", "") == "fire" and not echo:
+    if att.counters.get("free_fire") and getattr(move, "element", "") == "fire" and not again:
         att.counters.pop("free_fire", None)
-    combat_perks.on_cast(combat, att, move, echo, cost)
+    combat_perks.on_cast(combat, att, move, again, cost)
+    if released is not None:
+        _sc.carry(att, released)
     if move.rider == "thrift":
         back = cost * AT.value(AT.RIDERS["thrift"]["refund"], move.tier) / 100
         if move.resource == "stamina":
             att.stamina = min(att.max_stamina, att.stamina + back)
         else:
             att.mana = min(att.max_mana, att.mana + back)
-    if move.resource == "mana" and not echo:
+    if move.resource == "mana" and not again:
         att.spells_cast += 1
         if "arcane_recall" in am:
             for k in list(att.cooldowns):
                 if k != move.id and att.cooldowns[k] > 0:
                     att.cooldowns[k] = max(0, att.cooldowns[k] - int(am["arcane_recall"]))
-    if "echoing" in am and not att.counters.get("echoed") and not echo:
+    if "echoing" in am and not att.counters.get("echoed") and not again:
         att.counters["echoed"] = 1
         att.stamina = min(att.max_stamina, att.stamina + body)
         if move.resource == "stamina":
@@ -2262,9 +2270,9 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
         else:
             att.mana = min(att.max_mana, att.mana + cost)
         tell(combat, f"the first working costs {who(att)} nothing - the effort echoes back (Echoing)")
-    if move.cooldown and not echo:
+    if move.cooldown and not again:
         att.cooldowns[move.id] = move.cooldown + 1
-    if getattr(move, "cooldown_days", 0) and not echo:
+    if getattr(move, "cooldown_days", 0) and not again:
         att.cooldowns[move.id] = 10 ** 6                     # (f397) a named spell: once this fight, and the day is kept (spells.day_cast)
         att.counters["day_cast"] = list(att.counters.get("day_cast", [])) + [move.id]
     ranked = bool(getattr(move, "rank", 0)) and move.effect == "damage"
@@ -2280,11 +2288,13 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
         att.archmage_used = True
         mult *= 1 + am["archmage"] / 100
         tell(combat, f"{who(att)} {vb(att, 'let', 'lets')} the first spell go without a breath of effort (Archmage's Focus)")
+    elif released is not None and released.get("archmage"):
+        mult *= 1 + released["archmage"] / 100            # (f767) the first spell's share, settled when it was begun
     enemies = combat.enemies()
-    from engine import spellcraft as _sc
+    focus_share = am["archmage"] if free_cast else 0
 
-    if move.effect != "damage" and _sc.cast_turns(move) > 1 and not att.counters.get("charged_release"):
-        _sc.wind_up(combat, att, move, target or (enemies[0] if enemies else None))    # gathered over turns, whatever it does
+    if move.effect != "damage" and gathering:                # gathered over turns, whatever it does
+        _sc.wind_up(combat, att, move, target or (enemies[0] if enemies else None), give, focus_share)
     elif move.effect == "damage":
         spell = move.resource == "mana"
         saved = (att.weapon_attrs, att.damage_type, att.weapon_damage, att.adaptive)
@@ -2318,8 +2328,8 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
         if mform == "sweep":
             targets = martial.sweep_targets(combat, att, target or (enemies[0] if enemies else None))
             share, area = martial.FORMS["sweep"]["share"], True
-        if spellcraft.cast_turns(move) > 1 and not att.counters.get("charged_release"):
-            spellcraft.wind_up(combat, att, move, targets[0] if targets else None)
+        if gathering:
+            spellcraft.wind_up(combat, att, move, targets[0] if targets else None, give, focus_share)
             targets = []
         elif form == "charged" and not ranked:
             mult *= spellcraft.FORMS["charged"]["mult"]       # a ranked spell's power is all in its form
@@ -2512,15 +2522,15 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
     else:
         combat.log.append(f"{att.name} uses {move.name}: no clear effect in the fight")
         tell(combat, f"{who(att)} {vb(att, 'try', 'tries')} {move.name}, but it changes little in the heat of the fight")
-    if "attunement" in am and not echo:
+    if "attunement" in am and not again:
         att.counters["attune"] = min(5, att.counters.get("attune", 0) + 1)
-    if move.resource == "mana" and "starfall" in am and att.spells_cast % 4 == 0 and att.alive and not echo:
+    if move.resource == "mana" and "starfall" in am and att.spells_cast % 4 == 0 and att.alive and not again:
         base = RULES["spell_base_damage"] * growth(att.level) * am["starfall"] / 100
         tell(combat, "the sky answers the fourth spell, and stars fall (Starfall)")
         for e in combat.enemies():
             dealt, _ = mitigate(e, base, "magical", att.level, combat, att)
             side_damage(combat, e, dealt, att, rng, "magical", logged=lambda d: f"starfall hits {e.name}: {d} damage")
-    if att.alive:
+    if att.alive and not gathering:                       # (f767) what follows an ability follows its landing, once
         combat_perks.after_cast(combat, att, move, target, rng, give, echo, cost)
     return None
 

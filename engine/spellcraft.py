@@ -1057,10 +1057,14 @@ def cast_turns(move) -> int:
     return 2 if form_of(move) == "charged" or getattr(move, "martial_form", "") == "windup" else 1
 
 
-def wind_up(combat, att, move, target) -> None:
+def wind_up(combat, att, move, target, give=None, archmage=0.0) -> None:
+    """Begun and paid for: the gathering, and what its payment settled for the landing (the blessing's or heal's recipients, the
+    Archmage's Focus share, the blood paid, the weave's critical and the echo owed), kept as plain data on the saved fight row."""
     turns = cast_turns(move)
     att.charging = {"move": move.model_dump(), "target": target.id if target is not None else "", "round": combat.round,
-                    "left": turns - 1}
+                    "left": turns - 1, "give": [r.id for r in give or []], "archmage": archmage,
+                    "blood_cast": bool(att.counters.get("blood_cast")), "weave_crit": bool(att.counters.pop("weave_crit", None)),
+                    "echo_now": bool(att.counters.pop("echo_now", None))}
     combat.log.append(f"{att.name} winds up {move.name}")
     more = "all of next turn" if turns == 2 else f"all of the next {turns - 1} turns"
     C.tell(combat, f"{C.who(att)} {C.vb(att, 'begin', 'begins')} to gather {move.name} - it will take {more} to finish, "
@@ -1088,15 +1092,26 @@ def release(combat, f, rng=None) -> bool:
                        + ("one more turn" if ch["left"] == 1 else f"{ch['left']} more turns"))
         return True
     f.charging = {}
-    foes = _foes(combat, f)
-    t = next((e for e in foes if e.id == ch["target"]), None) or (foes[0] if foes else None)
-    if t is None:
-        C.tell(combat, f"the {move.name} {C.who(f)} gathered finds no one left to strike, and fades")
-        return True
+    t, give = combat.get(ch.get("target", "")), None
+    if move.effect in C.FOE_EFFECTS:                      # (f767) only what needs a foe asks for one; act_ability re-aims one who has left
+        foes = combat.enemies()
+        if not foes:
+            C.tell(combat, f"the {move.name} {C.who(f)} gathered finds no one left to strike, and fades")
+            return True
+        if t is None:
+            from engine import battlefield as bf
+            t = bf.closest(combat, f, foes)
+    else:                                                 # a recipient gone from the fight by now: the caster (healing.cast's rule)
+        give = [r for r in (combat.get(i) for i in ch.get("give", [])) if r is not None and not r.fled
+                and (r.alive or move.effect == "healing")] or None
     C.tell(combat, f"{C.who(f)} {C.vb(f, 'release', 'releases')} {move.name}")
-    f.counters["charged_release"] = 1
-    try:
-        C._act_ability(combat, f, move, t, rng or _RNG, None, True)
-    finally:
-        f.counters.pop("charged_release", None)
+    C.act_ability(combat, f, move, t, rng or _RNG, give=give, released=ch)
     return True
+
+
+def carry(att, ch: dict) -> None:
+    """At a gathered ability's landing, what its beginning's payment settled goes back on the caster for the blow and the perks
+    that follow it. A row saved before these keys keeps none of it, and lands as it did."""
+    for k in ("blood_cast", "weave_crit", "echo_now"):
+        if ch.get(k):
+            att.counters[k] = 1
