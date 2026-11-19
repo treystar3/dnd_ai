@@ -96,10 +96,7 @@ def _v6_maren_voice(store) -> None:
     if not store.npc_exists("maren"):
         return
     from engine import mentor
-    try:
-        player = store.load_player()
-    except Exception:
-        player = None
+    player = store.load_player() if store.player_exists() else None     # (f747) a record that does not read stops the step
     store.save_npc(mentor.own_voice(store.load_npc("maren"), player))
 
 
@@ -123,10 +120,9 @@ def _v8_hire_pronouns(store) -> None:
     """(f385) Every hire keeps she or he: the roster drew a gender with each name and never kept it, so the narrator called one hire she,
     he and they in one fight. An older save's hires get theirs back from their week's roster, drawn again (engine/party.py pronoun_of);
     a tamed companion gets one once."""
-    try:
-        player = store.load_player()
-    except Exception:
+    if not store.player_exists():                     # (f747) no player is nothing to do; a record that does not read stops the step
         return
+    player = store.load_player()
     from engine import party
     for m in player.party:
         party.pronoun_of(m, store.meta.seed, player.party_used)
