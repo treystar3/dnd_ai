@@ -22,6 +22,12 @@ property of the scene, which holds nothing of its own. HOMES (every
 name a failed operation puts back, with its home), UNLISTED (what a failure leaves as it stands) and WorldScene.ROLLED are read
 from FIELDS and ATTRS; tools/sim/rollback_declared_720_test.py holds every name the scene's code sets to a declaration.
 
+(f751) OPENING declares, beside it, what an opening (the save closed and opened again) does with every row of ATTRS and every
+private name set on a scene: kept in a row of the save, made again from the save, forgotten (why), or owed (kept by the owner's
+default and lost today, with who keeps it). The turn's fields need no row: a line sets each before it reads it. The
+reopen_declared test (tools/sim) holds every name to a row, and a session closed and opened part-way to the same session
+played straight.
+
 (f633) Registers is what a turn keeps while it is played, which five modules each held under names of their own: the operation
 open now, what reached the page and the calls made inside a transaction (engine/operation.py), the ledger's rows, the last
 turn's and the totals (engine/ledger.py), the input's budget and the last one's summary (engine/budget.py), the turn log's open
@@ -152,6 +158,86 @@ ATTRS: dict[str, Attr] = {
 HOMES: dict[str, str] = {**{name: TURN for name, f in FIELDS.items() if ROLLED in f.marks},
                          **{name: a.home for name, a in ATTRS.items() if a.how == ROLLED}}
 UNLISTED: dict[str, str] = {name: a.home for name, a in ATTRS.items() if a.how in (KEPT, OUTSIDE)}
+
+IN_SAVE, REMADE, FORGOTTEN, OWED = "in the save", "remade", "forgotten", "owed"
+
+
+@dataclass(frozen=True)
+class Opening:
+    fate: str                              # IN_SAVE, REMADE, FORGOTTEN or OWED (the module's docstring says each)
+    why: str                               # IN_SAVE: the row; REMADE: from what; FORGOTTEN: why; OWED: "<who keeps it>: what a player meets"
+    fresh: Callable | None = None          # FORGOTTEN or OWED, for a name the scene's constructor sets: what a new scene holds
+
+
+def _opens(fate: str, names: str, why: str, fresh: Callable | None = None) -> dict[str, Opening]:
+    return {name: Opening(fate, why, fresh) for name in names.split()}
+
+
+# (f751) so what a close loses is declared, never found first by a player who stopped for the night
+OPENING: dict[str, Opening] = {
+    # ---- kept in the save
+    **_opens(IN_SAVE, "recent_narration", "story: the last six passages, put back by the opening when a passage was shown"),
+    **_opens(IN_SAVE, "convo partner stance moves last_spoken",
+             "talk: put back once the one spoken with is here (restore_talk); with someone on their routine, a captive or a visitor "
+             "it is lost today (RELOAD-4)"),
+    **_opens(IN_SAVE, "combat", "the fight's row, resumed by the opening"),
+    # ---- made again from the save
+    **_opens(REMADE, "session store world catalog", "made with the scene, over the save"),
+    **_opens(REMADE, "actor", "made with the scene, over the save; its caches (f634) start empty, as a campaign's open puts them back"),
+    **_opens(REMADE, "rng", "the line's key: every input begins the scene's dice again (engine/streams.py)"),
+    **_opens(REMADE, "residents present _doing_changes _routine_here _routine_cache _streets_cache",
+             "the place's people and streets, read from their rows by the opening's entry"),
+    **_opens(REMADE, "first_arrival revisit", "the opening's entry, from the visited list and the place's row (an arrival today: RELOAD-8)"),
+    **_opens(REMADE, "weight_hint", "the opening: none on a reload"),
+    **_opens(REMADE, "recovered_at_load _recovered_unreported", "the opening's recovery of what stood and was never shown (recover_unshown)"),
+    **_opens(REMADE, "_people_missing", "the opening's entry, when the place's people could not be written"),
+    **_opens(REMADE, "_talk_saved", "the talk row, read as the scene is made"),
+    **_opens(REMADE, "_truth", "the truth scene, built again from the state at its next read"),
+    **_opens(REMADE, "_house_names", "the house voices' names, from the data at the first read"),
+    # ---- forgotten: the line's own, set afresh before any later line reads it
+    **_opens(FORGOTTEN, "sneaking", "the line's own: every line sets it afresh", bool),
+    **_opens(FORGOTTEN, "queued_buffs", "the line's own: every line sets it afresh", list),
+    **_opens(FORGOTTEN, "fight_text", "the line's own: every line sets it afresh", str),
+    **_opens(FORGOTTEN, "last_text", "the line last typed: every line sets it", str),
+    **_opens(FORGOTTEN, "pending_check pending_beats", "the step's own: every step sets it afresh"),
+    **_opens(FORGOTTEN, "line_text dropped_steps last_interpret _asked_place _question_let_go repairs",
+             "the reading of the line: written as each line is read"),
+    **_opens(FORGOTTEN, "exits_due journey_event_factor haggle_factor camp_bonus _wrote_turn _time_notes _looking _heard_now _following "
+                        "_handed_in _back _live _deferred_from _deferred_exchange _arrival_lines",
+             "the line's own: set and spent inside the line that sets it"),
+    **_opens(FORGOTTEN, "last_plan surrender_took last_hits camp_events", "nothing in the game reads it after the line that wrote it"),
+    # ---- forgotten: what only spaces out chatter inside one sitting, or what this visit has been shown
+    **_opens(FORGOTTEN, "_banter_due _banter_last _banter_loc _chimed _party_said _quirk_loc _habits_at _habits_due _remembered "
+                        "_last_claims _last_topic", "the party's chatter, spaced out inside one sitting"),
+    **_opens(FORGOTTEN, "_framed_here _shown_here _crowd_told _happenings_seen _news_seen",
+             "what this visit has been shown: a new sitting is told the place afresh"),
+    **_opens(FORGOTTEN, "_stay _stay_people_turn", "the stay's one line: the opening's entry starts the stay"),
+    **_opens(FORGOTTEN, "_stood", "the opening's own: set and taken inside open_world"),
+    **_opens(FORGOTTEN, "_routine_marked", "the debug pulse log's mark, once a period: a new sitting marks it again"),
+    **_opens(FORGOTTEN, "broken", "the lines that failed on the game's own fault this sitting: a new sitting tries afresh", dict),
+    **_opens(FORGOTTEN, "to_menu", "the menu asked for ends the sitting", bool),
+    **_opens(FORGOTTEN, "crash_after_commit", "the suite's injection, for one sitting", str),
+    # ---- owed: kept by the owner's default, lost at a close today
+    **_opens(OWED, "dungeon_fight camp_fight orenna_fight assault",
+             "RELOAD-3: what a fight is for; a fight resumed after a close ends with none of its consequences"),
+    **_opens(OWED, "visitors", "RELOAD-4: someone who came looking is gone from the room after a close"),
+    **_opens(OWED, "_hire_last", "RELOAD-4: the hire who spoke last; after a close a reply to them is read as to no one"),
+    **_opens(OWED, "_worn _said_in_town _after_starts _after_opened _exemplars _framed_hires _partings_heard",
+             "RELOAD-6: what the checks and prompts remember of the telling; after a close the worn words pass again"),
+    **_opens(OWED, "_door_loc", "RELOAD-8: after a close the next line's door reads the open as an arrival"),
+    **_opens(OWED, "held_yield", "RELOAD-9: a foe's yield waiting on the next line is gone after a close"),
+    **_opens(OWED, "resume_pending", "RELOAD-9: the walk to resume after a road fight is gone after a close", type(None)),
+    **_opens(OWED, "craft_boost", "RELOAD-11: a crafting ability's boost is spent and the next piece of work after a close is not better"),
+    **_opens(OWED, "_appeared", "RELOAD-12: the day's count of people ruled into a place starts again at a close"),
+    **_opens(OWED, "_errand", "STALE_COPIES-3: a companion's errand asked for is forgotten at a close"),
+    **_opens(OWED, "rank_options learn_options learn_request",
+             "reported: what a teacher offered; after a close 'the first one' is a line about nothing"),
+    **_opens(OWED, "wildlife wildlife_at", "reported: the creature in view is gone after a close, and an attack on it finds nothing",
+             type(None)),
+    **_opens(OWED, "_trail", "reported: the fresh signs a search found; after a close they cannot be followed"),
+    **_opens(OWED, "recently_fled", "reported: a fight just fled may be met again by the next search after a close", bool),
+    **_opens(OWED, "last_social", "reported: a persuasion won over someone; after a close their secret is shut again"),
+}
 
 
 class TurnContext:

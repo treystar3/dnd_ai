@@ -1066,6 +1066,24 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     @actor.bound
     def run(self) -> None:
+        self.opening()
+        while True:
+            self.start_backfill()
+            text = console.ask(main=True)
+            self.apply_backfill()
+            self.repopulate()                                               # (f525's review) people an entry could not write, asked again
+            if not text:
+                continue
+            if text.lower() in QUIT_WORDS:
+                self.store.save_player(self.player)
+                console.note("Saved. Run main.py again to continue.")
+                return
+            if not self.play(text):                                         # (f721) one path for a typed line and a pane's command
+                return
+
+    @actor.bound
+    def opening(self) -> None:
+        """(f751) All an open does before its first prompt, one path for the game, simlib's reopen and the acceptance tool."""
         moved = self.open_world()                                           # (f736) and the lines that tell who it stood elsewhere
         recovered = self.recover_unshown()                                  # (f467) first: what stood before the game last closed, never shown
         first_time = self.store.meta.turn == 0
@@ -1129,20 +1147,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 console.say(asked["question"], asked["speaker"])             # (f461) in the voice it was asked in
             else:
                 console.note(asked["question"])
-
-        while True:
-            self.start_backfill()
-            text = console.ask(main=True)
-            self.apply_backfill()
-            self.repopulate()                                               # (f525's review) people an entry could not write, asked again
-            if not text:
-                continue
-            if text.lower() in QUIT_WORDS:
-                self.store.save_player(self.player)
-                console.note("Saved. Run main.py again to continue.")
-                return
-            if not self.play(text):                                         # (f721) one path for a typed line and a pane's command
-                return
 
     @contextmanager
     def input(self, text: str, kind: str):

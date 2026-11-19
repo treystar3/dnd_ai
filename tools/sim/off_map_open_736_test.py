@@ -101,7 +101,7 @@ def run_open():
 
 g = None
 try:
-    # ---- the case that found it: a scene built by CampaignSession.scene() with no run(), as tools/acceptance.py's reopen builds one
+    # ---- the case that found it: a scene built by CampaignSession.scene() with no run(), as tools/acceptance.py's table builds its first
     make()
     g = simlib.campaign(NAME, fresh=False)
     w0, first0, second0 = g.store._writes, g.store.player_text(), g.store.player_text("second")
@@ -110,7 +110,7 @@ try:
         ws = g.scene
         writes = (g.store._writes - w0, g.store.player_text() == first0, g.store.player_text("second") == second0)
         place = ws.place.id
-        ws.enter(ws.player.location)                        # as tools/acceptance.py's reopen does
+        ws.enter(ws.player.location)                        # as tools/acceptance.py's table does at its start
     except Exception as e:
         err = f"{type(e).__name__}: {e}"
     check("a scene built with no run(), over a save standing its character at a place gone from the map, raises nothing", not err, err)

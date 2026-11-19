@@ -63,43 +63,9 @@ LEAKED = ("first_arrival", "revisit", "visitors", "assault", "learn_request", "r
 check("the names a failed operation left changed are put back", set(LEAKED) <= by("ROLLED"), sorted(set(LEAKED) - by("ROLLED")))
 
 
-# ---- the census
-def stored(tree, roots, through=()) -> set:
-    """Names stored or deleted on one of `roots` (a name, or an attribute called one of `through`), by `x.name = `, setattr, or
-    through x.__dict__ or vars(x) (a subscript, setdefault, pop, update). A name worked out at run time reads "<computed>"."""
-    def is_root(v) -> bool:
-        return (isinstance(v, ast.Name) and v.id in roots) or (isinstance(v, ast.Attribute) and v.attr in through)
-
-    def is_dict(v) -> bool:                              # x.__dict__ or vars(x)
-        return ((isinstance(v, ast.Attribute) and v.attr == "__dict__" and is_root(v.value))
-                or (isinstance(v, ast.Call) and isinstance(v.func, ast.Name) and v.func.id == "vars" and len(v.args) == 1 and is_root(v.args[0])))
-    out = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Attribute) and isinstance(node.ctx, (ast.Store, ast.Del)) and is_root(node.value):
-            out.add(node.attr)
-        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in ("setattr", "delattr") and len(node.args) >= 2 and is_root(node.args[0]):
-            out.add(node.args[1].value if isinstance(node.args[1], ast.Constant) else "<computed>")
-        elif isinstance(node, ast.Subscript) and isinstance(node.ctx, (ast.Store, ast.Del)) and is_dict(node.value):
-            out.add(node.slice.value if isinstance(node.slice, ast.Constant) else "<computed>")
-        elif (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in ("setdefault", "pop", "update") and is_dict(node.func.value)
-              and node.args):
-            out.add(node.args[0].value if isinstance(node.args[0], ast.Constant) else "<computed>")
-    return out
-
-
-own: dict[str, set] = {}
-computed: set = set()
-for cls in WorldScene.__mro__[:-1]:
-    for fn in [n for n in ast.walk(ast.parse(textwrap.dedent(inspect.getsource(cls)))) if isinstance(n, ast.FunctionDef)]:
-        for n in stored(fn, ("self",)):
-            own.setdefault(n, set()).add(cls.__name__)
-            if n == "<computed>":
-                computed.add(f"{cls.__name__}.{fn.name}")
-outside: dict[str, set] = {}
-for folder in ("engine", "services", "scenes", "npc", "world", "storage", "ui", "llm"):
-    for p in sorted((ROOT / folder).rglob("*.py")):
-        for n in stored(ast.parse(p.read_text(encoding="utf-8")), ("ws", "scene", "world_scene"), through=("ws",)):
-            outside.setdefault(n, set()).add(p.relative_to(ROOT).as_posix())
+# ---- the census (f751) the walk is simlib's, one walk with reopen_declared's
+own, outside, computed = simlib.scene_names()
+stored = simlib.stored_names
 check("a name worked out at run time is set in two places only: the opening's private marks, and the session's own putting back",
       computed == {"WorldScene.opening_passage"} and outside.pop("<computed>", set()) == {"engine/session.py"}, (sorted(computed), sorted(outside.get("<computed>", []))))
 view = lambda n: isinstance(inspect.getattr_static(WorldScene, n, None), property)       # the scene's name for what another holds: the actor's record, the save's question
