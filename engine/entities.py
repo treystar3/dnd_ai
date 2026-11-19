@@ -202,6 +202,16 @@ def final(e: Entity) -> bool:
     return e.state in L[e.kind].get("final", [])
 
 
+def walking(store) -> list[Entity]:
+    """Everyone walking with a character, any character: of every kind, those in a state its lifecycle names as being wherever their
+    character is (lifecycles.yaml present_with_player). (f755) One question, so a kind added later is asked too."""
+    out = []
+    for kind, spec in L.items():
+        if spec.get("present_with_player"):
+            out += store.find_entities(kind=kind, state=tuple(spec["present_with_player"]))
+    return out
+
+
 def _publish(e: Entity, was: str, now: str, minute: int, why: str) -> None:
     from engine.domain_events import StateChanged, publish
     publish(StateChanged(minute=minute, ref=e.ref, name=e.name, of=e.kind, was=was, now=now, why=why))
@@ -222,4 +232,7 @@ def problems() -> list[str]:
                 bad.append(f"lifecycles.yaml {kind}: final '{f}' is not one of its states")
             if (spec.get("moves") or {}).get(f):
                 bad.append(f"lifecycles.yaml {kind}: '{f}' is final, so nothing moves on from it")
+        for s in spec.get("present_with_player") or []:                 # (f755) walking() asks by these: a misspelt one would miss them
+            if s not in states:
+                bad.append(f"lifecycles.yaml {kind}: present_with_player '{s}' is not one of its states")
     return bad

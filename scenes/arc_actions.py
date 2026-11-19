@@ -762,9 +762,12 @@ class ArcActions:
                 self.drop_prisoner(npc, "slipped their bonds and got away", partial_node=True, state="escaped")
 
     def bring_prisoners(self, place_id: str) -> None:
-        """Bound prisoners you are escorting come with you to the next place."""
-        for nid in self.escorted():
-            if not self.store.npc_exists(nid):
+        """Bound prisoners you are escorting come with you to the next place, and so does anyone else walking with the character."""
+        from engine import entities
+        bound = self.escorted()
+        walking = [e.links.get("npc", "") for e in entities.walking(self.store) if e.owner == self.acting]   # (f755) any kind, as leave_road spares them
+        for nid in dict.fromkeys(bound + walking):
+            if not nid or not self.store.npc_exists(nid):
                 continue
             npc = self.store.load_npc(nid)
             if npc.location == place_id:
@@ -774,7 +777,8 @@ class ArcActions:
                 old.residents.remove(nid)
                 self.store.save_place(old)
             npc.location = place_id
-            npc.activity = "walking bound at your side"
+            if nid in bound:
+                npc.activity = "walking bound at your side"
             self.store.save_npc(npc)
             new = self.store.load_place(place_id)
             if nid not in new.residents:

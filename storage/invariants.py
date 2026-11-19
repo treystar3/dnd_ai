@@ -147,12 +147,15 @@ def validate_campaign(store, world=None) -> list[Problem]:
     for nid in p.prisoners:
         if nid not in ids:
             out.append(Problem("player.prisoners", f"captive '{nid}' is not a person in the save"))
-    for cap in store.find_entities(kind="captive", state=("escorted", "held")):          # (f422) a ghost captive: bound, but no one
+    from engine import entities
+    bound = {e.ref: e for e in store.find_entities(kind="captive", state=("escorted", "held"))}   # (f422) a ghost captive: bound, but no one (held is not walking())
+    bound.update((e.ref, e) for e in entities.walking(store))           # (f755) nobody walking with a character, of any kind, is gone
+    for cap in bound.values():
         npc = cap.links.get("npc")
         if npc and npc not in ids:
-            out.append(Problem("entities.captive", f"captive '{cap.ref}' walks with the player but names '{npc}', who is not in the save"))
+            out.append(Problem(f"entities.{cap.kind}", f"{cap.kind} '{cap.ref}' walks with the player but names '{npc}', who is not in the save"))
         elif npc and getattr(by_id.get(npc), "gone", False):
-            out.append(Problem("entities.captive", f"captive '{cap.ref}' walks with the player, but '{npc}' is gone"))
+            out.append(Problem(f"entities.{cap.kind}", f"{cap.kind} '{cap.ref}' walks with the player, but '{npc}' is gone"))
 
     # ---- the world's own state
     st = store.load_world_state() or {}

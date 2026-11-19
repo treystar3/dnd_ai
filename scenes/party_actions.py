@@ -15,7 +15,7 @@ from engine.party import P
 from llm.contracts import ActionIntent, CompanionReply, PartyIntent
 from llm.gateway import LLMError, generate
 from scenes import party_prompts as ppr
-from engine import actions, actor, clock, ledger, money
+from engine import actions, actor, clock, ledger, money, pulse
 from ui import console
 
 G = quests.G
@@ -161,7 +161,8 @@ class PartyActions:
     def companion_home(self, npc_id: str) -> None:
         """A companion who leaves the party stays where they were let go, if that is a settlement; else they go back where they came from."""
         n = self.store.load_npc(npc_id)
-        spot = next((pid for pid in (self.player.location, self.here_top()) if pid and self.store.load_place(pid).populated), "")
+        spot = next((pid for pid in (self.player.location, self.here_top())                   # (f755) f735's one rule of a settlement (review Q15)
+                     if pid and pulse.settled(self.world, pid) and self.store.load_place(pid).populated), "")
         st = self.store.load_place(spot) if spot else None
         if st:
             if n.id not in st.residents:

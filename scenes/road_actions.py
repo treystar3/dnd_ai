@@ -8,7 +8,7 @@ there until they pick it up, a hazard waits for how they mean to get past it, an
 import re
 
 from engine import checks, clock, encounters, inventory as inv, loot, money, pools, pulse, roads, weather
-from engine import effects, worldstate
+from engine import effects, entities, worldstate
 from engine.road_prompts import SYSTEM, user
 from engine.roads import R
 from llm.contracts import ActionIntent, RoadEvent
@@ -49,13 +49,14 @@ class RoadActions:
             self.world.add_place(Place(**{**road["place"], "connects": kept}), replace=True)
 
     def leave_road(self, new_place: str) -> None:
-        """Called when the player stands anywhere but the stop: tidy it away."""
+        """Called when the player stands anywhere but the stop: tidy it away, with its own people."""
         road = self.player.road
         if not road or new_place == road["id"]:
             return
+        walking = {e.links.get("npc", "") for e in entities.walking(self.store)}     # (f755) not of the stop: they go on (bring_prisoners)
         for nid in self.store.load_place(road["id"]).residents:
             npc = self.store.load_npc(nid)
-            if not npc.gone:
+            if not npc.gone and nid not in walking:
                 pulse.remove_npc(self.store, self.world, npc, "moved on along the road", self.minutes, dead=False)
         self.player.road = None
         self.world.remove_place(road["id"])                         # (f451) the only place ever taken off the map, with its ways
