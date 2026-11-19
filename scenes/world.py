@@ -2160,7 +2160,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def journal_data(self) -> dict:
         """People you know by name, by town (this town first, then the last one you stood in), what you have learned, what you have let go."""
         here = pulse.town_of(self.world, self.player.location)
-        last = next((t for t in reversed(self.fld.get("towns", [])) if t != here), "")
+        last = self.town_behind(self.acting)
         groups: dict[str, list] = {}
         for n in self.store.load_npcs([r.id for r in self.store.npc_rows(met_player=True) if r.name_known_to_player]):
             if not (regard.of(n, self.acting).met and regard.of(n, self.acting).name_known):

@@ -907,17 +907,23 @@ class FieldFunctions:
     def note_town(self, place_id: str) -> None:
         """Remember the settlements you have stood in, most recent last."""
         town = pulse.town_of(self.world, place_id)
-        if self.world.places[town].danger:
-            return
-        towns = self.fld.setdefault("towns", [])
+        if not (pulse.settled(self.world, place_id) and pulse.settled(self.world, town)):
+            return                                                       # (f735) a road stop or a dungeon's mouth is no town
+        towns = self.player_of(self.acting).field.setdefault("towns", [])
         if town in towns:
             towns.remove(town)
         towns.append(town)
 
+    def town_behind(self, actor_id: str) -> str:
+        """(f735) The newest town this character stood in that is on the map, settled and not where they stand, or '' (an older save's
+        stop or dungeon's mouth is passed over)."""
+        rec = self.player_of(actor_id)
+        here = pulse.town_of(self.world, rec.location)
+        return next((t for t in reversed(rec.field.get("towns", [])) if t != here and pulse.settled(self.world, t)), "")
+
     def field_word_of_recall(self, ability, intent, text: str) -> str | None:
-        here = pulse.town_of(self.world, self.player.location)
-        dest = next((t for t in reversed(self.fld.get("towns", [])) if t != here), None)
-        if not dest or dest not in self.world.places:
+        dest = self.town_behind(self.acting)
+        if not dest:
             console.note("There's no town behind you to return to yet.")
             return None
         self.advance(F["word_of_recall"]["minutes"])

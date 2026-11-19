@@ -80,6 +80,12 @@ def town_of(world, place_id: str) -> str:
     return p.id if p else place_id
 
 
+def settled(world, place_id: str) -> bool:
+    """(f735) A place that counts as settled (GOALS.md, review Q15): on the map, not a road stop, not a dungeon's mouth, not dangerous."""
+    p = world.places.get(place_id or "")
+    return p is not None and not roads.is_stop(world, place_id) and p.type != "dungeon" and not p.danger
+
+
 def price_factor(store, world, place_id: str, now: int, good: str = "") -> float:
     """How dear the town's market is now; (f545) for `good`, with what is laid on that good alone."""
     town = town_of(world, place_id)
