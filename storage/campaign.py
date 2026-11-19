@@ -10,8 +10,8 @@ One SQLite file per campaign, saves/<campaign>/campaign.db:
 
 Every record body is JSON in a text column, so a save stays readable with any SQLite browser (or export_json() writes it out as
 files). Each save call is its own transaction; transaction() groups several. The schema has a version (PRAGMA user_version) and
-storage/migrations.py carries it forward; a save made by the older one-file-per-record layout is imported on first open and the
-old files moved aside to legacy_json/.
+storage/migrations.py carries it forward. A folder in the one-file-per-record layout from before the database is refused (OldLayout)
+and left as it was.
 
 The rest of the game only talks to CampaignStore."""
 
@@ -180,6 +180,16 @@ NOT_MIGRATED = ("This save could not be brought up to this version of the game, 
                 "attempt is in its backups folder. You can start a new game.")
 
 
+class OldLayout(Exception):
+    """(f744) A folder in the one-file-per-record layout from before the database: no step brings it forward, so it is not opened. Read
+    by a developer: the home page lists only folders with a database."""
+
+
+# (f744) what a save of that layout held, named as export_json names them: a folder with any of it and no database is refused
+OLD_LAYOUT = ("campaign.json", "player.json", "world_state.json", "dungeons.json", "arcs.json", "discoveries.json", "legendaries.json",
+              "combat.json", "story.json", "places", "npcs")
+
+
 BACKUPS_KEPT = 3
 JOURNAL_KEEP = 6000          # event_log rows kept: the oldest go once past this (the trail, not the state; checked every JOURNAL_CHECK rows)
 JOURNAL_CHECK = 500
@@ -281,8 +291,12 @@ class CampaignStore:
     @classmethod
     def open_or_create(cls, name: str, saves_dir: Path = SAVES_DIR) -> "CampaignStore":
         root = saves_dir / name
-        root.mkdir(parents=True, exist_ok=True)
         path = root / DB_NAME
+        old = [] if path.exists() else [n for n in OLD_LAYOUT if (root / n).exists()]
+        if old:                                           # (f744) before anything is made in it
+            raise OldLayout(f"{root} holds a save in the file layout from before the database ({', '.join(old)}) and no {DB_NAME}. "
+                            "This build does not read that layout, so the folder was left as it was.")
+        root.mkdir(parents=True, exist_ok=True)
         fresh = not path.exists()
         db = sqlite3.connect(path, check_same_thread=False, isolation_level=None)      # autocommit; transaction() groups writes
         db.execute("PRAGMA journal_mode=WAL")
@@ -296,8 +310,6 @@ class CampaignStore:
             db.executescript(worldtables.DDL + playerstable.DDL)   # (f640) the world's lists and the players, as v17 makes them
             migrations.typed_memory(store)                # (f478) memories typed, as v10 makes them on an older save
             store.set_version(migrations.CURRENT)
-            if (root / "campaign.json").exists():
-                store._import_legacy()
         elif store.version > migrations.CURRENT:
             have = store.version
             db.close()
@@ -977,38 +989,6 @@ class CampaignStore:
         with self.transaction():
             for i, j in self._db.execute("SELECT id, json FROM npcs").fetchall():
                 self.save_npc(NPC.model_validate_json(j))
-
-    # ---------- the old layout: one file per record ----------
-
-    def _import_legacy(self) -> None:
-        """A save from before the database: every JSON file becomes a row, and the files move to legacy_json/ untouched."""
-        root = self.root
-        with self.transaction():
-            meta = (root / "campaign.json").read_text(encoding="utf-8")
-            self._put("campaign", CampaignMeta.model_validate_json(meta).model_dump_json())
-            for key, fn in (("dungeons", "dungeons.json"), ("arcs", "arcs.json"),
-                            ("discoveries", "discoveries.json"), ("legendaries", "legendaries.json"), ("combat", "combat.json"), ("story", "story.json")):
-                p = root / fn
-                if p.exists():
-                    self._put(key, p.read_text(encoding="utf-8"))
-            if (root / "player.json").exists():           # (f640) the player and the world go where the store keeps them
-                self._players.put(json.loads((root / "player.json").read_text(encoding="utf-8")))
-            if (root / "world_state.json").exists():
-                self._world.save(json.loads((root / "world_state.json").read_text(encoding="utf-8")))
-            for p in sorted((root / "places").glob("*.json")) if (root / "places").exists() else []:
-                self._db.execute("INSERT OR REPLACE INTO places (id, json) VALUES (?, ?)", (p.stem, p.read_text(encoding="utf-8")))
-            for p in sorted((root / "npcs").glob("*.json")) if (root / "npcs").exists() else []:
-                n = NPC.model_validate_json(p.read_text(encoding="utf-8"))
-                for m in n.memories:
-                    m.id = None                           # every memory of the old record becomes a row
-                self.save_npc(n)
-        legacy = root / "legacy_json"
-        legacy.mkdir(exist_ok=True)
-        for name in ("campaign.json", "player.json", "world_state.json", "dungeons.json", "arcs.json", "discoveries.json", "legendaries.json",
-                     "combat.json", "story.json", "places", "npcs"):
-            p = root / name
-            if p.exists():
-                p.replace(legacy / name)
 
     def export_json(self, folder: Path) -> None:
         """Write the whole campaign out as readable files (for a look, or a bug report). The database stays the save."""

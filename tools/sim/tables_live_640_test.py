@@ -11,7 +11,7 @@ Until here a save was version 16: the world one row, the player another. Held he
 - a save that cannot be migrated is refused in a line with no dash, its file as it was and closed, a copy in its backups;
 - a save made by a newer build is still refused, and both refusals are one kind for the caller;
 - the home page reads a save not yet opened and the same save once opened, and says the same of both;
-- the export writes the player and the whole world; a save from before the database comes in through the tables;
+- the export writes the player and the whole world;
 - the state's fingerprint reads the five tables, a list's rows by where they stand; the view of an unknown version is refused;
 - the replay takes --as-schema, and refuses a version it has no view of.
 Run: python tools/sim/tables_live_640_test.py"""
@@ -314,7 +314,7 @@ finally:
 check("a version 17 save is refused by a build that reads up to 16", bool(line) and "v17" in line and "v16" in line, line)
 check("...and that is no fault: nothing is written to the logs for it", len(crashlog.SESSION) == logged, crashlog.SESSION[logged:])
 
-# ---- the export, and a save from before the database
+# ---- the export
 game = simlib.campaign("tables_640_new", seed=3, location="trading_square", fresh=False)
 s = game.store
 out = Path("saves") / "tables_640_new" / "export"
@@ -323,18 +323,7 @@ world_out = json.loads((out / "world_state.json").read_text(encoding="utf-8"))
 player_out = json.loads((out / "player.json").read_text(encoding="utf-8"))
 check("the export writes the player and the whole world, its lists in their places", player_out == json.loads(s.player_text())
       and world_out == s.load_world_state() and len(world_out["news"]) == 2 and player_out["location"] == "guild_house", list(world_out))
-root = folder("tables_640_legacy")
-root.mkdir(parents=True)
-(root / "campaign.json").write_text(json.dumps({"name": "tables_640_legacy", "seed": 3, "created": "x"}), encoding="utf-8")
-(root / "player.json").write_text((out / "player.json").read_text(encoding="utf-8"), encoding="utf-8")
-(root / "world_state.json").write_text((out / "world_state.json").read_text(encoding="utf-8"), encoding="utf-8")
 game.session.close()
-s = CampaignStore.open_or_create("tables_640_legacy")
-check("a save from before the database comes in through the tables: the player a row, the world's lists rows",
-      s._kv_text("player") is None and json.loads(s.player_text()) == player_out and s.load_world_state() == world_out
-      and s._db.execute("SELECT count(*) FROM news").fetchone()[0] == 2 and worldtables.problems(s) == [] and playerstable.problems(s) == [],
-      (worldtables.problems(s)[:2], playerstable.problems(s)[:2]))
-s.close()
 
 # ---- the replay's view
 import rerun

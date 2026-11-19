@@ -1,6 +1,6 @@
-"""The campaign store (storage/campaign.py): one SQLite file per campaign. A save in the old one-file-per-record layout is imported on
-first open and the files moved aside; people are found through the index without parsing records; saves group into transactions; the
-schema carries a version and migrations run once."""
+"""The campaign store (storage/campaign.py): one SQLite file per campaign. What is saved through it is read back; people are found
+through the index without parsing records; saves group into transactions; the schema carries a version and migrations run once.
+A folder in the old one-file-per-record layout is not read at all: the store refuses it (OldLayout)."""
 import json, shutil, sys, time
 from pathlib import Path
 sys.path.insert(0, ".")
@@ -16,22 +16,23 @@ def check(n, ok, x=""):
 
 root = Path("saves/_storage_test"); shutil.rmtree(root, ignore_errors=True)
 
-# ---- the old layout, written by hand, then opened
-(root / "npcs").mkdir(parents=True); (root / "places").mkdir()
-(root / "campaign.json").write_text(CampaignMeta(name="_storage_test", seed=42, turn=7, minutes=5000, created="x").model_dump_json())
+# ---- a campaign of forty people, saved through the store, then opened again
+st = CampaignStore.open_or_create("_storage_test")
+st.meta = CampaignMeta(name="_storage_test", seed=42, turn=7, minutes=5000, created="x"); st.save_meta()
 ch, _ = simlib.make_character("warrior", random.Random(1))
-(root / "player.json").write_text(PlayerState(character=ch, location="parth").model_dump_json())
-(root / "world_state.json").write_text(json.dumps({"last": 5000, "threads": [], "news": [{"text": "old news"}]}))
-for i in range(40):
-    n = NPC(id=f"n{i}", name=f"Person {i}", people="human", role="guild_contractor" if i % 10 == 0 else "farmer", location="parth" if i < 20 else "riverhaven",
-            met_player=i % 4 == 0, name_known_to_player=i % 8 == 0, gone="left" if i % 7 == 0 else "", motive="wants rank" if i % 5 == 0 else "",
-            tier="known" if i % 3 == 0 else "background", trust=40 + i)
-    (root / "npcs" / f"{n.id}.json").write_text(n.model_dump_json())
-(root / "places" / "parth.json").write_text(PlaceState(id="parth", populated=True, residents=["n0", "n1"]).model_dump_json())
+st.save_player(PlayerState(character=ch, location="parth"))
+st.save_world_state({"last": 5000, "threads": [], "news": [{"text": "old news"}]})
+with st.transaction():
+    for i in range(40):
+        st.save_npc(NPC(id=f"n{i}", name=f"Person {i}", people="human", role="guild_contractor" if i % 10 == 0 else "farmer",
+                        location="parth" if i < 20 else "riverhaven", met_player=i % 4 == 0, name_known_to_player=i % 8 == 0,
+                        gone="left" if i % 7 == 0 else "", motive="wants rank" if i % 5 == 0 else "", tier="known" if i % 3 == 0 else "background",
+                        trust=40 + i))
+st.save_place(PlaceState(id="parth", populated=True, residents=["n0", "n1"]))
+st.close()
 
 t = time.perf_counter(); st = CampaignStore.open_or_create("_storage_test"); dt = time.perf_counter() - t
-check("an old save is imported on first open", (root / "campaign.db").exists() and st.meta.seed == 42 and st.meta.turn == 7, (st.meta, dt))
-check("...its files are moved aside, not deleted", (root / "legacy_json" / "npcs" / "n3.json").exists() and not (root / "npcs").exists())
+check("a save opened again is the one written: its seed and clock", st.meta.seed == 42 and st.meta.turn == 7, (st.meta, dt))
 check("...and nothing is lost: player, world state, places, people", st.load_player().location == "parth" and st.load_world_state()["news"][0]["text"] == "old news"
       and st.load_place("parth").residents == ["n0", "n1"] and len(st.list_npcs()) == 40)
 check("...the save is at the current version", st.version == migrations.CURRENT, st.version)
