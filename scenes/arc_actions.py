@@ -27,9 +27,6 @@ PR = A["prisoner"]
 
 
 class ArcActions:
-    from scenes.intercepts import Intercept as _I
-    INTERCEPTS = (_I("yielded", 25, "yield_intercept", "spare or finish a foe that gave up at the end of the fight"),)
-
     # ---------- (f385) a foe that yielded waits on the player ----------
 
     YIELD_KILL = re.compile(r"\b(kill|finish|execute|slay|slaughter|end (it|them|him|her)|dispatch|behead|murder|stab|slit|crush|stomp|"
@@ -56,26 +53,30 @@ class ArcActions:
         yielded sahuagin used to be let go with nobody asked, and a companion praised the mercy the player never chose."""
         if not foes:
             return
-        self.held_yield = list(foes)
         one = len(foes) == 1
         names = ", ".join(combat_who(e) for e in foes)
         it = "it" if one else "them"
-        console.note(f"{names[:1].upper() + names[1:]} {'has' if one else 'have'} given up the fight and {'waits' if one else 'wait'} for you to decide. "
-                     f"Spare {it}, or finish {it}? Say what you do.")
+        self.ask_next("yield", f"{names[:1].upper() + names[1:]} {'has' if one else 'have'} given up the fight and {'waits' if one else 'wait'} "
+                      f"for you to decide. Spare {it}, or finish {it}? Say what you do.",
+                      foes=[e.model_dump(mode="json") for e in foes],      # (f758) the world's question, so a close or a crash keeps it
+                      at=self.player_of(self.acting).location)
 
-    def yield_intercept(self, text: str) -> bool:
-        """The line after a foe yielded: kill words finish them, mercy words let them go; anything else, and they slip away while the
-        player turns to it (the line goes on to be read as usual)."""
-        foes = getattr(self, "held_yield", None)
-        if not foes or self.combat:
-            return False
-        self.held_yield = None
+    def on_answer_yield(self, asked: dict, text: str) -> bool | None:
+        """The line after a foe yielded: kill words finish them, mercy words let them go; anything else, a fight begun meanwhile or a
+        walk away from where they yielded, and they slip away while the player turns to it (False: the line goes on to be read as usual)."""
+        from engine import combat
+        data = asked.get("data") or {}
+        foes = [combat.Fighter.model_validate(d) for d in data.get("foes") or []]
+        if not foes:
+            return None
+        one = len(foes) == 1
+        names = ", ".join(combat_who(e) for e in foes)
         low = text.lower()
         kill, spare = self.YIELD_KILL.search(low) or self.yield_blow(low), self.YIELD_SPARE.search(low)
         if kill and self.YIELD_NOT.search(low[:kill.start()].rsplit(".", 1)[-1]):     # "don't kill it"
             kill, spare = None, spare or kill
-        one = len(foes) == 1
-        names = ", ".join(combat_who(e) for e in foes)
+        if self.combat or data.get("at") not in (None, self.player_of(self.acting).location):
+            kill = spare = None                              # (f758) a fight begun meanwhile takes the line, and a walk away leaves them behind
         if kill and not (spare and spare.start() < kill.start()):
             self.finish_yielded(foes, names, one, text)
             return True

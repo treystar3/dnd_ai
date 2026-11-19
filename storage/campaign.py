@@ -119,7 +119,7 @@ class PlayerState(BaseModel):
     trial: dict = {}                     # the trial of rank (scenes/trial_actions.py): pending rank, examiner, tries, wait_until, told_day
     standing_seen: dict[str, dict] = {}  # deed news already felt in far towns: news id -> town -> {group: change}
     confronted: dict[str, int] = {}  # town id -> the last day guards stopped you there
-    road: dict | None = None       # stopped on the road: {"id", "from", "to", "place", "log", "text", "resume"}
+    road: dict | None = None       # stopped on the road: {"id", "from", "to", "place", "log", "text", "resume", "won"}
 
 
 @dataclass

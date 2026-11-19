@@ -727,14 +727,15 @@ class RoadActions:
     # ---------- after a fight on the road ----------
 
     def road_fight_over(self, outcome: str) -> None:
-        road = self.player.road
+        road = self.player_of(self.acting).road
         if not road:
             return
         if outcome == "victory" and road.get("camp"):
             self.loot_camp(road.pop("camp"))
         if outcome == "victory" and road.get("resume"):
             road["log"] = (road.get("log", []) + [f"{road.get('title') or 'On the road'}: the player fought it out there, won, and went on."])[-6:]
-            self.resume_pending = (road["resume"], road.get("text", ""))     # (f417) the arrival is told the fight; the walk waits on any yield
+            road["won"] = True                                 # (f758) the walk goes on from the saved road once nothing waits on the player (walk_due)
+            return
         road["resume"] = ""                                    # (f736) a defeat ends the walk; the waking's enter tidies the stop (leave_road)
 
     def loot_camp(self, level: int) -> None:
@@ -754,9 +755,19 @@ class RoadActions:
                        else "; the coin is taken, the rest left: their pack is full. Never show it carried."))
         self.store.save_player(self.player)
 
+    def walk_due(self) -> bool:
+        """(f758) Whether a won road fight's walk goes on now (f417): the saved road says where (its `resume`, marked `won`), and
+        neither a fight nor a question the world asked (who yielded, or any other) waits on the player."""
+        road = self.player_of(self.acting).road or {}
+        if not (road.get("won") and road.get("resume")) or self.combat:
+            return False
+        return self.store.load_question() is None
+
     def resume_road(self) -> None:
-        dest, text = self.resume_pending
-        self.resume_pending = None
+        road = self.player_of(self.acting).road or {}
+        dest, text = road.get("resume", ""), road.get("text", "")
+        road["resume"] = ""                                 # (f758) spent here, whatever comes of the walk
+        road.pop("won", None)
         from engine import budget, told as told_
         where = self.walk_name(dest)
         if not where:                                       # (f734) nowhere the map or the kept sights know: the walk waits, the ways shown

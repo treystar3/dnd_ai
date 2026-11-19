@@ -197,7 +197,7 @@ try:
     ws.combat.finish()
     check("a flight from a fight at a stop: still at the stop, which keeps its record, the walk not taken up by itself",
           ws.player.location == stop["id"] and stop["id"] in world.places and (ws.player.road or {}).get("id") == stop["id"]
-          and not ws.player.road.get("resume") and not ws.resume_pending, (ws.player.location, (ws.player.road or {}).get("resume")))
+          and not ws.player.road.get("resume") and not ws.walk_due(), (ws.player.location, (ws.player.road or {}).get("resume")))
     ws.on_move(A(kind="move", destination="parth"), "I go back to Parth.")
     check("...then walked on from, the stop is tidied the one way: off the map, the one met there gone",
           ws.player.location == "parth" and stop["id"] not in world.places and gone(ws, met) and ws.player.road is None,

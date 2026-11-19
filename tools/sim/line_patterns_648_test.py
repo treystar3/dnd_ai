@@ -101,7 +101,7 @@ found, by_door = line_census.census()
 named = {f"{s[0]}:{fn.split('.')[-1]}" for s, (fn, what, door) in found.items()}
 FINDINGS = {"scenes/plan_repairs.py:move_elsewhere": "4.1, leaving a dungeon", "scenes/plan_repairs.py:talk_to_deed": "4.2, praying",
             "scenes/combat_scene.py:orders_in": "1.1 to 1.5, an order", "engine/addressing.py:addressed": "1.1 to 1.5, who an order is said to",
-            "scenes/combat_scene.py:own_part": "1.1, the player's own part", "scenes/arc_actions.py:yield_intercept": "2.7, a yielded foe",
+            "scenes/combat_scene.py:own_part": "1.1, the player's own part", "scenes/arc_actions.py:on_answer_yield": "2.7, a yielded foe",
             "scenes/party_actions.py:hire_wants_talk": "4.7, talk to a hire", "engine/intent_audit.py:risk_flags": "4.9, the audit's verbs",
             "engine/actions.py:takes_oneself": "f645, taking a thing oneself", "scenes/party_actions.py:party_dismiss": "a party dismissed by a name",
             "engine/partings.py:is_goodbye": "a goodbye", "scenes/law_actions.py:on_answer_law": "4.10, an answer to the game's question"}
@@ -172,8 +172,7 @@ by_name = {c["name"]: c for c in cases}
 out = interp_eval.evaluate(cases, quiet=True, save="line_patterns_648")
 rules = {d.split(":", 1)[1] for d in by_door if d.startswith(("intercept:", "repair:"))}
 reading = {d.split(":", 1)[1] for d, n in by_door.items() if n and d.startswith(("intercept:", "repair:"))}
-UNSTAGED = {"camp": "the bench has no arc's camp to stand at", "mentor_intercept": "the bench keeps Maren away; it reads only a command's mark",
-            "yielded": "the bench has no fight that ended with a foe yielding; B2 tests it in a fight of its own"}
+UNSTAGED = {"camp": "the bench has no arc's camp to stand at", "mentor_intercept": "the bench keeps Maren away; it reads only a command's mark"}
 OWED_ONLY: dict = {}       # rules held off today only by a case they get wrong
 check("every intercept and repair that reads the line's words is seen acting on a case it gets right",
       not (reading - set(out["acted"]) - set(UNSTAGED)), sorted(reading - set(out["acted"]) - set(UNSTAGED)))

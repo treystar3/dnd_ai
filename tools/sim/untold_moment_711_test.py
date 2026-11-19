@@ -105,7 +105,8 @@ for kind in ("arrived", "happened"):
     off = [l for l in failures.F["stood"][kind] if STORY.search(l)]
     check(f"...nor any stood.{kind} line", not off, off)
 
-ws.resume_pending = ("ironvein", "We walk on.")
+WON = {"resume": "ironvein", "text": "We walk on.", "won": True}        # (f758) the saved road: where a won fight's walk goes on to
+ws.player.road = dict(WON)
 moved = []
 real_move = ws.on_move
 ws.on_move = lambda intent, text: moved.append(intent.destination)
@@ -114,13 +115,14 @@ NOTES.clear()
 ws.resume_road()
 budget.close()
 check("after a won road fight on a spent turn the walk waits, the way on named, and nothing is pending",
-      not moved and ws.resume_pending is None and any(world.places["ironvein"].name in n for n in NOTES), (moved, NOTES))
-ws.resume_pending = ("ironvein", "We walk on.")
+      not moved and not ws.walk_due() and any(world.places["ironvein"].name in n for n in NOTES), (moved, NOTES))
+ws.player.road = dict(WON)
 b = budget.open()
 ws.resume_road()
 budget.close()
 check("...and with the turn's budget left it walks on, as before", moved == ["ironvein"], moved)
 ws.on_move = real_move
+ws.player.road = None
 g.close()
 shutil.rmtree("saves/untold_711", ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad), file=sys.__stdout__)

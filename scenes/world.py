@@ -133,7 +133,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.last_budget: dict = {}   # (f468) the last input's budget, closed: what it estimated, deferred, dropped, stood in for (the turn log's)
         self.recovered_at_load = 0    # (f471) outcomes told at this load (recover_unshown): the first row after it says so, the night tool too
         self.combat: CombatScene | None = None
-        self.resume_pending = None
         self.wildlife = None
         self.wildlife_at = None                # (f700) the minute it was seen
         from engine import phantoms
@@ -1982,7 +1981,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """(f463) What follows every line, however it was read: the road walked on, the hires' words marked, the quest and the mentor and
         the companions given their turn, the day's wear, what was heard of, and the save."""
         self.release_time_notes()                  # (f418) whatever way the line ended
-        if self.resume_pending and not self.combat and not getattr(self, "held_yield", None):
+        if self.walk_due():
             self.resume_road()                     # (f417) a won road fight walks on once the player has said what becomes of who yielded
         heard = self.hire_said_marks()
         self.sync_heard()
@@ -2451,7 +2450,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.combat.turn(text)
             self.seal_ask()                                 # (f460) the High Keeper bloodied this round: the seal's question ends the turn
             self.took(text, "combat")
-            if not self.combat and self.resume_pending and not getattr(self, "held_yield", None):
+            if self.walk_due():
                 self.resume_road()
             return True
         for ic in self.INTERCEPT_TABLE:                     # the intercepts, in their declared order (scenes/intercepts.py)

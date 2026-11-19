@@ -136,8 +136,8 @@ ATTRS: dict[str, Attr] = {
                           "first_arrival revisit repairs"),
     # ---- put back, the scene's: what was told of it, the conversation, the fight that is coming or was fled and how its beats
     # landed on the party, what is in view, who came looking (they stand in the room, for everyone), the host at the gate
-    **_rows(ROLLED, SCENE, "recent_narration convo last_spoken partner stance moves wildlife wildlife_at resume_pending recently_fled "
-                           "held_yield orenna_fight camp_fight dungeon_fight surrender_took last_hits visitors assault camp_events"),
+    **_rows(ROLLED, SCENE, "recent_narration convo last_spoken partner stance moves wildlife wildlife_at recently_fled "
+                           "orenna_fight camp_fight dungeon_fight surrender_took last_hits visitors assault camp_events"),
     # ---- left as it stands
     **_rows(KEPT, VIEW, "broken", "the lines that failed on the game's own fault, and how often: a failure is what it counts"),
     **_rows(KEPT, VIEW, "last_text", "the line last typed: it was typed, whatever came of it"),
@@ -226,8 +226,6 @@ OPENING: dict[str, Opening] = {
     **_opens(OWED, "_worn _said_in_town _after_starts _after_opened _exemplars _framed_hires _partings_heard",
              "RELOAD-6: what the checks and prompts remember of the telling; after a close the worn words pass again"),
     **_opens(OWED, "_door_loc", "RELOAD-8: after a close the next line's door reads the open as an arrival"),
-    **_opens(OWED, "held_yield", "RELOAD-9: a foe's yield waiting on the next line is gone after a close"),
-    **_opens(OWED, "resume_pending", "RELOAD-9: the walk to resume after a road fight is gone after a close", type(None)),
     **_opens(OWED, "craft_boost", "RELOAD-11: a crafting ability's boost is spent and the next piece of work after a close is not better"),
     **_opens(OWED, "_appeared", "RELOAD-12: the day's count of people ruled into a place starts again at a close"),
     **_opens(OWED, "_errand", "STALE_COPIES-3: a companion's errand asked for is forgotten at a close"),

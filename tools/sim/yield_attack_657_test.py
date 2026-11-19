@@ -28,12 +28,20 @@ others = [a.name for a in loadout.prepared(c) if a.effect != Effect.DAMAGE]
 check("(the warrior holds a damaging ability)", bool(blows), [a.name for a in loadout.prepared(c)])
 
 
+KILLED = []
+real_finish = ws.finish_yielded
+ws.finish_yielded = lambda foes, *a: (KILLED.extend(foes), real_finish(foes, *a))[1]
+
+
 def outcome(line):
     e = combat.fighter_from_creature(world.bestiary["wolf"], 3, "normal", "e9", "the wolf", "engaged")
     e.hp, e.fled, e.surrendered = 3, True, True
-    ws.held_yield = [e]
-    took = ws.yield_intercept(line)
-    return "killed" if e.hp <= 0 else ("spared" if took else "slipped")
+    ws.hold_yielded([e])                                 # (f758) the world's question; the line is its answer
+    asked = ws.store.load_question()
+    ws.store.clear_question()
+    KILLED.clear()
+    took = ws.on_answer_yield(asked, line)
+    return "killed" if KILLED else ("spared" if took else "slipped")
 
 
 blow = blows[0] if blows else "Brutal Strike"

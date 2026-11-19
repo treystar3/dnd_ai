@@ -283,7 +283,7 @@ try:
             ws.combat.finish()
         del SHOWN[:]
         m0 = ws.minutes
-        if not ws.combat and ws.resume_pending:
+        if ws.walk_due():
             ws.resume_road()
         here = world.places.get(ws.player.location)
         notes = [t for k, t in SHOWN if k in ("note", "narrate")]
