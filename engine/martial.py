@@ -86,8 +86,8 @@ def armed(f) -> bool:
 def maneuver(combat, att, t, move, rng, contested: bool = False) -> bool:
     """The maneuver lands on a target already hit (or, for martial control, one that lost the contest). Returns True if it took."""
     mid = getattr(move, "maneuver", "")
-    if not mid or mid not in MANEUVERS or t is None or not t.alive:
-        return False
+    if not mid or mid not in MANEUVERS or t is None or not C.in_fight(t):
+        return False                                       # (f763) nothing more lands on one who yielded or fled at this blow
     m = MANEUVERS[mid]
     if not fits(att, t, mid):
         why = ("too big to " + m["label"].lower()) if "size_up" in m and _size(t) - _size(att) > int(m["size_up"]) else \

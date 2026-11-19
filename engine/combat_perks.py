@@ -589,14 +589,19 @@ def after_cast(combat: C.Combat, att: C.Fighter, move: C.Move, target: C.Fighter
     if echo:
         return
     if att.counters.pop("echo_now", None):
-        C.tell(combat, f"{move.name}, three times running - and the third time it happens twice {tag(att, 'spell_echo')}")
-        C.act_ability(combat, att, move, target, rng, give=give, echo=True)
+        at = len(combat.story)                                     # (f763) a repeat is told only when it happened, before what it did
+        if C.act_ability(combat, att, move, target, rng, give=give, echo=True) is None:
+            C.tell(combat, f"{move.name}, three times running - and the third time it happens twice {tag(att, 'spell_echo')}",
+                   at=at)
     if att is p and move.effect == "damage" and att.counters.get("echoes"):
         n = att.counters.pop("echoes")
-        C.tell(combat, f"{n} spectral echo{'es' if n != 1 else ''} repeat{'s' if n == 1 else ''} the working {tag(att, 'grave_chorus')}")
+        at, went = len(combat.story), 0
         for _ in range(n):
-            if combat.enemies():
-                C.act_ability(combat, att, move, target if target is not None and target.alive else None, rng, give=give, echo=True)
+            if combat.enemies() and C.act_ability(combat, att, move, target, rng, give=give, echo=True) is None:
+                went += 1
+        if went:
+            C.tell(combat, f"{went} spectral echo{'es' if went != 1 else ''} repeat{'s' if went == 1 else ''} the working "
+                           f"{tag(att, 'grave_chorus')}", at=at)
 
 
 def unmaking(combat: C.Combat, att: C.Fighter, move: C.Move, rng: random.Random) -> bool:

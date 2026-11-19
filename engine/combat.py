@@ -977,6 +977,27 @@ def flat_bonus(f: Fighter, stat: str, triggers: set[str]) -> float:
     return sum(b.magnitude for b in f.bonuses if b.modifies == stat and b.trigger in triggers and b.flat)
 
 
+def in_fight(f: Fighter) -> bool:
+    """(f763) Still in the fight: alive and not fled (battlefield.standing's rule). What strikes or acts on someone asks it."""
+    return f.alive and not f.fled
+
+
+FOE_EFFECTS = ("damage", "control", "influence")       # (f763) the abilities that need a foe to land on
+
+
+def aim(combat: Combat, att: Fighter, move: Move, target: Fighter | None) -> Fighter | None:
+    """(f763) Who an ability goes at: one that needs a foe, named at someone no longer a foe in the fight (down, fled or turned),
+    goes at the nearest foe standing (None when none stands); anything else keeps its target. Only the player's side acts
+    through act_ability, so the foes are Combat.enemies()."""
+    foes = combat.enemies()
+    if target is None or any(e is target for e in foes):
+        return target
+    from engine import battlefield as bf
+    if move.effect not in FOE_EFFECTS and not (move.effect == "mobility" and bf.hostile(att, target)):
+        return target
+    return bf.closest(combat, att, foes)
+
+
 def is_companion(f: Fighter) -> bool:
     """A companion: a tamed, living creature (not a summon, a hired party member or a risen thrall)."""
     return f.side == "ally" and not f.ally_role and not f.id.startswith("thrall") and not f.summon_form
@@ -1349,6 +1370,8 @@ def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, 
 def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, label: str, rng: random.Random,
                   can_cleave: bool = True, can_riposte: bool = True, how: str = "", can_flurry: bool = True,
                   reliable: bool = False) -> bool:
+    if not in_fight(dfn):
+        return False                                        # (f763) no blow starts on one who is down or gone: no die, no second fall
     how = how or weapon_phrase(att)
     from engine import spellcraft as _sc
     if can_cleave and att.alive:
@@ -2046,8 +2069,8 @@ def apply_rider(combat: Combat, att: Fighter, t: Fighter, move: Move, rng: rando
             att.mana = min(att.max_mana, att.mana + back)
             tell(combat, f"{move.name} pulls {round(back)} mana back into {who(att)} ({r['label']})")
         return
-    if not t or not t.alive:
-        return
+    if not t or not in_fight(t):
+        return                                         # (f763) nothing more lands on one who yielded or fled at this blow
     if "status" in r:
         if rng.uniform(0, 100) < AT.value(r["chance"], move.tier) and add_status(combat, t, r["status"], r["rounds"], att):
             combat.log.append(f"{t.name} is {r['status']} ({r['label']})")
@@ -2081,6 +2104,9 @@ def act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | None
     problem = None if echo else can_use(att, move, combat)
     if problem:
         return problem
+    named, target = target, aim(combat, att, move, target)
+    if target is None and ((move.effect in FOE_EFFECTS and not combat.enemies()) or (echo and named is not None)):
+        return f"You have no one left to aim {move.name} at."     # (f763) before the cost; a perk's repeat is dropped by it
     if move.effect == "buff" and move.buff != "manashield" and combat_perks.has(att, "selfless", combat) \
             and not [r for r in (give or []) if r is not att]:
         return f"{move.name} is for others: your blessings are not yours to keep (Selfless). Name who it is for."

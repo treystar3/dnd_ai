@@ -207,7 +207,7 @@ def on_hit(combat, att, dfn, taken: float, rng) -> None:
     if not ctx:
         return
     for eid in ctx["exprs"]:
-        if dfn.alive or eid in DEAD_OK:
+        if C.in_fight(dfn) or eid in DEAD_OK:              # (f763) a foe who yielded or fled at this blow is gone, as the dead are
             _express(combat, att, dfn, taken, rng, ctx, eid)
 
 

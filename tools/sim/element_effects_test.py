@@ -106,11 +106,11 @@ check("fan the flames: more against a burning target", mult_for("fan_the_flames"
 e = foe(); fx.put_status(e, "burning", 1); fx.set_strength(e, "burning", 10); land("last_ember", "fire", e)
 check("last ember: the burn lasts a round longer", e.statuses["burning"] == 2)
 
-e = foe(hp=10); p = player(); f = fight(p, e); e.hp = 0
+e = foe(hp=10); nxt = foe(2); p = player(); f = fight(p, e, nxt); e.hp = 0
 land("phoenix_spark", "fire", e, p=p, f=f)
 fire = spell("Blaze", "fire", "ignite")
 check("phoenix spark: a kill makes the next fire ability free", p.counters.get("free_fire") == 1 and combat.cost_of(p, fire, f) == 0)
-combat.act_ability(f, p, fire, foe(2), random.Random(1))
+combat.act_ability(f, p, fire, nxt, random.Random(1))
 check("...and it is spent on the cast", not p.counters.get("free_fire") and combat.cost_of(p, fire, f) > 0)
 
 e = foe(); fx.put_status(e, "burning", 2); fx.set_strength(e, "burning", 5); e.position_tags = ["concealed"]
