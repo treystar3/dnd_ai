@@ -734,9 +734,7 @@ class RoadActions:
         if outcome == "victory" and road.get("resume"):
             road["log"] = (road.get("log", []) + [f"{road.get('title') or 'On the road'}: the player fought it out there, won, and went on."])[-6:]
             self.resume_pending = (road["resume"], road.get("text", ""))     # (f417) the arrival is told the fight; the walk waits on any yield
-        elif outcome == "defeat":
-            self.player.road = None
-        road["resume"] = ""
+        road["resume"] = ""                                    # (f736) a defeat ends the walk; the waking's enter tidies the stop (leave_road)
 
     def loot_camp(self, level: int) -> None:
         """The spoils of a bandit camp: coin and good gear, left behind when the outlaws fall."""

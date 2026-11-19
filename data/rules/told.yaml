@@ -74,6 +74,10 @@ camp_made:           # (f716) a plain camp made for the night's sleep, in the wi
   - "You set your packs down and make camp."
   - "You pick a spot and set up camp."
   - "You put together a rough camp."
+place_gone:          # (f736) a save opened with a character at a place no longer on the map: they stand where they would wake
+  - "The place where you stopped is gone. You're at {place} now."
+  - "Where you last stood is no longer there. You're standing at {place}."
+  - "The spot you stopped at isn't there any more, so you're back at {place}."
 at_hall:             # (f666) a party act done only at a guild hall, before its clerk, asked for elsewhere
   - "{act} is done at a guild hall, in front of the clerk."
   - "{act} is guild business. Find a hall with its clerk at the desk."

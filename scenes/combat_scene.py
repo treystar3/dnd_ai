@@ -1385,4 +1385,4 @@ class CombatScene:
         item.name, item.description = named.name.strip(), named.description.strip()
 
     def defeat(self) -> None:
-        self.ws.threshold(self.service.fall(self.fight))         # (f503) the death's price, PlayerFell published; (f623) then the Threshold
+        self.ws.threshold(self.service.fall(self.fight), self.ws.acting)   # (f503) the death's price, PlayerFell published; (f623) then the Threshold
