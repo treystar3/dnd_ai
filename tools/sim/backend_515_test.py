@@ -11,7 +11,6 @@ kept as the suite's contract after the client itself left).
 
 Run: python tools/sim/backend_515_test.py"""
 
-import gzip
 import json
 import sys
 import threading
@@ -108,9 +107,8 @@ check("...while the table for llama-server gives it repeat 1.0 over 64, top_k 64
       {k: p.at(0).resolved()[k] for k in ("repeat_penalty", "repeat_last_n", "top_k", "top_p", "min_p")}
       == {"repeat_penalty": 1.0, "repeat_last_n": 64, "top_k": 64, "top_p": 0.95, "min_p": 0.0})
 recorded = {}
-for f in sorted((ROOT / "data/replay/sessions").glob("*/calls.jsonl.gz")):
-    for line in gzip.open(f, "rt", encoding="utf-8"):
-        row = json.loads(line)
+for f in sorted(p for p in (ROOT / "data/replay/sessions").iterdir() if recording.calls_file(p)):
+    for row in recording.read_calls(f):
         rp = ((row.get("request") or {}).get("sampling") or {}).get("repeat_penalty")     # (f527) the neutral row: every sampler, the base under
         if row.get("kind") == "chat" and rp is not None:
             recorded.setdefault(row.get("task"), set()).add(rp)

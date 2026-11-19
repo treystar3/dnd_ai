@@ -11,7 +11,6 @@ the call or the line; one of them is run as those tests run it, in a process of 
 own record has `parted` set and `matched` under `of`, on the same four and on the same four made from stub_fight (a recording with
 failed calls and a fight in it). The three kept recordings, untouched, still match whole, every recorded call made."""
 import contextlib
-import gzip
 import io
 import json
 import os
@@ -23,6 +22,7 @@ from pathlib import Path
 sys.path.insert(0, ".")
 sys.path.insert(0, "tools")
 import rerun
+from engine import recording
 from scenes import world as world_scene
 
 bad = []
@@ -48,10 +48,10 @@ def copy(name: str, how: str, tag: str = "") -> Path:
     folder = TMP / f"{name}_{how}{tag}"
     shutil.copytree(rerun.golden(name), folder)
     if how == "call":
-        with gzip.open(folder / "calls.jsonl.gz", "rt", encoding="utf-8") as f:
-            cs = [json.loads(l) for l in f if l.strip()]
-        with gzip.open(folder / "calls.jsonl.gz", "wt", encoding="utf-8", newline="\n") as f:
-            f.writelines(json.dumps(r, ensure_ascii=False) + "\n" for r in cs + [dict(cs[-1], i=cs[-1]["i"] + 1)])
+        cs = recording.read_calls(folder)
+        recording.calls_file(folder).unlink()                 # (f732) the changed copy's log is written plain, whichever form was kept
+        (folder / "calls.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in cs + [dict(cs[-1], i=cs[-1]["i"] + 1)]),
+                                            encoding="utf-8", newline="\n")
     elif how == "lines":
         ins = rows(folder / "inputs.jsonl")
         write_rows(folder / "inputs.jsonl", ins + [dict(ins[-1], i=ins[-1]["i"] + k, text="I look around.") for k in (1, 2)])

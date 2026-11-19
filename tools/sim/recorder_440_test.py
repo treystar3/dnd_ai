@@ -3,7 +3,7 @@ every input (a question answered mid-turn and a pane's command included), every 
 answer or its failure, and after each input the state's fingerprint, what the turn recorded and a hash of what the player was shown.
 The recorder wraps whatever model client and console are installed, puts them back when it closes, makes the session strict while it
 records, and keeps only the newest recordings."""
-import gzip, json, random, shutil, sqlite3, sys
+import json, random, shutil, sqlite3, sys
 from pathlib import Path
 sys.path.insert(0, ".")
 import simlib
@@ -78,8 +78,7 @@ reopened.close(); shutil.rmtree(copy, ignore_errors=True)
 inputs = [json.loads(l) for l in (OUT / "inputs.jsonl").read_text(encoding="utf-8").splitlines()]
 mains = [r["text"] for r in inputs if r["main"]]
 check("every input is kept, the pane's command and the line said to quit included", mains == [t for t, _ in SCRIPT] + ["quit"], mains)
-with gzip.open(OUT / "calls.jsonl.gz", "rt", encoding="utf-8") as f:
-    calls = [json.loads(l) for l in f]
+calls = recording.read_calls(OUT)
 check("every model call is kept in order, its request in full", calls and [c["i"] for c in calls] == list(range(len(calls)))
       and all(c["req"] and "messages" in c["request"] for c in calls), len(calls))
 check("...each one answered by the test's own stand-in, under the recorder's layer",

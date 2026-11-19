@@ -2,8 +2,6 @@
 seasons and never says a day number; the same speaker puts the same span the same way; the townsfolk's memories and sense of the hour,
 the parting, the arrival, recognition, the fallen and what the player did lately are told through it; a town memory written with its
 date is read without it; and the startup check refuses digits, dashes and bands out of order."""
-import gzip
-import json
 import re
 import sys
 from pathlib import Path
@@ -11,7 +9,7 @@ sys.path.insert(0, ".")
 sys.path.insert(0, "tools")
 import simlib
 simlib.install(simlib.Stub("warrior", 2))
-from engine import clock, matters, recognition
+from engine import clock, matters, recognition, recording
 
 bad = []
 def check(n, ok, x=""):
@@ -46,8 +44,7 @@ check("...and passes the one in data", clock.time_words_problems() == [])
 
 day_n = re.compile(r"\bday \d+\b")
 for name in ("stub_short", "stub_party"):
-    with gzip.open(Path("data/replay/sessions") / name / "calls.jsonl.gz", "rt", encoding="utf-8") as f:
-        calls = [json.loads(l) for l in f]
+    calls = recording.read_calls(Path("data/replay/sessions") / name)
     speech = [c for c in calls if c.get("title") in ("NPCReply", "Parting")]
     dated = [c["i"] for c in speech if any(day_n.search(str(m.get("content") or "")) for m in (c.get("request") or {}).get("messages") or [])]
     check(f"{name}: no townsperson's reply or parting is told a day number", speech and not dated, dated)

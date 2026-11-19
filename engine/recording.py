@@ -10,6 +10,9 @@ compared input by input:
   recordings/<name>/calls.jsonl.gz every call to the model, in order: the request in full, the answer or the failure, its time
   recordings/<name>/turns.jsonl    after each input: the state's fingerprint, what the turn recorded, and what the player was shown
 
+(f732) A kept recording (under data/replay) holds its calls as plain calls.jsonl, which git stores as a delta at each re-bless;
+read_calls reads either form, and is the one place a log is opened by its name.
+
 (f517) It is a layer of the game's own interface to the model (llm/backend.py wrap, rank RECORDER, outermost) and wraps the console in
 place, so whatever is installed beneath it (the real client, the window, a test's stand-in, a night run) is recorded as it is. (f527)
 Each row is the request in the interface's own, neutral form (backend.neutral_request: the messages, the schema's title and
@@ -27,12 +30,14 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import io
 import json
 import shutil
 import sqlite3
 import subprocess
 import threading
 import time
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -42,6 +47,8 @@ from llm.errors import Failure                  # (f527) the interface's own fai
 
 ROOT = Path(__file__).resolve().parent.parent
 FOLDER = ROOT / "recordings"
+KEPT = ROOT / "data" / "replay"         # (f732) a recording kept in git: its call log is written plain, so a re-bless is stored as a delta
+CALLS = ("calls.jsonl", "calls.jsonl.gz")   # a recording's call log: plain (kept), gzipped (played); read in this order
 STORY = ("narrate", "say", "npc_says", "dialogue", "note", "wait", "ledger")   # what the player reads (engine/turnlog.py), and the engine's facts
 ORPHANS: set = set()     # (f453) threads a closed session left running (a creation call, people being written): the Thread objects, never
                          # their idents, which the OS hands out again; their calls pass through the recorder unrecorded (_layer)
@@ -94,6 +101,44 @@ def _cancelled(e: BaseException | None = None, out=None) -> bool:
     return getattr(out, "finish", None) == "cancelled"
 
 
+def calls_file(folder) -> Path | None:
+    """(f732) A recording's call log: calls.jsonl when it is there, else calls.jsonl.gz; None when it has neither."""
+    return next((Path(folder) / n for n in CALLS if (Path(folder) / n).is_file()), None)
+
+
+def is_calls(name) -> bool:
+    """(f732) Whether a file's name, or a zip member's, is a recording's call log, in either form."""
+    return str(name).replace("\\", "/").rsplit("/", 1)[-1] in CALLS
+
+
+def call_lines(source, member: str = ""):
+    """(f732) The lines of a recording's call log, as they are read: source a recording's folder, its log, or a zip with the log's
+    member name. Lazy, so a log cut off mid-write gives the lines before the cut and then raises (EOFError, or zlib.error)."""
+    if member:
+        with zipfile.ZipFile(source) as z:
+            raw, name = io.BytesIO(z.read(member)), member
+    else:
+        path = calls_file(source) if Path(source).is_dir() else Path(source)
+        if path is None:
+            raise FileNotFoundError(f"{source}: no call log ({' or '.join(CALLS)})")
+        raw, name = path.open("rb"), path.name
+    with raw, io.TextIOWrapper(gzip.GzipFile(fileobj=raw) if name.endswith(".gz") else raw, encoding="utf-8") as f:
+        yield from f
+
+
+def read_calls(source, member: str = "") -> list[dict]:
+    """(f732) A recording's call rows, in order, whichever form its log has (call_lines)."""
+    return [json.loads(line) for line in call_lines(source, member) if line.strip()]
+
+
+def _calls_out(folder: Path):
+    """(f732) The call log opened for writing, in the form its place keeps: plain under data/replay (a kept recording, and the folder a
+    re-bless renames into place); anywhere else gzipped, with no time in its header, so the same rows give the same bytes."""
+    if folder.resolve().is_relative_to(Path(KEPT).resolve()):
+        return (folder / CALLS[0]).open("w", encoding="utf-8", newline="\n")
+    return io.TextIOWrapper(gzip.GzipFile(folder / CALLS[1], "wb", mtime=0), encoding="utf-8", newline="\n")
+
+
 class Recorder:
     def __init__(self, store, name: str = "", folder: Path | None = None, rows: bool = False):
         from engine import streams
@@ -130,7 +175,7 @@ class Recorder:
             self.meta["sampling_arm"] = config.SAMPLING_ARM
         (self.dir / "meta.json").write_text(json.dumps(self.meta, indent=1), encoding="utf-8", newline="\n")
         self.inputs = (self.dir / "inputs.jsonl").open("w", encoding="utf-8", newline="\n")
-        self.calls = gzip.open(self.dir / "calls.jsonl.gz", "wt", encoding="utf-8", newline="\n")
+        self.calls = _calls_out(self.dir)
         self.turns = (self.dir / "turns.jsonl").open("w", encoding="utf-8", newline="\n")
         self.n_input, self.n_call, self.shown, self.open_input, self.inside = 0, 0, [], False, False
         self.asking = None

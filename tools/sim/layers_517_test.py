@@ -14,7 +14,6 @@ whose calls overlapped is refused.
 Run: python tools/sim/layers_517_test.py"""
 # suite: serial (f717)
 
-import gzip
 import itertools
 import json
 import os
@@ -65,8 +64,7 @@ def chat(title="Read", messages=None):
 
 
 def rows(folder) -> list:
-    with gzip.open(Path(folder) / "calls.jsonl.gz", "rt", encoding="utf-8") as f:
-        return [json.loads(l) for l in f if l.strip()]
+    return recording.read_calls(folder)
 
 
 shutil.rmtree("saves/layers_517_store", ignore_errors=True)
@@ -117,7 +115,7 @@ check("...and while all three are on they nest by rank: the recorder outermost, 
 
 # ---- 2. the row form: the three kept recordings, made again in their own processes
 CHILD = r'''
-import gzip, json, os, shutil, sys
+import json, os, shutil, sys
 from pathlib import Path
 ROOT = Path(sys.argv[1]); name = sys.argv[2]; W = Path(sys.argv[3]).resolve()
 os.chdir(ROOT); sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / "tools"))
@@ -141,12 +139,11 @@ else:
     spec = importlib.util.spec_from_file_location("script_" + name, ROOT / "data/replay/scripts" / (name + ".py"))
     script = importlib.util.module_from_spec(spec); spec.loader.exec_module(script)
     script.record(folder, W)
-lines = lambda p: [l for l in gzip.open(p, "rt", encoding="utf-8") if l.strip()]
-def masked(l):
-    r = json.loads(l); r.pop("seconds", None)
+def masked(r):
+    r = dict(r); r.pop("seconds", None)
     return json.dumps(r, ensure_ascii=False, default=str)
 kept = ROOT / "data/replay/sessions" / name
-old, new = lines(kept / "calls.jsonl.gz"), lines(folder / "calls.jsonl.gz")
+old, new = recording.read_calls(kept), recording.read_calls(folder)
 differ = [i for i, (a, b) in enumerate(zip(old, new)) if masked(a) != masked(b)]
 turns = lambda p: (p / "turns.jsonl").read_text(encoding="utf-8")
 inputs = lambda p: [l for l in (p / "inputs.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]

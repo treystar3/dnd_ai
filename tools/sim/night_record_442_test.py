@@ -2,7 +2,7 @@
 same state, outcomes and words (tools/rerun.py). And what the player's own side asks of the model while deciding its line (the night
 bot writing its words, live) is left out of the recording, since a replay feeds the line itself; a call from another thread in that
 time (the background residents) is the game's and is kept."""
-import json, os, shutil, subprocess, sys, threading, types, gzip
+import os, shutil, subprocess, sys, threading, types
 from pathlib import Path
 sys.path.insert(0, ".")
 
@@ -47,8 +47,7 @@ uc.put("ask", ask)
 rec = recording.Recorder(store, folder=Path("saves/night_record_442_unit_rec")).install()
 uc.ask(main=True)
 rec.close()
-with gzip.open(Path("saves/night_record_442_unit_rec") / "calls.jsonl.gz", "rt", encoding="utf-8") as f:
-    titles = [json.loads(l)["title"] for l in f]
+titles = [r["title"] for r in recording.read_calls(Path("saves/night_record_442_unit_rec"))]
 check("the bot's own words are left out of the recording", SRC.src.calls["PlayerLine"] == 1 and "PlayerLine" not in titles, (titles, SRC.src.calls))
 check("...while a background call made in that time is kept", SRC.src.calls["ResidentSet"] == 1 and "ResidentSet" in titles, (titles, SRC.src.calls))
 SRC()

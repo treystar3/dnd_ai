@@ -338,12 +338,12 @@ def over_limit(root: Path = GOLDENS, limit: float | None = None, base: dict | No
     debt and is left out, unless it is a fight input: those are Bundle E's, and every one must fit. Empty lists everywhere: the limit
     holds."""
     import card_profile
-    from engine import budget
+    from engine import budget, recording
     if limit is None:
         limit = card_profile.budget_limit()
     out = {}
     with budget.priced(**((base or {}).get("priced_at") or {})):        # (f527) at the baseline's prices, whatever the card profile says now
-        for folder in sorted(p for p in Path(root).iterdir() if p.is_dir() and (p / "calls.jsonl.gz").exists()):
+        for folder in sorted(p for p in Path(root).iterdir() if p.is_dir() and recording.calls_file(p)):     # (f732) either form
             before = {int(k): float(v) for k, v in ((base or {}).get("estimates") or {}).get(folder.name, {}).items()} if base else {}
             fights = fight_inputs(folder) if base else set()
             out[folder.name] = [(i, round(s, 1)) for i, s in card_profile.estimate_inputs(folder, expected=True)
@@ -357,10 +357,11 @@ def fights_report(root: Path = GOLDENS) -> dict:
     odds' simulations (engine/combat.py danger runs eighty fights once per fight begun: an input with a combat_opening call)."""
     import card_profile
     from engine import combat as _combat
+    from engine import recording
     import inspect
     runs = inspect.signature(_combat.danger).parameters["runs"].default
     out = {}
-    for folder in sorted(p for p in Path(root).iterdir() if p.is_dir() and (p / "calls.jsonl.gz").exists()):
+    for folder in sorted(p for p in Path(root).iterdir() if p.is_dir() and recording.calls_file(p)):
         calls = card_profile.calls_of(folder)
         est = dict(card_profile.estimate_inputs(folder, expected=True))
         turns = load(folder / "turns.jsonl")
@@ -503,13 +504,13 @@ def retold(name: str, note: str, start: int = 0, path: Path = BASELINE, root: Pa
     import datetime
     import textwrap
     import card_profile
-    from engine import budget
+    from engine import budget, recording
     if not note.strip():
         return "refused, nothing written: a retelling says why (--note TEXT)"
     limit = card_profile.budget_limit() if limit is None else limit
     base = _yaml(path)
     folder = Path(root) / name
-    if name not in (base.get("estimates") or {}) or not (folder / "calls.jsonl.gz").exists():
+    if name not in (base.get("estimates") or {}) or not recording.calls_file(folder):
         return f"refused, nothing written: {name} is not a recording the baseline keeps"
     with budget.priced(**(base.get("priced_at") or {})):
         now = {i: round(s, 1) for i, s in card_profile.estimate_inputs(folder, expected=True)}
@@ -546,10 +547,11 @@ def retold(name: str, note: str, start: int = 0, path: Path = BASELINE, root: Pa
 def golden_sizes(root: Path = GOLDENS) -> dict[str, tuple[int, str]]:
     """(f490) Per speech task, the largest prompt any golden recording sends, and the golden it is in."""
     import card_profile
+    from engine import recording
     tasks = set(speech_tasks())
     out: dict[str, tuple[int, str]] = {}
     for folder in sorted(Path(root).iterdir()) if Path(root).exists() else []:
-        if not (folder / "calls.jsonl.gz").exists():
+        if not recording.calls_file(folder):
             continue
         for c in card_profile.calls_of(folder):
             task = c.get("task") or card_profile.REQUIRED_TITLES.get(c.get("title", ""), "")

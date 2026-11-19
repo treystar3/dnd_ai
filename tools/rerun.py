@@ -19,7 +19,6 @@ recorded line asked, every recorded call made, every line played compared with i
 from __future__ import annotations
 
 import argparse
-import gzip
 import hashlib
 import json
 import os
@@ -76,9 +75,9 @@ def refusal(meta: dict, calls: list, replaying: bool = True) -> str:
 def load(folder: Path, replaying: bool = True) -> dict:
     """A recording's four files, read. (f517) Refused (Unreplayable) when its calls cannot be served one after another as recorded;
     (f527) replaying=False reads a recording only to compare against, whatever form its rows have."""
+    from engine import recording
     rows = lambda name: [json.loads(l) for l in (folder / name).read_text(encoding="utf-8").splitlines() if l.strip()]
-    with gzip.open(folder / "calls.jsonl.gz", "rt", encoding="utf-8") as f:
-        calls = [json.loads(l) for l in f if l.strip()]
+    calls = recording.read_calls(folder)                                # (f732) plain when kept, gzipped when played
     meta = json.loads((folder / "meta.json").read_text(encoding="utf-8"))
     why = refusal(meta, calls, replaying)
     if why:
