@@ -27,7 +27,7 @@ def check(n, ok, x=""):
     if not ok: bad.append(n)
 
 world = load_world()
-shutil.rmtree("saves/identity_test", ignore_errors=True)
+shutil.rmtree(simlib.saves_path("identity_test"), ignore_errors=True)
 store = CampaignStore.open_or_create("identity_test")
 store.meta.seed = 3; store.meta.minutes = 600; store.meta.turn = 1; store.save_meta()
 char, _ = simlib.make_character("warrior", random.Random(2))
@@ -104,11 +104,11 @@ check("the lifecycles are well formed", entities.problems() == [], entities.prob
 
 # ---- an older save gains the registry
 store.close()
-db = sqlite3.connect("saves/identity_test/campaign.db")
+db = sqlite3.connect(simlib.saves_path("identity_test/campaign.db"))
 db.execute("DROP TABLE entities"); db.execute("PRAGMA user_version = 8"); db.commit(); db.close()
 store = CampaignStore.open_or_create("identity_test")
 check("an older save opens with the registry in place", store.version >= 9 and store.find_entities() == [])
 store.close()
-shutil.rmtree("saves/identity_test", ignore_errors=True)
+shutil.rmtree(simlib.saves_path("identity_test"), ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

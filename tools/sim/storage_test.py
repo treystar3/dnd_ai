@@ -14,7 +14,7 @@ def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x)
     if not ok: bad.append(n)
 
-root = Path("saves/_storage_test"); shutil.rmtree(root, ignore_errors=True)
+root = simlib.saves_path("_storage_test"); shutil.rmtree(root, ignore_errors=True)
 
 # ---- a campaign of forty people, saved through the store, then opened again
 st = CampaignStore.open_or_create("_storage_test")

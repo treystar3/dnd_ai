@@ -18,6 +18,7 @@ The rest of the game only talks to CampaignStore."""
 from __future__ import annotations
 
 import json
+import os
 import random
 import sqlite3
 import threading
@@ -33,7 +34,8 @@ from storage.playerstable import FIRST, TablePlayers
 from core.models import Item, Character
 from npc.models import NPC, Memory
 
-SAVES_DIR = Path("saves")
+# (f741) The one name of the saves folder, read when it is used. MERAVIA_SAVES names a test's own (a player never sets it)
+SAVES_DIR = Path(os.environ.get("MERAVIA_SAVES") or "saves")
 DB_NAME = "campaign.db"
 
 
@@ -289,8 +291,8 @@ class CampaignStore:
     # ---------- opening ----------
 
     @classmethod
-    def open_or_create(cls, name: str, saves_dir: Path = SAVES_DIR) -> "CampaignStore":
-        root = saves_dir / name
+    def open_or_create(cls, name: str, saves_dir: Path | None = None) -> "CampaignStore":
+        root = Path(saves_dir or SAVES_DIR) / name
         path = root / DB_NAME
         old = [] if path.exists() else [n for n in OLD_LAYOUT if (root / n).exists()]
         if old:                                           # (f744) before anything is made in it

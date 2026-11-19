@@ -119,7 +119,7 @@ def play(script: Path, out: Path, stub: bool, lines: int = 0, attach: bool = Fal
     setup = s["setup"]
     save = "live_gate_stub" if stub else "live_gate"
     from storage import saves
-    saves.scratch(save, saves_dir=ROOT / "saves")                  # (f743) named here, in code: the night run then clears it as a tool's own
+    saves.scratch(save, saves_dir=ROOT / saves.folder_of())        # (f743) named here, in code: the night run, in ROOT, then clears it
     cmd = [sys.executable, str(ROOT / "tools" / "nightrun.py"), "--script", str(script), "--out", str(out),
            "--save", save,                                          # one name: the next run clears the last one's save
            "--seed", str(setup.get("seed", 719)), "--class", str(setup.get("cls", "warrior")), "--start", str(setup.get("start", "green")),

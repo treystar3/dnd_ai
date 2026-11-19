@@ -22,7 +22,7 @@ from pathlib import Path
 sys.path.insert(0, ".")
 import simlib
 simlib.install(simlib.Stub("warrior", 3))
-from storage import saves
+from storage import campaign, saves
 from storage.campaign import CampaignStore, PlayerState
 
 bad = []
@@ -42,7 +42,7 @@ def folder(name):
     root = BASE / name
     shutil.rmtree(root, ignore_errors=True)
     root.mkdir(parents=True)
-    saves.SAVES_DIR = root                                   # nothing here can reach the real saves/
+    campaign.SAVES_DIR = root                                # nothing here can reach the real saves/
     return root
 
 def store(root, name, char_name=""):
@@ -106,7 +106,7 @@ check("after the index is lost, the next new game's index holds every game, not 
 root = folder("copied_in")
 other = folder("other_install")
 play(other, "game_20260901_090909", "Gil Arn")
-saves.SAVES_DIR = root
+campaign.SAVES_DIR = root
 play(root, "game_20261107_101010", "Hale Dun")
 shutil.copytree(other / "game_20260901_090909", root / "game_20260901_090909")
 got = {s["name"]: s for s in saves.list_saves(root)}

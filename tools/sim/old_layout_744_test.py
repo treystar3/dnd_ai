@@ -32,7 +32,7 @@ def check(n, ok, x=""):
     if not ok: bad.append(n)
 
 BASE = Path(tempfile.mkdtemp(prefix="old_layout_"))
-saves.SAVES_DIR = BASE                                       # nothing here can reach the real saves/
+cmod.SAVES_DIR = BASE                                        # nothing here can reach the real saves/
 REFUSAL = getattr(cmod, "OldLayout", None)
 DASHES = ("-", "‐", "‑", "‒", "–", "—", "―", "−")
 LAYOUT = ("campaign.json", "player.json", "world_state.json", "dungeons.json", "arcs.json", "discoveries.json", "legendaries.json",

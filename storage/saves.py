@@ -12,7 +12,9 @@ moves the folder to saves/_deleted/, so a mistake can be undone by moving it bac
 
 A tool's or a test's save (scratch, drop) carries a mark of its own (SCRATCH), and nothing else is ever cleared by one: not a game,
 not a name the game gives its games, not a folder outside saves/, and not, when the name was typed on a tool's command line, a
-folder no tool marked."""
+folder no tool marked. whose() reads the two marks, and every reader here asks it.
+
+The folder is storage.campaign.SAVES_DIR, read at each call (folder_of): a test that points it elsewhere finds everything there."""
 from __future__ import annotations
 
 import json
@@ -24,7 +26,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from storage.campaign import DB_NAME, SAVES_DIR
+from storage import campaign
+from storage.campaign import DB_NAME
 
 INDEX = "index.json"
 DELETED = "_deleted"
@@ -34,6 +37,7 @@ MARKED = "marked"                                   # (f741) the older games are
 # (f742) discard() erases on no character, or no database, alone
 READY, NO_CHARACTER, UNREADABLE, NEWER = "ready", "no_character", "unreadable", "newer"
 SCRATCH = "scratch.json"                            # (f743) a tool's own save says so: only such a folder is ever cleared by one
+GAME, TOOL = "game", "tool"                         # (f741) whose a folder is: the player's game, or a tool's own save
 GAME_PREFIX = "game_"                               # (f743) new_name()'s folders begin so, and GAME_NAME reads them by the same
 GAME_NAME = re.compile(rf"{LEGACY.pattern}|^{GAME_PREFIX}\d{{8}}_\d{{6}}", re.IGNORECASE)   # (f743) what the game names its games
 PLAIN = re.compile(r"[A-Za-z0-9_](?:[A-Za-z0-9_.-]*[A-Za-z0-9_-])?")
@@ -41,6 +45,19 @@ PLAIN = re.compile(r"[A-Za-z0-9_](?:[A-Za-z0-9_.-]*[A-Za-z0-9_-])?")
 
 class Refused(SystemExit):
     """(f743) A tool's save that may not be cleared, or could not be: the message names the folder, and no tool goes on past it."""
+
+
+def folder_of(saves_dir: Path | None = None) -> Path:
+    """(f741) The saves folder: the one given, else the one source, storage.campaign.SAVES_DIR, read now."""
+    return Path(saves_dir or campaign.SAVES_DIR)
+
+
+def whose(folder: Path) -> str:
+    """(f741) Whose a folder is, the one answer every reader asks: GAME when it carries the game's mark (with a database or not; a mark
+    that cannot be read still marks), else TOOL when it carries the tools' mark, else "" (no mark, or no folder)."""
+    if (Path(folder) / MARK).exists():
+        return GAME
+    return TOOL if (Path(folder) / SCRATCH).is_file() else ""
 
 
 def _index_path(saves_dir: Path) -> Path:
@@ -71,11 +88,8 @@ def _db_time(folder: Path) -> str:
     return datetime.fromtimestamp((folder / DB_NAME).stat().st_mtime).isoformat(timespec="seconds")
 
 
-def _mark(folder: Path) -> dict | None:
-    """What a game's folder says of itself (created, played), {} when its mark cannot be read; None when it is no game: no mark, or
-    no database."""
-    if not (folder / MARK).is_file() or not (folder / DB_NAME).exists():
-        return None
+def _mark(folder: Path) -> dict:
+    """What a game's folder says of itself (created, played), {} when its mark cannot be read."""
     try:
         data = json.loads((folder / MARK).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -88,23 +102,19 @@ def _write_mark(folder: Path, created: str, played: str) -> None:
 
 
 def _games(saves_dir: Path) -> dict[str, dict]:
-    """Every game on disk, each with its mark: the direct children of saves/ that carry a mark and a database, never the deleted folder."""
+    """Every game on disk, each with its mark: the direct children of saves/ that are games and hold a database, never the deleted folder."""
     root = Path(saves_dir)
     if not root.is_dir():
         return {}
-    found = {}
-    for folder in sorted(root.iterdir()):
-        mark = _mark(folder) if folder.is_dir() and folder.name != DELETED else None
-        if mark is not None:
-            found[folder.name] = mark
-    return found
+    return {f.name: _mark(f) for f in sorted(root.iterdir())
+            if f.is_dir() and f.name != DELETED and whose(f) == GAME and (f / DB_NAME).exists()}
 
 
 def load_index(saves_dir: Path | None = None) -> dict:
     """When each game was played and which was played last: the index, kept to the games' own marks. One that is missing or cannot
     be read is rebuilt from them, never read as empty; a game it does not name is added, a name that is no game is dropped. Not a
     pure read: it marks the games from before the marks and rewrites index.json when it differs from them."""
-    saves_dir = Path(saves_dir or SAVES_DIR)
+    saves_dir = folder_of(saves_dir)
     adopted = adopt_legacy(saves_dir)
     data = _read_index(saves_dir)
     cached = data["saves"] if data else {}
@@ -125,7 +135,7 @@ def load_index(saves_dir: Path | None = None) -> dict:
 
 def new_name(saves_dir: Path | None = None) -> str:
     """A folder name for a new game: when it was begun, made unique."""
-    saves_dir = Path(saves_dir or SAVES_DIR)
+    saves_dir = folder_of(saves_dir)
     base = f"{GAME_PREFIX}{datetime.now():%Y%m%d_%H%M%S}"
     name, n = base, 2
     while (Path(saves_dir) / name).exists() or name in load_index(saves_dir)["saves"]:
@@ -135,7 +145,7 @@ def new_name(saves_dir: Path | None = None) -> str:
 
 def touch(name: str, saves_dir: Path | None = None) -> None:
     """This game is being played now: its folder says it is the player's game, it is in the index, and it is the one Continue opens."""
-    saves_dir = Path(saves_dir or SAVES_DIR)
+    saves_dir = folder_of(saves_dir)
     folder, now = Path(saves_dir) / name, _now()
     index = load_index(saves_dir)
     entry = index["saves"].setdefault(name, {"created": now})
@@ -150,7 +160,7 @@ def summary(name: str, saves_dir: Path | None = None) -> dict | None:
     """What the home page shows of one game, read straight from its database without opening it as a game: the character, their
     class and level, where they are, the in-game day. None when the folder holds no database; `ready: False` with a reason when it
     cannot be played here, and `state` says which: no character yet, a save that cannot be read, or one from a newer build."""
-    saves_dir = Path(saves_dir or SAVES_DIR)
+    saves_dir = folder_of(saves_dir)
     from storage import migrations, playerstable
     path = Path(saves_dir) / name / DB_NAME
     if not path.exists():
@@ -195,7 +205,7 @@ def adopt_legacy(saves_dir: Path | None = None) -> list[str]:
     """Games from before the marks: the names an index written before them lists, the old single save and the backups New game set
     aside. Each is marked once: the index written next says so, and from then on a folder is a game by its mark alone. Returns what
     was marked."""
-    saves_dir = Path(saves_dir or SAVES_DIR)
+    saves_dir = folder_of(saves_dir)
     data = _read_index(saves_dir)
     if data and data.get(MARKED) is True:
         return []
@@ -204,7 +214,7 @@ def adopt_legacy(saves_dir: Path | None = None) -> list[str]:
     added = []
     for name in dict.fromkeys([*old, *legacy]):
         folder = Path(saves_dir) / name
-        if (folder / DB_NAME).exists() and not (folder / MARK).exists():
+        if (folder / DB_NAME).exists() and not whose(folder):
             entry = old.get(name) if isinstance(old.get(name), dict) else {}
             when = _db_time(folder)
             _write_mark(folder, entry.get("created") or when, entry.get("played") or when)
@@ -214,7 +224,7 @@ def adopt_legacy(saves_dir: Path | None = None) -> list[str]:
 
 def list_saves(saves_dir: Path | None = None) -> list[dict]:
     """Every game, the one played last first: every folder that says it is one, whatever the index held."""
-    saves_dir = Path(saves_dir or SAVES_DIR)
+    saves_dir = folder_of(saves_dir)
     found = []
     for name, entry in load_index(saves_dir)["saves"].items():
         s = summary(name, saves_dir)
@@ -227,7 +237,7 @@ def list_saves(saves_dir: Path | None = None) -> list[dict]:
 
 def last(saves_dir: Path | None = None) -> dict | None:
     """The game Continue opens: the one played last that can be played."""
-    saves_dir = Path(saves_dir or SAVES_DIR)
+    saves_dir = folder_of(saves_dir)
     saves = list_saves(saves_dir)
     want = load_index(saves_dir)["last"]
     return next((s for s in saves if s["name"] == want and s["ready"]), None) or next((s for s in saves if s["ready"]), None)
@@ -238,9 +248,9 @@ def discard(name: str, saves_dir: Path | None = None) -> bool:
     but only when its save says plainly that it has no character. A folder marked as the player's game is never touched, a game with
     a character never discarded, and a save that cannot be read here (damaged, or from a newer build) is moved aside as delete()
     moves it. Returns whether it was discarded."""
-    saves_dir = Path(saves_dir or SAVES_DIR)
+    saves_dir = folder_of(saves_dir)
     folder = Path(saves_dir) / name
-    if (folder / MARK).exists():
+    if whose(folder) == GAME:
         return False
     s = summary(name, saves_dir)
     gone = s is None or s["state"] == NO_CHARACTER
@@ -270,7 +280,7 @@ def _set_aside(name: str, saves_dir: Path) -> Path:
 
 def delete(name: str, saves_dir: Path | None = None) -> Path | None:
     """Move a game to saves/_deleted/ and take it out of the index. Returns where it went, or None when there was nothing to move."""
-    saves_dir = Path(saves_dir or SAVES_DIR)
+    saves_dir = folder_of(saves_dir)
     src = Path(saves_dir) / name
     index = load_index(saves_dir)
     if name not in index["saves"] or not src.exists():
@@ -293,7 +303,7 @@ def _never_tools(name: str, saves_dir: Path) -> str:
         return f"{folder} holds the deleted games: a tool never clears it."
     if GAME_NAME.match(name):
         return f"{folder} is a name the game gives its own games: a tool never clears it. Give the tool another save name."
-    if (Path(saves_dir) / name / MARK).exists():
+    if whose(Path(saves_dir) / name) == GAME:
         return f"{folder} is one of the player's games: a tool never clears it. Give the tool another save name."
     data = _read_index(saves_dir)
     if data and name.casefold() in {str(n).casefold() for n in data["saves"]}:
@@ -301,12 +311,6 @@ def _never_tools(name: str, saves_dir: Path) -> str:
     if (Path(saves_dir) / name).exists() and not (Path(saves_dir) / name).is_dir():
         return f"{folder} is a file, not a save folder: nothing was removed."
     return ""
-
-
-def _tools_root(saves_dir: Path | None) -> Path:
-    """The folder a tool's save lies in: the one given, else the one a session opens it in (read now, as CampaignSession.open reads it)."""
-    from storage import campaign
-    return Path(saves_dir or campaign.SAVES_DIR)
 
 
 def _mark_scratch(folder: Path) -> None:
@@ -334,12 +338,12 @@ def scratch(name: str, typed: bool = False, saves_dir: Path | None = None) -> Pa
     deleted games, a name the game gives its games, a game's folder, a name the Load page lists); for a folder already there that no
     tool marked when the name was typed on a command line (`typed`: a tool's --save), while one a tool or a test names in its own
     code is taken as the tool's own; and when the folder is still there after it was cleared. Returns it."""
-    saves_dir = _tools_root(saves_dir)
+    saves_dir = folder_of(saves_dir)
     why = _never_tools(name, saves_dir)
     if why:
         raise Refused(why)
     folder = saves_dir / name
-    if typed and folder.exists() and not (folder / SCRATCH).is_file():
+    if typed and folder.exists() and whose(folder) != TOOL:
         raise Refused(f"{folder.as_posix()} is already there and no tool marked it as its own, so it is left as it is. Remove it by "
                       "hand if it is not wanted, or give the tool another save name.")
     _clear(folder)
@@ -353,8 +357,8 @@ def drop(name: str, saves_dir: Path | None = None) -> bool:
     mark, never a game. Returns whether one was removed; Refused when it is still there afterwards, unless the run is already going
     down with an error (a drop in a `finally`): then that error goes on with its own traceback, and carries the line as a note."""
     crash = sys.exc_info()[1]                         # (f743) a Refused raised now would take the crash's place and hide its traceback
-    saves_dir = _tools_root(saves_dir)
-    if _never_tools(name, saves_dir) or not (saves_dir / name / SCRATCH).is_file():
+    saves_dir = folder_of(saves_dir)
+    if _never_tools(name, saves_dir) or whose(saves_dir / name) != TOOL:
         return False
     try:
         _clear(saves_dir / name)

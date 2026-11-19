@@ -19,7 +19,7 @@ def check(n, ok, x=""):
     if not ok: bad.append(n)
 
 for n in ("bus_454_a", "bus_454_b"):
-    shutil.rmtree(f"saves/{n}", ignore_errors=True)
+    shutil.rmtree(simlib.saves_path(n), ignore_errors=True)
 check("between campaigns the current bus is idle: nothing published so far was dropped", isinstance(de.current(), de.IdleBus) and de.current().dropped == 0)
 
 # ---- A: its bus, its listeners, its events
@@ -70,7 +70,7 @@ mb = svcb.hire(offers_b[0], cb.level)
 svcb.dismiss([mb])
 check("B's hiring and dismissing reach B's journal and B's reactions, and never A's listeners", len(heard_a) == n_a
       and [e.kind for e in bus_b.recent] == ["party_joined", "party_left"] and wb.store.journal_tail(5, kind="party_left"), heard_a[n_a:])
-check("...and A's event log gained nothing", (lambda: __import__("sqlite3").connect("saves/bus_454_a/campaign.db").execute("SELECT count(*) FROM event_log").fetchone()[0])() == rows_a)
+check("...and A's event log gained nothing", (lambda: __import__("sqlite3").connect(simlib.saves_path("bus_454_a/campaign.db")).execute("SELECT count(*) FROM event_log").fetchone()[0])() == rows_a)
 e = entities.begin(wb.store, "captive", "captive:b1", "Skarn", wb.minutes, pronoun="he", people="orc", owner="player", links={"npc": "b1"})
 check("the registry, which has a store and no scene, publishes on the current bus: B's", any(ev.kind == "state_changed" and ev.ref == "captive:b1" for ev in bus_b.recent)
       and not any(getattr(ev, "ref", "") == "captive:b1" for ev in bus_a.recent))
@@ -107,6 +107,6 @@ check("the scene's deeds go on its session's bus", "self.session.bus.publish(eve
 rx = pathlib.Path("engine/reactions.py").read_text(encoding="utf-8")
 check("the reactions subscribe on the session's bus and keep their offs on the session", "session.bus" in rx and "_OFF" not in rx and "session.reaction_offs" in rx)
 for n in ("bus_454_a", "bus_454_b"):
-    shutil.rmtree(f"saves/{n}", ignore_errors=True)
+    shutil.rmtree(simlib.saves_path(n), ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

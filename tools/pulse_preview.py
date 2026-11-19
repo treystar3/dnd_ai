@@ -23,7 +23,6 @@ from npc.life import populate_place  # noqa: E402
 from npc.traits import load_traits  # noqa: E402
 from engine.session import CampaignSession  # noqa: E402
 from storage import saves  # noqa: E402
-from storage.campaign import SAVES_DIR  # noqa: E402
 from world.loader import authored  # noqa: E402
 
 
@@ -63,7 +62,7 @@ def main() -> None:
         simlib.install(simlib.Stub("warrior", a.seed or 1))
     else:
         server = runtime_cli.load(a)                 # (f529) the game's own server, as the game starts it
-    if a.fresh or not (SAVES_DIR / "pulse_preview").exists():
+    if a.fresh or not (saves.folder_of() / "pulse_preview").exists():
         saves.scratch("pulse_preview")              # (f743) the scratch world is made, or started over, only as a tool's own save
     session = CampaignSession.open("pulse_preview")      # (f457) the scratch campaign's session; its world is the one the pulse writes into
     store, world = session.store, session.world

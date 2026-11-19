@@ -6,6 +6,7 @@ import gzip, json, os, shutil, subprocess, sys
 from pathlib import Path
 sys.path.insert(0, ".")
 sys.path.insert(0, "tools")
+import simlib                                               # (f741) a saves folder of the test's own, run by hand too
 import card_profile
 
 bad = []
@@ -15,7 +16,7 @@ def check(n, ok, x=""):
 
 C = card_profile.cards()
 check("the cards the game is timed on are data, the target among them", "RTX 3060 12GB" in C and "RTX A4000" in C)
-REC = Path("saves/card_scale_444_rec")
+REC = simlib.saves_path("card_scale_444_rec")
 shutil.rmtree(REC, ignore_errors=True)
 REC.mkdir(parents=True)
 (REC / "meta.json").write_text(json.dumps({"model": "gemma4:12b"}), encoding="utf-8")
@@ -43,7 +44,7 @@ from engine import data_check
 check("the startup check passes the cards as they are", not [p for p in data_check.check() if "cards.yaml" in p])
 
 # ---- a night of several runs with --record keeps a recording of its first run alone (f529)
-OUT = Path("saves/card_scale_444_night")
+OUT = simlib.saves_path("card_scale_444_night")
 shutil.rmtree(OUT, ignore_errors=True)
 night = subprocess.run([sys.executable, "tools/nightrun.py", "--stub", "--runs", "2", "--turns", "3", "--record", "--out", str(OUT),
                         "--save", "card_scale_444"], capture_output=True, text=True, timeout=900)
@@ -52,7 +53,7 @@ runs = sorted((p.name for p in OUT.iterdir() if p.is_dir()), key=lambda n: int(n
 check("a night of two runs with --record keeps a recording of the first run alone; the second plays unrecorded, as the game ships",
       night.returncode == 0 and len(runs) == 2 and kept == runs[:1], (kept, runs, (night.stdout + night.stderr)[-500:]))
 shutil.rmtree(OUT, ignore_errors=True)
-for p in Path("saves").glob("card_scale_444*"):
+for p in simlib.saves_path().glob("card_scale_444*"):
     shutil.rmtree(p, ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

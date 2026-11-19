@@ -63,8 +63,7 @@ saves.new_name = lambda saves_dir=None: named.append(real_new_name(saves_dir)) o
 def folder(case: str) -> Path:
     root = BASE / case
     root.mkdir(parents=True)
-    saves.SAVES_DIR = root                                   # nothing here can reach the real saves/
-    campaign_store.SAVES_DIR = root
+    campaign_store.SAVES_DIR = root                          # nothing here can reach the real saves/
     return root
 
 

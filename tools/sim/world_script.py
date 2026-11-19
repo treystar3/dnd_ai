@@ -71,7 +71,7 @@ def play(name: str, stub, seed: int = SEED, prepare=None) -> Run:
         prepare(g)
     run = Run(g)
     ws, store = g.scene, g.store
-    config.TURN_LOG_PATH = f"saves/{name}/turns.jsonl"     # its typed lines are logged in its own save, not the shared log
+    config.TURN_LOG_PATH = str(simlib.saves_path(name, "turns.jsonl"))     # its typed lines are logged in its own save, not the shared log
     ws.enter(PLACE)
     world = ws.world
     town = pulse.town_of(world, PLACE)
@@ -322,7 +322,7 @@ def run_apart(name: str, seed: int = SEED, extra: tuple = ()) -> dict:
     import os
     import subprocess
     from pathlib import Path
-    out = Path("saves") / f"{name}.world_script.json"     # beside the play's save, written over by the next run
+    out = simlib.saves_path(f"{name}.world_script.json")     # beside the play's save, written over by the next run
     done = subprocess.run([sys.executable, __file__, name, "--seed", str(seed), "--out", str(out), *extra], capture_output=True, text=True,
                           encoding="utf-8", errors="replace", env={**os.environ, "PYTHONUTF8": "1"})
     if done.returncode != 0 or not out.exists():

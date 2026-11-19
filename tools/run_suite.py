@@ -16,15 +16,19 @@ in them. It is a quick check: a new handler found by its name, or a number a tes
 A test with the line `# suite: serial` runs alone, after the others: for the ones that start processes of their own.
 Every run holds one lock (on saves/.suite_running, the operating system's: a run that dies lets go of it): two runs share saves/
 and would fail each other. A full run waits for it (--wait SECONDS, 1200); a --changed run waits 2 and then leaves with exit code 75.
-Output goes to <outdir>/<test>.out (default /tmp/meravia_suite); the summary lists failures and the slowest tests."""
+Output goes to <outdir>/<test>.out (default /tmp/meravia_suite); the summary lists failures and the slowest tests.
+(f741) Each test runs with a saves folder of its own under <outdir>/saves_of, never the player's saves/: a passed test's goes with
+its run, and the last failed run's stays as saves_of/<test>_failed to be looked at."""
 import argparse
 import ast
 import filecmp
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -268,12 +272,35 @@ def lanes(tests: list[Path]) -> tuple[list[Path], list[Path]]:
     return [t for t in tests if t not in alone], alone
 
 
+def own_saves(outdir: Path, test: Path) -> Path:
+    """(f741) A fresh saves folder for one run of a test, outside the repository: the game's saves folder in the test and in every
+    process it starts (MERAVIA_SAVES, read by storage/campaign.py), so no test reaches the player's saves/."""
+    root = Path(outdir).resolve() / "saves_of"
+    root.mkdir(parents=True, exist_ok=True)
+    return Path(tempfile.mkdtemp(prefix=f"{test.stem}_", dir=root))
+
+
+def leave_saves(own: Path, test: Path, passed: bool) -> None:
+    """(f741) A passed test's saves go with its run; a failed test's stay to be looked at, the last failed run's only."""
+    if passed:
+        shutil.rmtree(own, ignore_errors=True)
+        return
+    kept = own.parent / f"{test.stem}_failed"
+    shutil.rmtree(kept, ignore_errors=True)
+    try:
+        own.rename(kept)
+    except OSError:
+        pass                                                               # left under its own name, to be looked at all the same
+
+
 def run_one(test: Path, outdir: Path, timeout: int, root: Path = ROOT, record: bool = False) -> tuple[str, int, float]:
     env = dict(os.environ, PYTHONPATH=str(root), MERAVIA_NO_SERVER="1")   # (f514) no test reaches a real model by accident
     env["PYTHONUTF8"] = "1"                                                # (f565) UTF-8 on every OS, not the shell's code page
     for k in [k for k in env if k.startswith("DND_")]:                    # (f533) nor plays with the settings of the shell that ran it
         env.pop(k)                                                         # (a night's DND_THINK_TASKS, its threads, its voice)
     env.pop("MERAVIA_RAN", None)                                           # (f717) a suite run inside a test keeps its own record
+    own = own_saves(outdir, test)
+    env["MERAVIA_SAVES"] = str(own)                                        # (f741) nor reaches the player's saves
     if record:
         (outdir / "ran").mkdir(exist_ok=True)
         for f in (outdir / "ran").glob(f"{test.name}.*.json"):
@@ -292,6 +319,7 @@ def run_one(test: Path, outdir: Path, timeout: int, root: Path = ROOT, record: b
             text = ""
         if re.search(r"^FAIL\b|^FAILED(?![: ]+none\b)[: ]", text, re.M):       # "FAILED: none" is how some tests say all passed
             rc = 1
+    leave_saves(own, test, rc == 0)
     return test.name, rc, time.time() - start
 
 

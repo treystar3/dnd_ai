@@ -68,7 +68,7 @@ check("a dismissed hire's rows stay", len(memory.records(store, "hire:h1")) == 3
 game.close()
 
 # ---- an older save (v10) with three hires of eight memories each comes forward and reads the same
-root = Path("saves/hire_rows_479_old")
+root = simlib.saves_path("hire_rows_479_old")
 shutil.rmtree(root, ignore_errors=True)
 root.mkdir(parents=True)
 db = sqlite3.connect(root / "campaign.db")

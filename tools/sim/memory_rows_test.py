@@ -14,7 +14,7 @@ def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x)
     if not ok: bad.append(n)
 
-root = Path("saves/memrows"); shutil.rmtree(root, ignore_errors=True)
+root = simlib.saves_path("memrows"); shutil.rmtree(root, ignore_errors=True)
 st = CampaignStore.open_or_create("memrows")
 n = NPC(id="n1", name="Alric Vane", people="human", role="merchant", location="parth")
 for d in range(1, 41):

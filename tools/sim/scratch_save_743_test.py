@@ -50,8 +50,7 @@ def check(n, ok, x=""):
 BASE = Path(tempfile.mkdtemp(prefix="scratch_save_")).resolve()
 SAVES = BASE / "saves"
 SAVES.mkdir()
-saves.SAVES_DIR = SAVES                                      # nothing here can reach the real saves/
-campaign_module.SAVES_DIR = SAVES
+campaign_module.SAVES_DIR = SAVES                            # nothing here can reach the real saves/
 SETTINGS = {k: getattr(config, k) for k in dir(config) if k.isupper()}
 TOOL_MARK = getattr(saves, "SCRATCH", "scratch.json")
 
@@ -245,7 +244,7 @@ for k, v in SETTINGS.items():
 
 # ---- 3. the fence: no file removes a save by hand but storage/saves.py
 SAVE_TEXT = re.compile(r"""["']saves[/"'\\]|SAVES_DIR\b""")
-TESTS_MOST = 529                                             # (f743) the tests' own removals of a save: this may only fall
+TESTS_MOST = 463                                             # (f743) the tests' own removals of a save: this may only fall
 
 
 def removals_of_saves(text):

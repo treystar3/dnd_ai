@@ -26,7 +26,7 @@ def check(n, ok, x=""):
     if not ok: bad.append(n)
 
 # ---- an older save (v11): its view of the player becomes regard["player"], and the index reads the same
-root = Path("saves/regard_480_old")
+root = simlib.saves_path("regard_480_old")
 shutil.rmtree(root, ignore_errors=True)
 root.mkdir(parents=True)
 db = sqlite3.connect(root / "campaign.db")

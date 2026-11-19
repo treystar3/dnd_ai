@@ -5,6 +5,7 @@ restart, and gives up on one that failed for good."""
 import json, shutil, subprocess, sys, types
 from pathlib import Path
 sys.path.insert(0, ".")
+import simlib                                               # (f741) a saves folder of the test's own, run by hand too
 bad = []
 def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x)
@@ -28,9 +29,9 @@ check("...and gives up once the limit is spent", not nightrun.server_back(second
 check("...or at once on a server that failed for good", not nightrun.server_back(seconds=600, every=10, state=lambda: "failed", sleep=lambda s: None))
 
 # a short run with the stand-in model
-out = Path("saves/nightrun_test/out")
-shutil.rmtree("saves/nightrun_test", ignore_errors=True)
-shutil.rmtree("saves/nightrun_test_game", ignore_errors=True)
+out = simlib.saves_path("nightrun_test/out")
+shutil.rmtree(simlib.saves_path("nightrun_test"), ignore_errors=True)
+shutil.rmtree(simlib.saves_path("nightrun_test_game"), ignore_errors=True)
 r = subprocess.run([sys.executable, "tools/nightrun.py", "--stub", "--turns", "12", "--seed", "3", "--hours", "1",
                     "--out", str(out), "--save", "nightrun_test_game"], capture_output=True, text=True, timeout=900)
 check("the run finishes on its own", r.returncode == 0, (r.stdout[-1500:], r.stderr[-1500:]))
@@ -77,9 +78,9 @@ r3 = subprocess.run([sys.executable, "tools/latency.py", "--calls", str(out / "l
 check("...and a call log on its own", r3.returncode == 0 and "| Task |" in r3.stdout, r3.stderr[-500:])
 # (f361) a night of runs from one command: each its own process, seed and class, its own folder and save; a summary of the night at the end
 import glob
-for d in glob.glob("saves/nightrun_batch_test*"):
+for d in glob.glob(str(simlib.saves_path("nightrun_batch_test*"))):
     shutil.rmtree(d, ignore_errors=True)
-base = Path("saves/nightrun_test/night")
+base = simlib.saves_path("nightrun_test/night")
 r4 = subprocess.run([sys.executable, "tools/nightrun.py", "--stub", "--runs", "2", "--parallel", "2", "--turns", "4", "--hours", "1", "--seed", "5", "--classes", "warrior,mage",
                      "--starts", "green,known", "--personas", "careful,talker", "--out", str(base), "--save", "nightrun_batch_test"], capture_output=True, text=True, timeout=1200)
 runs = sorted((p for p in base.iterdir() if p.is_dir()), key=lambda p: int(p.name.rsplit("_", 1)[1])) if base.exists() else []   # by seed: two runs can share a minute
@@ -91,15 +92,15 @@ check("...each a whole run of its own: its seed, its class, its turns", len(info
 check("...and its own starting point: the second began as someone known, at that start's level, with a past the town remembers",
       len(infos) == 2 and [i.get("start") for i in infos] == ["green", "known"] and infos[1]["level"] == 22 and infos[1].get("start_days") == 40
       and len(infos[1].get("past") or []) == 2 and infos[1].get("met_at_start", 0) >= 4, [(i.get("start"), i.get("level"), i.get("past"), i.get("met_at_start")) for i in infos])
-check("...with a save of its own, so the second does not continue the first", sorted(Path(d).name for d in glob.glob("saves/nightrun_batch_test*")) == ["nightrun_batch_test_mage_6", "nightrun_batch_test_warrior_5"],
-      glob.glob("saves/nightrun_batch_test*"))
+check("...with a save of its own, so the second does not continue the first", sorted(Path(d).name for d in glob.glob(str(simlib.saves_path("nightrun_batch_test*")))) == ["nightrun_batch_test_mage_6", "nightrun_batch_test_warrior_5"],
+      glob.glob(str(simlib.saves_path("nightrun_batch_test*"))))
 check("...and its own persona, rotating through the ones named", [i.get("persona") for i in infos] == ["careful", "talker"], [i.get("persona") for i in infos])
 night = list(base.glob("batch_*.md"))
 check("the night is summed up in one file listing the runs, with each one's persona and its measures", len(night) == 1 and "_warrior_5" in night[0].read_text(encoding="utf-8")
       and "_mage_6" in night[0].read_text(encoding="utf-8") and "| careful |" in night[0].read_text(encoding="utf-8") and "Distinct lines" in night[0].read_text(encoding="utf-8"), night)
-for d in glob.glob("saves/nightrun_batch_test*"):
+for d in glob.glob(str(simlib.saves_path("nightrun_batch_test*"))):
     shutil.rmtree(d, ignore_errors=True)
-shutil.rmtree("saves/nightrun_test", ignore_errors=True)
-shutil.rmtree("saves/nightrun_test_game", ignore_errors=True)
+shutil.rmtree(simlib.saves_path("nightrun_test"), ignore_errors=True)
+shutil.rmtree(simlib.saves_path("nightrun_test_game"), ignore_errors=True)
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")
 sys.exit(1 if bad else 0)

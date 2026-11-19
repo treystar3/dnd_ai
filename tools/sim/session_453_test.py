@@ -25,7 +25,7 @@ def check(n, ok, x=""):
     if not ok: bad.append(n)
 
 for n in ("session_453_a", "session_453_b", "session_453_rec"):
-    shutil.rmtree(f"saves/{n}", ignore_errors=True)
+    shutil.rmtree(simlib.saves_path(n), ignore_errors=True)
 GATE = threading.Event()                                   # the model, slow: both background calls wait on it until the test lets them go
 real_ask = life._ask
 def slow_ask(*a, **k):
@@ -85,7 +85,7 @@ check("closing again does nothing", a.session.closed and simlib.residue() == {})
 
 # ---- B opens and records; the orphans are released and are not B's
 b = simlib.campaign("session_453_b", cls="warrior", seed=54)
-rec = b.session.record(folder=pathlib.Path("saves/session_453_rec"))
+rec = b.session.record(folder=simlib.saves_path("session_453_rec"))
 check("the session installs the recorder once", b.session.record() is rec and b.session.recorder is rec and streams.STRICT)
 b.scene.turn("I look around.")
 n_before = rec.n_call
@@ -97,8 +97,8 @@ check("the orphans ran to the end once let go, each making its call", not own_th
 check("...and B's recording has no row for either", rec.n_call == n_before, (rec.n_call, n_before))
 check("...and B's residue is B's own, not empty while it plays", "caches.journal" in simlib.residue())
 b.close()
-check("B closed: the recorder is put back and the bindings are clean", simlib.residue() == {} and not streams.STRICT and (pathlib.Path("saves/session_453_rec") / "turns.jsonl").exists())
-db = sqlite3.connect("saves/session_453_a/campaign.db")
+check("B closed: the recorder is put back and the bindings are clean", simlib.residue() == {} and not streams.STRICT and (simlib.saves_path("session_453_rec") / "turns.jsonl").exists())
+db = sqlite3.connect(simlib.saves_path("session_453_a/campaign.db"))
 check("A's database gained nothing from its orphans", db.execute("SELECT count(*) FROM event_log").fetchone()[0] == a_rows)
 db.close()
 check("the dead orphans are forgotten at the next close", own_thread not in recording.ORPHANS and job_thread not in recording.ORPHANS)
@@ -125,6 +125,6 @@ check("the bound lives in config", isinstance(config.CLOSE_WAIT_SECONDS, (int, f
 
 life._ask = real_ask
 for n in ("session_453_a", "session_453_b", "session_453_rec"):
-    shutil.rmtree(f"saves/{n}", ignore_errors=True)
+    shutil.rmtree(simlib.saves_path(n), ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

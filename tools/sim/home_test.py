@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, ".")
 import simlib
 simlib.install(simlib.Stub("warrior", 3))
-from storage import saves, migrations
+from storage import campaign, saves, migrations
 from storage.campaign import CampaignStore, PlayerState
 from scenes import home
 from ui import console
@@ -21,7 +21,7 @@ def check(n, ok, x=""):
 
 world = load_world()
 root = Path(tempfile.mkdtemp())
-saves.SAVES_DIR = root
+campaign.SAVES_DIR = root
 
 def make(name, char_name, level=3, location="parth", minutes=1440 * 40, player=True):
     st = CampaignStore.open_or_create(name, saves_dir=root)

@@ -68,7 +68,7 @@ def texts(store, name: str) -> list[str]:
 
 # ---- (f640) in use: a save has the tables, and one put back is the row
 plain = scratch("worldtables_637_plain")
-shutil.rmtree("saves/worldtables_637_live", ignore_errors=True)
+shutil.rmtree(simlib.saves_path("worldtables_637_live"), ignore_errors=True)
 MADE.append("worldtables_637_live")
 live = CampaignStore.open_or_create("worldtables_637_live")
 check("a save is version 17 and its world is the tables'; one put back is version 16, its world the one row, with none of the four",
@@ -431,7 +431,7 @@ for name in sorted(want):
     if not (KEPT / name).exists():
         continue
     version = version_of(KEPT / name)
-    folder = Path("saves") / f"worldtables_637_kept_{Path(name).stem}"
+    folder = simlib.saves_path() / f"worldtables_637_kept_{Path(name).stem}"
     MADE.append(folder.name)
     kept = rows_v16.opened(folder.name, name)             # (f640) as version 16 read it: no later step run
     was = json.dumps(kept.load_world_state())
@@ -445,7 +445,7 @@ check("...the world script's end has all four lists in use", all(lists_held.get(
 for s in (plain, row, tab, bare):
     s.close()
 for name in MADE:
-    shutil.rmtree(f"saves/{name}", ignore_errors=True)
-    Path(f"saves/{name}.world_script.json").unlink(missing_ok=True)
+    shutil.rmtree(simlib.saves_path(name), ignore_errors=True)
+    simlib.saves_path(f"{name}.world_script.json").unlink(missing_ok=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

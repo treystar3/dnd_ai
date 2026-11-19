@@ -23,7 +23,7 @@ DRAW = __import__("yaml").safe_load((Path(__file__).resolve().parent.parent / "d
 SIGNATURE_OFFERED = 4      # drawn from the class's own families by thematic fit: the spine of every offer
 ARCHETYPE_FAMILIES = {"warrior": ["warrior"], "mage": ["mage"], "rogue": ["rogue"], "support": ["healer"]}
 PICKS = 3                  # abilities and passives the player keeps at creation, each
-SAVE_PATH = Path("saves/character.json")
+SAVE_NAME = "character.json"   # (f741) in the saves folder, named by its one source when it is written
 
 
 def interpret_concept(concept: str, who: str = "") -> ClassInterpretation:
@@ -327,7 +327,9 @@ def build_character(
     )
 
 
-def save_character(character: Character, path: Path = SAVE_PATH) -> Path:
+def save_character(character: Character, path: Path | None = None) -> Path:
+    from storage import saves
+    path = Path(path or saves.folder_of() / SAVE_NAME)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(character.model_dump_json(indent=2), encoding="utf-8")
     return path

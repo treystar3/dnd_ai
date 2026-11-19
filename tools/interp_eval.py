@@ -76,7 +76,7 @@ class Bench:
         self.notes: list[str] = []
         uc.put("note", lambda m, *a, **k: self.notes.append(str(m)))
         from storage import saves
-        saves.scratch(save)                                                 # (f743) only a tool's own save is cleared, and a failure says so
+        folder = saves.scratch(save)                                        # (f743) only a tool's own save is cleared, and a failure says so
         self.session = CampaignSession.open(save)                           # (f457) the campaign's session, as main.py opens it
         self.store, self.world = self.session.store, self.session.world
         self.store.meta.seed = 3; self.store.meta.turn = 1; self.store.meta.minutes = 120; self.store.save_meta()
@@ -84,7 +84,7 @@ class Bench:
         self.store.save_player(PlayerState(character=char, location="trading_square"))
         self.ws = self.session.scene(load_traits(), self.store.load_player())
         self.ws.player.mentor["never"] = True
-        config.TURN_LOG_PATH = f"saves/{save}/turns.jsonl"
+        config.TURN_LOG_PATH = str(folder / "turns.jsonl")                  # (f741) beside the save, wherever the saves folder is
         config.AUDIT_ENABLED = False
         self.live = live
         self.ran: list = []

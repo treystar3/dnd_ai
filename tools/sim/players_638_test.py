@@ -70,7 +70,7 @@ def others(store) -> dict:
 
 # ---- (f640) in use: a save has the table, and one put back is the row
 plain = scratch("players_638_plain")
-shutil.rmtree("saves/players_638_live", ignore_errors=True)
+shutil.rmtree(simlib.saves_path("players_638_live"), ignore_errors=True)
 MADE.append("players_638_live")
 live = CampaignStore.open_or_create("players_638_live")
 check("a save is version 17 and its players are the table's; one put back is version 16, its players the row's, with no players table",
@@ -307,7 +307,7 @@ check("the store was written at every step in both", a["wrote"] == b["wrote"] an
 
 plain.close(); bare.close()
 for name in MADE:
-    shutil.rmtree(f"saves/{name}", ignore_errors=True)
-    Path(f"saves/{name}.world_script.json").unlink(missing_ok=True)
+    shutil.rmtree(simlib.saves_path(name), ignore_errors=True)
+    simlib.saves_path(f"{name}.world_script.json").unlink(missing_ok=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

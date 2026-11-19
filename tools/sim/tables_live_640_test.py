@@ -48,8 +48,8 @@ MADE = []
 
 def folder(name: str) -> Path:
     MADE.append(name)
-    shutil.rmtree(Path("saves") / name, ignore_errors=True)
-    return Path("saves") / name
+    shutil.rmtree(simlib.saves_path() / name, ignore_errors=True)
+    return simlib.saves_path() / name
 
 
 def copied(name: str, kept: str) -> Path:
@@ -317,7 +317,7 @@ check("...and that is no fault: nothing is written to the logs for it", len(cras
 # ---- the export
 game = simlib.campaign("tables_640_new", seed=3, location="trading_square", fresh=False)
 s = game.store
-out = Path("saves") / "tables_640_new" / "export"
+out = simlib.saves_path() / "tables_640_new" / "export"
 s.export_json(out)
 world_out = json.loads((out / "world_state.json").read_text(encoding="utf-8"))
 player_out = json.loads((out / "player.json").read_text(encoding="utf-8"))
@@ -335,6 +335,6 @@ check("...and refuses a version it has no view of, before it plays anything", do
       and "16" in done.stdout + done.stderr, (done.returncode, (done.stdout + done.stderr)[-300:]))
 
 for name in MADE:
-    shutil.rmtree(f"saves/{name}", ignore_errors=True)
+    shutil.rmtree(simlib.saves_path(name), ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

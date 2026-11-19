@@ -23,13 +23,13 @@ def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x)
     if not ok: bad.append(n)
 
-root = Path("saves/safety"); shutil.rmtree(root, ignore_errors=True)
+root = simlib.saves_path("safety"); shutil.rmtree(root, ignore_errors=True)
 st = CampaignStore.open_or_create("safety")
 ch, _ = simlib.make_character("warrior", random.Random(2))
 st.save_player(PlayerState(character=ch, location="parth"))
 world = load_world()
 w = WorldScene(st, world, load_traits(), st.load_player())
-config.TURN_LOG_PATH = "saves/safety/turns.jsonl"
+config.TURN_LOG_PATH = str(simlib.saves_path("safety/turns.jsonl"))
 
 # ---- one transaction per turn: a model failure partway rolls the whole turn back, memory and all
 coins0 = w.player.character.coins

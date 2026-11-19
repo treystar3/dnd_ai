@@ -13,7 +13,7 @@ import json
 import shutil
 from pathlib import Path
 
-from storage import migrations, playerstable, worldrow, worldtables
+from storage import migrations, playerstable, saves, worldrow, worldtables
 from storage.campaign import DB_NAME, CampaignStore
 
 KEPT = Path("data/replay/saves_v16")
@@ -53,7 +53,7 @@ def lowered(store, version: int = VERSION) -> None:
 def opened(name: str, kept: str = "") -> CampaignStore:
     """A save at version 16, its world and its player in their rows: a copy of a kept one, opened with no later step run, or a
     new one put back."""
-    folder = Path("saves") / name
+    folder = saves.folder_of() / name                  # (f741) where open_or_create opens it
     shutil.rmtree(folder, ignore_errors=True)
     if not kept:
         store = CampaignStore.open_or_create(name)

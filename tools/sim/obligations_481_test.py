@@ -125,10 +125,10 @@ check("ended rows past their keeping are removed, the open one kept, and the mem
       removed >= 3 and [e.data["title"] for e in obligations.open_ones(store)] == ["Mend the well rope"]
       and simlib.remembered(store, "w1", about="lost ewe"), (removed, [e.data["title"] for e in obligations.open_ones(store)]))
 game.close()
-shutil.rmtree("saves/obligations_481", ignore_errors=True)
+shutil.rmtree(simlib.saves_path("obligations_481"), ignore_errors=True)
 
 # ---- an older save's standing offers come forward (v13)
-root = Path("saves/obligations_481_old")
+root = simlib.saves_path("obligations_481_old")
 shutil.rmtree(root, ignore_errors=True)
 root.mkdir(parents=True)
 db = sqlite3.connect(root / "campaign.db")

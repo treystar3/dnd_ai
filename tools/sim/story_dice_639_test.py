@@ -123,7 +123,7 @@ def check(n, ok, x=""):
 
 def apart(kind: str) -> dict:
     name = f"story_dice_639_{kind}"
-    out = Path("saves") / f"{name}.json"
+    out = simlib.saves_path() / f"{name}.json"
     done = subprocess.run([sys.executable, __file__, "--play", name, kind, str(out)], capture_output=True, text=True, encoding="utf-8",
                           errors="replace", env={**os.environ, "PYTHONUTF8": "1"})
     if done.returncode != 0 or not out.exists():
@@ -187,7 +187,7 @@ check("a save from before starts its count of story inputs from its count of inp
       (getattr(old, "story_steps", None), getattr(new, "story_steps", None)))
 check("...and a count that is saved is kept as it is", getattr(CampaignMeta.model_validate({"name": "x", "seed": 5, "created": "", "steps": 37, "story_steps": 30}),
                                                         "story_steps", None) == 30)
-folder = Path("saves/story_dice_639_kept")
+folder = simlib.saves_path("story_dice_639_kept")
 shutil.rmtree(folder, ignore_errors=True)
 folder.mkdir(parents=True)
 shutil.copyfile("data/replay/saves_v16/world_script.db", folder / DB_NAME)
@@ -251,7 +251,7 @@ for text, is_story in (("I go on.", True), ("#stats", False), ("I go on.", True)
 check("a save from before goes on from its count: its story's keys come after every key it has had, and none is met twice",
       met == [f"{SEED}:38:I go on.", f"{SEED}:39:#stats", f"{SEED}:39:I go on.", f"{SEED}:41:#map", f"{SEED}:40:I stop."] and len(set(met)) == 5, met)
 game.session.close()
-shutil.rmtree("saves/story_dice_639_ages", ignore_errors=True)
+shutil.rmtree(simlib.saves_path("story_dice_639_ages"), ignore_errors=True)
 
 # ---- the source keeps it so
 reads = {}
@@ -278,8 +278,8 @@ check("no dice of the game's are drawn from the count of every input but the com
       {f: len(v) for f, v in found.items()} == {"scenes/world.py": 2}, found)
 
 for kind in PLAYS:
-    shutil.rmtree(f"saves/story_dice_639_{kind}", ignore_errors=True)
-    Path(f"saves/story_dice_639_{kind}.json").unlink(missing_ok=True)
+    shutil.rmtree(simlib.saves_path(f"story_dice_639_{kind}"), ignore_errors=True)
+    simlib.saves_path(f"story_dice_639_{kind}.json").unlink(missing_ok=True)
 shutil.rmtree(folder, ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

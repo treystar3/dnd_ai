@@ -77,8 +77,8 @@ class Table:
         from storage.campaign import PlayerState
         self.save = f"scene_{scene['name']}"[:60]
         from storage import saves
-        saves.scratch(self.save)                                            # (f743) only a tool's own save is cleared, and a failure says so
-        config.TURN_LOG_PATH = f"saves/{self.save}/turns.jsonl"
+        folder = saves.scratch(self.save)                                   # (f743) only a tool's own save is cleared, and a failure says so
+        config.TURN_LOG_PATH = str(folder / "turns.jsonl")                  # (f741) beside the save, wherever the saves folder is
         config.AUDIT_ENABLED = False
         config.REFUSALS_LOG = False
         self.session = CampaignSession.open(self.save)                       # (f457) the campaign's session, as main.py opens it
