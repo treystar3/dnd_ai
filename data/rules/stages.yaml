@@ -2,18 +2,18 @@
 # does not name (engine/data_check.py, both ways). engine/damage.py STAGES names a function per damage stage and runs a path in this
 # order (resolve); engine/stacking.py RECIPES names a function per stacking recipe. The lists below are today's orders, read from
 # engine/combat.py and pinned by tools/sim/tables_504_test.py to the literals recorded there: a hand reorder fails a test before it moves
-# a fixture (Bundle E decision 10).
+# a fixture (Bundle E decision 10). (f768) Every stage that writes health is followed by `fall`, the one fall step (engine/damage.py).
 damage:
   # the blow (engine/combat.py take_damage): what a landed hit meets on its way to the health bar, then what its landing sets off
   blow: [petrified, before_damage, resistance, blood_pact, category_ward, hardening, aegis, last_stand, stoneskin, plating, spellward,
          unbroken, guardian, companion_durability, barrier, stoneform, mana_veil, mana_shield, nothing_through, ward_conversion,
          rounded, duel_floor, lifeline, tether, boss_last_stand, breath, mentor_floor, deathless, deathward, yields_floor, health,
-         on_fall, after_damage, healing_after_damage, release, morale, avenger, yields_break, boss_after_damage, second_wind, rebound]
+         fall, after_damage, healing_after_damage, yields_break, boss_after_damage, second_wind, rebound]
   # the bypasses, kept as bypasses: a poison's or a burn's tick at the start of the turn (engine/combat.py start_turn), a wound torn by a
   # blow (engine/afflictions.py tear). A relic's smite, a boss's option and No One Escapes are full blows (apply_damage); a relic's mend
   # is a restore.
-  dot_tick: [tick_floor, tick_health, tick_on_tick, tick_duel_end]
-  tear: [tick_floor, tear_health]
+  dot_tick: [tick_floor, tick_health, fall, tick_on_tick, tick_duel_end]
+  tear: [tick_floor, tear_health, fall]
 hit_steps:          # _apply_damage's hit-multiplier chain (engine/combat.py), code, declared and tested in order (owner question 11)
   - Move power
   - Glancing blow | Critical hit

@@ -8,12 +8,13 @@ import copy
 import math
 import random
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
 import yaml
 from core import yamlio
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 
 from core.models import Character
 from core.rules import ATTRIBUTES
@@ -430,6 +431,7 @@ class Combat(BaseModel):
     felled_by: dict[str, str] = {}  # (f412) who struck each fallen fighter down, as the story names them: a night's narration gave a
                                     # pirate's killing blow on a companion to the player's own blade
     purpose: Purpose | None = None  # (f765) a chamber, a camp, the Keeper, a town's gate: none for a fight for nothing beyond itself
+    _open: list = PrivateAttr(default_factory=list)  # (f768) the blows in progress, innermost last (OpenBlow): never in the row
     ONE_OF_THE_FIGHT: ClassVar[tuple[str, ...]] = ("mentor_ally",)             # (f643) held by name while also in `fighters`
     NOT_YET_IN_IT: ClassVar[tuple[str, ...]] = ("reserves", "ally_reserves")   # (f643) they leave their list as they enter
 
@@ -1292,13 +1294,14 @@ def leave_open(combat: Combat, f: Fighter) -> None:
     f.counters["open_until"] = combat.round + int(RULES["opening"].get("rounds", 1))
 
 
-def add_status(combat: Combat, f: Fighter, status: str, rounds: int, source: Fighter | None = None) -> bool:
+def add_status(combat: Combat, f: Fighter, status: str, rounds: int, source: Fighter | None = None, by: Fighter | None = None) -> bool:
     """Apply a status unless something turns it aside: (f507) the eligibility stages data/rules/stages.yaml status_eligibility names,
     in order (engine/effects.py land: Unyielding, Earthshaker, Stoneform, Iron Will, an archon's ward and its longer chill, Sanctified,
     a boss's legendary resistance, the perks that change how an affliction lands, the bloodless, the affliction law, the record,
     Crippling Wounds, a wound-up blow interrupted). Returns True if it took hold. The source, when the caller knows it, is whoever did
-    it: the perks that change how an affliction lands (engine/combat_perks.py) belong to one side or the other."""
-    return _fx.land(combat, f, status, rounds, source)
+    it: the perks that change how an affliction lands (engine/combat_perks.py) belong to one side or the other. (f768) by: who laid
+    it when no source is passed (a family's venom), written on its row for the record and read by nothing that sizes or turns it."""
+    return _fx.land(combat, f, status, rounds, source, by=by)
 
 
 def element_factor(dfn: Fighter, element: str) -> float:
@@ -1363,28 +1366,32 @@ def restore(combat: Combat | None, f: Fighter, amount: float, source: Fighter | 
     if "unraveled" in f.statuses and combat is not None:
         dealt = side_damage(combat, f, amount, source, rng or streams.get("combat"), "magical",
                             told=lambda d: f"the healing curdles in {who(f)} and tears at {vb(f, 'you', 'it')} instead ({d})",
-                            logged=lambda d: f"{f.name}'s healing turns on it: {d} damage (Unraveled)")
+                            logged=lambda d: f"{f.name}'s healing turns on it: {d} damage (Unraveled)",
+                            cause=combat.get(f.status_from.get("unraveled", "")))      # (f768) a death by it is the unraveller's
         return -float(dealt)
     before = f.hp
     f.hp = min(f.max_hp, f.hp + amount)
     return f.hp - before
 
 
+AS_SOURCE: Any = object()      # (f768) a harm's death is the kill of its source, unless the caller names another cause
+
+
 def take_damage(combat: Combat, dfn: Fighter, amount: float, source: Fighter | None, rng: random.Random,
-                damage_type: str = "physical", rec: dict | None = None) -> int:
+                damage_type: str = "physical", rec: dict | None = None, cause=AS_SOURCE) -> int:
     """Apply final damage to a fighter, with defensive legendary effects. Returns damage actually dealt. With a record, every effect that
     changed the figure is written into it by the name of the passive or gear that caused it. (f505) The blow's path, stage by stage, as
     data/rules/stages.yaml declares it and engine/damage.py runs it: one calculation, the value and its explanation together."""
     from engine import damage
-    return damage.resolve("blow", combat, dfn, amount, source, rng, damage_type, rec)
+    return damage.resolve("blow", combat, dfn, amount, source, rng, damage_type, rec, cause=cause)
 
 
 def side_damage(combat: Combat, dfn: Fighter, amount: float, source: Fighter | None, rng: random.Random,
-                damage_type: str = "physical", told=None, logged=None) -> int:
+                damage_type: str = "physical", told=None, logged=None, cause=AS_SOURCE) -> int:
     """(f757) Damage outside a blow's own path, told in order: the caller's lines (told for the story, logged for the log; a line, or
     a function of what was dealt, "" to tell nothing) go before whatever the damage set off. Returns what was dealt."""
     at, log_at = len(combat.story), len(combat.log)
-    dealt = take_damage(combat, dfn, amount, source, rng, damage_type)
+    dealt = take_damage(combat, dfn, amount, source, rng, damage_type, cause=cause)
     line = logged(dealt) if callable(logged) else logged
     if line:
         combat.log.insert(log_at, line)
@@ -1403,15 +1410,64 @@ def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, 
     meet = martial.countering(att, dfn)
     if meet:
         multiplier *= martial.FORMS["counter"]["weaken"]
-    landed = _apply_damage(combat, att, dfn, multiplier, label, rng, can_cleave, can_riposte, how, can_flurry, reliable)
+    blow = OpenBlow(att, dfn)
+    combat._open.append(blow)                              # (f768) the blow in progress, held on the fight and never in its row
+    try:
+        landed = _apply_damage(combat, att, dfn, multiplier, label, rng, can_cleave, can_riposte, how, can_flurry, reliable, blow=blow)
+    finally:
+        combat._open.remove(blow)
+    if blow.fell and not blow.tail:
+        credit(combat, blow.by, dfn, rng)                  # (f768) its target fell before its tail (a miss whose riposte met thorns)
     if meet:
         martial.strike_back(combat, dfn, att, rng)
     return landed
 
 
+@dataclass(eq=False)
+class OpenBlow:
+    """(f768) A blow in progress: its striker and its target, whether its tail has run, and whether its target fell inside it and by
+    whose doing. The fall step notes such a fall here; the blow's tail pays it."""
+    att: Fighter
+    dfn: Fighter
+    tail: bool = False
+    fell: bool = False
+    by: Fighter | None = None
+
+
+def open_blow(combat: Combat, f: Fighter) -> OpenBlow | None:
+    """(f768) The innermost blow in progress on this fighter whose tail has not run, or None."""
+    return next((o for o in reversed(getattr(combat, "_open", None) or []) if o.dfn is f and not o.tail), None)
+
+
+def credit(combat: Combat, killer: Fighter | None, fallen: Fighter, rng: random.Random, A: dict | None = None) -> None:
+    """(f768) The one payment of a kill: kill round, on_kill, the Risen Thrall or the marks that wait for death, Soul Harvest, Triumph.
+    With no killer standing, nothing is paid but the marks and Plaguebearer still work. A: the killer's mechanics as its blow read them."""
+    from engine import combat_perks
+    from engine import spellcraft as _sc
+    if killer is None or killer is fallen or not in_fight(killer):
+        combat_perks.on_kill(combat, None, fallen, rng)
+        _sc.on_death(combat, fallen, killer)
+        return
+    A = mechanics(killer, combat, fallen) if A is None else A
+    killer.kill_round = combat.round
+    combat_perks.on_kill(combat, killer, fallen, rng, echo=bool(killer.counters.get("echo_cast")))
+    if "thrall" in A and killer.side == "player" and fallen.side == "enemy" and not combat.thrall_used:
+        raise_thrall(combat, fallen)
+    else:
+        _sc.on_death(combat, fallen, killer)                # Reap, Pyre, Contagion: the marks that wait for death (f266, f268)
+    if "soul_harvest" in A and killer.max_mana:
+        killer.mana = min(killer.max_mana, killer.mana + killer.max_mana * A["soul_harvest"] / 100)
+        tell(combat, f"something passes from the fallen into {who(killer)} (Soul Harvest)")
+    if "triumph" in A:
+        heal = round(killer.max_hp * A["triumph"] / 100)
+        restore(combat, killer, heal)
+        combat.log.append(f"{killer.name} is renewed by the kill: +{heal} health (Triumph)")
+        tell(combat, f"the kill fills {who(killer)} with fresh strength (Triumph)")
+
+
 def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, label: str, rng: random.Random,
                   can_cleave: bool = True, can_riposte: bool = True, how: str = "", can_flurry: bool = True,
-                  reliable: bool = False) -> bool:
+                  reliable: bool = False, blow: OpenBlow | None = None) -> bool:
     if not in_fight(dfn):
         return False                                        # (f763) no blow starts on one who is down or gone: no die, no second fall
     how = how or weapon_phrase(att)
@@ -1594,7 +1650,8 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
     if open_wound and att.damage_type == "physical" and "bleeding" in dfn.statuses:
         from engine import afflictions
         deep = combat_perks.P["open_wound"]["deep"] if "open_wound" in A else 1.0     # Open Wound (f311): your blows tear it twice as deep
-        lost = afflictions.tear(combat, dfn, deep, "(Open Wound)" if deep > 1 else "")   # any physical blow on an open wound tears it again
+        lost = afflictions.tear(combat, dfn, deep, "(Open Wound)" if deep > 1 else "",   # any physical blow on an open wound tears it again;
+                                cause=att)                                                # (f768) a death by it is the striker's kill
         if rec is not None and lost:
             rec["bleed"] = lost                          # shown on the blow's line and in its working (f286)
             rec["extras"].append(["Open wound tears" + (" twice as deep (Open Wound)" if deep > 1 else "") + " (after defence, not in the figure above)", f"+{lost}"])
@@ -1733,26 +1790,10 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
             combat.log.append(f"{dfn.name} is swept off their feet")
             tell(combat, f"the open palm turns {whose(dfn)} balance against {who(dfn)} and {who(dfn)} {STATUS_WORDS['prone'][0 if dfn.side == 'player' else 1]} (Open Palm)")
     combat_perks.after_hit(combat, att, dfn, outcome, taken, rng)
-    if not dfn.alive:
-        combat.log.append(f"{dfn.name} falls")
-        if att is not dfn:
-            combat.felled_by[dfn.id] = who(att)
-        by = f" to {whose(att)} blow" if att is not dfn and dfn.side != "enemy" else ""     # (f412) on the player's side, whose blow it was
-        tell(combat, f"{who(dfn)} {vb(dfn, 'fall', 'falls')}{by}" + (" - and the world goes dark" if dfn.side == "player" else " and does not rise"))
-        att.kill_round = combat.round
-        combat_perks.on_kill(combat, att, dfn, rng, echo=bool(att.counters.get("echo_cast")))
-        if "thrall" in A and att.side == "player" and dfn.side == "enemy" and not combat.thrall_used:
-            raise_thrall(combat, dfn)
-        else:
-            _sc.on_death(combat, dfn, att)                 # Reap, Pyre, Contagion: the marks that wait for death (f266, f268)
-        if "soul_harvest" in A and att.max_mana:
-            att.mana = min(att.max_mana, att.mana + att.max_mana * A["soul_harvest"] / 100)
-            tell(combat, f"something passes from the fallen into {who(att)} (Soul Harvest)")
-        if "triumph" in A:
-            heal = round(att.max_hp * A["triumph"] / 100)
-            restore(combat, att, heal)
-            combat.log.append(f"{att.name} is renewed by the kill: +{heal} health (Triumph)")
-            tell(combat, f"the kill fills {who(att)} with fresh strength (Triumph)")
+    if blow is not None:
+        blow.tail = True                                   # (f768) its target, fallen inside it, is paid here; told at its fall
+        if blow.fell:
+            credit(combat, blow.by, dfn, rng, A if blow.by is att else None)
     if can_flurry and "flurry" in A and dfn.alive and att.alive and rng.uniform(0, 100) < A["flurry"]:
         apply_damage(combat, att, dfn, multiplier * 0.6, "strikes again at", rng, can_cleave=False, can_riposte=False,
                      how="in a blur of follow-up blows (Flurry)", can_flurry=False)
@@ -2738,6 +2779,8 @@ def muster(combat: Combat) -> bool:
 
 def start_turn(f: Fighter, combat: Combat | None = None, rng: random.Random | None = None) -> bool:
     """Tick statuses at the start of a fighter's turn. Returns False if they lose the turn."""
+    if not f.alive:
+        return False                                    # (f768) one already down has no turn: nothing ticks, nothing is told or paid again
     fm = mechanics(f, combat)
     f.attacked_since_turn = False
     f.defending = 0
@@ -2789,17 +2832,15 @@ def start_turn(f: Fighter, combat: Combat | None = None, rng: random.Random | No
     if combat is not None and f.alive:
         from engine import spellcraft as _sct
         _sct.turn_effects(combat, f, rng)                 # frostbite, creeping corrosion, a seed about to burst (f268)
-    for dot in ("poisoned", "burning"):                  # an open wound does nothing by itself: blows make it bleed (engine/afflictions.py)
-        if dot in f.statuses:
+    for dot in RULES["ticks"]:                           # (f768) the statuses that tick, each with its words (combat.yaml ticks); an open
+        if dot in f.statuses:                            # wound does nothing by itself: blows make it bleed (engine/afflictions.py)
             from engine import damage, spellcraft as _sck
             amount = combat_perks.dot_damage(f, dot, round(afflictions.tick(f, dot) * _sck.tick_mult(f, dot)))
-            damage.resolve("dot_tick", combat, f, amount, None, rng, dot=dot)     # (f505) the tick's path: the floor (the first hunt cannot
-            #                                                                       kill the player; a duel kills no one), the health, what rides on it
-    if not f.alive and combat is not None and f.side == "enemy":
-        combat_perks.on_dot_death(combat, f)
-        from engine import spellcraft as _scd
-        _scd.on_death(combat, f, None)
-        return False
+            laid = combat.get(f.status_from.get(dot, "")) if combat is not None else None     # (f768) its death is the layer's kill
+            damage.resolve("dot_tick", combat, f, amount, None, rng, dot=dot, cause=laid)     # (f505) the tick's path: the floor (the
+            #                               first hunt cannot kill the player; a duel kills no one), the health, the fall, what rides on it
+    if not f.alive:
+        return False                                    # (f768) fallen at its turn's start: the fall step told and paid it; the turn is gone
     skip = "stunned" in f.statuses or "petrified" in f.statuses or bool(f.counters.get("cast_turn"))
     if "prone" in f.statuses and not skip:
         _fx.end_status(f, "prone")

@@ -280,8 +280,8 @@ def play(shard: int, only: set[str] | None = None) -> tuple[list[dict], dict]:
     cover = {"labels": set(), "boss_phases": set(), "families": set(), "classes": set(), "mechanics_given": set(), "statuses": set()}
     real_add = combat.add_status
 
-    def add_status(c, f, s, rounds, source=None):
-        took = real_add(c, f, s, rounds, source)
+    def add_status(c, f, s, rounds, source=None, **kw):
+        took = real_add(c, f, s, rounds, source, **kw)            # (f768) by, who laid it
         if took:
             cover["statuses"].add(s)
         return took

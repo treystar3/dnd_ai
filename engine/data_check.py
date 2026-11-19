@@ -1171,13 +1171,28 @@ def tables_problems(AE: dict | None = None, ST: dict | None = None, CB: dict | N
             need(False, f"active_effects.yaml kinds.{k}: a status kind needs its deltas row in combat.yaml statuses")
     for st in statuses:
         need(st in kinds and (kinds[st] or {}).get("family") == "status", f"combat.yaml statuses.{st}: no status kind of that name in active_effects.yaml")
+    import string
+    ticks = CB.get("ticks")                               # (f768) a status ticks only with the words a death by it is told in
+    need(isinstance(ticks, dict) and bool(ticks), "combat.yaml ticks: the statuses that tick, each with the words a death by it is told in")
+    for st, row in (ticks if isinstance(ticks, dict) else {}).items():
+        need(isinstance((statuses.get(st) or {}).get("damage_percent"), (int, float)), f"combat.yaml ticks.{st}: no combat.yaml status of that name with a damage_percent")
+        for form, allowed in (("laid", {"whose", "who", "fallen"}), ("nobody", {"fallen"})):
+            line = (row or {}).get(form) if isinstance(row, dict) else None
+            if not isinstance(line, str) or not line.strip():
+                need(False, f"combat.yaml ticks.{st}.{form}: a death by it needs its words")
+                continue
+            names = {n for _, n, _, _ in string.Formatter().parse(line) if n is not None}
+            need(names <= allowed, f"combat.yaml ticks.{st}.{form}: unknown placeholder {sorted(names - allowed)} in {line!r}")
+            need(not ("—" in line or "–" in line or " - " in line), f"combat.yaml ticks.{st}.{form}: a dash in story text (owner's rule): {line!r}")
     paths = ST.get("damage") or {}
     declared = set()
     for path, ids in paths.items():
         need(isinstance(ids, list) and ids and all(isinstance(i, str) for i in ids), f"stages.yaml damage.{path}: a list of stage names")
-        for i in (ids or []):
+        for k, i in enumerate(ids or []):
             need(i in damage.STAGES, f"stages.yaml damage.{path}: '{i}' is no stage engine/damage.py can run")
             declared.add(i)
+            if i in damage.HEALTH:                       # (f768) no path writes health without the fall step after it
+                need(ids[k + 1:k + 2] == ["fall"], f"stages.yaml damage.{path}: '{i}' writes health, so 'fall' must come straight after it")
     for i in damage.STAGES:
         need(i in declared, f"stages.yaml damage: engine/damage.py has a stage '{i}' that no path names")
     for key in ("hit_steps", "status_eligibility"):

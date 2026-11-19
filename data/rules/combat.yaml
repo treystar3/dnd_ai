@@ -210,6 +210,12 @@ statuses:
   scented:    {}                   # companions and summons hit it harder (Pack Scent, f268)
   unraveled:  {}      # necrotic unravelling: any healing it gets deals that much damage instead (engine/combat.py restore, f263)
   hexed:      {}      # (f507) a hex's mark: the next blows from the hexer land harder (perks.yaml hex); no delta of its own, it lasts the fight
+# (f768) The statuses that tick at the start of a turn (engine/combat.py start_turn, in this order), and what is told of a companion's
+# or the player's death by one, before the fall itself (engine/damage.py fall_line): `laid` names who laid it ({whose}: "the first
+# wolf's", {who}: "the first wolf", {fallen}: the one who fell), `nobody` is for one no one is recorded laying. Each needs both.
+ticks:
+  poisoned: {laid: "{whose} poison does its work", nobody: "the poison does its work"}
+  burning:  {laid: "the fire {who} left on {fallen} burns on", nobody: "the fire burns on"}
 
 creatures:
   # Lift: a creature weaker than the benchmark build of its level (size, ability score and category below) is strengthened toward it, so

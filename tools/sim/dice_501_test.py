@@ -16,7 +16,7 @@ stub = simlib.Stub("warrior", 3)
 simlib.install(stub)
 SHOWN = simlib.quiet_console()
 import purity
-from engine import behaviors, combat, combat_perks, party, streams
+from engine import behaviors, combat, combat_perks, damage, party, streams
 
 bad = []
 def check(n, ok, x=""):
@@ -56,7 +56,7 @@ def twice(run):
 def morale(c):
     fallen = c.get("e1")
     fallen.hp = 0
-    combat_perks.on_dot_death(c, fallen)
+    damage.fall_step(c, fallen, None, None, "tick", "poisoned")    # (f768) a death off the blow's path: the death's own keyed die
     return [(e.id, e.fled, e.surrendered, round(e.hp, 2)) for e in c.fighters if e.side == "enemy"]
 
 

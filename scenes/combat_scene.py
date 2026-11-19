@@ -1094,12 +1094,20 @@ class CombatScene:
             kind.over(self.ws, outcome, dict(self.fight.purpose.data), dead, list(yielded))
 
     def phoenix(self) -> bool:
-        """A Phoenix item turns one killing blow aside every few days: half health, nothing lost, the fight is over."""
+        """A Phoenix item turns one death aside every few days: half health, nothing lost, the fight is over."""
         ws = self.ws
         saved = self.service.phoenix()
         if saved is None:
             return False
         item, wait = saved
+        fight = getattr(self, "fight", None)                      # (f768) a death that was no blow on them is told without one
+        unstruck = fight is not None and any(x.counters.get("fell_to") for x in fight.player_fighters() if not x.alive)
+        if unstruck:
+            console.note(f"The last of your strength gives out, and {items.display_name(item)} burns white. You rise from the ashes at "
+                         f"half strength, and the fight is over. (It can't do this again for {wait:g} days.)")
+            ws.narrate("The last of the player's strength gives out, but their Phoenix relic flares and refuses the death. They stagger "
+                       "up, alive, the enemies recoiling or gone.")
+            return True
         console.note(f"The killing blow lands, and {items.display_name(item)} burns white. You rise from the ashes at half strength, "
                      f"and the fight is over. (It can't do this again for {wait:g} days.)")
         ws.narrate("A killing blow falls on the player, but their Phoenix relic flares and refuses it. They stagger up, alive, the "

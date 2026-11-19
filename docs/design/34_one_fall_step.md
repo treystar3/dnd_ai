@@ -1,7 +1,9 @@
 # 34. One fall step: the design note for FIGHT_CORE-1
 
 The note the audit fix plan asks for before FIGHT_CORE-1 is built (docs/design/33_audit_fix_plan/fight_core.md, "A short design
-note is agreed before building"). **Proposed; nothing is built until the owner approves.** Pillars 1 (prose and game state agree)
+note is agreed before building"). **Approved: the owner took the recommended answer on every question on 2026-11-19 ("Yes,
+recommended answers", GOALS.md's top decision row); FIGHT_CORE-1 is built as f768, its departures from this note named in its
+commit.** Pillars 1 (prose and game state agree)
 and 6 (fun, deep, fair play); infrastructure. Written 19 November 2026, read against play/faults at f745. FIGHT_CORE-5, FIGHT_CORE-6
 and FIGHT_ABILITIES-1 had not landed when it was read; this note assumes FIGHT_CORE-5 is in first, as the plan orders.
 

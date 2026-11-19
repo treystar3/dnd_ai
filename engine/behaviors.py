@@ -241,8 +241,8 @@ def after_hit(combat, e, target, landed: bool, rng: random.Random) -> None:
     if not landed or not target.alive:
         return
     for key, status, rounds in (("venom", "poisoned", 3), ("grapple", "grappled", 2), ("befuddle", "befuddled", 1)):
-        chance = beh(e, key)
-        if chance and status not in target.statuses and rng.uniform(0, 100) < chance and C.add_status(combat, target, status, rounds):
+        chance = beh(e, key)                            # (f768) laid by e, for the record: the dose is sized as before, with no source
+        if chance and status not in target.statuses and rng.uniform(0, 100) < chance and C.add_status(combat, target, status, rounds, by=e):
             combat.log.append(f"{target.name} is {status}")
             C.tell(combat, f"{C.who(target)} {C.STATUS_WORDS[status][0 if target.side == 'player' else 1]}")
     c = beh(e, "corrode")

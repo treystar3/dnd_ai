@@ -484,6 +484,9 @@ def _express_more(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> N
         floor = 1 if ((combat.mentor and dfn.side == "player") or combat.duel) else 0
         dfn.hp = float(floor)
         C.tell(combat, f"death reaches for {C.who(dfn)} and does not let go ({e['label']})")
+        if not dfn.alive:
+            from engine import damage
+            damage.fall_step(combat, dfn, att)              # (f768) a kill outright falls as any death does
     elif eid == "life_theft" and dfn.alive:
         dfn.counters["life_theft"] = att.id
     # ---- radiant
@@ -679,7 +682,8 @@ def on_death(combat, dead, killer) -> None:
             landed = E.eligible(combat, nxt, "poisoned", dead.statuses.get("poisoned", 3))   # (f507) the neighbour's own wards, resistance
             if landed is not None:                                                            # and perks count; a boss spends a charge
                 status, rounds = landed
-                E.put_status(nxt, status, max(nxt.statuses.get(status, 0), rounds))           # the stacks are copied, not dealt again
+                E.put_status(nxt, status, max(nxt.statuses.get(status, 0), rounds),           # the stacks are copied, not dealt again;
+                             dead.status_from.get("poisoned") or None)                       # (f768) still the dead's poisoner's
                 if status == "poisoned":
                     E.set_strength(nxt, "poisoned", list(nxt.poison) + list(dead.poison) + list(dead.poison_fixed))
                 C.tell(combat, f"the poison does not die with {C.who(dead)}: it spreads to {C.who(nxt)} (Contagion)")

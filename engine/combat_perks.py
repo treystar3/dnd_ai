@@ -282,7 +282,7 @@ def on_kill(combat: C.Combat, att: C.Fighter | None, dfn: C.Fighter, rng: random
         if carried and others:
             nxt = bf.closest(combat, dfn, others) or others[0]
             for s, r in carried.items():
-                E.put_status(nxt, s, max(nxt.statuses.get(s, 0), r))     # raw, as a carried status: it passed its checks once
+                E.put_status(nxt, s, max(nxt.statuses.get(s, 0), r), p)  # raw, as a carried status; (f768) laid by the one who carries it on
             if "burning" in carried:
                 E.set_strength(nxt, "burning", max(nxt.ignite, dfn.ignite))            # the burn walks on at its strength
             if "poisoned" in carried:
@@ -336,24 +336,6 @@ def on_kill(combat: C.Combat, att: C.Fighter | None, dfn: C.Fighter, rng: random
         att.weapon_damage *= 1 + g
         combat.log.append(f"{att.name} grows on the kill (Devourer)")
         C.tell(combat, f"{C.who(att)} feeds on the fallen and grows - bigger, harder, hungrier {tag(p, 'devourer')}")
-
-
-def on_dot_death(combat: C.Combat, f: C.Fighter) -> None:
-    """An enemy that succumbed to an affliction at the start of its turn: the player's afflictions, the player's kill."""
-    from engine import battlefield as bf
-    bf.release(combat, f)
-    combat.log.append(f"{f.name} succumbs")
-    C.tell(combat, f"{C.who(f)} succumbs to what was done to {C.vb(f, 'you', 'it')} and falls")
-    p = player_of(combat)
-    from engine import behaviors, streams
-    rng = streams.keyed("morale", f.id, combat.serial, combat.round)   # (f501) the death's own die, never seeded by what was logged
-    behaviors.morale_on_death(combat, f, rng)
-    if f.counters.get("reaped_by"):
-        from engine import spellcraft
-        spellcraft.reaped(combat, f)                     # Reap (f266): a death by affliction counts too
-    if p is not None:
-        p.kill_round = combat.round
-        on_kill(combat, p, f, rng)
 
 
 # ---------- taking a blow ----------

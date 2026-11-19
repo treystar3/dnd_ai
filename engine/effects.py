@@ -295,9 +295,10 @@ class Landing:
     may change either: an archon's chill lasts longer, a perk turns one affliction into another), the source when the caller knows it,
     the fighter's mechanics, and the element behind the status (a burn's fire, the hit element behind a chill or a cut)."""
 
-    def __init__(self, combat, f, status: str, rounds, source):
+    def __init__(self, combat, f, status: str, rounds, source, by=None):
         from engine import combat as C
         self.combat, self.f, self.status, self.rounds, self.source = combat, f, status, rounds, source
+        self.by = by                    # (f768) who laid it when no source is passed: for the record alone, never to size or turn it
         self.fm = C.mechanics(f, combat)
         self.element = C.ELEMENT_STATUS.get(status) or ((source.hit_element or source.element) if source is not None
                                                      and status in ("slowed", "blinded", "bleeding", "prone", "petrified") else "")
@@ -389,8 +390,8 @@ def affliction_law(l: Landing):
 
 
 def record(l: Landing):
-    """The status is on the fighter: its row, its rounds, its source."""
-    put_status(l.f, l.status, l.rounds, l.source)
+    """The status is on the fighter: its row, its rounds, its source (or who laid it)."""
+    put_status(l.f, l.status, l.rounds, l.source if l.source is not None else l.by)
 
 
 def crippling_chain(l: Landing):
@@ -421,10 +422,10 @@ STAGES: dict[str, Callable[[Landing], object]] = {
     "winding_cancel": winding_cancel}
 
 
-def land(combat, f, status: str, rounds, source=None) -> bool:
+def land(combat, f, status: str, rounds, source=None, by=None) -> bool:
     """A status lands unless a stage turns it aside: the stages stages.yaml status_eligibility names, in order, each returning False
     to refuse. True when it took hold. This is engine/combat.py add_status."""
-    l = Landing(combat, f, status, rounds, source)
+    l = Landing(combat, f, status, rounds, source, by)
     for name in ELIGIBLE:
         if STAGES[name](l) is False:
             return False

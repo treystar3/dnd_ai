@@ -5,7 +5,8 @@ A boss is a Fighter with `boss` set (see make()). The combat engine calls the ho
   enemy_turn()     -> refresh() at the start, own_turn() after its ordinary attack
   finish_round()   -> legendary() at the end of every other creature's turn
   add_status()     -> resisted()
-  take_damage()    -> last_stand() before a killing blow lands, then after_damage() (bloodied, falling)
+  take_damage()    -> last_stand() before a killing blow lands, then bloodied()
+  the fall step    -> fall() (engine/damage.py fall_step, whatever killed it)
 All numbers are in data/rules/bosses.yaml.
 """
 
@@ -99,14 +100,16 @@ def last_stand(combat, f) -> bool:
     return True
 
 
-def after_damage(combat, f) -> None:
-    """Called after a boss has taken damage: the bloodied turn, and the fall."""
-    if not f.boss:
-        return
-    if f.hp <= 0:
-        if not f.boss["fell"]:
-            f.boss["fell"] = True
-            _say(combat, f, "fall")
+def fall(combat, f) -> None:
+    """(f768) The boss has fallen, whatever killed it: its last words, once, told with its fall and before its guards break."""
+    if f.boss and not f.boss["fell"]:
+        f.boss["fell"] = True
+        _say(combat, f, "fall")
+
+
+def bloodied(combat, f) -> None:
+    """Called after a boss has taken damage and still stands: the bloodied turn."""
+    if not f.boss or f.hp <= 0:
         return
     if f.boss["phase"] == 0 and f.hp <= f.max_hp * B["bloodied_at"]:
         cfg = B["bloodied"]

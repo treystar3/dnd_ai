@@ -396,7 +396,8 @@ class FightService:
 
         again = p.counters.pop("acting_again", None)       # a movement used on its own: this is the same turn's action
         if not again and not combat.start_turn(p, f, self.dice):
-            if not p.counters.pop("cast_turn", None):      # a charged spell going off (or breaking) is the whole turn
+            charged = p.counters.pop("cast_turn", None)     # a charged spell going off (or breaking) is the whole turn
+            if p.alive and not charged:                    # (f768) a fall is the fall step's to tell
                 f.log.append(f"{p.name} is unable to act")
                 combat.tell(f, "you try to act, but your body will not answer")
         elif self.alongside(f, p, intent, target, notes):
@@ -471,8 +472,8 @@ class FightService:
 
     def hires_down(self, fight: combat.Combat) -> list:
         """Hired companions who have just gone down: whether each is dead is decided now (kept on them until the fight is over), so the
-        narration shows it as it happens and those who saw it can react at once. Returns (member, by whose blow) for those killed; the
-        survivors keep who fell, where and by whose hand (engine/party.py mourn)."""
+        narration shows it as it happens and those who saw it can react at once. Returns (member, by whom) for those killed; the
+        survivors keep who fell, where and by whose doing (engine/party.py mourn)."""
         f = fight
         killed = []
         for m in self.player.party:
@@ -486,18 +487,21 @@ class FightService:
                 continue
             if m.get("down_fate"):                          # already decided when they went down
                 continue
-            by = f.felled_by.get(a.id, "")                  # (f412) the blow was the foe's: never the player's, never another companion's
+            by = f.felled_by.get(a.id, "")                  # (f412, f768) whoever caused the fall, as the story names them
+            unstruck = a.counters.get("fell_to")            # (f768) a fall that was no blow on them: a poison, a burn, a share, a curse
             if self.party.decide_down(m, self.dice, in_fight=True) == "dead":
                 a.counters["dead"] = 1                      # beyond any healing: a Rescue cannot raise the dead
-                combat.tell(f, f"{a.name} takes a killing blow{' from ' + by if by else ''} and does not get up: {a.name} is dead"
+                combat.tell(f, (f"{a.name} does not get up again: {a.name} is dead" if unstruck else
+                                f"{a.name} takes a killing blow{' from ' + by if by else ''} and does not get up: {a.name} is dead")
                                + (f" (killed by {by}, not by you)" if by and by != "you" else ""))
                 killed.append((m, by))
                 place = getattr(f, "place", "")
                 how = (f" by {by}" if by and by != "you" else "") + (f" at {place}" if place else "")
                 party_rules.mourn(self.player.party, m, self.now(), self.player.location, how)
             else:
-                combat.tell(f, entities.gendered(f"{a.name} goes down hard{' under ' + whose_blow(by) if by else ''} and lies still: alive, but "
-                                                 "out of the fight, and they will have to be carried",            # (f422) in their own pronoun
+                combat.tell(f, entities.gendered((f"{a.name} goes down and lies still: alive, but " if unstruck else
+                                                  f"{a.name} goes down hard{' under ' + whose_blow(by) if by else ''} and lies still: alive, but ")
+                                                 + "out of the fight, and they will have to be carried",           # (f422) in their own pronoun
                                                  party_rules.pronoun_of(m, self.store.meta.seed, self.player.party_used)))
         return killed
 
