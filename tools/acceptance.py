@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import argparse
 import random
-import shutil
 import sys
 from pathlib import Path
 
@@ -77,7 +76,8 @@ class Table:
         from engine.session import CampaignSession
         from storage.campaign import PlayerState
         self.save = f"scene_{scene['name']}"[:60]
-        shutil.rmtree(ROOT / "saves" / self.save, ignore_errors=True)
+        from storage import saves
+        saves.scratch(self.save)                                            # (f743) only a tool's own save is cleared, and a failure says so
         config.TURN_LOG_PATH = f"saves/{self.save}/turns.jsonl"
         config.AUDIT_ENABLED = False
         config.REFUSALS_LOG = False
@@ -204,7 +204,8 @@ class Table:
         self.session.close()
         self.unstand()                  # (f518) this table's stand-ins away: sources do not pile up across scenes
         self.unstub()
-        shutil.rmtree(ROOT / "saves" / self.save, ignore_errors=True)
+        from storage import saves
+        saves.drop(self.save)
 
 
 def play(scene: dict, live: bool = False, source=None) -> list[str]:

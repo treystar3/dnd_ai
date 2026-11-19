@@ -29,6 +29,7 @@ python tools/interp_eval.py --live | tee "$OUT/interp_eval.txt" || echo "interp_
 for play in "hunter 101" "talker 102" "hunter 103" "hunter 105" "hunter 107"; do
   set -- $play
   echo "== scripted play: $1 (seed $2)"
+  python -c "from storage import saves; saves.scratch('prose_$1_$2')"   # (f743) named here, in code: nightrun's typed --save then finds its own
   python tools/nightrun.py --persona "$1" --seed "$2" --party 3 --turns 60 --hours 3 --out "$OUT/play_$1_$2" --save "prose_$1_$2"
 done
 

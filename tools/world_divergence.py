@@ -7,7 +7,6 @@ the few calls the rare tiers make; the ordinary tiers are the engine's own).
 """
 import argparse
 import random
-import shutil
 import sys
 from pathlib import Path
 
@@ -19,13 +18,13 @@ from engine import clock, pulse  # noqa: E402
 from npc.life import populate_place  # noqa: E402
 from npc.traits import load_traits  # noqa: E402
 from engine.session import CampaignSession  # noqa: E402
-from storage.campaign import SAVES_DIR  # noqa: E402
+from storage import saves  # noqa: E402
 from world.loader import authored  # noqa: E402
 
 
 def run(catalog, seed: int, town: str, days: int) -> dict:
     name = f"divergence_{seed}"
-    shutil.rmtree(SAVES_DIR / name, ignore_errors=True)
+    saves.scratch(name)                                    # (f743) only a tool's own save is cleared, and a failure says so
     session = CampaignSession.open(name)                   # (f457) one session per seed, each with its own map: nothing shared between the two
     store, world = session.store, session.world
     store.meta.seed = seed
@@ -45,7 +44,7 @@ def run(catalog, seed: int, town: str, days: int) -> dict:
            "moved": sorted(r.id for r in store.npc_rows(gone=False) if r.location != town and r.location not in
                            {p for p in world.places if pulse.town_of(world, p) == town})}
     session.close()
-    shutil.rmtree(SAVES_DIR / name, ignore_errors=True)
+    saves.drop(name)
     return out
 
 

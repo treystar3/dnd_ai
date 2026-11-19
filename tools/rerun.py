@@ -385,10 +385,10 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None, 
                 console.put(name, lambda *a, **k: None)
 
     # the save as the session opened, under a scratch name
+    from storage import saves
     name = f"rerun_{folder.name}_{os.getpid()}"             # (f529) this process's own: two replays of one recording at once (the suite
-    shutil.rmtree(ROOT / "saves" / name, ignore_errors=True)   # runs tests in parallel) never share a save
-    (ROOT / "saves" / name).mkdir(parents=True)
-    shutil.copy(folder / "start.db", ROOT / "saves" / name / "campaign.db")
+                                                            # runs tests in parallel) never share a save
+    shutil.copy(folder / "start.db", saves.scratch(name) / "campaign.db")   # (f743) a tool's own save, and a failure to clear it says so
     from npc.traits import load_traits
     from engine.session import CampaignSession
     from engine import ledger
@@ -481,7 +481,6 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None, 
         undo_source()
         no_server.__exit__()
         embed.reset()
-        shutil.rmtree(ROOT / "saves" / name, ignore_errors=True)
         streams.STRICT = False
         budget.PROFILE.clear()
         budget.PROFILE.update(profile_before)
@@ -489,6 +488,7 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None, 
         budget.CACHED = cached_before
         config.THINK_TASKS, config.THINK_ROOM = think_before
         config.SAMPLING_ARM = arm_before
+        saves.drop(name)                                    # (f743) last: a save that could not be cleared stops the run, all else put back
     matched = sum(1 for i in state["compared"] if not state["parted"] or i < state["parted"]["input"])   # (f731) compared, before any part
     return {"matched": max(0, matched), "of": len(inputs_main), "parted": state["parted"], "calls": source.at, "recorded_calls": len(calls),
             "crashed": len(crashlog.SESSION) - crashes0, "logs": str(scratch), **made_on}   # (f518) faults the replay hit (its own crash.log)
@@ -575,7 +575,8 @@ def make_stub_recording(folder: Path, n: int = 40, seed: int = 39, persona: str 
     from world.loader import authored
     import nightbot
     save = "rerun_make_" + folder.name
-    shutil.rmtree(ROOT / "saves" / save, ignore_errors=True)
+    from storage import saves
+    saves.scratch(save)                                     # (f743) a tool's own save, and a failure to clear it says so
     session = CampaignSession.open(save)                     # (f453)
     store = session.store
     store.meta.seed, store.meta.turn, store.meta.minutes = seed, 1, 480
@@ -627,7 +628,7 @@ def make_stub_recording(folder: Path, n: int = 40, seed: int = 39, persona: str 
             session.close()
             planted()
             held()
-            shutil.rmtree(ROOT / "saves" / save, ignore_errors=True)
+            saves.drop(save)
     return folder
 
 

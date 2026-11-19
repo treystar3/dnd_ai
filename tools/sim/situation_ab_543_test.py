@@ -226,6 +226,9 @@ tmp = Path(tempfile.mkdtemp(prefix="situation_ab_543_"))
 out1, out2 = tmp / "one", tmp / "two"
 args = ["--server", url, "--cases", "4", "--seed", "543", "--arms", "off,budget_1024,uncapped", "--scratch", "situation_ab_543_run"]
 from storage.campaign import SAVES_DIR
+from storage import saves
+for name in ("situation_ab_543_run", "situation_ab_543_stub"):
+    saves.scratch(name)                                     # (f743) named in this test's code: the tool's typed --scratch then finds its own
 ab.main(args + ["--out", str(out1)])
 rows1 = ab.load_rows(out1)
 seen1 = calls(SEEN)

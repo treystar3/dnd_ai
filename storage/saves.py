@@ -8,7 +8,11 @@ another install, is a game whatever the index holds. Games from before the marks
 ones an index of that time names, the old single save ("main") and every backup New game used to set aside ("main_backup_<time>").
 
 A game's folder name is made once, when it is started, and never changes; the character's own name is read from inside it. Deleting
-moves the folder to saves/_deleted/, so a mistake can be undone by moving it back."""
+moves the folder to saves/_deleted/, so a mistake can be undone by moving it back.
+
+A tool's or a test's save (scratch, drop) carries a mark of its own (SCRATCH), and nothing else is ever cleared by one: not a game,
+not a name the game gives its games, not a folder outside saves/, and not, when the name was typed on a tool's command line, a
+folder no tool marked."""
 from __future__ import annotations
 
 import json
@@ -16,6 +20,7 @@ import os
 import re
 import shutil
 import sqlite3
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -28,6 +33,14 @@ MARK = "game.json"
 MARKED = "marked"                                   # (f741) the older games are marked: from here the index is only a cache
 # (f742) discard() erases on no character, or no database, alone
 READY, NO_CHARACTER, UNREADABLE, NEWER = "ready", "no_character", "unreadable", "newer"
+SCRATCH = "scratch.json"                            # (f743) a tool's own save says so: only such a folder is ever cleared by one
+GAME_PREFIX = "game_"                               # (f743) new_name()'s folders begin so, and GAME_NAME reads them by the same
+GAME_NAME = re.compile(rf"{LEGACY.pattern}|^{GAME_PREFIX}\d{{8}}_\d{{6}}", re.IGNORECASE)   # (f743) what the game names its games
+PLAIN = re.compile(r"[A-Za-z0-9_](?:[A-Za-z0-9_.-]*[A-Za-z0-9_-])?")
+
+
+class Refused(SystemExit):
+    """(f743) A tool's save that may not be cleared, or could not be: the message names the folder, and no tool goes on past it."""
 
 
 def _index_path(saves_dir: Path) -> Path:
@@ -113,7 +126,7 @@ def load_index(saves_dir: Path | None = None) -> dict:
 def new_name(saves_dir: Path | None = None) -> str:
     """A folder name for a new game: when it was begun, made unique."""
     saves_dir = Path(saves_dir or SAVES_DIR)
-    base = f"game_{datetime.now():%Y%m%d_%H%M%S}"
+    base = f"{GAME_PREFIX}{datetime.now():%Y%m%d_%H%M%S}"
     name, n = base, 2
     while (Path(saves_dir) / name).exists() or name in load_index(saves_dir)["saves"]:
         name, n = f"{base}_{n}", n + 1
@@ -269,3 +282,85 @@ def delete(name: str, saves_dir: Path | None = None) -> Path | None:
         index["last"] = ""
     _write_index(index, saves_dir)
     return dest
+
+
+def _never_tools(name: str, saves_dir: Path) -> str:
+    """Why saves/<name> can never be a tool's save, or "" when it can. Read only: the index is read as it is on disk, never rebuilt."""
+    if not isinstance(name, str) or not PLAIN.fullmatch(name) or ".." in name:
+        return f"The save name \"{name}\" is not a plain folder name inside {Path(saves_dir).as_posix()}: nothing was removed."
+    folder = (Path(saves_dir) / name).as_posix()
+    if name.casefold() == DELETED:
+        return f"{folder} holds the deleted games: a tool never clears it."
+    if GAME_NAME.match(name):
+        return f"{folder} is a name the game gives its own games: a tool never clears it. Give the tool another save name."
+    if (Path(saves_dir) / name / MARK).exists():
+        return f"{folder} is one of the player's games: a tool never clears it. Give the tool another save name."
+    data = _read_index(saves_dir)
+    if data and name.casefold() in {str(n).casefold() for n in data["saves"]}:
+        return f"{folder} is on the Load page: a tool never clears it. Give the tool another save name."
+    if (Path(saves_dir) / name).exists() and not (Path(saves_dir) / name).is_dir():
+        return f"{folder} is a file, not a save folder: nothing was removed."
+    return ""
+
+
+def _tools_root(saves_dir: Path | None) -> Path:
+    """The folder a tool's save lies in: the one given, else the one a session opens it in (read now, as CampaignSession.open reads it)."""
+    from storage import campaign
+    return Path(saves_dir or campaign.SAVES_DIR)
+
+
+def _mark_scratch(folder: Path) -> None:
+    (folder / SCRATCH).write_text(json.dumps({"made": _now()}), encoding="utf-8")
+
+
+def _clear(folder: Path) -> None:
+    """A tool's folder removed, or Refused when it is still there afterwards: on Windows rmtree leaves a folder with a file held open
+    in silence. One left behind keeps the tools' mark, so the next run may clear it."""
+    if not folder.exists():
+        return
+    shutil.rmtree(folder, ignore_errors=True)
+    if folder.exists():
+        try:
+            _mark_scratch(folder)
+        except OSError:
+            pass
+        raise Refused(f"{folder.as_posix()} could not be cleared: something in it is still open, most likely the game or another "
+                      "tool's run. Close it and run again.")
+
+
+def scratch(name: str, typed: bool = False, saves_dir: Path | None = None) -> Path:
+    """(f743) An empty save of a tool's own, the one way a tool or a test gets one: saves/<name> made anew, with the mark that says a
+    tool made it. Refused, with a line naming the folder, for a name that can never be a tool's (no plain folder name in saves/, the
+    deleted games, a name the game gives its games, a game's folder, a name the Load page lists); for a folder already there that no
+    tool marked when the name was typed on a command line (`typed`: a tool's --save), while one a tool or a test names in its own
+    code is taken as the tool's own; and when the folder is still there after it was cleared. Returns it."""
+    saves_dir = _tools_root(saves_dir)
+    why = _never_tools(name, saves_dir)
+    if why:
+        raise Refused(why)
+    folder = saves_dir / name
+    if typed and folder.exists() and not (folder / SCRATCH).is_file():
+        raise Refused(f"{folder.as_posix()} is already there and no tool marked it as its own, so it is left as it is. Remove it by "
+                      "hand if it is not wanted, or give the tool another save name.")
+    _clear(folder)
+    folder.mkdir(parents=True)
+    _mark_scratch(folder)
+    return folder
+
+
+def drop(name: str, saves_dir: Path | None = None) -> bool:
+    """(f743) A tool's own save removed at the end of its run, the one way a tool removes one: only a folder that carries the tools'
+    mark, never a game. Returns whether one was removed; Refused when it is still there afterwards, unless the run is already going
+    down with an error (a drop in a `finally`): then that error goes on with its own traceback, and carries the line as a note."""
+    crash = sys.exc_info()[1]                         # (f743) a Refused raised now would take the crash's place and hide its traceback
+    saves_dir = _tools_root(saves_dir)
+    if _never_tools(name, saves_dir) or not (saves_dir / name / SCRATCH).is_file():
+        return False
+    try:
+        _clear(saves_dir / name)
+    except Refused as e:
+        if crash is None or isinstance(crash, SystemExit):
+            raise
+        crash.add_note(str(e))
+        return False
+    return True

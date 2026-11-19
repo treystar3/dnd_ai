@@ -45,7 +45,6 @@ import argparse
 import os
 import random
 import re
-import shutil
 import sys
 from pathlib import Path
 
@@ -231,7 +230,8 @@ class Bench:
         from npc.traits import load_traits
         from storage.campaign import PlayerState
         self.save = save
-        shutil.rmtree(ROOT / "saves" / save, ignore_errors=True)
+        from storage import saves
+        saves.scratch(save)                                                 # (f743) only a tool's own save is cleared, and a failure says so
         self.session = CampaignSession.open(save)                           # (f457) the campaign's session, as main.py opens it
         self.store, self.world = self.session.store, self.session.world
         self.store.meta.seed = 4; self.store.meta.minutes = 720; self.store.save_meta()
@@ -475,7 +475,8 @@ class Bench:
         if self.unlive is not None:
             self.unlive()                   # (f518) this bench's stand-ins away again, the live route first
         self.unstub()
-        shutil.rmtree(ROOT / "saves" / self.save, ignore_errors=True)
+        from storage import saves
+        saves.drop(self.save)
 
 
 def fair(want, got: set) -> bool:

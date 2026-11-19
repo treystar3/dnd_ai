@@ -19,7 +19,8 @@ Modes:
                     grand reward, the town's memory.
   --play            simbot plays the character from the event's start; its own big-event pursuit goes after the boss or the treaty.
 
-Report: saves/event_trial/<name>.md; a one-line verdict on stdout. The stub stands in for the model unless --live."""
+Report: logs/event_trial/<name>.md (beside the run's call log, config.LOG_PATH; never inside a save, which the next Trial clears); a
+one-line verdict on stdout. The stub stands in for the model unless --live."""
 from __future__ import annotations
 
 import argparse
@@ -27,7 +28,6 @@ import collections
 import json
 import os
 import random
-import shutil
 import sys
 import time
 import types
@@ -72,7 +72,8 @@ class Trial:
             uc.put("wait", lambda *a, **k: None)
             uc.put("ledger", lambda m, *a, **k: self.notes.append(str(m)))
         self.catalog = load_traits()
-        shutil.rmtree(ROOT / "saves" / save, ignore_errors=True)
+        from storage import saves
+        saves.scratch(save)                                                 # (f743) only a tool's own save is cleared, and a failure says so
         self.session = CampaignSession.open(save)                           # (f457) the campaign's session, as main.py opens it
         self.store, self.world = self.session.store, self.session.world
         self.t = 400 * DAY
@@ -332,6 +333,12 @@ class Trial:
         return out
 
 
+def reports() -> Path:
+    """Where the reports go: a folder of the tool's own beside the run's call log (logs/event_trial/ in play)."""
+    import config
+    return ROOT / Path(config.LOG_PATH).parent / "event_trial"      # (f743) never inside a save: the next Trial clears that
+
+
 def report(out: dict, path: Path) -> None:
     th_line = f"{out['tier']} '{out['title']}'" + (f" ({out['kind']})" if out["kind"] else "")
     md = [f"# {th_line} at level {out['level']}", "",
@@ -357,15 +364,20 @@ def verdict(out: dict) -> str:
 def run(tier: str, kind: str = "", level: int = 60, cls: str = "warrior", seed: int = 5, pressure: str = "", days: int = 150, ignore: bool = False,
         prefer: str = "", live: bool = False, save: str = "event_trial", quiet: bool = True, act_from_stage: int = 2) -> dict:
     trial = Trial(tier, kind, level, cls, seed, live, save, quiet)
-    if not trial.start(pressure):
-        return {"tier": tier, "kind": kind, "title": "", "level": level, "days": 0, "started": False, "status": "", "result": "", "ending": "",
-                "won_path": "", "won_path_id": "", "paths": [], "stages": 0, "stage": 0, "reward": [], "coins_gained": 0, "titles": [], "fallen": [],
-                "problems": [], "acted": [], "lines": trial.lines, "notes": trial.notes, "seconds": round(time.time() - trial.start_at, 1)}
-    return trial.run(days, ignore, prefer, act_from_stage)
+    try:
+        if not trial.start(pressure):
+            return {"tier": tier, "kind": kind, "title": "", "level": level, "days": 0, "started": False, "status": "", "result": "", "ending": "",
+                    "won_path": "", "won_path_id": "", "paths": [], "stages": 0, "stage": 0, "reward": [], "coins_gained": 0, "titles": [], "fallen": [],
+                    "problems": [], "acted": [], "lines": trial.lines, "notes": trial.notes, "seconds": round(time.time() - trial.start_at, 1)}
+        return trial.run(days, ignore, prefer, act_from_stage)
+    finally:
+        trial.session.close()                         # (f743) the next Trial clears this save: a database left open would stop it
 
 
 def play(tier: str, kind: str, level: int, cls: str, seed: int, pressure: str, days: int, live: bool) -> dict:
     """simbot plays it: the event is forced into the bot's world at its start, and the bot's own pursuit (big_pass) goes after it."""
+    from storage import saves
+    saves.scratch("event_trial_play")                 # (f743) named here, in code: simbot then clears it as a save a tool made
     os.environ["SIMBOT_SAVE"] = "event_trial_play"
     os.environ["SIM_START_LEVEL"] = str(level)
     sys.argv = ["simbot.py", cls, str(seed), str(days)]
@@ -394,7 +406,7 @@ def play(tier: str, kind: str, level: int, cls: str, seed: int, pressure: str, d
     th = next((x for x in st.get("threads", []) if th and x["id"] == th["id"]), th)
     from storage import invariants
     problems = invariants.validate_campaign(bot.store, bot.world)
-    return {"tier": tier, "kind": (th or {}).get("kind", kind), "title": (th or {}).get("title", ""), "level": bot.c.level, "days": bot.day,
+    out = {"tier": tier, "kind": (th or {}).get("kind", kind), "title": (th or {}).get("title", ""), "level": bot.c.level, "days": bot.day,
             "started": bool(ok and th), "status": (th or {}).get("status", ""), "result": (th or {}).get("result", ""), "ending": (th or {}).get("ending", ""),
             "won_path": ((th or {}).get("won_path") or {}).get("name", ""), "won_path_id": ((th or {}).get("won_path") or {}).get("id", ""),
             "paths": [(p["id"], p["done"]) for p in (th or {}).get("paths", [])],
@@ -402,6 +414,8 @@ def play(tier: str, kind: str, level: int, cls: str, seed: int, pressure: str, d
             "titles": list(bot.ws.player.titles), "fallen": sorted(st.get("fallen", {}).keys()), "problems": [str(p) for p in problems],
             "acted": [json.dumps(b) for b in bot.big_log], "lines": [f"the bot stopped: {bot.aborted}"] + [json.dumps(x) for x in getattr(bot, "exc_log", [])[-5:]],
             "notes": [], "seconds": round(time.time() - bot.t0, 1)}
+    bot.session.close()                               # (f743) the next Trial's bot clears this save: a database left open would stop it
+    return out
 
 
 def main() -> int:
@@ -439,10 +453,10 @@ def main() -> int:
         else:
             out = run(tier, a.kind, level, a.cls, a.seed, a.pressure, a.days, a.ignore, a.path, a.live, act_from_stage=a.from_stage)
         name = f"{tier}_{out['kind'] or 'any'}_{level}" + ("_play" if a.play else "") + ("_ignored" if a.ignore else "")
-        path = ROOT / "saves" / "event_trial" / f"{name}.md"
+        path = reports() / f"{name}.md"
         report(out, path)
         print(verdict(out))
-        print(f"  report: {path.relative_to(ROOT)}")
+        print(f"  report: {path.relative_to(ROOT) if path.is_relative_to(ROOT) else path}")
         if not out["started"] or out["problems"]:
             rc = 1
     if server is not None:

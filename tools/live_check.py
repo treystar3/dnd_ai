@@ -27,6 +27,7 @@ import config
 import llm.gateway as gw
 import ui.console as uc
 from llm import backend
+from storage import saves
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--runs", type=int, default=3)
@@ -59,7 +60,7 @@ def addressees(runs: int) -> None:
     sys.path.insert(0, str(ROOT))
     import simlib
     name = "live_check_addressees"
-    shutil.rmtree(ROOT / "saves" / name, ignore_errors=True)
+    saves.scratch(name)                               # (f743) only a tool's own save is cleared, and a failure says so
     session = CampaignSession.open(name)
     store, world = session.store, session.world
     char, _ = simlib.make_character("warrior", random.Random(1))
@@ -90,7 +91,7 @@ def addressees(runs: int) -> None:
     (ROOT / "saves" / args.report).write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
     session.close()
-    shutil.rmtree(ROOT / "saves" / name, ignore_errors=True)
+    saves.drop(name)
 
 
 if args.mode == "addressees":
@@ -135,7 +136,7 @@ from scenes.banter_actions import BanterActions
 from storage.campaign import PlayerState
 
 NAME = "live_check"
-shutil.rmtree(ROOT / "saves" / NAME, ignore_errors=True)
+saves.scratch(NAME)                                   # (f743) only a tool's own save is cleared, and a failure says so
 session = CampaignSession.open(NAME)                 # (f457) the campaign's session, as main.py opens it
 store = session.store
 store.meta.seed = 11; store.meta.turn = 1; store.meta.minutes = 1800; store.save_meta()
@@ -725,4 +726,4 @@ session.close()
 SERVER.close()                                        # (f529) this tool's own server (never the game's, under --attach)
 if JUDGE is not None:
     JUDGE.close()
-shutil.rmtree(ROOT / "saves" / NAME, ignore_errors=True)
+saves.drop(NAME)

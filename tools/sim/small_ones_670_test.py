@@ -36,7 +36,8 @@ mentor_text = open("data/world/mentor.yaml", encoding="utf-8").read()
 ret = mentor_text.split("\nreturn:", 1)[1].split("\n  info:", 1)[0]
 check("2.17: the walk back to Parth names no hour", not re.search(r"\b(sun is low|dusk|dawn|noon|evening|midday)\b", ret, re.I), ret)
 
-world = simlib.campaign("small_ones_670_test", seed=5, location="greywood").scene.world
+first = simlib.campaign("small_ones_670_test", seed=5, location="greywood")
+world = first.scene.world
 ch, _ = simlib.make_character("warrior", random.Random(2))
 me = combat.fighter_from_character(ch)
 me.pace = "slow"
@@ -44,6 +45,7 @@ wolf = combat.fighter_from_creature(world.bestiary["wolf"], 3, "normal", "e0", "
 f = combat.Combat(fighters=[me, wolf], place="x")
 battlefield.engage(f, wolf, f.player)
 from scenes.combat_scene import service_of
+first.close()                                                # (f743) the campaign below clears this save: it is let go first
 svc = service_of(simlib.campaign("small_ones_670_test", seed=5, location="greywood").scene)
 check("4.4: a slow fighter already in reach does not spend the round advancing",
       svc.apply_step(f, me, RoundIntent(kind="attack", target="e0", step="advance"), wolf) is False)

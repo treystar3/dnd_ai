@@ -33,7 +33,6 @@ from __future__ import annotations
 import argparse
 import json
 import random
-import shutil
 import sys
 from pathlib import Path
 
@@ -76,7 +75,8 @@ class Bench:
         import ui.console as uc
         self.notes: list[str] = []
         uc.put("note", lambda m, *a, **k: self.notes.append(str(m)))
-        shutil.rmtree(f"saves/{save}", ignore_errors=True)
+        from storage import saves
+        saves.scratch(save)                                                 # (f743) only a tool's own save is cleared, and a failure says so
         self.session = CampaignSession.open(save)                           # (f457) the campaign's session, as main.py opens it
         self.store, self.world = self.session.store, self.session.world
         self.store.meta.seed = 3; self.store.meta.turn = 1; self.store.meta.minutes = 120; self.store.save_meta()
@@ -112,6 +112,10 @@ class Bench:
                 ws.dropped_steps = [(a.summary or a.kind).strip() for a in plan.dropped]
                 return plan.actions
             ws.interpret = read
+
+    def close(self) -> None:
+        """The bench's save let go: the next bench on the same name clears it, which a database left open would stop."""
+        self.session.close()
 
     def dress(self, sc: dict) -> None:
         from engine import mentor
@@ -270,6 +274,13 @@ def group_of(case: dict) -> str:
 
 def evaluate(cases: list[dict], live: bool = False, quiet: bool = False, save: str = SAVE, source=None) -> dict:
     bench = Bench(live=live, save=save, source=source)
+    try:
+        return _scored(bench, cases, live, quiet)
+    finally:
+        bench.close()                                                # (f743) its save let go, so the next bench may clear it
+
+
+def _scored(bench: Bench, cases: list[dict], live: bool, quiet: bool) -> dict:
     results, wrong, owed = [], [], []
     by_kind: dict[str, list[int]] = {}                               # right as the game is: owed is wrong, and an owed mark gone stale right
     taken_wrong = missed = 0

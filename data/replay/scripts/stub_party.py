@@ -14,7 +14,6 @@ CENSUS (census()) is what the recording must hold, or the maker refuses it."""
 from __future__ import annotations
 
 import random
-import shutil
 from pathlib import Path
 
 from llm.errors import Failure                  # (f527) a planted failure is the interface's own, no longer the old client's
@@ -56,7 +55,8 @@ def record(folder: Path, root: Path) -> Path:
     from ui import console
     import nightrun
 
-    shutil.rmtree(root / "saves" / SAVE, ignore_errors=True)
+    from storage import saves
+    saves.scratch(SAVE)                                           # (f743) a tool's own save, and a failure to clear it says so
     session = CampaignSession.open(SAVE)
     store = session.store
     store.meta.seed, store.meta.turn, store.meta.minutes = SEED, 1, 8 * 60 + 600 * 1440
@@ -185,7 +185,7 @@ def record(folder: Path, root: Path) -> Path:
         planted()
         held()
         _embed.reset()
-        shutil.rmtree(root / "saves" / SAVE, ignore_errors=True)
+        saves.drop(SAVE)
     return folder
 
 

@@ -30,7 +30,6 @@ import collections
 import json
 import os
 import random
-import shutil
 import subprocess
 import sys
 import threading
@@ -472,6 +471,9 @@ def batch(args) -> None:
     base = Path(args.out or "logs/nightrun")
     base.mkdir(parents=True, exist_ok=True)
     plan = [(classes[i % len(classes)], args.seed + i, points[i % len(points)], personas[i % len(personas)]) for i in range(args.runs)]
+    from storage import saves
+    for cls, seed, _start, _persona in plan:              # (f743) every run's save made before the first starts: a refused name stops no run midway
+        saves.scratch(f"{args.save or 'nightrun_' + stamp}_{cls}_{seed}", typed=bool(args.save))
     print(f"A night of {args.runs} runs, {args.hours:g} hours each ({args.runs * args.hours:g} in all): "
           + ", ".join(f"{c} seed {s} ({st}, {pe})" for c, s, st, pe in plan), flush=True)
     rows, stopped = [], False
@@ -568,7 +570,8 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=1, help="the campaign's seed and the bot's")
     ap.add_argument("--party", type=int, default=3, help="adventurers hired from the home hall before setting out (default 3, a full party; 0 for none)")
     ap.add_argument("--out", default="", help="where the logs go (default logs/nightrun/<when>)")
-    ap.add_argument("--save", default="", help="the save folder's name (default nightrun_<when>; never listed on the home page)")
+    ap.add_argument("--save", default="", help="the save folder's name (default nightrun_<when>; never listed on the home page): a scratch "
+                    "save, cleared at the start; a game, or a folder no tool made, is refused")
     ap.add_argument("--stub", action="store_true", help="play with the stand-in model (measures nothing real; for the test suite)")
     ap.add_argument("--record", action="store_true", help="(f442) keep a recording of the run in <out>/recording (engine/recording.py), for "
                     "tools/rerun.py and the real-card timing; the run is strict, so background people are waited for at each line")
@@ -595,9 +598,11 @@ def main() -> None:
         return
 
     stamp = datetime.now().strftime("%Y%m%d_%H%M")
+    save = args.save or f"nightrun_{stamp}"
+    from storage import saves
+    saves.scratch(save, typed=bool(args.save))           # (f743) before anything is made or opened: a game, or a folder no tool made, is refused
     out = Path(args.out or f"logs/nightrun/{stamp}")
     out.mkdir(parents=True, exist_ok=True)
-    save = args.save or f"nightrun_{stamp}"
 
     import config
     config.LOG_PATH = str(out / "llm_calls.jsonl")          # the run's own logs, kept whole: the game's trimming never touches them
@@ -633,7 +638,6 @@ def main() -> None:
     from engine import turnlog
 
     rng = random.Random(args.seed)
-    shutil.rmtree(f"saves/{save}", ignore_errors=True)
     session = CampaignSession.open(save)                                 # (f457) the campaign's session, as main.py opens it
     store, world = session.store, session.world
     store.meta.seed, store.meta.turn, store.meta.minutes = args.seed, 1, 8 * 60

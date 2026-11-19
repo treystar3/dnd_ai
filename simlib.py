@@ -792,12 +792,12 @@ def campaign(name: str, cls: str = "warrior", seed: int = 1, minutes: int = 600,
     """Open a campaign the way the tests did by hand in a hundred files: a fresh save folder (unless fresh=False, for a save copied
     into place), its seed, clock and turn, a level-1 character of one of the stub's classes, standing where the world starts or at
     `location`, with Maren kept away unless asked for. Returns the Game; `.scene` builds the WorldScene on first use."""
-    import shutil
     from engine.session import CampaignSession
     from npc.traits import load_traits
+    from storage import saves
     from storage.campaign import PlayerState
     if fresh:
-        shutil.rmtree(f"saves/{name}", ignore_errors=True)
+        saves.scratch(name)                                  # (f743) a test's own save: a game's name, or a folder held open, is refused
     session = CampaignSession.open(name)                     # (f453) born when the save opens, as in main.py
     store, world = session.store, session.world
     if not store.player_exists():
