@@ -571,6 +571,17 @@ class CampaignStore:
         with self.transaction():
             self._drop("talk")
 
+    # ---- (f759) who came looking and stands in the room until their hour (scenes/world.py visit): a kv row there only while someone does
+    def load_visitors(self) -> list:
+        return self._kv("visitors") or []
+
+    def save_visitors(self, rows: list) -> None:
+        with self.transaction():
+            if rows:
+                self._put("visitors", json.dumps(rows, ensure_ascii=False))
+            else:
+                self._drop("visitors")
+
     def load_question(self) -> dict | None:
         return self._kv("question")
 

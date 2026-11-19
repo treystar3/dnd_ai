@@ -107,7 +107,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.convo: list[tuple[str, str]] = []
         self.moves: list[str] = []    # (f724) the moves of this talk's last replies (engine/reply.py), no more than the table's run
         self.decision = None          # ...and what the engine decided for this line's reply (the turn's: a new line has none)
-        self._talk_saved = store.load_talk()  # (f485) a save opened mid-talk: put back once the one spoken with is here (restore_talk)
+        saved = store.load_talk()             # (f485) a save opened mid-talk: put back once the one spoken with is here (restore_talk)
+        self._talk_saved = {**saved, "at": self.player_of(self.acting).location} if saved else None   # (f759) where it was, not after a walk
+        self.visitors = [tuple(v) for v in store.load_visitors()]   # (f759) who came looking is still in the room after a close
         self.to_menu = False          # (f345) #menu: the run loop ends and main.py shows the home page
         self.last_crash = False       # (f449) the last turn rolled back on the game's own fault (logs/crash.log), not the model's
         self.broken: dict[str, int] = {}     # (f449) lines that failed that way, and how often: the second time, the player is told to leave it
@@ -582,8 +584,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                         and (on_stop or (n.id == contact or clock.in_hours(self.minutes, self.world.roles[n.role].hours)
                                          and not routines.away(self.world, seed, n, self.minutes, cast))       # (f352) (f680) a contact: not hours
                              and n.away_until <= self.minutes and court.visible(self, n))]                      # or routine, but away and court hold
-        if self.__dict__.get("_talk_saved") and self.present:
-            self.restore_talk()
         bound = self.escorted()                                             # (f392) the registry says who walks bound at the player's side
         for n in self.residents:                                            # a prisoner bound at the player's side is here whatever the hour or the door
             if n.id in bound and not n.gone and all(p.id != n.id for p in self.present):
@@ -614,6 +614,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 if not v.gone and v.away_until <= self.minutes and court.visible(self, v):
                     self.present.append(v)
                     self._routine_here.add(v.id)
+        if self.__dict__.get("_talk_saved"):
+            self.restore_talk()                       # (f759) once everyone here is: the routine's, a captive, who came looking
         if self._routine_here and self.__dict__.get("_routine_marked") != key:
             self.__dict__["_routine_marked"] = key
             pulselog.mark("routine", f"{len(self._routine_here)} here on their routine", self.minutes, place=self.player.location)   # (f355)
@@ -1347,6 +1349,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 if not op.did and not world and here != place0:           # (f644) it moved its character and said nothing else: the walk
                     op.did.append(failures.walked(self.world.places[here].name if here in self.world.places else here.replace("_", " ")))
                 self.save_talk()                               # (f485) the conversation, with the operation that moved it
+                self.save_visitors()                           # (f759) who came looking, with the operation that changed them
                 self.store.save_player(self.player)            # (f464) what the operation changed of the player is its to keep: a later
                 self.store.commit_operation(op, first_of_line=(index == 0))   # operation's rollback reloads the player from the save
             _op.end("committed")
@@ -1641,33 +1644,71 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def talk_record(self) -> dict:
         """(f485) The conversation as the save keeps it (kv talk): who is spoken with, how they are this talk, its lines, who spoke last.
-        Written with each operation's commit, so it rolls back with the operation and is there when the save is opened again."""
+        Written with each operation's commit, so it rolls back with the operation and is there when the save is opened again. (f759)
+        And the hire who spoke last, by id, while a line could still go on with them (hire_followup: their turn is this one or the last)."""
         from engine import presence
         lines = [list(x) for x in (self.convo or [])][-presence.lines_cap():]
-        return {"speaker": self.partner.id if self.partner else "", "stance": getattr(self, "stance", "") or "", "lines": lines,
-                "last_spoken": self.last_spoken or "", **({"moves": list(self.moves)} if self.moves else {})}     # (f724)
+        rec = {"speaker": self.partner.id if self.partner else "", "stance": getattr(self, "stance", "") or "", "lines": lines,
+               "last_spoken": self.last_spoken or "", **({"moves": list(self.moves)} if self.moves else {})}     # (f724)
+        last = self.__dict__.get("_hire_last")
+        if last and last[1] >= self.store.meta.turn - 1:
+            m = next((m for m in self.player_of(self.acting).party if m.get("permanent") and m.get("name") == last[0] and m.get("id")), None)
+            if m is not None:
+                rec["hire"] = {"id": str(m["id"]), "turn": int(last[1])}
+        return rec
 
     def save_talk(self) -> None:
         rec = self.talk_record()
-        if not rec["speaker"] and not rec["lines"] and not rec["last_spoken"]:
+        pending = self.__dict__.get("_talk_saved")
+        if pending:
+            if not rec["speaker"] and not rec["lines"]:    # (f759) a talk still to be put back stays in the save as it was,
+                kept = self.store.load_talk()              # but for the hire who spoke last since it was first tried
+                row = {k: v for k, v in (kept or {}).items() if k != "hire"} | ({"hire": rec["hire"]} if "hire" in rec else {})
+                if kept and "last_spoken" not in pending and row != kept:
+                    self.store.save_talk(row)
+                return
+            self.__dict__.pop("_talk_saved")               # ...until another is begun
+        if not rec["speaker"] and not rec["lines"] and not rec["last_spoken"] and "hire" not in rec:
             if self.store.load_talk() is not None:
                 self.store.clear_talk()
             return
         if self.store.load_talk() != rec:
             self.store.save_talk(rec)
 
+    def save_visitors(self) -> None:
+        """(f759) Who came looking (visit), until when and where, written with each operation's commit when it changed, so it rolls back
+        with the operation and they are still in the room when the save is opened again. refresh_present prunes the list and never writes."""
+        rows = [list(v) for v in getattr(self, "visitors", [])]
+        if self.store.load_visitors() != rows:
+            self.store.save_visitors(rows)
+
     def restore_talk(self) -> None:
-        """(f485) A save opened mid-talk: the conversation as it was, once the one spoken with is here."""
-        rec = self.__dict__.pop("_talk_saved", None)
+        """(f485) A save opened mid-talk: the conversation as it was, once the one spoken with is here. (f759) Who spoke last, and the
+        hire who did, are put back at the first try; the talk waits (and stays in the save, save_talk) until its speaker is here, their
+        record says they are gone, the character stands somewhere else, or a talk is begun with someone else."""
+        rec = self.__dict__.get("_talk_saved")
         if not rec:
+            self.__dict__.pop("_talk_saved", None)
             return
-        self.last_spoken = rec.get("last_spoken") or None
-        who = next((n for n in self.present if n.id == rec.get("speaker")), None)
-        if who is not None:
+        if "last_spoken" in rec:                           # the first try: what needs no one here
+            self.last_spoken = rec.get("last_spoken") or None
+            hire = rec.get("hire") or {}
+            m = next((m for m in self.player_of(self.acting).party if hire and m.get("permanent") and str(m.get("id")) == hire.get("id")), None)
+            if m is not None:
+                self._hire_last = (m.get("name"), int(hire.get("turn", 0)))
+            rec = self.__dict__["_talk_saved"] = {k: v for k, v in rec.items() if k not in ("last_spoken", "hire")}
+        speaker, here = rec.get("speaker") or "", self.player_of(self.acting).location
+        who = next((n for n in self.present if n.id == speaker), None)
+        begun = self.partner is not None or bool(self.convo)
+        if who is not None and not begun:
             self.partner, self.stance = who, rec.get("stance", "")
             self.convo = [tuple(x) for x in rec.get("lines") or []]
             from engine import reply as reply_rules
             self.moves = [str(m) for m in rec.get("moves") or []][-int(reply_rules.R["moves"]["running"]):]
+        elif (who is None and not begun and speaker and rec.get("at", here) == here and self.store.npc_exists(speaker)
+              and not self.store.load_npc(speaker).gone):
+            return                                         # not here yet: still waiting
+        self.__dict__.pop("_talk_saved", None)
 
     def fight_memory(self):
         """(f496) What the fight's scene keeps outside the save (what the player has read of this fight, who was tamed) and which fight it is

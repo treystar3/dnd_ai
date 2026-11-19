@@ -179,8 +179,9 @@ OPENING: dict[str, Opening] = {
     # ---- kept in the save
     **_opens(IN_SAVE, "recent_narration", "story: the last six passages, put back by the opening when a passage was shown"),
     **_opens(IN_SAVE, "convo partner stance moves last_spoken",
-             "talk: put back once the one spoken with is here (restore_talk); with someone on their routine, a captive or a visitor "
-             "it is lost today (RELOAD-4)"),
+             "talk: put back once everyone here is present and the one spoken with among them (restore_talk)"),
+    **_opens(IN_SAVE, "_hire_last", "talk: the hire who spoke last, by id, while a line could still go on with them (restore_talk)"),
+    **_opens(IN_SAVE, "visitors", "visitors: who came looking, until when and where, read as the scene is made"),
     **_opens(IN_SAVE, "combat", "the fight's row, resumed by the opening"),
     # ---- made again from the save
     **_opens(REMADE, "session store world catalog", "made with the scene, over the save"),
@@ -192,7 +193,8 @@ OPENING: dict[str, Opening] = {
     **_opens(REMADE, "weight_hint", "the opening: none on a reload"),
     **_opens(REMADE, "recovered_at_load _recovered_unreported", "the opening's recovery of what stood and was never shown (recover_unshown)"),
     **_opens(REMADE, "_people_missing", "the opening's entry, when the place's people could not be written"),
-    **_opens(REMADE, "_talk_saved", "the talk row, read as the scene is made"),
+    **_opens(REMADE, "_talk_saved", "the talk row, read as the scene is made, with the place it was opened at: it waits there, across lines, "
+                                    "for its speaker (restore_talk)"),
     **_opens(REMADE, "_truth", "the truth scene, built again from the state at its next read"),
     **_opens(REMADE, "_house_names", "the house voices' names, from the data at the first read"),
     # ---- forgotten: the line's own, set afresh before any later line reads it
@@ -221,8 +223,6 @@ OPENING: dict[str, Opening] = {
     # ---- owed: kept by the owner's default, lost at a close today
     **_opens(OWED, "dungeon_fight camp_fight orenna_fight assault",
              "RELOAD-3: what a fight is for; a fight resumed after a close ends with none of its consequences"),
-    **_opens(OWED, "visitors", "RELOAD-4: someone who came looking is gone from the room after a close"),
-    **_opens(OWED, "_hire_last", "RELOAD-4: the hire who spoke last; after a close a reply to them is read as to no one"),
     **_opens(OWED, "_worn _said_in_town _after_starts _after_opened _exemplars _framed_hires _partings_heard",
              "RELOAD-6: what the checks and prompts remember of the telling; after a close the worn words pass again"),
     **_opens(OWED, "_door_loc", "RELOAD-8: after a close the next line's door reads the open as an arrival"),
