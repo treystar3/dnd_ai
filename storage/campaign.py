@@ -632,12 +632,12 @@ class CampaignStore:
         """The record's revision: what an operation reads when it opens, and must still find when it commits."""
         return int(self.load_operations().get("revision") or 0)
 
-    def commit_operation(self, op, first_of_line: bool = False, keep: int | None = None) -> dict:
+    def commit_operation(self, op, *, keep: int | None = None) -> dict:
         """Inside the caller's open transaction: the operation's record appended with the revision bumped, the record trimmed to `keep`
-        (engine/operation.py RETENTION["operations"]), the meta saved when this is the line's first commit (f463: the input's count is
-        saved with the first operation that stands, not before), and the presentation entry of its held lines, cleared when they are shown
+        (engine/operation.py RETENTION["operations"]), and the presentation entry of its held lines, cleared when they are shown
         (mark_shown). Raises StaleOperation, and writes nothing, when the record's revision is not the one the operation saw when it
-        opened: another writer committed meanwhile."""
+        opened: another writer committed meanwhile.
+        (f762) The meta is not written here: the operation's save_player writes it just before, at every commit."""
         from engine import operation as _op
         if self._depth == 0:
             raise RuntimeError("commit_operation: no transaction is open; an operation commits inside its own")
@@ -652,8 +652,6 @@ class CampaignStore:
         if len(rec["ops"]) > keep:
             del rec["ops"][:len(rec["ops"]) - keep]
         self._put("operations", json.dumps(rec, ensure_ascii=False))
-        if first_of_line:
-            self.save_meta()
         pres = self._kv("presentation") or {}
         pres[op.id] = {"lines": list(op.lines), "steps": op.steps, "kind": op.kind, "calls": op.presentation(),   # (f467) the calls, to make again
                        "actor": op.actor}                                                                          # (f629) and whose page they are for

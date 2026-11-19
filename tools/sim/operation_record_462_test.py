@@ -30,7 +30,7 @@ with store.transaction():
     op = operation.begin("action:buy", store.meta.steps, 0, store.revision(), "I buy a knife")
     ledger.add("gained", what="knife", facts={"what": "a worn knife", "who": None}, say="GAINED: a worn knife.")
     op.lines.append("You buy the knife.")
-    entry = store.commit_operation(op, first_of_line=True)
+    entry = store.commit_operation(op)
 operation.end("committed")
 rec = store.load_operations()
 check("the record holds the commit, its rows stamped with the operation, its facts kept, its revision bumped",

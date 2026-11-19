@@ -1293,7 +1293,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         (A session that must replay exactly, streams.STRICT, takes in the residents made in the background at the input's edge before
         this, outside the transaction: apply_backfill in run().)"""
         meta = self.store.meta
-        meta.steps += 1                                             # (f753) saved with the first operation that stands, whichever it is
+        meta.steps += 1                                             # (f753) saved with the player at every commit: the first that stands saves it
         if story:
             meta.story_steps += 1
         self.input_count = (meta.steps, meta.story_steps)
@@ -1361,7 +1361,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.save_fight()                              # (f760) and the fight: memory and row never part at a commit
                 telling.save(self)                             # (f761) what the checks and prompts remember of the telling, likewise
                 self.store.save_player(self.player)            # (f464) what the operation changed of the player is its to keep: a later
-                self.store.commit_operation(op, first_of_line=(index == 0))   # operation's rollback reloads the player from the save
+                self.store.commit_operation(op)                # operation's rollback reloads the player from the save
             _op.end("committed")
             if self.crash_after_commit == kind:                   # (f467) the game dies between the commit and its telling: the next load tells it
                 self.crash_after_commit = ""
