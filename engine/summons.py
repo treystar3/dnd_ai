@@ -244,9 +244,16 @@ def join_bound(fight: C.Combat, character) -> None:
     fight.fighters += make(fight, p, move, until=0)
 
 
-def after_fight(character, fight: C.Combat) -> str:
-    """A Bound summon destroyed in the fight stays unmade until its spell is cast again. Returns a note, or ''."""
-    if fight.bound_fell and getattr(character, "bound_summon", ""):
+def after_fight(character, fight: C.Combat, me: C.Fighter) -> str:
+    """What the fight did to this character's bond, read from how it ended for its own fighter `me`: a Bound summon of the bond's spell
+    standing at the end walks on with them (made anew in the fight, the bond is mended; with no bond yet, it is bound); else one of
+    theirs destroyed in it stays unmade until its spell is cast again. Returns a note, or ''."""
+    bond = getattr(character, "bound_summon", "")
+    standing = bound_of(fight, me)
+    if standing is not None and bond in ("", standing.summon_of):          # (f749) a recast in a fight holds as one outside it does
+        character.bound_summon, character.bound_broken = standing.summon_of, False
+        return ""
+    if bond and any(is_summon(f) and f.summon_form == "bound" and f.summon_owner == me.id and not f.alive for f in fight.fighters):
         character.bound_broken = True
         return "Your Bound summon was unmade in the fight. Cast its spell again to make it anew."
     return ""

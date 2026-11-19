@@ -753,13 +753,15 @@ class FightService:
         return Aftermath(notes, seen, bool(ids), changed)
 
     def companions_after(self, fight: combat.Combat, fallen_ids: set) -> list:
-        """A companion who went down is out for a day, and may not survive. A Bound summon unmade in the fight stays unmade until
-        its spell is cast again. Returns the notes for the player."""
+        """A companion who went down is out for a day, and may not survive. What the fight did to each character's Bound summon is
+        written back from that character's own fighter (engine/summons.py after_fight). Returns the notes for the player."""
         c = self.player.character
         notes = []
-        note = summons.after_fight(c, fight)
-        if note:
-            notes.append(note)
+        for ch, me in self.cast(fight) if isinstance(fight, combat.Combat) else ():   # (f749) each bond from its own fighter; a stand-in has none
+            note = summons.after_fight(ch, fight, me)
+            if note:
+                notes.append(note)
+        if notes:
             self.store.save_player(self.player)
         rules = combat.RULES["creatures"]["companion_fall"]
         changed = False

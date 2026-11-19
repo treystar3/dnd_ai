@@ -976,8 +976,8 @@ class CombatScene:
     # ---------- endings ----------
 
     def companions_after_fight(self, fallen_ids: set[str]) -> None:
-        """A companion who went down is out for a day, and may not survive; a Bound summon unmade stays unmade (services/fight.py
-        companions_after). The notes shown here."""
+        """A companion who went down is out for a day, and may not survive; what the fight did to the Bound summon is written back
+        (services/fight.py companions_after). The notes shown here."""
         for note in self.service.companions_after(self.fight, fallen_ids):
             console.note(note)
 
