@@ -161,11 +161,12 @@ class Rewards:
 @dataclass
 class Aftermath:
     """(f508) What a fight left on the party's record, told by the service (end): the notes in order, who came through (member, health
-    fraction), whether any hire went down, whether the record changed."""
+    fraction), whether any hire went down, whether the record changed, and the ids of the hires it buried or killed."""
     notes: list
     seen: list
     any_down: bool
     changed: bool
+    died: list = field(default_factory=list)
 
 
 @dataclass
@@ -712,7 +713,7 @@ class FightService:
         party = self.player.party
         ids = {a.id for a in fallen}
         by_id = {a.id: a for a in fight.fighters}
-        notes, seen, changed = [], [], False
+        notes, seen, changed, died = [], [], False, []
         now = self.now()
         for m in list(party):
             if m.get("npc") or m.get("tutorial"):
@@ -730,6 +731,7 @@ class FightService:
                     self.party.bury(m)
                 else:
                     self.party.kill(m)                           # an old-style hireling who went down does not get back up
+                died.append(m["id"])
                 notes.append(f"{m['name']} has fallen.")
                 changed = True
             elif m.get("permanent") and fid in by_id:
@@ -750,7 +752,7 @@ class FightService:
         if changed or seen:
             self.store.save_player(self.player)
         notes += self.companions_after(fight, {a.id for a in fallen if a.id.startswith("ally_")})
-        return Aftermath(notes, seen, bool(ids), changed)
+        return Aftermath(notes, seen, bool(ids), changed, died)
 
     def companions_after(self, fight: combat.Combat, fallen_ids: set) -> list:
         """A companion who went down is out for a day, and may not survive. What the fight did to each character's Bound summon is

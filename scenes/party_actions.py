@@ -968,10 +968,10 @@ class PartyActions:
         how = (f" by {by}" if by and by != "you" else "") + (f" at {here}" if here else "")
         rules.mourn(self.player.party, dead, self.minutes, self.player.location, how)     # (f503) the rule in engine/party.py
 
-    def party_after_fight(self, fallen: list, fighters=(), won: bool = False, hard: bool = False, fight=None) -> None:
+    def party_after_fight(self, fallen: list, fighters=(), won: bool = False, hard: bool = False, fight=None) -> "Aftermath":
         """Who went down, who limps on, whose trust moved. (f508) The party's record is written by services/fight.py end alone (each
         hire's fate, their wounds and mana, the fights counted, the companions who fell, the bound summon); its notes are told here, and
-        the scene keeps what is its own: the habits due, the banter, what each pair saw of the other."""
+        the scene keeps what is its own: the habits due, the banter, what each pair saw of the other. Returns what end returned."""
         import types
         from scenes.combat_scene import service_of
         if fight is None:                                   # called without a fight (a test, an old caller): what the service reads of one
@@ -998,6 +998,7 @@ class PartyActions:
                     elif not won:
                         self.pair_event(a, b, "came off worse in a fight together.", "personal")
             self.store.save_player(self.player)             # what the pairs saw and the trust that moved: the scene's own writes
+        return after
 
     def tend_after_fight(self) -> bool:
         """(f396) After a fight: a hire who can heal and came through it on their feet sees to the player's wounds and the hurt hires'."""

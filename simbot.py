@@ -136,9 +136,9 @@ class Bot:
         self.store.save_player(PlayerState(character=char, location=start))
         self.ws = self.session.scene(load_traits(), self.store.load_player())
         _orig_after = self.ws.party_after_fight
-        def _count_fallen(fallen, *rest, _o=_orig_after, _bot=self):
+        def _count_fallen(fallen, *rest, _o=_orig_after, _bot=self, **kw):
             _bot.party_tally["fell"] += sum(1 for m in _bot.ws.player.party if f"ally_{m['id']}" in {a.id for a in fallen})
-            _o(fallen, *rest)
+            return _o(fallen, *rest, **kw)
         self.ws.party_after_fight = _count_fallen
         self.rarity_tally = collections.Counter()
         self.trials = []

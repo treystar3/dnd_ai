@@ -1009,8 +1009,8 @@ class CombatScene:
         ws.advance_quiet(ending.minutes)
         dead, fallen = ending.dead, ending.fallen
         events.fallen_allies(ws, set(ending.fallen_ids))
-        ws.party_after_fight(fallen, f.fighters, f.over == "victory", any(e.level >= ws.player.character.level for e in f.fighters if e.side == "enemy"),
-                             fight=f)                        # (f508) the service's end writes the party's record (hires, companions, the bound summon); the scene tells
+        after = ws.party_after_fight(fallen, f.fighters, f.over == "victory", any(e.level >= ws.player.character.level for e in f.fighters if e.side == "enemy"),
+                                     fight=f)                # (f508) the service's end writes the party's record (hires, companions, the bound summon); the scene tells
         if f.over == "victory" and not f.no_rewards:
             dead_ = [e for e in f.fighters if e.side == "enemy" and not e.alive]
             from engine.domain_events import LootedDead
@@ -1020,7 +1020,7 @@ class CombatScene:
             from engine.domain_events import Fled
             ws.notice(Fled(minute=ws.minutes, place=ws.player.location))
         if f.over == "victory":
-            self.victory()
+            self.victory(after.died)
             ws.dungeon_fight_over("victory")
             ws.road_fight_over("victory")
             ws.camp_fight_over("victory", dead, [e for e in f.fighters if e.side == "enemy" and e.alive and e.surrendered])
@@ -1085,7 +1085,8 @@ class CombatScene:
             if e.side == "enemy" and e.alive and e.surrendered and e.id not in before:
                 combat.tell(f, f"{combat.who(e)} goes down beaten but alive, throws down {combat.whose(e)} weapon and yields")
 
-    def victory(self) -> None:
+    def victory(self, died: tuple | list = ()) -> None:
+        """(f750) `died`: the ids of the hires this fight's end buried or killed (services/fight.py end)."""
         if self.fight.no_rewards:
             self.sync_player()
             return
@@ -1132,7 +1133,7 @@ class CombatScene:
         place, when = self.ws.place.name, self.ws.time_label()        # as they were at the win: what follows a fight may move the player
         if found:                                                      # (f502) the finds' names and their lines: an operation of their own,
             self.ws.mark_passage("naming", lambda: self.name_finds(to_name, found, copies, originals), None)   # after the win's commit, before the aftermath
-        self.ws.mark_passage("aftermath", lambda: self.aftermath_now(dead, kept, lying, skinnable, fallen, place, when, coins, copies),
+        self.ws.mark_passage("aftermath", lambda: self.aftermath_now(dead, kept, lying, skinnable, fallen, place, when, coins, copies, died),
                              lambda rng: failures.victory_stood({**facts, "found": ", ".join(self.final_name(i, copies) for i in found)}, rng))   # (f464)
         console.ledger(f"Victory. +{total_xp} XP" + (f", {money.fmt(coins)}" if coins else ""))
         if levels:
@@ -1219,12 +1220,14 @@ class CombatScene:
                 console.ledger(f"Found: {item.name} ({item.rarity}) - {items.summary(item)}")
 
     def aftermath_now(self, dead: list, kept: list, left: list, skinnable: int, fallen: str, place: str = "", when: str = "",
-                      coins: int = 0, copies: dict | None = None) -> None:
+                      coins: int = 0, copies: dict | None = None, died: tuple | list = ()) -> None:
         """(f464) The passage after a fight won, written from the facts the round committed, as an operation of its own: the win stands
         whatever becomes of its telling (victory_stood in its place). `place` and `when` are the win's, captured when it was marked.
-        (f502) `kept` and `left` are the finds, named here as the save holds them once the naming operation has run (final_name)."""
+        (f502) `kept` and `left` are the finds, named here as the save holds them once the naming operation has run (final_name).
+        (f750) `died`: the ids of the hires this fight buried or killed, named from their registry rows."""
         from scenes import world_prompts as wp
         copies = copies or {}
+        died_refs = {f"hire:{i}" for i in died}                  # (f750) this fight's own dead: a clock window named an earlier fight's
         noticed = [self.final_name(i, copies) for i in kept] + (["a few coins"] if coins else [])
         noticed = [f"{x} (now theirs: show them taking it up)" for x in noticed]      # (f384) taken, not left lying for a 'pick up' to miss
         lying = [self.final_name(i, copies) for i in left]
@@ -1238,7 +1241,7 @@ class CombatScene:
                f"one named, never to the player): {'; '.join(lost)}\n"
                if (lost := [f"{e.name} ({e.pronoun}, {entities.people_word(self.ws.world, e.people)}"
                             + (f"; killed by {by}" if (by := self.killer_of(e)) else "") + ")"
-                            for e in self.ws.store.find_entities(kind="hire", state="dead") if e.since >= self.ws.minutes - 30]) else "")
+                            for e in self.ws.store.find_entities(kind="hire", state="dead") if e.ref in died_refs]) else "")
             + (f"DOWN BUT ALIVE (the player's companions, on the ground and carried from here: they do not stand, walk or talk at length): "
                f"{', '.join(carried)}\n" if (carried := self.down_but_alive()) else "")
             + (f"ON THEIR FEET (the player's companions still standing, and how hurt: a fact for when they come in, not a pose each): "
