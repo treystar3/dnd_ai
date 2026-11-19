@@ -1,15 +1,18 @@
-"""The player's saves (f345): every game is its own folder under saves/, and saves/index.json remembers which folders are the
-player's games and when each was last played.
+"""The player's saves (f345): every game is its own folder under saves/, and the folder itself says it is the player's game, by a
+small file beside its database (MARK: when it was begun and last played) written when the game opens it as one. saves/index.json is
+a cache of the marks, when each game was played and which was played last, rebuilt from them when it is missing or cannot be read.
 
-Why an index and not every folder: the saves folder also holds what tools and tests make, so a folder is a game only once the game
-itself has opened it as one. Games from before this existed are adopted the first time the list is read: the old single save
-("main") and every backup New game used to set aside ("main_backup_<time>").
+Why a mark and not every folder: the saves folder also holds what tools and tests make, so a folder is a game only once the game
+itself has opened it as one. Why in the folder and not the index: a game moved back out of saves/_deleted/, or copied in from
+another install, is a game whatever the index holds. Games from before the marks are marked the first time the list is read: the
+ones an index of that time names, the old single save ("main") and every backup New game used to set aside ("main_backup_<time>").
 
 A game's folder name is made once, when it is started, and never changes; the character's own name is read from inside it. Deleting
 moves the folder to saves/_deleted/, so a mistake can be undone by moving it back."""
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import sqlite3
@@ -21,32 +24,88 @@ from storage.campaign import DB_NAME, SAVES_DIR
 INDEX = "index.json"
 DELETED = "_deleted"
 LEGACY = re.compile(r"^main(_backup_\d{8}_\d{6})?$")
+MARK = "game.json"
+MARKED = "marked"                                   # (f741) the older games are marked: from here the index is only a cache
 
 
 def _index_path(saves_dir: Path) -> Path:
     return Path(saves_dir) / INDEX
 
 
-def load_index(saves_dir: Path | None = None) -> dict:
-    saves_dir = Path(saves_dir or SAVES_DIR)
+def _read_index(saves_dir: Path) -> dict | None:
+    """The index as it is on disk, or None when it is missing or cannot be read."""
     try:
         data = json.loads(_index_path(saves_dir).read_text(encoding="utf-8"))
-        if isinstance(data, dict) and isinstance(data.get("saves"), dict):
-            return {"last": data.get("last", ""), "saves": data["saves"]}
     except (OSError, ValueError):
-        pass
-    return {"last": "", "saves": {}}
+        return None
+    return data if isinstance(data, dict) and isinstance(data.get("saves"), dict) else None
 
 
 def _write_index(index: dict, saves_dir: Path) -> None:
     Path(saves_dir).mkdir(parents=True, exist_ok=True)
-    tmp = _index_path(saves_dir).with_suffix(".tmp")
-    tmp.write_text(json.dumps(index, indent=1), encoding="utf-8")
+    tmp = Path(saves_dir) / f"{INDEX}.{os.getpid()}.tmp"         # (f741) a reader may write too: two processes never share one
+    tmp.write_text(json.dumps({"last": index["last"], "saves": index["saves"], MARKED: True}, indent=1), encoding="utf-8")
     tmp.replace(_index_path(saves_dir))
 
 
 def _now() -> str:
     return datetime.now().isoformat(timespec="seconds")
+
+
+def _db_time(folder: Path) -> str:
+    return datetime.fromtimestamp((folder / DB_NAME).stat().st_mtime).isoformat(timespec="seconds")
+
+
+def _mark(folder: Path) -> dict | None:
+    """What a game's folder says of itself (created, played), {} when its mark cannot be read; None when it is no game: no mark, or
+    no database."""
+    if not (folder / MARK).is_file() or not (folder / DB_NAME).exists():
+        return None
+    try:
+        data = json.loads((folder / MARK).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _write_mark(folder: Path, created: str, played: str) -> None:
+    (folder / MARK).write_text(json.dumps({"created": created, "played": played}), encoding="utf-8")
+
+
+def _games(saves_dir: Path) -> dict[str, dict]:
+    """Every game on disk, each with its mark: the direct children of saves/ that carry a mark and a database, never the deleted folder."""
+    root = Path(saves_dir)
+    if not root.is_dir():
+        return {}
+    found = {}
+    for folder in sorted(root.iterdir()):
+        mark = _mark(folder) if folder.is_dir() and folder.name != DELETED else None
+        if mark is not None:
+            found[folder.name] = mark
+    return found
+
+
+def load_index(saves_dir: Path | None = None) -> dict:
+    """When each game was played and which was played last: the index, kept to the games' own marks. One that is missing or cannot
+    be read is rebuilt from them, never read as empty; a game it does not name is added, a name that is no game is dropped. Not a
+    pure read: it marks the games from before the marks and rewrites index.json when it differs from them."""
+    saves_dir = Path(saves_dir or SAVES_DIR)
+    adopted = adopt_legacy(saves_dir)
+    data = _read_index(saves_dir)
+    cached = data["saves"] if data else {}
+    index = {"last": str(data.get("last") or "") if data else "", "saves": {}}
+    for name, mark in _games(saves_dir).items():
+        entry = cached.get(name) if isinstance(cached.get(name), dict) else {}
+        when = _db_time(Path(saves_dir) / name)
+        index["saves"][name] = {"created": entry.get("created") or mark.get("created") or when,
+                                "played": max(str(entry.get("played") or ""), str(mark.get("played") or "")) or when}
+    if index["last"] not in index["saves"]:
+        played = index["saves"]
+        index["last"] = "main" if "main" in adopted else max(played, key=lambda n: played[n]["played"], default="")
+    if (index["saves"] or data is not None) and (data is None or data.get(MARKED) is not True
+                                                 or data.get("last") != index["last"] or data["saves"] != index["saves"]):
+        _write_index(index, saves_dir)
+    return index
 
 
 def new_name(saves_dir: Path | None = None) -> str:
@@ -60,11 +119,14 @@ def new_name(saves_dir: Path | None = None) -> str:
 
 
 def touch(name: str, saves_dir: Path | None = None) -> None:
-    """This game is being played now: it is in the index, and it is the one Continue opens."""
+    """This game is being played now: its folder says it is the player's game, it is in the index, and it is the one Continue opens."""
     saves_dir = Path(saves_dir or SAVES_DIR)
+    folder, now = Path(saves_dir) / name, _now()
     index = load_index(saves_dir)
-    entry = index["saves"].setdefault(name, {"created": _now()})
-    entry["played"] = _now()
+    entry = index["saves"].setdefault(name, {"created": now})
+    entry["played"] = now
+    if folder.is_dir():
+        _write_mark(folder, entry["created"], now)
     index["last"] = name
     _write_index(index, saves_dir)
 
@@ -114,41 +176,35 @@ def summary(name: str, saves_dir: Path | None = None) -> dict | None:
 
 
 def adopt_legacy(saves_dir: Path | None = None) -> list[str]:
-    """Games from before the index: the old single save and the backups New game set aside. Added once; returns what was added."""
+    """Games from before the marks: the names an index written before them lists, the old single save and the backups New game set
+    aside. Each is marked once: the index written next says so, and from then on a folder is a game by its mark alone. Returns what
+    was marked."""
     saves_dir = Path(saves_dir or SAVES_DIR)
-    index = load_index(saves_dir)
+    data = _read_index(saves_dir)
+    if data and data.get(MARKED) is True:
+        return []
+    old = data["saves"] if data else {}
+    legacy = [f.name for f in sorted(Path(saves_dir).glob("*")) if f.is_dir() and LEGACY.match(f.name)] if Path(saves_dir).exists() else []
     added = []
-    for folder in sorted(Path(saves_dir).glob("*")) if Path(saves_dir).exists() else []:
-        if folder.is_dir() and LEGACY.match(folder.name) and folder.name not in index["saves"] and (folder / DB_NAME).exists():
-            mtime = datetime.fromtimestamp((folder / DB_NAME).stat().st_mtime).isoformat(timespec="seconds")
-            index["saves"][folder.name] = {"created": mtime, "played": mtime}
-            added.append(folder.name)
-    if added:
-        if not index["last"] and "main" in index["saves"]:
-            index["last"] = "main"
-        _write_index(index, saves_dir)
+    for name in dict.fromkeys([*old, *legacy]):
+        folder = Path(saves_dir) / name
+        if (folder / DB_NAME).exists() and not (folder / MARK).exists():
+            entry = old.get(name) if isinstance(old.get(name), dict) else {}
+            when = _db_time(folder)
+            _write_mark(folder, entry.get("created") or when, entry.get("played") or when)
+            added.append(name)
     return added
 
 
 def list_saves(saves_dir: Path | None = None) -> list[dict]:
-    """Every game, the one played last first; folders that have gone missing are dropped from the index."""
+    """Every game, the one played last first: every folder that says it is one, whatever the index held."""
     saves_dir = Path(saves_dir or SAVES_DIR)
-    adopt_legacy(saves_dir)
-    index = load_index(saves_dir)
-    found, gone = [], []
-    for name, entry in index["saves"].items():
+    found = []
+    for name, entry in load_index(saves_dir)["saves"].items():
         s = summary(name, saves_dir)
-        if s is None:
-            gone.append(name)
-            continue
-        s["played"] = entry.get("played") or s["played"]
-        found.append(s)
-    if gone:
-        for name in gone:
-            index["saves"].pop(name, None)
-        if index["last"] in gone:
-            index["last"] = ""
-        _write_index(index, saves_dir)
+        if s is not None:
+            s["played"] = entry.get("played") or s["played"]
+            found.append(s)
     found.sort(key=lambda s: s["played"], reverse=True)
     return found
 
