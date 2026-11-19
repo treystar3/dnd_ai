@@ -1043,8 +1043,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         kit_text = ""
         c = self.player.character
         if not c.kit_given:
-            kit_text = give_starting_kit(c, f"{c.custom_class} ({c.archetype.value}): {c.class_summary}",
-                                         c.uses_companions, self.world)
+            kit_text = give_starting_kit(c, f"{c.custom_class} ({c.archetype.value}): {c.class_summary}", c.uses_companions, self.world,
+                                         streams.fixed(self.store.meta.seed, "kit", self.acting))    # (f745) outside any input: the campaign's die
             self.store.save_player(self.player)
             console.debug(f"starting kit: {kit_text}")
         if not self.present and self.residents:

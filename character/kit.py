@@ -10,6 +10,7 @@ carries a weapon like anyone else.)
 The model only chooses from lists. The engine builds the items, the companion and the purse.
 """
 
+import random
 import re
 
 
@@ -92,8 +93,9 @@ def weapon_named(text: str, options: list) -> list:
     return [b for b in options if any(w == v + end for w in said for v in weapon_words(b) - GENERIC for end in AGENT_ENDINGS)]
 
 
-def give_starting_kit(c: Character, class_text: str, uses_companions: bool, world: World) -> str:
-    """Equip the character. Returns a plain description of what they received, for the narrator."""
+def give_starting_kit(c: Character, class_text: str, uses_companions: bool, world: World, die: random.Random) -> str:
+    """Equip the character. Returns a plain description of what they received, for the narrator. `die` is the caller's, for the
+    engine's pick of a companion when the model cannot choose one."""
     rules = items.RULES
     c.coins += money.to_smallest(**rules["starting_coins"])
     c.kit_given = True
@@ -106,13 +108,17 @@ def give_starting_kit(c: Character, class_text: str, uses_companions: bool, worl
     weapon = starting_weapon(c.start_weapon if _is_weapon(c.start_weapon) else choose_weapon(c, class_text))
     c.equipment[items.base_of(weapon).slot] = weapon
     if creatures:
-        kit = _ask_kit(c, class_text, uses_companions, [], creatures)
-        creature = world.bestiary[kit.companion]
-        name = kit.companion_name.strip()
+        try:
+            kit = _ask_kit(c, class_text, uses_companions, [], creatures)
+            creature, given = world.bestiary[kit.companion], kit.companion_name.strip()
+        except LLMError:                    # (f745) the engine's answer, so the first waking goes on: called by its kind, as a tamed one is
+            creature, given = die.choice(creatures), ""
+        name = given or creature.name
         c.companions.append(Companion(id=_slug(name) or creature.id, name=name, creature=creature.id,
                                       kind=creature.category, description=f"a {creature.name.lower()}",
                                       source="bonded before the player woke"))
-        return (f"A {creature.name.lower()} named {name} is with them, bonded to them - their companion - and a {weapon.name} lies "
+        named = f" named {given}" if given else ""
+        return (f"A {creature.name.lower()}{named} is with them, bonded to them - their companion - and a {weapon.name} lies "
                 f"beside them; they carry a small purse of {purse}.{bound}")
     return f"A {weapon.name} lies beside them, and they carry a small purse of {purse}.{bound}"
 

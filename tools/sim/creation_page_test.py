@@ -131,7 +131,7 @@ check("...its blow and hit chance against a wolf grow as that attribute is raise
       and body["foe"] == "a wolf", (body["blow"][10], body["blow"][30], body["hit"][10], body["hit"][30]))
 woke = made.model_copy(deep=True)
 woke.equipment = {}
-kit_text = kit.give_starting_kit(woke, "Ironbound Bulwark", False, world)
+kit_text = kit.give_starting_kit(woke, "Ironbound Bulwark", False, world, random.Random(1))
 held = woke.equipment.get("main_hand")
 check("...and it is the very weapon they wake with", held is not None and held.base == "warhammer" and held.name == body["weapon"]["name"], kit_text)
 f = combat.fighter_from_character(woke)
