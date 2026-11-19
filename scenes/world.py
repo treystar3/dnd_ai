@@ -930,13 +930,27 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 for p in sorted(s.get("paused", ()))]
         return out
 
+    def restore_map(self) -> None:
+        """(f733) The campaign's own places put back on the map from the save, at every open whatever its count of inputs (world:open
+        runs once for each count), wherever the scene is made over the save (engine/session.py scene): every character's homes and
+        the road's stop they stand at, then what was found (a place found from inside a house hangs from the house), then each
+        dungeon's entrance and its way (a dungeon may lie beneath a found place). It reads the save and writes nothing to it."""
+        records = self.store.characters()
+        for record in records:
+            self.ensure_homes(record)
+        for record in records:
+            self.ensure_road_place(record)
+        self.ensure_discoveries()
+        self.place_dungeons(self.store.load_dungeons())
+
     @actor.bound
     def open_world(self) -> None:
-        """(f466) What the world owes the save as the game opens (the discoveries, homes, the road's place, the dungeons and the field's
-        uses kept whole, and the pulse up to now), as one world operation, world:open, under the "#start" dice (f439). Its id is drawn
-        before it opens and repeats at the same count of inputs: an open stopped in the middle of it finds nothing committed and runs it
-        again; an open after a stood one finds its record and runs nothing, so the load-time pulse never runs twice (survey 12.1). Its
-        failure is the world's: rolled back alone, written to logs/crash.log, the player told nothing."""
+        """(f466) What the world owes the save as the game opens (the dungeons made or remade, the field's uses kept whole, and the
+        pulse up to now), as one world operation, world:open, under the "#start" dice (f439). Its id is drawn before it opens and
+        repeats at the same count of inputs: an open stopped in the middle of it finds nothing committed and runs it again; an open
+        after a stood one finds its record and runs nothing, so the load-time pulse never runs twice (survey 12.1). Its failure is the
+        world's: rolled back alone, written to logs/crash.log, the player told nothing. (f733) The map it opens on is the save's
+        already (restore_map), so a skipped opening loses nothing of it."""
         from engine import operation as _op
         streams.begin(self.store.meta.seed, self.store.meta.steps, "#start")    # (f439) what happens as the game opens is decided too
         op_id = streams.new_id(_op.ID_DIGITS, stream="ops")
@@ -944,9 +958,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             console.debug("the world's opening stands from the last open: not run again")
             return
         with self.input("#start", "opening"), self.operation("world:open", "#start", world=True, op_id=op_id):
-            self.ensure_discoveries()
-            self.ensure_homes()
-            self.ensure_road_place()
             self.ensure_dungeons()
             self.ensure_field_uses()
             self.run_pulse()

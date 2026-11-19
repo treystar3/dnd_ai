@@ -15,8 +15,8 @@ its answer would have been written down as that session's.
   nothing behind) and at close, never at adopt.
 - adopt(store, world) wraps a store and a world a scene was built on the old way (a test's fixture, a harness, the hundred and twenty
   constructor sites the ratchet of f450 counts down): every scene has a session either way, and nothing is reset under the test's feet.
-- scene(catalog, player) builds the WorldScene on the session's store and world; record() installs the recorder, which close() closes
-  first, so the last input's state is written before the store goes.
+- scene(catalog, player) builds the WorldScene on the session's store and world, (f733) with the save's own places put back on its map;
+  record() installs the recorder, which close() closes first, so the last input's state is written before the store goes.
 - (f454) The session owns the event bus (engine/domain_events.py Bus) and makes it current while it plays: the scene's reactions and the
   journal subscribe on it, the scene's deeds and the party's changes are published on it, and close() clears it and leaves an IdleBus
   behind, which delivers to nobody and counts. A closed campaign's listeners never hear the next campaign's events.
@@ -103,7 +103,9 @@ class CampaignSession:
 
     def scene(self, catalog, player):
         from scenes.world import WorldScene
-        return WorldScene(self.store, self.world, catalog, player, session=self)
+        made = WorldScene(self.store, self.world, catalog, player, session=self)
+        made.restore_map()                                 # (f733) the save's own places on its map, whoever builds the scene and runs it or not
+        return made
 
     def record(self, apart: bool = False, folder=None, rows: bool = False):
         """(f440) Record this session, so the real turn can replay it (tools/rerun.py); closed first when the session closes. (f476) `rows`:

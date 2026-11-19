@@ -41,8 +41,9 @@ pa.road = {"id": "a_stop", "place": {"id": "a_stop", "name": "a bend in the road
                                      "visible": ["A milestone."], "connects": {anchor: 60}}}
 a.store.save_player(pa)
 ws = a.scene
+untouched = next(p for p in written.places if p not in ws.world.added()["links"])   # (f733) the scene is made over the save's map: a place it joined nothing to
 check("a scene's world is a CampaignWorld over the authored object, not a copy of it", isinstance(ws.world, CampaignWorld)
-      and ws.world.authored is written and ws.world.places[anchor] is written.places[anchor])
+      and ws.world.authored is written and ws.world.places[untouched] is written.places[untouched])
 ws.ensure_discoveries(); ws.ensure_homes(); ws.ensure_road_place(); ws.ensure_dungeons()
 own = set(ws.world.places) - set(written.places)
 home = prop.home_id(town)

@@ -491,6 +491,11 @@ class CampaignStore:
         """(f638) A character's record as it is stored, or None: for a caller that asks only whether it changed."""
         return self._players.text(who)
 
+    def characters(self) -> list[PlayerState]:
+        """(f733) Every character's record the save holds, in the order they were first saved (the one player's today), as written: for
+        what is read of them all at once, as the map an open puts back. The acting character's own is load_player's."""
+        return [PlayerState.model_validate_json(t) for t in map(self._players.text, self._players.ids()) if t]
+
     def load_player(self) -> PlayerState:
         player = PlayerState.model_validate_json(self._players.text() or "")
         if self._memory_typed():                     # (f479) each hire's window, from their rows

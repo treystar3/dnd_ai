@@ -17,7 +17,7 @@ class DungeonActions:
     def ensure_dungeons(self) -> None:
         """Make a dungeon beneath each dangerous wild place, remake any that are due, and put entrances on the map."""
         known = {d["place"]: d for d in self.store.load_dungeons()}
-        changed = False
+        made = set()
         for place in [p for p in self.world.places.values() if p.danger and p.type != "dungeon"]:
             if place.danger[1] < D["min_zone_level"] or place.id in dungeons.FIXED_PLACES:
                 continue
@@ -36,12 +36,19 @@ class DungeonActions:
                     fresh["entrance"] = d["entrance"]
                     self.void_dungeon_contracts(d["id"], fresh)
                 known[place.id] = fresh
-                changed = True
-        if changed:
+                made.add(place.id)
+        if made:
             self.store.save_dungeons(list(known.values()))
-        for d in known.values():                                    # (f451) through the campaign's world
-            if d["entrance"] not in self.world.places:
-                self.world.add_place(dungeons.entrance_place(d, self.world))
+        self.place_dungeons(known.values(), made)
+
+    def place_dungeons(self, known, made=()) -> None:
+        """Each dungeon's entrance and its way on the map (f451: through the campaign's world). (f733) The read half restore_map puts
+        back at every open; a dungeon made or remade here (`made`, by the place above it) replaces the entrance the map held."""
+        for d in known:
+            if d["place"] not in self.world.places:
+                continue                        # (f733) its place gone from the data: left off, as a home or a find is, so the save opens
+            if d["entrance"] not in self.world.places or d["place"] in made:
+                self.world.add_place(dungeons.entrance_place(d, self.world), replace=True)
             self.world.link(d["place"], d["entrance"], 10)
 
     def dungeon_here(self) -> dict | None:

@@ -32,8 +32,8 @@ class RoadActions:
 
     # ---------- the stop on the road ----------
 
-    def ensure_road_place(self) -> None:
-        road = self.player.road
+    def ensure_road_place(self, record=None) -> None:
+        road = (self.player if record is None else record).road     # (f733) a saved character's record: restore_map reads every one
         if road and road["id"] not in self.world.places:
             self.world.add_place(Place(**road["place"]))             # (f451) through the campaign's world
 

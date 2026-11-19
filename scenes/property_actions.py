@@ -12,8 +12,8 @@ BUY_WORDS = re.compile(r"\b(house|home|cottage|property|deed|townhouse|villa|lon
 
 class PropertyActions:
 
-    def ensure_homes(self) -> None:
-        prop.register(self.world, self.player)
+    def ensure_homes(self, record=None) -> None:
+        prop.register(self.world, self.player if record is None else record)     # (f733) a saved character's record: restore_map reads every one
 
     def home_here(self) -> dict | None:
         return self.player.homes.get(prop.town_of(self.world, self.player.location))
