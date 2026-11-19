@@ -5,6 +5,8 @@ and narrates the round from the engine's log.
 """
 
 import re
+from dataclasses import dataclass
+from typing import Callable
 
 from core.models import Item
 import config
@@ -142,6 +144,43 @@ def read_effect(words: str) -> str:
     return combat_improv.effect_by_words(words)
 
 
+@dataclass(frozen=True)
+class Kind:
+    """(f765) One kind of fight that is for something beyond itself: what its end does (the outcome, the purpose's facts, the fallen,
+    who yielded), what a fight of it let go of at load hands on, and what is read of it while it is fought."""
+    over: Callable                                           # (ws, outcome, data, dead, yielded) when the fight ends
+    let_go: Callable | None = None                           # (ws, data) when a saved fight of the kind cannot be resumed
+    hold: bool = False                                       # a party told to hold back reaches the fight later
+    yields: bool = True                                      # a foe may be rolled to yield at a won fight's end
+    takes: str = ""                                          # the fact naming the foe the kind takes alive by its own way
+    away_told: Callable = lambda data: False                 # the kind tells a foe's getting away itself: no plain line for it
+
+
+# (f765) what a fight is for, by kind: one place, so a fight resumed after a close ends as it would have, and a new kind says it all here
+PURPOSES: dict[str, Kind] = {
+    "dungeon": Kind(over=lambda ws, outcome, data, dead, yielded: ws.dungeon_fight_over(outcome, data)),
+    "camp": Kind(over=lambda ws, outcome, data, dead, yielded: ws.camp_fight_over(outcome, data, dead, yielded),
+                 hold=True, yields=False, takes="leader"),
+    "orenna": Kind(over=lambda ws, outcome, data, dead, yielded: ws.orenna_fight_over(outcome, data),
+                   away_told=lambda data: data.get("foe") == "executioner"),
+    "gate": Kind(over=lambda ws, outcome, data, dead, yielded: events.assault_over(ws, outcome, data),
+                 let_go=lambda ws, data: events.assault_unfought(ws, data)),
+}
+
+
+def purpose(ws, kind: str, **data) -> combat.Purpose:
+    """(f765) What a fight begun now is for: a kind PURPOSES names, the facts its end reads, and the acting character's id."""
+    if kind not in PURPOSES:
+        raise KeyError(f"no kind of fight purpose called {kind!r} (scenes/combat_scene.py PURPOSES)")
+    return combat.Purpose(kind=kind, data=data, by=ws.acting)
+
+
+def kind_of(fight) -> Kind | None:
+    """(f765) The kind a fight is for, or None for a fight for nothing beyond itself (and for a kind this build does not know)."""
+    p = getattr(fight, "purpose", None)
+    return PURPOSES.get(p.kind) if p is not None else None
+
+
 class CombatScene:
     def __init__(self, world_scene, fight: combat.Combat, creature_name: str):
         self.ws = world_scene
@@ -224,13 +263,15 @@ class CombatScene:
     @classmethod
     def begin(cls, ws, creature, enemies: list[combat.Fighter], how: str, reserves: list[combat.Fighter] | None = None,
               wave: tuple[int, int, int] = (2, 2, 1), prepare=None, duel: str = "", big: str = "",
-              initiated: bool = False, told: str = "") -> "CombatScene":
+              initiated: bool = False, told: str = "", purpose: combat.Purpose | None = None) -> "CombatScene":
         # told (f404): the passage that already showed the foe arrive, a scripted entrance; the fight's opening is not narrated again
+        # purpose (f765): what the fight is for beyond itself (purpose()), on the fight from its first row
         c = ws.player.character
         if not duel:
             events.recruit_allies(ws, enemies)
         prep = [] if duel else ws.field_prep(enemies)
-        near, later = ([], []) if duel else cls.allies(ws, hold=bool(getattr(ws, "camp_fight", None)))
+        kind = PURPOSES.get(purpose.kind) if purpose is not None else None
+        near, later = ([], []) if duel else cls.allies(ws, hold=bool(kind and kind.hold))
         tether_notes = ws.tether_for(near)
         from engine import battlefield_builder
         ground = battlefield_builder.for_scene(ws, duel=bool(duel), big="" if duel else battlefield_builder.big_kind(enemies, reserves or [], big))
@@ -243,7 +284,7 @@ class CombatScene:
                 stealth = ws.resolve("stealth")                # (f503) rolled here, on the checks stream; the service reads the degree
         spec = FightSpec(creature=creature, enemies=enemies, allies=near, later=later, battlefield=ground, place=ws.place.name,
                          conditions=sorted(ws.conditions()), reserves=list(reserves or []), wave=wave, duel=bool(duel),
-                         prebuffs=prebuffs, stealth=stealth, initiated=initiated, prepare=prepare)
+                         prebuffs=prebuffs, stealth=stealth, initiated=initiated, prepare=prepare, purpose=purpose)
         fight, opening = service_of(ws).begin(spec)            # (f503) the fight built, its serial drawn once, the odds, the row saved
         prep += opening.notes
         scene = cls(ws, fight, creature.name)
@@ -1021,40 +1062,35 @@ class CombatScene:
             ws.notice(Fled(minute=ws.minutes, place=ws.player.location))
         if f.over == "victory":
             self.victory(after.died)
-            ws.dungeon_fight_over("victory")
             ws.road_fight_over("victory")
-            ws.camp_fight_over("victory", dead, [e for e in f.fighters if e.side == "enemy" and e.alive and e.surrendered])
-            ws.orenna_fight_over("victory")
+            self.purpose_over("victory", dead, [e for e in f.fighters if e.side == "enemy" and e.alive and e.surrendered])
             ws.mentor_fight_over("victory", f)
-            ws.assault_fight_over("victory")
         elif f.over == "fled":
             if not f.mentor:
                 console.note("You got away.")
-            ws.dungeon_fight_over("fled")
             ws.road_fight_over("fled")
-            ws.camp_fight_over("fled", dead)
-            ws.orenna_fight_over("fled")
+            self.purpose_over("fled", dead)
             ws.mentor_fight_over("fled", f)
-            ws.assault_fight_over("fled")
             ws.recently_fled = True
         elif self.phoenix():
-            ws.dungeon_fight_over("fled")
             ws.road_fight_over("fled")
-            ws.camp_fight_over("fled", dead)
-            ws.orenna_fight_over("fled")
-            ws.assault_fight_over("fled")
+            self.purpose_over("fled", dead)
             ws.recently_fled = True
         else:
-            ws.dungeon_fight_over("defeat")
             ws.road_fight_over("defeat")
-            ws.camp_fight_over("defeat", dead)
-            ws.orenna_fight_over("defeat")
-            ws.assault_fight_over("defeat")
+            self.purpose_over("defeat", dead)
             self.defeat()
         if f.over in ("victory", "fled") and ws.player.party:
             ws.tend_after_fight()                          # (f396) a priest on their feet sees to the wounds
         events.release_allies(ws)
         ws.store.save_player(ws.player)
+
+    def purpose_over(self, outcome: str, dead: list, yielded: list = ()) -> None:
+        """(f765) What the fight was for, done as its kind says for this outcome, read from the fight itself: the same whether it was
+        begun in this sitting or resumed from its row. Nothing for a fight for nothing beyond itself."""
+        kind = kind_of(self.fight)
+        if kind is not None:
+            kind.over(self.ws, outcome, dict(self.fight.purpose.data), dead, list(yielded))
 
     def phoenix(self) -> bool:
         """A Phoenix item turns one killing blow aside every few days: half health, nothing lost, the fight is over."""
@@ -1070,8 +1106,8 @@ class CombatScene:
         return True
 
     def yield_allowed(self) -> bool:
-        ws = self.ws
-        return not getattr(ws, "camp_fight", None) and ws.place.type not in ("dungeon", "road")
+        kind = kind_of(self.fight)
+        return (kind is None or kind.yields) and self.ws.place.type not in ("dungeon", "road")
 
     def settle_yield(self, standing: set) -> None:
         """(f663) Who yields at a won fight's end, settled before the round's passage is written and only among those standing when
@@ -1101,7 +1137,8 @@ class CombatScene:
             self.sync_player()
             return
         if not dead and not yielded:
-            if getattr(ws, "orenna_fight", None) != "executioner":
+            kind = kind_of(f)
+            if not (kind and kind.away_told(f.purpose.data)):
                 console.note("They got away. You've nothing to show for this one.")
             self.sync_player()
             return
@@ -1304,7 +1341,8 @@ class CombatScene:
         (f503) Chosen and named by the service (captives: no more than walk bound at once, lifecycles.yaml captive.most_escorted; an arc's
         camp leader is taken by the camp's own way, arc_actions.camp_fight_over); made here (make_prisoner takes the record). Returns the
         fighters taken."""
-        leader = (getattr(self.ws, "camp_fight", None) or {}).get("leader")
+        kind = kind_of(self.fight)
+        leader = self.fight.purpose.data.get(kind.takes) if kind and kind.takes else None
         here = self.ws.player_of(self.ws.acting).location          # (f746) where the fight is, by id: its people name the captives
         taken = self.service.captives(self.fight, yielded, here, leader)
         if not taken:

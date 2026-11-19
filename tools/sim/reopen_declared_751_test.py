@@ -58,14 +58,14 @@ own, outside, computed = simlib.scene_names()
 names = {n for n in set(own) | set(outside) if n != "<computed>"}
 private = {n for n in names if n.startswith("_")}
 view = lambda n: isinstance(inspect.getattr_static(WorldScene, n, None), property)
-check("the census finds the scene's rows and its private names", len(actor.ATTRS) >= 50 and len(private) >= 50, (len(actor.ATTRS), len(private)))
+check("the census finds the scene's rows and its private names", len(actor.ATTRS) >= 40 and len(private) >= 50, (len(actor.ATTRS), len(private)))
 undeclared = sorted((set(actor.ATTRS) | private) - set(O))
 check("every row of ATTRS and every private name set on a scene says what an opening does with it", not undeclared, undeclared)
 check("...and the table holds nothing else: no field of the turn, no property, no name nothing sets",
       O and not [n for n in O if n in actor.FIELDS or view(n) or n not in names], sorted(n for n in O if n in actor.FIELDS or view(n) or n not in names))
 check("each is kept in a row of the save, made again from the save, forgotten or owed, and says which row, from what or why",
       O and all(r.fate in FATES and r.why.strip() for r in O.values()), sorted(n for n, r in O.items() if r.fate not in FATES or not r.why.strip()))
-OWED_NOW = 15                                            # (the ratchet) a name kept by a feature that lands is taken off the count
+OWED_NOW = 11                                            # (the ratchet) a name kept by a feature that lands is taken off the count
 WHO = re.compile(r"(RELOAD|STALE_COPIES)-\d+$|reported$")
 check("what is owed names who keeps it (a feature of the plan, or reported to the owner) and what a player meets",
       all(WHO.match(r.why.split(":")[0]) and r.why.split(":", 1)[1:] for n, r in O.items() if n in fate("OWED")),

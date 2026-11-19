@@ -253,9 +253,7 @@ def _v15_effect_rows(store) -> None:
     """(f507) A fight's statuses, buffs, curses and ground effects became rows of the fight's own record (engine/effects.py), and a
     fight row of another shape is refused rather than read in part. A fight saved mid-round under the old shape is let go of, as v3
     did, and a notice left that the next load tells once (failures.yaml fight_let_go): the fight is lost, never the game."""
-    if store.load_combat() is not None:
-        store.save_combat(None)
-        store.leave_notice("fight_let_go")
+    store.let_fight_go()
 
 
 def _v16_world_count(store) -> None:

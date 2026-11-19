@@ -553,11 +553,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         for line in self.__dict__.pop("_time_notes", []):
             console.note(line)
 
-    def assault_fight_over(self, outcome: str) -> None:
-        """(f324) A fight at the gate of a town a cataclysm reached: the outcome decides whether the town holds."""
-        from engine import events
-        events.assault_over(self, outcome)
-
     def visit(self, npc, until: int) -> None:
         """(f317) Someone from elsewhere in town is here for a while - they came looking for the player."""
         self.visitors = [v for v in getattr(self, "visitors", []) if v[0] != npc.id] + [(npc.id, until, self.player.location)]
@@ -1161,7 +1156,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         for line in moved:
             console.note(line)                                              # (f736) after what was read last, which was of before
         self.show_exits()
+        from services.fight import FightService
         let_go = self.store.take_notice("fight_let_go")                     # (f507) a migration let a saved fight go: told once, here
+        lost = FightService.purpose_of(let_go)                             # (f765) ...with what it was for, when its row said it
         saved_fight = self.store.load_combat()
         if saved_fight:
             self.combat = CombatScene.resume(self, saved_fight)     # (f503) None for a row that cannot be read: the fight is let go, not the game
@@ -1169,8 +1166,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 console.note("You are still in the middle of a fight!")
                 self.combat.show()
             else:
+                lost = FightService.purpose_of(saved_fight)
                 self.store.save_combat(None)                        # (f507) the row goes with the fight, and the player hears of it once
                 let_go = True
+        self.let_go_purpose(lost)
         if let_go:
             console.narrate(failures.fight_let_go(self.rng))
         self.show_header()
@@ -1180,6 +1179,17 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 console.say(asked["question"], asked["speaker"])             # (f461) in the voice it was asked in
             else:
                 console.note(asked["question"])
+
+    def let_go_purpose(self, purpose) -> None:
+        """(f765) A saved fight let go of at load hands what it was for to its kind's let-go entry (scenes/combat_scene.py PURPOSES: the
+        gate's town is rolled for as if no fight had begun), as an operation of the opening's own; a kind with no entry, or a fight for
+        nothing beyond itself, hands on nothing."""
+        from scenes.combat_scene import PURPOSES
+        kind = PURPOSES.get(purpose.kind) if purpose is not None else None
+        if kind is None or kind.let_go is None:
+            return
+        with self.input("#start", "opening"), self.operation("world:open", "#start", world=True):
+            kind.let_go(self, dict(purpose.data))
 
     @contextmanager
     def input(self, text: str, kind: str):
@@ -3226,7 +3236,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self._narrate_now(event, player_text)
 
     weight_hint = None
-    camp_fight = None
     last_social = None
 
     def _narrate_now(self, event: str, player_text: str = "") -> None:

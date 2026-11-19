@@ -59,7 +59,7 @@ check("what a failed operation puts back is the table's: the turn's fields and t
       actor.HOMES == {**{k: actor.TURN for k in turn_back}, **{k: T[k].home for k in by("ROLLED")}}, sorted(set(actor.HOMES) ^ (turn_back | by("ROLLED"))))
 check("...and the scene's list is read from it", set(WorldScene.ROLLED) == set(actor.HOMES) and len(WorldScene.ROLLED) == len(actor.HOMES))
 check("...and so is what a failure leaves as it stands", actor.UNLISTED == {k: T[k].home for k in by("KEPT") | by("OUTSIDE")}, sorted(set(actor.UNLISTED) ^ (by("KEPT") | by("OUTSIDE"))))
-LEAKED = ("first_arrival", "revisit", "visitors", "assault", "learn_request", "repairs", "camp_events")
+LEAKED = ("first_arrival", "revisit", "visitors", "learn_request", "repairs", "camp_events")
 check("the names a failed operation left changed are put back", set(LEAKED) <= by("ROLLED"), sorted(set(LEAKED) - by("ROLLED")))
 
 
@@ -108,10 +108,16 @@ with ws.operation("world", "someone comes looking, and the operation fails", wor
     inside = list(ws.visitors)
     raise LLMError("the model failed")
 check("someone who came looking inside an operation that did not stand is no visitor", op.state == "rolled_back" and len(inside) == 1 and not getattr(ws, "visitors", []), getattr(ws, "visitors", None))
+from scenes.combat_scene import CombatScene, purpose      # (f765) what the fight at the gate is for is the fight's, and goes with it
+from engine import combat as _combat
+wolf = ws.world.bestiary["wolf"]
 with ws.operation("world", "the host reaches the gate, and the operation fails", world=True) as op:
-    ws.assault = {"thread": "t", "town": "parth", "stage": 0, "minute": ws.minutes}
+    ws.combat = CombatScene.begin(ws, wolf, [_combat.fighter_from_creature(wolf, 1, "normal", "e1", name="wolf 1")], "At the gate of Parth,",
+                                  purpose=purpose(ws, "gate", thread="t", town="parth", stage=0, minute=ws.minutes))
+    inside = ws.combat.fight.purpose
     raise LLMError("the model failed")
-check("a fight at the gate begun in an operation that did not stand decides no town", getattr(ws, "assault", None) is None, getattr(ws, "assault", None))
+check("a fight at the gate begun in an operation that did not stand is no fight, and decides no town",
+      op.state == "rolled_back" and inside is not None and ws.combat is None and store.load_combat() is None, (op.state, ws.combat, store.load_combat()))
 ws.learn_options, ws.learn_request = ["what was offered before"], "the sword"
 with ws.operation("action:train", "a lesson asked for, and the operation fails") as op:
     ws.learn_options, ws.learn_request = ["what is offered now"], "the bow"

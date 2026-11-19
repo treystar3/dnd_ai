@@ -741,16 +741,30 @@ class CampaignStore:
     def load_combat(self) -> str | None:
         return self._kv_text("combat")
 
-    def leave_notice(self, key: str) -> None:
-        """(f507) Something the next load tells the player once (a migration let a saved fight go): a row until it is taken."""
-        self._put(f"notice:{key}", "1")
+    def leave_notice(self, key: str, text: str = "1") -> None:
+        """(f507) Something the next load tells the player once (a migration let a saved fight go): a row until it is taken. (f765)
+        `text`: what the load reads of it besides."""
+        self._put(f"notice:{key}", text)
 
-    def take_notice(self, key: str) -> bool:
-        """(f507) Whether a notice of this kind was left; taking it drops it, so it is told once."""
-        if self._kv_text(f"notice:{key}") is None:
-            return False
-        self._drop(f"notice:{key}")
-        return True
+    def take_notice(self, key: str) -> str | None:
+        """(f507) The notice of this kind, when one was left (its text); taking it drops it, so it is told once."""
+        text = self._kv_text(f"notice:{key}")
+        if text is not None:
+            self._drop(f"notice:{key}")
+        return text
+
+    def let_fight_go(self) -> None:
+        """(f507) A migration lets the saved fight go: its row dropped and a notice left that the next load tells once. (f765) When the
+        row says what the fight was for, the notice keeps that alone, so the load hands it on (scenes/world.py let_go_purpose)."""
+        raw = self.load_combat()
+        if raw is None:
+            return
+        try:
+            said = (json.loads(raw).get("fight") or {}).get("purpose")
+        except (ValueError, AttributeError):
+            said = None
+        self.save_combat(None)
+        self.leave_notice("fight_let_go", json.dumps({"fight": {"purpose": said}}) if said else "1")
 
     def save_story(self, recent: list[str], shown: dict) -> None:
         self._put("story", json.dumps({"recent": recent, "shown": shown}))

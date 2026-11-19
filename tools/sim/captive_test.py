@@ -83,7 +83,7 @@ check("the captive is here, and in the cast every writer is told", any(n.id == c
 before = len(store.find_entities(kind="captive"))
 sc2, f2, foes2 = scene(["bandit"])
 foes2[0].hp = 0
-ws.camp_fight_over("victory", [foes2[0]])
+ws.camp_fight_over("victory", {}, [foes2[0]])
 check("a camp fight's end makes no prisoner of the dead", len(store.find_entities(kind="captive")) == before)
 
 # ---- escorted: they come along, and no more than three walk bound

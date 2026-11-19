@@ -379,12 +379,11 @@ class ArcActions:
 
     # ---------- after a fight with outlaws ----------
 
-    def camp_fight_over(self, outcome: str, dead: list, yielded: list = ()) -> None:
+    def camp_fight_over(self, outcome: str, info: dict, dead: list, yielded: list = ()) -> None:
         """(f392) A prisoner is only ever someone who lived and yielded: a night's run had an outlaw narrated among the dead and then
         throwing down his weapon. A won fight's chance of a survivor who yields is rolled before anyone is told who fell
-        (combat_scene.survivor_yields); an arc's camp leader is taken only if he yielded, and found on the body if he fell."""
-        info = getattr(self, "camp_fight", None)
-        self.camp_fight = None
+        (combat_scene.survivor_yields); an arc's camp leader is taken only if he yielded, and found on the body if he fell. (f765)
+        `info` is the fight's purpose: the arc, its step, the leader and whether they are people."""
         if outcome != "victory":
             return
         if info:

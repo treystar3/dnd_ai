@@ -134,15 +134,15 @@ check("...and the line was the answer, not a new line about nobody", not got["re
 
 # ---- an operation that fails at the fight's end takes the question back; the fight is played again and asks it
 fight(ws)
-real_over = ws.orenna_fight_over
-ws.orenna_fight_over = lambda outcome: (_ for _ in ()).throw(RuntimeError("a fault at the fight's end"))
+real_over = ws.road_fight_over
+ws.road_fight_over = lambda outcome: (_ for _ in ()).throw(RuntimeError("a fault at the fight's end"))
 ws.play("I strike at the wolf.")
 while ws.combat is not None and ws.combat.fight.get("e2").hp > 0 and not ws.line_failed:
     ws.play("I strike at the wolf.")
 check("(the round that won failed on the game's own fault)", bool(ws.line_failed), [o.kind for o in ws.line_ops])
 check("an operation that fails at the fight's end takes the question back: none stands, and the fight is still on",
       g.store.load_question() is None and ws.combat is not None, (g.store.load_question(), ws.combat))
-ws.orenna_fight_over = real_over
+ws.road_fight_over = real_over
 check("(played again, the fight is won)", win(ws))
 check("...and its question is asked", (g.store.load_question() or {}).get("kind") == "yield", g.store.load_question())
 

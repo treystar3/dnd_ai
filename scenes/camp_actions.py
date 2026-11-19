@@ -532,11 +532,11 @@ class CampActions:
         enemies, reserves = self.camp_enemies(camp, tpl, which, surprise, far)
         leader = enemies[0]
         leader_c = self.world.bestiary[camp["leader"]["creature"]]
-        self.camp_fight = {"arc": arc["id"], "node": n["id"], "leader": leader.name,
-                           "people": leader_c.category in A["people_categories"]}
         self.weight_hint = "rich"
-        from scenes.combat_scene import CombatScene
+        from scenes.combat_scene import CombatScene, purpose
         self.combat = CombatScene.begin(self, leader_c, enemies, "At the hideout," if n["kind"] == "lair" else "At the end of the trail,",
                                         reserves=reserves, wave=(A["camp_waves"]["every"], A["camp_waves"]["count"],
-                                              A["camp_waves"]["quiet_start"].get(surprise, 1)), big="camp", initiated=True)
+                                              A["camp_waves"]["quiet_start"].get(surprise, 1)), big="camp", initiated=True,
+                                        purpose=purpose(self, "camp", arc=arc["id"], node=n["id"], leader=leader.name,
+                                                        people=leader_c.category in A["people_categories"]))
         return True

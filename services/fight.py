@@ -79,6 +79,7 @@ class FightSpec:
     initiated: bool = False
     prepare: Callable | None = None                  # a scripted fight sets itself up after the estimate
     characters: list = field(default_factory=list)   # (f508) the characters who fight, one player fighter each; the service's own when empty
+    purpose: combat.Purpose | None = None            # (f765) what it is for beyond itself, in its row from the first save
 
 
 @dataclass
@@ -264,7 +265,7 @@ class FightService:
                     me.cooldowns[m.id] = 10 ** 6
             mes.append(me)
         fight = combat.Combat(fighters=mes + list(spec.allies) + list(spec.enemies), players=[m.id for m in mes], place=spec.place,
-                              conditions=list(spec.conditions))
+                              conditions=list(spec.conditions), purpose=spec.purpose)
         fight.record = True                 # keep a breakdown of every blow for the window's combat log
         combat.fight_key(fight)             # (f500) the fight's serial, drawn once here from the ids stream: never by an estimate's copy, never
         #                                     by a mark read before the first blow, so the dice after it are the same whatever is estimated
@@ -303,9 +304,22 @@ class FightService:
 
     @staticmethod
     def row(fight: combat.Combat, creature: str) -> str:
-        return json.dumps({"creature": creature, "fight": fight.model_dump(mode="json")})     # (f497) by the fields' types:
+        data = fight.model_dump(mode="json")                # (f497) by the fields' types:
         # a fighter's float left as the int it was given (bleed 0, armor 0) is written 0.0 live as it is resumed, so a round run again from
         # the resumed row saves the row its first attempt would have (the digests of a stood-down round and a straight one agree)
+        if data.get("purpose") is None:
+            data.pop("purpose", None)                       # (f765) a fight for nothing beyond itself writes the row it always wrote
+        return json.dumps({"creature": creature, "fight": data})
+
+    @staticmethod
+    def purpose_of(raw: str | None) -> combat.Purpose | None:
+        """(f765) What a saved fight was for, read from its row whatever the row's shape, so a fight let go of at load can hand it on;
+        None when the row says nothing of it or does not read (a damaged row loses it with the fight)."""
+        try:
+            given = (json.loads(raw or "").get("fight") or {}).get("purpose")
+            return combat.Purpose.model_validate(given) if given else None
+        except Exception:
+            return None
 
     @staticmethod
     def apart(row: str, stored: str | None, most: int = 8) -> list[str]:

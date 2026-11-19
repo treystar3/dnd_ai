@@ -131,11 +131,11 @@ class DungeonActions:
             for i in range(chamber["count"]):
                 name = chamber.get("name") or (d["boss_name"] if rank == "boss" else creature.name.lower() + (f" {i + 1}" if chamber["count"] > 1 else ""))
                 foes.append(combat.fighter_from_creature(creature, chamber["level"], rank, f"e{i + 1}", name, "near"))
-            self.dungeon_fight = (d["id"], f, c, d["made"])
-            from scenes.combat_scene import CombatScene
+            from scenes.combat_scene import CombatScene, purpose
             console.note(label + (". The master of this place waits here." if rank == "boss" else ""))
             self.combat = CombatScene.begin(self, creature, foes, f"In the {d['theme']}'s depths ({label.lower()}),",
-                                            big="lair" if rank == "boss" else "")
+                                            big="lair" if rank == "boss" else "",
+                                            purpose=purpose(self, "dungeon", dungeon=d["id"], floor=f, chamber=c, made=d["made"]))
             return
         console.note(label)
         if kind == "trap":
@@ -231,17 +231,14 @@ class DungeonActions:
                 self.store.save_world_state(state)
         self.store.save_player(self.player)
 
-    def dungeon_fight_over(self, outcome: str) -> None:
-        """Called when a fight that started in a dungeon ends."""
-        info = getattr(self, "dungeon_fight", None)
-        self.dungeon_fight = None
-        if not info:
-            return
-        d = next((x for x in self.store.load_dungeons() if x["id"] == info[0]), None)
-        if d is not None and d["made"] != info[3]:
+    def dungeon_fight_over(self, outcome: str, info: dict) -> None:
+        """Called when a fight that started in a dungeon ends. (f765) `info` is the fight's purpose: the dungeon, floor, chamber and
+        when the dungeon was made."""
+        d = next((x for x in self.store.load_dungeons() if x["id"] == info.get("dungeon")), None)
+        if d is not None and d["made"] != info.get("made"):
             return  # the dungeon was remade mid-fight
         if outcome == "victory" and d:
-            self.chamber_cleared(d, info[1], info[2])
+            self.chamber_cleared(d, info["floor"], info["chamber"])
         elif outcome == "fled":
             console.note("You fall back to the chamber you came from. The way ahead is still held.")
         elif outcome == "defeat":

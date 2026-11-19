@@ -44,7 +44,7 @@ REAL = cs.CombatScene
 class FakeScene:
     @classmethod
     def begin(cls, w, creature, enemies, how, **k):
-        FIGHTS.append((creature.id, enemies)); return None
+        FIGHTS.append((creature.id, enemies, k.get("purpose"))); return None     # (f765) what the fight is for rides on the fight
 cs.CombatScene = FakeScene
 
 # the gate: level 50 and the name said aloud
@@ -119,7 +119,9 @@ ws.orenna_executioner_test = None
 ANSWERS[:] = ["y"]
 ws.orenna_executioner(); answer_all()
 check("pressing him starts a fight", FIGHTS and FIGHTS[-1][0] == "bound_executioner")
-ws.orenna_fight_over("victory")
+check("...a fight for the quest, the Executioner's", FIGHTS[-1][2] is not None and FIGHTS[-1][2].kind == "orenna" and FIGHTS[-1][2].data == {"foe": "executioner"},
+      FIGHTS[-1][2])
+ws.orenna_fight_over("victory", FIGHTS[-1][2].data)
 check("he escapes in a flash, saying nothing", any("flash of pale light" in t for s, t in SAID if s == "narrate") and not any("Thank you" in t for s, t in SAID))
 check("he warns you first", any("I would rather you did not" in t for s, t in SAID))
 foe = FIGHTS[-1][1][0]
@@ -137,6 +139,8 @@ ws.orenna_tick()
 check("the register leads straight to the confrontation", orenna.stage(player) == "confront" and "orenna_registry" in c.knowledge)
 check("the finale is the High Keeper with the Executioner beside him", FIGHTS and FIGHTS[-1][0] == "high_keeper" and len(FIGHTS[-1][1]) == 2)
 keeper, bound = FIGHTS[-1][1]
+for_keeper = FIGHTS[-1][2]
+check("...a fight for the quest, the Keeper's", for_keeper is not None and for_keeper.kind == "orenna" and for_keeper.data == {"foe": "keeper"}, for_keeper)
 check("the keeper is a boss with the seal", keeper.boss and keeper.boss.get("seal"))
 check("the Executioner is bound", bound.bound)
 check("strong evidence leaves the keeper with no guards to summon", keeper.boss["guards"] >= 4, keeper.boss)
@@ -169,10 +173,9 @@ check("declining leaves him bound, and the narrator is told he fights on", any(f
 ws.combat = None
 
 # losing is not the end
-ws.orenna_fight_over("defeat")
+ws.orenna_fight_over("defeat", for_keeper.data)
 check("a lost fight keeps the quest at the confrontation", orenna.stage(player) == "confront" and not c.orenna_breath)
-ws.orenna_fight = "keeper"
-ws.orenna_fight_over("victory")
+ws.orenna_fight_over("victory", for_keeper.data)
 check("victory gives the blessing and ends the quest", orenna.stage(player) == "done" and c.orenna_breath and "orenna_last_breath" in c.knowledge)
 check("she speaks one thin line", any(s == "Orenna" and "I heard" in t for s, t in SAID))
 ws.orenna_tick(); ws.orenna_named("Orenna")

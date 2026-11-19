@@ -93,11 +93,12 @@ check("a cataclysm reaching the town the player is in queues an assault instead 
 store.save_world_state(st)
 narrated.clear()
 events.apply_player_events(ws)
-check("...the host comes at the gate: a moment, and a fight with the cataclysm's own creatures", ws.combat is not None and getattr(ws, "assault", None) and any("REACHES PARTH" in e and "at the gate" in e for e in narrated), (bool(ws.combat), narrated[-1:][0][:80] if narrated else ""))
+gate = ws.combat.fight.purpose if ws.combat is not None else None
+check("...the host comes at the gate: a moment, and a fight with the cataclysm's own creatures", ws.combat is not None and gate is not None and gate.kind == "gate" and any("REACHES PARTH" in e and "at the gate" in e for e in narrated), (bool(ws.combat), narrated[-1:][0][:80] if narrated else ""))
 check("...the town is not yet decided", "parth" not in store.load_world_state().get("fallen", {}))
 ws.combat = None
 rep_before = ws.player.reputation.get("parth", 0)
-events.assault_over(ws, "victory")
+events.assault_over(ws, "victory", gate.data)
 st = store.load_world_state()
 check("the gate held: the town holds without a roll, and the kingdom hears who stood there", "parth" not in st.get("fallen", {}) and any("stood at the gate" in n["text"] for n in st["news"]), [n["text"][:70] for n in st["news"]][-2:])
 check("...it is a deed the judge can read, the town thinks more of them, and remembers", any(d["kind"] == "defend" for d in st["deeds"]) and ws.player.reputation.get("parth", 0) > rep_before

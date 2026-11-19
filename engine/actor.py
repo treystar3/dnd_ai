@@ -134,10 +134,10 @@ ATTRS: dict[str, Attr] = {
     **_rows(ROLLED, VIEW, "weight_hint exits_due journey_event_factor haggle_factor craft_boost camp_bonus rank_options learn_options "
                           "learn_request pending_check pending_beats last_social last_plan sneaking queued_buffs fight_text "
                           "first_arrival revisit repairs"),
-    # ---- put back, the scene's: what was told of it, the conversation, the fight that is coming or was fled and how its beats
-    # landed on the party, what is in view, who came looking (they stand in the room, for everyone), the host at the gate
+    # ---- put back, the scene's: what was told of it, the conversation, the fight that was fled and how its beats landed on the
+    # party, what is in view, who came looking (they stand in the room, for everyone)
     **_rows(ROLLED, SCENE, "recent_narration convo last_spoken partner stance moves wildlife wildlife_at recently_fled "
-                           "orenna_fight camp_fight dungeon_fight surrender_took last_hits visitors assault camp_events"),
+                           "surrender_took last_hits visitors camp_events"),
     # ---- left as it stands
     **_rows(KEPT, VIEW, "broken", "the lines that failed on the game's own fault, and how often: a failure is what it counts"),
     **_rows(KEPT, VIEW, "last_text", "the line last typed: it was typed, whatever came of it"),
@@ -182,7 +182,7 @@ OPENING: dict[str, Opening] = {
              "talk: put back once everyone here is present and the one spoken with among them (restore_talk)"),
     **_opens(IN_SAVE, "_hire_last", "talk: the hire who spoke last, by id, while a line could still go on with them (restore_talk)"),
     **_opens(IN_SAVE, "visitors", "visitors: who came looking, until when and where, read as the scene is made"),
-    **_opens(IN_SAVE, "combat", "the fight's row, resumed by the opening"),
+    **_opens(IN_SAVE, "combat", "the fight's row, resumed by the opening, with what the fight is for"),
     **_opens(IN_SAVE, "_worn _said_in_town _after_starts _after_opened _exemplars _framed_hires _partings_heard",
              "telling: what the checks and prompts remember of the telling, put back as the scene is made (engine/telling.py)"),
     # ---- made again from the save
@@ -227,8 +227,6 @@ OPENING: dict[str, Opening] = {
     **_opens(FORGOTTEN, "to_menu", "the menu asked for ends the sitting", bool),
     **_opens(FORGOTTEN, "crash_after_commit", "the suite's injection, for one sitting", str),
     # ---- owed: kept by the owner's default, lost at a close today
-    **_opens(OWED, "dungeon_fight camp_fight orenna_fight assault",
-             "RELOAD-3: what a fight is for; a fight resumed after a close ends with none of its consequences"),
     **_opens(OWED, "craft_boost", "RELOAD-11: a crafting ability's boost is spent and the next piece of work after a close is not better"),
     **_opens(OWED, "_appeared", "RELOAD-12: the day's count of people ruled into a place starts again at a close"),
     **_opens(OWED, "_errand", "STALE_COPIES-3: a companion's errand asked for is forgotten at a close"),

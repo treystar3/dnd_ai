@@ -168,9 +168,10 @@ class Trial:
         self.store.meta.minutes = self.t
         self.store.save_meta()
         self.ws.run_pulse()                                         # the real pulse, drift and the player-facing notices
-        if self.ws.combat is not None and getattr(self.ws, "assault", None):      # the host at the gate of the town they stand in: the ledger holds it
-            a = self.ws.assault
-            events.assault_over(self.ws, "victory")
+        gate = self.ws.combat.fight.purpose if self.ws.combat is not None else None
+        if gate is not None and gate.kind == "gate":                # the host at the gate of the town they stand in: the ledger holds it
+            a = gate.data
+            events.assault_over(self.ws, "victory", a)
             self.ws.combat = None
             self.store.save_combat(None)
             self.lines.append(f"day {self.day}: the host reaches {self.world.places[a['town']].name} while the character stands there; the gate holds")

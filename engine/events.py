@@ -1354,11 +1354,7 @@ def apply_player_events(ws) -> None:
         store.save_world_state(state)
         for a in pending:
             if not _begin_assault(ws, a):
-                st = store.load_world_state()
-                th = next((x for x in st.get("threads", []) if x["id"] == a["thread"]), None)
-                if th:
-                    town_outcome(store, ws.world, ws.catalog, st, th, a["town"], a["stage"], a["minute"], random.Random(f"{store.meta.seed}:fall:{a['town']}:{a['minute']}"))
-                    store.save_world_state(st)
+                assault_unfought(ws, a)
         state = store.load_world_state()
     if not state.get("player_events"):
         return
@@ -1392,6 +1388,17 @@ def apply_player_events(ws) -> None:
         store.save_player(ws.player)
 
 
+def assault_unfought(ws, a: dict) -> None:
+    """(f324) The host at a town's gate with no fight to decide it: the town's roll runs, the player counted where they stand. (f765)
+    Also a gate fight let go of at load."""
+    store = ws.store
+    st = store.load_world_state()
+    th = next((x for x in st.get("threads", []) if x["id"] == a["thread"]), None)
+    if th:
+        town_outcome(store, ws.world, ws.catalog, st, th, a["town"], a["stage"], a["minute"], random.Random(f"{store.meta.seed}:fall:{a['town']}:{a['minute']}"))
+        store.save_world_state(st)
+
+
 def _begin_assault(ws, a: dict) -> bool:
     """(f324) The host reaches the town the player stands in: the moment is shown, and the thread's own creatures come at the gate. The
     fight's end decides the town (assault_over). False when the player is elsewhere now or there is nothing to fight."""
@@ -1412,19 +1419,16 @@ def _begin_assault(ws, a: dict) -> bool:
     ws.narrate(f"{th['title'].upper()} REACHES {name.upper()}, NOW, WITH THE PLAYER IN IT. {stage.get('signs', '')} {stage['description']} "
                f"Show the host coming at the town - {creature.name.lower()}s at the gate - and the people's fear; the player stands between. "
                "Do not say how it goes.")
-    ws.assault = {"thread": th["id"], "town": a["town"], "stage": a["stage"], "minute": a["minute"]}
-    from scenes.combat_scene import CombatScene
-    ws.combat = CombatScene.begin(ws, creature, fighters, f"At the gate of {name},", big="wild")
+    from scenes.combat_scene import CombatScene, purpose
+    ws.combat = CombatScene.begin(ws, creature, fighters, f"At the gate of {name},", big="wild",
+                                  purpose=purpose(ws, "gate", thread=th["id"], town=a["town"], stage=a["stage"], minute=a["minute"]))
     console.debug(f"assault: {th['title']} at {a['town']} - {len(fighters)} x {creature.id}")
     return True
 
 
-def assault_over(ws, outcome: str) -> None:
-    """(f324) The fight at the gate is over: a victory holds the town without a roll; anything else lets the roll run, the player counted."""
-    a = getattr(ws, "assault", None)
-    if not a:
-        return
-    ws.assault = None
+def assault_over(ws, outcome: str, a: dict) -> None:
+    """(f324) The fight at the gate is over: a victory holds the town without a roll; anything else lets the roll run, the player counted.
+    (f765) `a` is the fight's purpose: the thread, the town, the stage and the minute the host came."""
     store = ws.store
     state = store.load_world_state()
     th = next((x for x in state.get("threads", []) if x["id"] == a["thread"]), None)

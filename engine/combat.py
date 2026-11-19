@@ -365,6 +365,15 @@ for _name, _part in FLAT.items():                          # (f508) the flat nam
 SHAPE = 1       # (f507) the saved fight's shape: a row of another is let go of with a line, never read in part (services/fight.py resume)
 
 
+class Purpose(BaseModel):
+    """(f765) What a fight is for beyond itself, kept on the fight so a resumed fight ends with it: its kind (scenes/combat_scene.py
+    PURPOSES says what each does at the end), the facts its end reads, and the id of the character it is for."""
+    model_config = ConfigDict(extra="forbid")
+    kind: str
+    data: dict = {}
+    by: str = ""
+
+
 class Combat(BaseModel):
     model_config = ConfigDict(extra="forbid")
     version: int = SHAPE
@@ -420,6 +429,7 @@ class Combat(BaseModel):
     ground_told: dict = {}         # (f571) each zone as last told to the narrator and who stood there then (battlefield.note_ground_told)
     felled_by: dict[str, str] = {}  # (f412) who struck each fallen fighter down, as the story names them: a night's narration gave a
                                     # pirate's killing blow on a companion to the player's own blade
+    purpose: Purpose | None = None  # (f765) a chamber, a camp, the Keeper, a town's gate: none for a fight for nothing beyond itself
     ONE_OF_THE_FIGHT: ClassVar[tuple[str, ...]] = ("mentor_ally",)             # (f643) held by name while also in `fighters`
     NOT_YET_IN_IT: ClassVar[tuple[str, ...]] = ("reserves", "ally_reserves")   # (f643) they leave their list as they enter
 
