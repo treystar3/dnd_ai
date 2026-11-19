@@ -651,18 +651,10 @@ class FightService:
     # ---------- the character and the fighter
 
     def refresh(self, fight: combat.Combat) -> str:
-        """Attribute points spent in the middle of a fight: bring the fighter's maximums, attributes and defences in line with the character,
-        and add what each maximum gained to the current value (the same rule as outside a fight), so the bars and spell costs agree.
-        The one Character -> Fighter path, for every player fighter (f508). Returns sync's note."""
+        """The character changed in the middle of a fight (an attribute point spent): each player fighter rebuilt from its character
+        by the one Character -> Fighter step (combat.rebuild, f508), which keeps what the fight itself did. Returns sync's note."""
         for c, p in self.cast(fight):
-            fresh = combat.fighter_from_character(c, p.id)
-            for cur, top in (("hp", "max_hp"), ("stamina", "max_stamina"), ("mana", "max_mana")):
-                gained = getattr(fresh, top) - getattr(p, top)
-                setattr(p, top, getattr(fresh, top))
-                if gained > 0:
-                    setattr(p, cur, min(getattr(p, top), getattr(p, cur) + gained))
-            p.attrs = fresh.attrs
-            p.ward, p.armor = fresh.ward, fresh.armor
+            combat.rebuild(p, c)
         return self.sync(fight)
 
     def sync(self, fight: combat.Combat) -> str:

@@ -231,6 +231,26 @@ class Summon(Part):
 PARTS: dict[str, type] = {"identity": Identity, "stats": Stats, "resources": Resources, "position": Position, "carried": Carried,
                           "kit": Kit, "turn": Turn, "behaviour": Behaviour, "summon": Summon}
 FLAT: dict[str, str] = {name: part for part, cls in PARTS.items() for name in cls.model_fields}   # every flat name -> the part that holds it
+# (f752) Whose each field is, by field: the character gives it (rebuild takes it again) or the fight owns it (rebuild keeps it)
+GIVEN: frozenset[str] = frozenset("""
+    name level
+    attrs weapon_name weapon_damage weapon_attrs reach damage_type armor ward evasion_penalty armor_pierce crit_resist offhand_spell
+    adaptive weary armor_weight wears_metal
+    max_hp max_stamina max_mana
+    hold pace
+    moves bonuses legendary slays wards mech_names conditional""".split())
+FIGHT_OWNS: frozenset[str] = frozenset("""
+    id side flaw flaw_used size category creature spawn rank family story_id ally_role can_heal always_miss
+    element spell_share
+    hp stamina mana shield
+    zone_id row position_tags engaged_with covering starts_far fled
+    effects cooldowns
+    tether
+    defending move_round kill_round attacked_since_turn hit_element spell_mult spell_parts spell_kind counters relic_uses recent_casts
+    last_mobility shadow last_hurt_by charging casting winding counter_move sundered corroded attuned hardening_stacks windwalker_ready
+    deathward_used breath second_wind_used first_blood_used relentless aegis_round archmage_used spells_cast
+    temperament behaviors boss yields_at yield_text surrendered talked order order_target
+    summon_form summon_owner summon_of summon_until summon_tier summon_cast bound""".split())
 
 
 def fold_flat(data: dict) -> dict:
@@ -727,6 +747,44 @@ def fighter_from_character(c: Character, fid: str = "player") -> Fighter:
         pace=__import__("engine.battlefield", fromlist=["pace_of"]).pace_of(armor_weight=heaviest),
         armor_weight=raw_heaviest, wears_metal=wears_metal,
     )
+
+
+def wear_armor(f: Fighter, step: float) -> None:
+    """(f752) What a fight takes from the armour the character gives: the armour cut by `step` percent, and the step kept after the
+    others in the fighter's counters (the caller's cap bounds them), so a rebuild wears a fresh armour by the same steps to the same
+    number, to the last bit."""
+    f.counters["armor_steps"] = [*f.counters.get("armor_steps", []), step]
+    f.armor *= 1 - step / 100
+
+
+def rebuild(f: Fighter, c: Character) -> None:
+    """(f752) The one Character -> Fighter step for a fighter already in a fight: every field the character gives (GIVEN) is taken
+    again from a fighter built fresh, every field the fight owns (FIGHT_OWNS) is kept. A maximum's gain is added to the current value
+    and a current is held under a maximum that fell; the fresh armour is worn by the steps the fight took (wear_armor); a pace the fight
+    quickened stays fast until the quickening ends and then falls back to the fresh pace."""
+    fresh = fighter_from_character(c, f.id)
+    for cur, top in (("hp", "max_hp"), ("stamina", "max_stamina"), ("mana", "max_mana")):
+        gained = getattr(fresh, top) - getattr(f, top)
+        setattr(f, top, getattr(fresh, top))
+        if gained > 0:
+            setattr(f, cur, min(getattr(f, top), getattr(f, cur) + gained))
+        elif gained < 0:
+            setattr(f, cur, min(getattr(f, top), getattr(f, cur)))
+    for name in sorted(GIVEN - {"max_hp", "max_stamina", "max_mana", "armor", "pace"}):
+        setattr(f, name, getattr(fresh, name))
+    steps = f.counters.get("armor_steps", [])
+    older = sum(steps) < f.counters.get("corroded", 0)        # (f752) worn before steps were kept (a fight saved earlier): left as it is
+    if not older:
+        armor = fresh.armor
+        for step in steps:
+            armor *= 1 - step / 100
+        f.armor = armor
+    if f.counters.get("quick_until") is None:
+        f.pace = fresh.pace
+    elif fresh.pace == "fast":                                # (f752) quickened: fast until it ends (on_turn_start), then pace_was
+        f.counters.pop("pace_was", None)
+    else:
+        f.counters["pace_was"] = ["slow", "normal", "fast"].index(fresh.pace)
 
 
 def creature_attrs(profile: dict[str, int], level: int) -> dict[str, int]:

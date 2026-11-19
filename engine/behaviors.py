@@ -245,7 +245,7 @@ def after_hit(combat, e, target, landed: bool, rng: random.Random) -> None:
     if c and target.armor > 0 and target.counters.get("corroded", 0) < CAP_CORRODE:
         step = min(c, CAP_CORRODE - target.counters.get("corroded", 0))
         target.counters["corroded"] = target.counters.get("corroded", 0) + step
-        target.armor *= 1 - step / 100
+        C.wear_armor(target, step)
         C.tell(combat, f"{C.whose(e)} touch eats at {C.whose(target)} armor")
     d = beh(e, "drain")
     if d and target.max_stamina:
