@@ -261,8 +261,9 @@ for d in ("engine", "scenes", "npc", "services", "storage", "world", "llm", "ui"
             if isinstance(node, ast.Attribute) and node.attr == "steps" and (
                     (isinstance(node.value, ast.Name) and node.value.id == "meta") or (isinstance(node.value, ast.Attribute) and node.value.attr == "meta")):
                 reads.setdefault(p.as_posix(), []).append(node.lineno)
-check("the campaign's count of every input is read where it was and nowhere new: the scene's four (the count, a command's dice, the opening's, "
-      "an operation's input) and the recorder's four", {f: len(v) for f, v in reads.items()} == {"scenes/world.py": 4, "engine/recording.py": 4}, reads)
+check("the campaign's count of every input is read where it was and nowhere new: the scene's six (the count, a command's dice, the opening's, "
+      "an operation's input, and the count an input was given, noted and kept across a failed operation) and the recorder's four",
+      {f: len(v) for f, v in reads.items()} == {"scenes/world.py": 6, "engine/recording.py": 4}, reads)
 found = {}
 for d in ("engine", "scenes", "npc", "services", "storage", "world", "llm", "ui"):
     for p in sorted(Path(d).rglob("*.py")):

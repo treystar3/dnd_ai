@@ -128,6 +128,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.own_steps = False        # (f715) a passage asked for now is the line's own, not the world's
         self.silent = False           # (f721) the line showed the player nothing: its close says so
         self.stood = None             # (f721) how the input stood, once settled: True, "part" or False
+        self.input_count = None       # (f753) the count new_input gave the input open now: a failed operation does not take it back
         self.crash_after_commit = ""  # (f467) the suite's injection (simlib.Game.crash_after_commit): the game stops right after this kind's commit
         self.last_budget: dict = {}   # (f468) the last input's budget, closed: what it estimated, deferred, dropped, stood in for (the turn log's)
         self.recovered_at_load = 0    # (f471) outcomes told at this load (recover_unshown): the first row after it says so, the night tool too
@@ -1155,7 +1156,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         for its life (begin_line), and no question is read inside it (f461). A line and a command are typed, so each is counted and
         its dice and its budget begin (new_input, f439, f468), and (f464, f498) a telling asked for inside an operation is a passage
         operation after it; the opening is not typed: its dice are its caller's ("#start"), and it has no count and no budget.
-        Closed whatever happens: nothing collecting, the fence down, a typed input's budget closed with the stand-ins it showed.
+        Closed whatever happens: nothing collecting, the fence down, a typed input's count given back when nothing of it stood, and
+        its budget closed with the stand-ins it showed.
         Then, for a typed input that ran to its end, its one closing line (closing_line), so whoever played it reads it."""
         from contextlib import nullcontext
         typed, ended = kind != "opening", False
@@ -1171,6 +1173,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.collecting = False
             self.store.arm(False)
             if typed:
+                if not self.line_ops:
+                    self.store.reload_meta()            # (f753) nothing of it stood: its count is given back, so typed again it meets the same dice
+                self.input_count = None
                 from engine import budget
                 self.last_budget = budget.close(stand_ins=[o.kind for o in self.line_untold])
         if typed and ended:
@@ -1279,9 +1284,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         (A session that must replay exactly, streams.STRICT, takes in the residents made in the background at the input's edge before
         this, outside the transaction: apply_backfill in run().)"""
         meta = self.store.meta
-        meta.steps += 1                                             # (f463) saved by the first operation that stands (commit_operation first_of_line)
+        meta.steps += 1                                             # (f753) saved with the first operation that stands, whichever it is
         if story:
             meta.story_steps += 1
+        self.input_count = (meta.steps, meta.story_steps)
         streams.begin(meta.seed, meta.story_steps if story else meta.steps, text)
         from engine import budget
         budget.open()                                               # (f468) the input's minute of model time begins; closed when the line is done
@@ -1683,6 +1689,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.passages = [p for p in self.passages if p[4] != op.id]      # (f464) the passages it queued go with it
         self.session.rollback(self, op.id if op is not None else "")
         self.store.reload_meta()                           # the clock the operation advanced goes back with it
+        if self.input_count is not None:                   # (f753) the clock goes back but the open input's count stays: the line may go on, and its dice were drawn at that count
+            self.store.meta.steps, self.store.meta.story_steps = self.input_count
         self.player = self.store.load_player()
         pools.fill_missing(self.player.character)
         saved_fight = self.store.load_combat()
@@ -1768,8 +1776,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.last_failure = f"{type(e).__name__}: {e}"[:200]
             self.last_crash = True
             plan = False
-        if not plan and not self.line_ops:
-            self.store.reload_meta()                           # nothing of the line committed: the input's count is given back (f463)
         return plan
 
     def line_record(self) -> list:

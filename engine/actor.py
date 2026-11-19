@@ -98,6 +98,7 @@ FIELDS: dict[str, Field] = {
     "silent": _f(LINE, ROLLED, fresh=bool),                # the tail found it showed the player nothing (f721): the close says so
     "stood": _f(LINE, fresh=type(None)),                   # how the input stood, once settled (f721): True, "part" or False
     "decision": _f(LINE, ROLLED, fresh=type(None)),        # what the engine decided for the line's reply (f724)
+    "input_count": _f(LINE, fresh=type(None)),             # the count its input was given, kept across a failed operation (f753)
     # ---- the step being done
     "step": _f(ROLLED, default=None),                      # the plan's step, while one is
     "plan_now": _f(ROLLED, default=()),                    # ...and the plan it is a step of (f645)
