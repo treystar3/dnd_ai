@@ -829,16 +829,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.weight_hint = "major" if p.type == "city" else "rich"
         elif self.revisit:
             self.weight_hint = "brief"                                   # (f347) seen before: what has changed
-        try:
-            self.residents = populate_place(self.store, self.world, place_id, self.catalog, first_batch=life.FIRST_BATCH)
-        except LLMError:
-            from engine import operation as _op
-            if _op.current() is not None:
-                raise                                    # inside a line: the operation rolls back, as before
-            self.residents = [n for n in self.store.load_npcs(list(self.store.load_place(place_id).residents or [])) if not n.gone]
-            self._people_missing = place_id              # (f525's review) asked again at the next input's edge while the player is here
-            console.debug(f"(f525) the people of {place_id} could not be written; the next input asks again")
-        self.refresh_present()
+        self.people_of(place_id)
         if self.revisit:                                                                      # (f348) who has moved on to something else since: true change for the narrator
             from engine import doings
             self.__dict__.setdefault("_arrival_lines", []).extend(doings.changed_lines(getattr(self, "_doing_changes", []), who=self.acting))
@@ -852,6 +843,35 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.trial_notice(on_arrival=True)
         from engine import stay
         stay.reset(self)                                                                      # (f351) the stay starts here
+
+    def people_of(self, place_id: str) -> None:
+        """The place's people from their rows, written first if it was never peopled, and who of them is here now. Outside a line a
+        place whose people cannot be written keeps whom it has, and is asked again at the next input's edge (f525's review)."""
+        try:
+            self.residents = populate_place(self.store, self.world, place_id, self.catalog, first_batch=life.FIRST_BATCH)
+        except LLMError:
+            from engine import operation as _op
+            if _op.current() is not None:
+                raise                                    # inside a line: the operation rolls back, as before
+            self.residents = [n for n in self.store.load_npcs(list(self.store.load_place(place_id).residents or [])) if not n.gone]
+            self._people_missing = place_id              # (f525's review) asked again at the next input's edge while the player is here
+            console.debug(f"(f525) the people of {place_id} could not be written; the next input asks again")
+        self.refresh_present()
+
+    def restore(self, place_id: str) -> None:
+        """(f764) The scene put back over the save where the character already stands, as the game opens: an opening is no arrival.
+        The people and who is here, a moment still on carried on and one that ended closed, the place's parts and the spot they stand
+        at, and the visit's marks fresh; the door reads no arrival on the next line. Nothing of enter() that only an arrival does: no
+        period's moment rolled, no garden or hearth, no tales landing, no contact's or hall's notice, no stay begun."""
+        self.__dict__.pop("_streets_cache", None)
+        self.revisit = self.store.load_place(place_id).populated
+        self.first_arrival = False
+        self._framed_here, self._shown_here = set(), {}
+        self.people_of(place_id)
+        from engine import moments
+        moments.carry_on(self)
+        self.arrive_parts(place_id, True)
+        self._door_loc = place_id                                            # (f764) matters.on_arrival: they did not just walk in
 
     def repopulate(self) -> None:
         """(f525's review) A place whose people could not be written at an entry made outside a line is asked again at each input's edge
@@ -1096,7 +1116,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         moved = self.open_world()                                           # (f736) and the lines that tell who it stood elsewhere
         recovered = self.recover_unshown()                                  # (f467) first: what stood before the game last closed, never shown
         first_time = self.store.meta.turn == 0
-        self.enter(self.player.location)
+        me = self.player_of(self.acting)
+        if me.location in me.visited:
+            self.restore(me.location)                                       # (f764) stood here before: put back, never arrived at again
+        else:
+            self.enter(me.location)                                         # a new game's first waking, or a save set down where never entered
         self.store.save_player(self.player_of(self.acting))                 # (f720) where the opening stands them is the save's, for a first operation that fails
         self.weight_hint = "major" if first_time else None                 # a reload narrates nothing on entering; the next passage is weighed on its own
         kit_text = ""

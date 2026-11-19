@@ -82,12 +82,12 @@ def hire_lines():
 
 
 LINES = []
-real_turn, real_enter = ws.turn, ws.enter
+real_turn, real_enter, real_restore = ws.turn, ws.enter, ws.restore
 
 
-def entered(place_id):
-    real_enter(place_id)
-    ws.present, ws.residents = [tam], [tam]                      # Tam at hand whatever the hour (run() enters the place itself)
+def entered(place_id, way=real_enter):
+    way(place_id)
+    ws.present, ws.residents = [tam], [tam]                      # Tam at hand whatever the hour (run()'s opening puts the place back itself)
 
 
 def staged(text):
@@ -104,10 +104,10 @@ def staged(text):
     return stood
 
 
-ws.enter, ws.turn = entered, staged
+ws.enter, ws.restore, ws.turn = entered, lambda p: entered(p, real_restore), staged
 ex0 = stub.calls.get("Exchange", 0)
 ws.run()
-ws.turn, ws.enter = real_turn, real_enter
+ws.turn, ws.enter, ws.restore = real_turn, real_enter, real_restore
 one, two = LINES[0], LINES[1]
 queue = one["queue"]
 check("under the budget the party's exchange is deferred: not spoken this turn, queued in the save with the input it came from",

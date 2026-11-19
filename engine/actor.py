@@ -191,7 +191,9 @@ OPENING: dict[str, Opening] = {
     **_opens(REMADE, "rng", "the line's key: every input begins the scene's dice again (engine/streams.py)"),
     **_opens(REMADE, "residents present _doing_changes _routine_here _routine_cache _streets_cache",
              "the place's people and streets, read from their rows by the opening's entry"),
-    **_opens(REMADE, "first_arrival revisit", "the opening's entry, from the visited list and the place's row (an arrival today: RELOAD-8)"),
+    **_opens(REMADE, "first_arrival revisit", "the opening's restore, where the character stood before: no first arrival, and a return "
+                                              "where the place's people are written (an arrival only where they never stood)"),
+    **_opens(REMADE, "_door_loc", "the opening's restore: where the character stands, so the next line's door reads no arrival"),
     **_opens(REMADE, "weight_hint", "the opening: none on a reload"),
     **_opens(REMADE, "recovered_at_load _recovered_unreported", "the opening's recovery of what stood and was never shown (recover_unshown)"),
     **_opens(REMADE, "_people_missing", "the opening's entry, when the place's people could not be written"),
@@ -217,7 +219,8 @@ OPENING: dict[str, Opening] = {
                         "_last_claims _last_topic", "the party's chatter, spaced out inside one sitting"),
     **_opens(FORGOTTEN, "_framed_here _shown_here _crowd_told _happenings_seen _news_seen",
              "what this visit has been shown: a new sitting is told the place afresh"),
-    **_opens(FORGOTTEN, "_stay _stay_people_turn", "the stay's one line: the opening's entry starts the stay"),
+    **_opens(FORGOTTEN, "_stay _stay_people_turn", "the stay's one line, spaced inside one sitting: an opening begins no stay, the "
+                                                   "first line after it does"),
     **_opens(FORGOTTEN, "_stood", "the opening's own: set and taken inside open_world"),
     **_opens(FORGOTTEN, "_routine_marked", "the debug pulse log's mark, once a period: a new sitting marks it again"),
     **_opens(FORGOTTEN, "broken", "the lines that failed on the game's own fault this sitting: a new sitting tries afresh", dict),
@@ -226,7 +229,6 @@ OPENING: dict[str, Opening] = {
     # ---- owed: kept by the owner's default, lost at a close today
     **_opens(OWED, "dungeon_fight camp_fight orenna_fight assault",
              "RELOAD-3: what a fight is for; a fight resumed after a close ends with none of its consequences"),
-    **_opens(OWED, "_door_loc", "RELOAD-8: after a close the next line's door reads the open as an arrival"),
     **_opens(OWED, "craft_boost", "RELOAD-11: a crafting ability's boost is spent and the next piece of work after a close is not better"),
     **_opens(OWED, "_appeared", "RELOAD-12: the day's count of people ruled into a place starts again at a close"),
     **_opens(OWED, "_errand", "STALE_COPIES-3: a companion's errand asked for is forgotten at a close"),
