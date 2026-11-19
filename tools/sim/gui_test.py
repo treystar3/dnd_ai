@@ -1,5 +1,6 @@
 """GUI bridge, server and wiring, headless: no window, no model. A scripted 'game' runs on a thread behind the real server
 and a plain HTTP client plays the part of the page."""
+# suite: serial (f717)
 import ast, json, os, sys, tempfile, threading, time, urllib.request, urllib.error
 from pathlib import Path
 sys.path.insert(0, ".")

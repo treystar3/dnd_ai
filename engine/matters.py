@@ -109,9 +109,10 @@ def _bind_holders(store, world, th: dict) -> None:
             hold(store, th, i, c["npc"], t)                  # (f483) what they know of it is theirs
 
 
-def hold(store, th: dict, i: int, nid: str, t: int) -> None:
+def hold(store, th: dict, i: int, nid: str, t: int, text: str = "", source: str = "self") -> None:
     """(f483) The clue is this person's to know: a knows row about thread:<id>:<n>, in its words, from themselves, held. Written once;
-    it stays among what they know after the matter is over and gone from the world's record."""
+    it stays among what they know after the matter is over and gone from the world's record. (f710) `text` and `source`: a clue
+    held second-hand, in words that say whose it is, source "heard" (not from themselves, nor from a person known by id)."""
     from engine import clock, memory
     if not nid or not store.npc_exists(nid) or i >= len(th.get("clues") or []):
         return
@@ -119,7 +120,7 @@ def hold(store, th: dict, i: int, nid: str, t: int) -> None:
     if any(r["kind"] == "knows" and r["about"] == about for r in memory.records(store, nid)):
         return
     n = store.load_npc(nid)
-    memory.keep(n, th["clues"][i]["text"], day=clock.day(t), turn=-1, kind="knows", subject="", importance=2, source="self", about=about,
+    memory.keep(n, text or th["clues"][i]["text"], day=clock.day(t), turn=-1, kind="knows", subject="", importance=2, source=source, about=about,
                 minute=int(t), state="held")
     store.save_npc(n)
 
@@ -263,6 +264,13 @@ def on_arrival(ws) -> None:
         if th.get("made_by") == "engine" and not th.get("told"):
             changed |= threads.tell(ws.store, ws.world, state, th, ws.minutes) or "told_at" in th
             break
+    from engine import budget
+    if not budget.room_for_passage():                 # (f711) a moment the turn cannot tell waits for a turn that can, in this town
+        if any(th.get("moment") == "pending" or th.get("summons") == "pending" for th in live):
+            console.debug("matter: a moment waits for a turn that can tell it")
+        if changed:
+            ws.store.save_world_state(state)
+        return
     for th in live:
         if th.get("moment") == "pending" and _cooldown_ok(state, town, "scene", ws.minutes):
             if entering and rng.random() > D["scene"]["on_enter_chance"]:
@@ -287,6 +295,9 @@ def on_arrival(ws) -> None:
 def _play_moment(ws, state: dict, th: dict) -> None:
     """The situation as it would be seen, happening in front of the player, with the people here part of it."""
     stage = th["stages"][th["stage"]]["description"]
+    from engine import ledger
+    ledger.add("happened", facts={"what": th["title"]},           # (f711) told plainly if its passage is lost, once
+               say=f"Something of {th['title']} happens here, in front of the player.")
     for i, c in enumerate(th.get("clues", [])):       # the people here saw it: a clue nobody holds yet settles on one of them, their role first
         if not c["npc"]:
             taken = {x["npc"] for x in th["clues"]}
@@ -350,6 +361,10 @@ def _send_someone(ws, state: dict, th: dict) -> bool:
     if court.summon(ws, pick, th):                       # (f320) someone behind a door sends a messenger, and the door opens for the day
         return True
     ws.visit(pick, ws.minutes + 120)
+    from engine import ledger
+    trade, who = pick.role.replace("_", " "), pick.label(ws.acting)
+    ledger.add("arrived", facts={"who": who, **({"what": f"{'an' if trade[:1] in 'aeiou' else 'a'} {trade}"} if who == pick.name else {})},
+               say=f"{who} has come looking for the player and is here now.")    # (f711) told plainly if its passage is lost, as they are known
     known = "someone the player has met" if regard.of(pick, ws.acting).met else "someone the player has not met, who knows them by name"
     ws.weight_hint = "rich"
     ws.narrate(f"{pick.label(ws.acting)} ({known}) comes looking for the player, on purpose, and finds them here. Show them arriving and making "
@@ -451,6 +466,11 @@ def road_matter(ws, a: str, b: str, rng: random.Random):
     return th, (clue["text"] if clue else th["stages"][th["stage"]]["description"]), kill
 
 
+def next_clue(th: dict) -> int | None:
+    """(f710) The index of the matter's first clue not yet found nor destroyed, or None."""
+    return next((i for i, c in enumerate(th.get("clues") or []) if not c.get("found") and not c.get("destroyed")), None)
+
+
 def road_lines(th: dict, clue: str, hostile: bool) -> str:
     """What the road writer is told to make the happening part of."""
     stage = th["stages"][th["stage"]]["description"]
@@ -522,6 +542,21 @@ def reopen(store, world, state: dict, th: dict, t: int) -> bool:
 
 
 # ---------- what the town keeps
+
+def met(th: dict, player) -> bool:
+    """(f662) Has the player met this matter: seen its moment, answered it, touched it, had it revealed, or held a contract of it?"""
+    return bool(th.get("touched") or th.get("answered") or th.get("revealed") or th.get("moment") == "shown"
+                or any(q.get("thread") == th.get("id") for q in getattr(player, "quests", None) or []))
+
+
+def ended_line(th: dict, kind: str, player) -> str:
+    """(f662) What the player is told when a matter ends: nothing of one they never met, else its line, the title made part of it."""
+    if not met(th, player):
+        return ""
+    title = th["title"]
+    title = title[:1].lower() + title[1:] if title.startswith(("The ", "A ", "An ")) else title
+    return D["memory"]["ended"][kind].format(title=title)
+
 
 def remember(store, world, th: dict, how: str, name: str, minutes: int, turn: int) -> None:
     """A matter ended: the town's memory (the truth layer gives it to every speaker there), and the people in it remember too.

@@ -1384,3 +1384,16 @@ class Bot:
             s["continuity"] = {k: len(v) for k, v in self.clog.items()}
             s["continuity_log"] = {k: list(v) for k, v in self.clog.items()}
         return s
+
+
+class Scripted(Bot):
+    """(f719) A player who types a fixed list of lines, each filed under the shape its turn is meant to have (tools/live_gate.py)."""
+
+    def __init__(self, lines: list[dict], *a, **k):
+        super().__init__(*a, **k)
+        self.lines = list(lines)
+
+    def decide(self) -> tuple[str, str]:
+        line = self.lines.pop(0) if self.lines else {"say": "I look around.", "shape": "look"}
+        return str(line["say"]), str(line["shape"])
+

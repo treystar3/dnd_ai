@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import argparse
 import random
-import shutil
 import sys
 from pathlib import Path
 
@@ -77,8 +76,9 @@ class Table:
         from engine.session import CampaignSession
         from storage.campaign import PlayerState
         self.save = f"scene_{scene['name']}"[:60]
-        shutil.rmtree(ROOT / "saves" / self.save, ignore_errors=True)
-        config.TURN_LOG_PATH = f"saves/{self.save}/turns.jsonl"
+        from storage import saves
+        folder = saves.scratch(self.save)                                   # (f743) only a tool's own save is cleared, and a failure says so
+        config.TURN_LOG_PATH = str(folder / "turns.jsonl")                  # (f741) beside the save, wherever the saves folder is
         config.AUDIT_ENABLED = False
         config.REFUSALS_LOG = False
         self.session = CampaignSession.open(self.save)                       # (f457) the campaign's session, as main.py opens it
@@ -90,8 +90,8 @@ class Table:
         if st.get("capabilities") and "capabilities" in type(char).model_fields:        # (slice 2) granted by the story or an item
             char.capabilities = list(st["capabilities"])
         self.store.save_player(PlayerState(character=char, location=st.get("place", "trading_square"), guild_rank=st.get("rank", "E")))
-        self.CampaignSession, self.load_traits = CampaignSession, load_traits
-        self.ws = self.session.scene(load_traits(), self.store.load_player())
+        self.game = simlib.Game(self.save, self.session, load_traits(), self.store.load_player())   # (f751) its reopen is the game's
+        self.ws = self.game.scene
         self.ws.player.mentor["never"] = True
         self.ws.enter(st.get("place", "trading_square"))
         from engine import inventory
@@ -110,14 +110,11 @@ class Table:
     def reopen(self) -> None:
         """(f457) The campaign closed and opened again, as a player leaving and coming back: a new session over the same save, its map read
         from the store (a place the scene added is absent until the store says so), and nothing of the old session left in the process.
-        Before this the old world was carried across the store's close: the leak Stage 2 removed."""
+        Before this the old world was carried across the store's close: the leak Stage 2 removed. (f751) Opened as main.py opens a
+        save (simlib.Game.reopen): the scene's opening runs up to its first prompt, as the game's does, never an entry made by hand."""
         self.ws.save()
-        self.session.close()
-        self.session = self.CampaignSession.open(self.save)
-        self.store, self.world = self.session.store, self.session.world
-        self.ws = self.session.scene(self.load_traits(), self.store.load_player())
-        self.ws.player.mentor["never"] = True
-        self.ws.enter(self.ws.player.location)
+        self.ws = self.game.reopen()
+        self.session, self.store, self.world = self.game.session, self.game.store, self.game.world
 
     def step(self, s: dict) -> list[str]:
         """Play one step; what fell short of `then`, as lines."""
@@ -204,7 +201,8 @@ class Table:
         self.session.close()
         self.unstand()                  # (f518) this table's stand-ins away: sources do not pile up across scenes
         self.unstub()
-        shutil.rmtree(ROOT / "saves" / self.save, ignore_errors=True)
+        from storage import saves
+        saves.drop(self.save)
 
 
 def play(scene: dict, live: bool = False, source=None) -> list[str]:

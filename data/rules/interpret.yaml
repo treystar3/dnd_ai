@@ -21,6 +21,27 @@ always_if_short: 4
 # Words that name nothing on their own: a place is named by its other words ("the Blackpine inn" by "blackpine", not "inn")
 generic_words: [the, of, and, hall, house, guild, guildhall, inn, shop, temple, forge, smithy, market, square, tavern, workshop, yard, trading,
                 village, town, city, road, gate, north, south, east, west]
+# (f709) The small words of a sentence, of four letters and more (shorter ones never count): they name nothing seen or said ("I take
+# the Mill Road down to the river with Hollis" shares "down" and "with" with any scene, and names no thing in it).
+# (f713) Words by which a line points back at the question it follows ("I go there", "I'll take the far one"): such a line answers
+# the question and is read with the line it is about, even when it opens on a deed of the player's own.
+# (f715) First words that make an improvised act's summary a sentence about someone, not the act itself ("The player climbs");
+# a name of the party or of the people present does the same.
+not_act_openers: [the, a, an, player, players, character, he, she, they, it, someone, everyone]
+# (f715) Words an improvised act's summary may open on before the act itself ("try to climb"): dropped.
+act_lead_ins: [try to, tries to, tried to, trying to, attempt to, attempts to, attempted to]
+# (f715) The player's own words in an act's summary, as the game says them back to the player.
+act_person_swap: {i: you, me: you, my: your, mine: yours, myself: yourself, we: you, us: you, our: your, ours: yours, ourselves: yourselves}
+# (f715) A first word that makes the summary no clause after "to": a third person verb ("climbs") or a gerund ("leaning").
+not_act_first: "^[a-z]*[^su']s$|^[a-z]{2,}ing$"
+answer_back_words: [there, that way, this way, that one, this one, the one, the other, the far one, the near one, either, both, it,
+                    them, him, her, "yes", "no"]
+function_words: [with, from, into, onto, down, over, back, toward, towards, there, where, here, under, along, upon, about, above, below,
+                 behind, beside, between, through, across, around, near, past, away, then, than, they, them, their, these, those, this,
+                 that, what, when, while, which, your, yours, have, been, were, will, would, could, should, just, still, some, more,
+                 most, very, only, also, even, again, once, each, every, other, another, like, before, after, until, against, among,
+                 within, without, beneath, inside, outside, itself, himself, herself, themselves, ourselves, going, come, coming,
+                 long, many, either, side, left, close, someone, something, nothing, anything, everything, things]
 # (f428, the owner's review Q17) A far place the words do not name is never walked to on a guess: "For major cities they need to say it
 # exactly but for places off a road or locations it can ask." Far is a walk longer than far_walk_minutes (where road events begin). A
 # city or town (major towns, as the map types them) must be named; any other far place is asked about. A word for a kind of place names

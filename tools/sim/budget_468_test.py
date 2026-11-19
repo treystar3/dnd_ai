@@ -234,8 +234,8 @@ wr.run()
 wr.turn = real_turn
 r.close()
 restore()
-import gzip
-calls = [json.loads(l) for l in gzip.open(OUT / "calls.jsonl.gz", "rt", encoding="utf-8") if l.strip()]
+from engine import recording
+calls = recording.read_calls(OUT)
 turns = [json.loads(l) for l in (OUT / "turns.jsonl").read_text(encoding="utf-8").splitlines()]
 meta = json.loads((OUT / "meta.json").read_text(encoding="utf-8"))
 check("the recording's meta carries the speeds the budget priced its calls at, and each call its task", meta.get("profile") == {"read_tps": 1e9, "write_tps": 0.15, "embed_seconds_per_text": 0.15}

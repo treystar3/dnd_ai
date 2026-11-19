@@ -200,7 +200,7 @@ stub.plan = None
 k = kinds()
 i_world = k.index("world") if "world" in k else None
 check("a cataclysm reaching the town the player stands in: the fight begins inside the world operation, which commits before its opening is told",
-      stood is True and ws.combat is not None and getattr(ws, "assault", None) and i_world is not None and "opening" in k[i_world + 1:]
+      stood is True and ws.combat is not None and getattr(ws.combat.fight.purpose, "kind", "") == "gate" and i_world is not None and "opening" in k[i_world + 1:]
       and k.index("opening") < k.index("tail"), (stood, ws.combat is not None, k))
 opens = [(t, o) for t, o in LOG if t == "Narration"]                # the look's passage and the moment's are told inside their own
 check("...its opening asked with no operation open, after the world's commit",   # operations (narrate is not asked outside); the opening, last, is

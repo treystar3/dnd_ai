@@ -28,7 +28,7 @@ check("all ten peoples can be hired", set(S["hire_peoples"]) == {"human", "dwarf
 check("every culture's tongue is defined somewhere", all(not c["tongue"] or c["tongue"] in quirks.Q["tongues"] or c["tongue"] in S["tongues"] for c in S["cultures"].values()))
 allwords = [w for t in list(quirks.Q["tongues"].values()) + list(S["tongues"].values()) for w in t["words"]]
 check("no word belongs to two tongues", len(allwords) == len(set(allwords)), [w for w, n in collections.Counter(allwords).items() if n > 1])
-behaviour = [l for c in S["cultures"].values() for l in c["dialect"]] + [t["habits"] for t in S["tongues"].values()] + \
+behaviour = [l for c in S["cultures"].values() for l in c["dialect"]] + [x for t in S["tongues"].values() for x in [t["manner"], *t["slips"]]] + \
             [x for opts in S["tells"].values() for x in opts] + [x for opts in S["expression"].values() for x in opts] + [S["fluency"]["baseline"]]
 check("dialect, habits, tells and expression are behaviour: no quoted lines to copy", not [l for l in behaviour if re.search(r"['\"]\w", l)],
       [l for l in behaviour if re.search(r"['\"]\w", l)])
@@ -84,8 +84,8 @@ for k in range(1000):
 shown = sum(1 for f in feats if f) / 1000
 check("the culture budget: a moderate culture shows in about two replies in five, never more than one feature", 0.33 < shown < 0.47, shown)
 check("...and each feature turns up", {"dialect", "saying"} <= set(feats), collections.Counter(feats))
-check("(f410) a learner's accent is not rolled per reply: it is in every reply", "transfer" not in feats and vp.accent(learner)
-      and "in every line" in vp.accent(learner), vp.accent(learner))
+check("(f410, f727) a learner's manner is not rolled per reply: it is in every reply", "transfer" not in feats and vp.manner(learner)
+      and "in every line" in vp.manner(learner), vp.manner(learner))
 words = sum(1 for f in feats if f == "word") / 1000
 check("home words are off for now: none is offered (speech.yaml culture.weights.word is 0)", words == 0, words)
 learner["said"] = []

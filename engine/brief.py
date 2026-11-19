@@ -27,9 +27,12 @@ def _words(text: str) -> set[str]:
     return set(_WORD.findall((text or "").lower()))
 
 
-def lore(facts: list, line: str, recent: list[str] = (), profile: str = "townsfolk") -> tuple[list, str]:
+def lore(facts: list, line: str, recent: list[str] = (), profile: str = "townsfolk", also: list = (), whole: list = ()) -> tuple[list, str]:
     """(shown, index): every clue fact (id clue:...), then at most `lore` facts that bear on the line and the last lines of the talk, in a
-    fixed order (score, then id); the index names each other fact they know by its subject, so asked about it they know it is theirs."""
+    fixed order (score, then id); the index names each other fact they know by its subject, so asked about it they know it is theirs.
+    (f724) also, whole: the town's pieces for this reply (engine/reply.py pieces). `whole` come in as they are (the line asks for
+    their facet); `also` are ranked apart from the lore, and at most `town_pieces` that bear on the line come in. The lore is ranked
+    and picked as without them, no piece is named in the index, and nothing comes in twice."""
     R = rules(profile)
     clues = [f for f in facts if str(f.id).startswith("clue:")]
     rest = [f for f in facts if not str(f.id).startswith("clue:")]
@@ -43,11 +46,23 @@ def lore(facts: list, line: str, recent: list[str] = (), profile: str = "townsfo
     for f in pre:
         by_text.setdefault(f.text, f)
     picked = [by_text[t] for t in order if t in by_text][: int(R.get("lore", 4))]
+    said = {f.text for f in clues + picked}
+    pieces = []
+    for f in whole:                                                   # (f724) nothing twice: not a piece that is their lore's own words
+        if f.text not in said:
+            said.add(f.text)
+            pieces.append(f)
+    town = {}
+    for f in also:
+        if f.text not in said and len(q & _words(f.text)) >= 1 and len(town) < int(R.get("prefilter", 12)):
+            town.setdefault(f.text, f)
+    if town:                                                          # ...ranked in a call of their own: the lore's is the one it was
+        pieces += [town[t] for t in relevance.ranked(query, list(town)) if t in town][: int(R.get("town_pieces", 0))]
     others = [f for f in rest if f not in picked]
     index = ""
     if others:
         index = f"{R.get('index_label', 'YOU ALSO KNOW OF')}: " + "; ".join(_subject(f) for f in others)
-    return clues + picked, index
+    return clues + picked + pieces, index
 
 
 def _subject(f) -> str:
@@ -119,12 +134,12 @@ def problems() -> list[str]:
     if isinstance(H.get("talk_turn"), int) and isinstance(H.get("talk_window"), int) and H["talk_turn"] >= H["talk_window"]:
         bad.append("brief.yaml hire.talk_turn: fewer than talk_window, or the page never turns")
     R = rules()
-    for k in ("lore", "prefilter", "recent_lines"):
+    for k in ("lore", "prefilter", "recent_lines", "town_pieces"):
         if not isinstance(R.get(k), int) or R.get(k) < 1:
             bad.append(f"brief.yaml townsfolk.{k}: a whole number above zero")
     if R.get("many_addressees", "one_call") not in ("one_call", "flat_each"):
         bad.append("brief.yaml townsfolk.many_addressees: one_call or flat_each")
-    for facet in ("land", "town", "board"):
+    for facet in ("land", "town", "board", "news"):
         if not (R.get("asked") or {}).get(facet):
             bad.append(f"brief.yaml townsfolk.asked.{facet}: needs its words")
     P = R.get("promise") or {}                                  # (f493)

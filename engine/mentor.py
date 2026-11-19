@@ -514,7 +514,7 @@ def moved_on(store, world, npc, t: int) -> None:
         if npc.id in ps.residents:
             ps.residents = [r for r in ps.residents if r != npc.id]
             store.save_place(ps)
-    store.journal(t, "npc_gone", "", npc.id, f"{npc.name} is gone: {npc.gone}", {"how": npc.gone, "place": npc.location})
+    pulse.journal_gone(store, npc, npc.gone, t, dead=False)                  # (f664) she left alive: said, not read from words
     state = store.load_world_state()
     pulse.add_news(state, M["npc"]["news"], pulse.town_of(world, M["gate"]["place"]), t, ["everyone"])
     store.save_world_state(state)

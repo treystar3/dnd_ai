@@ -102,8 +102,8 @@ import shutil
 shutil.rmtree("saves/brief_486", ignore_errors=True)
 
 # ---- the largest golden reply is smaller than it was
-import gzip, json
-calls = [json.loads(l) for l in gzip.open("data/replay/sessions/stub_short/calls.jsonl.gz", "rt")]
+from engine import recording
+calls = recording.read_calls("data/replay/sessions/stub_short")
 sizes = [len(c["request"]["messages"][0]["content"]) + len(c["request"]["messages"][1]["content"]) for c in calls if c.get("title") == "NPCReply"]
 check("the largest golden townsfolk reply is under its ceiling (17,000 chars; 24,954 before)", sizes and max(sizes) <= 17000, sizes)
 

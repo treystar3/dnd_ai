@@ -382,7 +382,7 @@ class PassiveHooks:
         from engine import world_perks
         threads = self.live_threads()
         if not threads:
-            console.note("Your songs are all old ones tonight - the realm is quiet.")
+            console.note("There's no news worth singing about tonight, so you stick to the old songs.")
             return
         sung = threads[:4]
         towns = []
@@ -412,7 +412,7 @@ class PassiveHooks:
             m["bond"] = m.get("bond", 0) + R["trust"]
             party_rules.set_mood(m, "warmed by a hot meal", self.minutes)
         who = ", ".join(m["name"].split()[0] for m in fed)
-        console.note("Everyone eats" + (f" - {who} think{'s' if len(fed) == 1 else ''} a little better of you for it (Campfire Cook)." if fed else " (Campfire Cook)."))
+        console.note("Everyone eats" + (f", and {who} think{'s' if len(fed) == 1 else ''} a little better of you for it (Campfire Cook)." if fed else " (Campfire Cook)."))
 
     def pious_hospitality(self) -> None:
         """Pious Path: the temple feeds you and yours, and asks nothing."""
@@ -447,5 +447,5 @@ class PassiveHooks:
         c.studied[best.base] = best.rarity
         if best.base not in c.recipes_made:
             c.recipes_made.append(best.base)
-        console.note(f"You spent the night taking {items.display_name(best)} apart in your head. You could make its like now - "
+        console.note(f"You spent the night taking {items.display_name(best)} apart in your head. You could make its like now, "
                      f"{best.rarity} work at the least (Reverse Engineer).")

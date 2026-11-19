@@ -312,7 +312,7 @@ def play(shard: int, only: set[str] | None = None) -> tuple[list[dict], dict]:
     import os
     import shutil
     name = f"fight_fixtures_{shard}_{os.getpid()}"                    # (f566) a save of this process's own: two runs of one shard at once
-    shutil.rmtree(ROOT / "saves" / name, ignore_errors=True)          # (the suite runs four tests together; a run by hand beside it) never
+    shutil.rmtree(simlib.saves_path(name), ignore_errors=True)          # (the suite runs four tests together; a run by hand beside it) never
     #                                                                   share a database or delete each other's; the name decides no number
     records = []
     game = None
@@ -329,7 +329,7 @@ def play(shard: int, only: set[str] | None = None) -> tuple[list[dict], dict]:
         crashlog.record = real_record
         if game is not None:
             game.close()
-        shutil.rmtree(ROOT / "saves" / name, ignore_errors=True)
+        shutil.rmtree(simlib.saves_path(name), ignore_errors=True)
     return records, {k: sorted(v) for k, v in cover.items() if not k.startswith("_")}
 
 

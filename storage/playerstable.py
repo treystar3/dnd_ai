@@ -1,6 +1,6 @@
 """(f638) Where a save keeps its characters' records (docs/design/13; docs/design/20_phase3_plan.md; multiplayer, GOALS.md checklist 8).
 
-A save keeps its one player as one row of the small table, under the key 'player'. The store's load, save, exists and raw text
+Until version 17 a save kept its one player as one row of the small table, under the key 'player'. The store's load, save, exists and raw text
 (storage/campaign.py) reach that record through a port, and there are two: RowPlayers is that row, and TablePlayers is a table
 with a row for each character, the first under the id the save's one character has always had. A row's json is the record as
 the row would have written it, and the only thing read back; its place is read from it when it is written, for a query to find
@@ -9,7 +9,7 @@ who stands somewhere.
 What a record is stays the store's: a hire's memories are rows of their own, and the clock is written with the player in one
 transaction. A port only says where the record's text is kept.
 
-Not used yet: a save is version 16 and its store's players are the row's. `adopt` is what the migration will do.
+(f640) A save's players are the table's from version 17. The row is what an older save is read from until its step, which is `adopt`.
 """
 from __future__ import annotations
 
@@ -91,7 +91,7 @@ def ensure(store) -> None:
 
 def adopt(store) -> TablePlayers:
     """The store's players are kept in the table from here on: it is made, and the record the row held is moved into it as it
-    was, under the first character's id, and the row taken away. What the migration will do to a save, and how a test puts the
+    was, under the first character's id, and the row taken away. What the migration does to a save (v17), and how a test puts the
     table under a store. A save with no player is left with none. Where the table already holds the first character, the row
     is left where it is for the campaign's check to name: the table's record is the later one."""
     ensure(store)

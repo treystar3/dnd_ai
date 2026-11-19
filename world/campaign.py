@@ -162,6 +162,10 @@ class CampaignWorld:
             if pid in ways:
                 del ways[pid]
                 self._serve(a)
+        for a, place in list(self._own_places.items()):            # (f734) no place keeps a way of its own to it either: a copy, never changed
+            if pid in place.connects:
+                self._own_places[a] = place.model_copy(update={"connects": {k: v for k, v in place.connects.items() if k != pid}})
+                self._serve(a)
         self.version += 1
         return True
 

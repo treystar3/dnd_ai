@@ -10,6 +10,9 @@ compared input by input:
   recordings/<name>/calls.jsonl.gz every call to the model, in order: the request in full, the answer or the failure, its time
   recordings/<name>/turns.jsonl    after each input: the state's fingerprint, what the turn recorded, and what the player was shown
 
+(f732) A kept recording (under data/replay) holds its calls as plain calls.jsonl, which git stores as a delta at each re-bless;
+read_calls reads either form, and is the one place a log is opened by its name.
+
 (f517) It is a layer of the game's own interface to the model (llm/backend.py wrap, rank RECORDER, outermost) and wraps the console in
 place, so whatever is installed beneath it (the real client, the window, a test's stand-in, a night run) is recorded as it is. (f527)
 Each row is the request in the interface's own, neutral form (backend.neutral_request: the messages, the schema's title and
@@ -27,12 +30,14 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import io
 import json
 import shutil
 import sqlite3
 import subprocess
 import threading
 import time
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -42,6 +47,8 @@ from llm.errors import Failure                  # (f527) the interface's own fai
 
 ROOT = Path(__file__).resolve().parent.parent
 FOLDER = ROOT / "recordings"
+KEPT = ROOT / "data" / "replay"         # (f732) a recording kept in git: its call log is written plain, so a re-bless is stored as a delta
+CALLS = ("calls.jsonl", "calls.jsonl.gz")   # a recording's call log: plain (kept), gzipped (played); read in this order
 STORY = ("narrate", "say", "npc_says", "dialogue", "note", "wait", "ledger")   # what the player reads (engine/turnlog.py), and the engine's facts
 ORPHANS: set = set()     # (f453) threads a closed session left running (a creation call, people being written): the Thread objects, never
                          # their idents, which the OS hands out again; their calls pass through the recorder unrecorded (_layer)
@@ -94,6 +101,109 @@ def _cancelled(e: BaseException | None = None, out=None) -> bool:
     return getattr(out, "finish", None) == "cancelled"
 
 
+def calls_file(folder) -> Path | None:
+    """(f732) A recording's call log: calls.jsonl when it is there, else calls.jsonl.gz; None when it has neither."""
+    return next((Path(folder) / n for n in CALLS if (Path(folder) / n).is_file()), None)
+
+
+def is_calls(name) -> bool:
+    """(f732) Whether a file's name, or a zip member's, is a recording's call log, in either form."""
+    return str(name).replace("\\", "/").rsplit("/", 1)[-1] in CALLS
+
+
+def call_lines(source, member: str = ""):
+    """(f732) The lines of a recording's call log, as they are read: source a recording's folder, its log, or a zip with the log's
+    member name. Lazy, so a log cut off mid-write gives the lines before the cut and then raises (EOFError, or zlib.error)."""
+    if member:
+        with zipfile.ZipFile(source) as z:
+            raw, name = io.BytesIO(z.read(member)), member
+    else:
+        path = calls_file(source) if Path(source).is_dir() else Path(source)
+        if path is None:
+            raise FileNotFoundError(f"{source}: no call log ({' or '.join(CALLS)})")
+        raw, name = path.open("rb"), path.name
+    with raw, io.TextIOWrapper(gzip.GzipFile(fileobj=raw) if name.endswith(".gz") else raw, encoding="utf-8") as f:
+        yield from f
+
+
+def read_calls(source, member: str = "") -> list[dict]:
+    """(f732) A recording's call rows, in order, whichever form its log has (call_lines)."""
+    return [json.loads(line) for line in call_lines(source, member) if line.strip()]
+
+
+def _calls_out(folder: Path):
+    """(f732) The call log opened for writing, in the form its place keeps: plain under data/replay (a kept recording, and the folder a
+    re-bless renames into place); anywhere else gzipped, with no time in its header, so the same rows give the same bytes."""
+    return _log_writer(folder / CALLS[0 if folder.resolve().is_relative_to(Path(KEPT).resolve()) else 1])
+
+
+def _log_writer(path: Path):
+    """(f732) A call log opened for writing in the form its name says: plain, or gzipped with no time in its header."""
+    if path.name.endswith(".gz"):
+        return io.TextIOWrapper(gzip.GzipFile(path, "wb", mtime=0), encoding="utf-8", newline="\n")
+    return path.open("w", encoding="utf-8", newline="\n")
+
+
+CLOCK = ("seconds",)                     # (f732) a call row's wall-clock time: how long it took, no part of what the call was
+MADE_AT = ("kv", "campaign", "created")  # (f732) the start save's clock time of making, as storage/statehash.py NOT_STATE sets it aside
+
+
+def _content(db: Path):
+    """(f732) A save database read whole: its version, its schema, every table's rows in their order, with the time it was made
+    (MADE_AT) set aside. None when there is none."""
+    if not db.is_file():
+        return None
+    table, key, field = MADE_AT
+    con = sqlite3.connect(db.resolve().as_uri() + "?mode=ro&immutable=1", uri=True)   # (f732) no -wal or -shm left beside a recording
+    try:
+        out = [con.execute("PRAGMA user_version").fetchone()[0]]
+        for kind, name, sql in con.execute("SELECT type, name, sql FROM sqlite_master ORDER BY type, name").fetchall():
+            out.append((kind, name, sql))
+            if kind != "table":
+                continue
+            try:
+                rows, at = con.execute(f'SELECT rowid, * FROM "{name}" ORDER BY rowid').fetchall(), 1
+            except sqlite3.OperationalError:                    # a table with no rowid: its rows, in an order of their own
+                rows, at = sorted(con.execute(f'SELECT * FROM "{name}"').fetchall(), key=repr), 0
+            if name == table:
+                rows = [r[:at + 1] + (_without(r[at + 1], field),) + r[at + 2:] if r[at] == key else r for r in rows]
+            out.append(rows)
+    finally:
+        con.close()
+    return out
+
+
+def _without(text, field: str):
+    try:
+        value = json.loads(text)
+    except (TypeError, ValueError):
+        return text
+    return {k: v for k, v in value.items() if k != field} if isinstance(value, dict) else value
+
+
+def keep_unchanged(kept: Path, made: Path) -> dict:
+    """(f732) A recording made again (made) keeps the kept one's bytes wherever only the clock moved, so a re-bless that changes
+    nothing leaves the files as they were and a real change is the only line that moves. A call row that is the kept row in its
+    place in every field but its time (CLOCK) is written as the kept line, its time included; the start save, when its content is
+    the kept one's but for the time it was made, is the kept file. Returns {"calls": rows written anew, "of": rows, "start": "kept",
+    "new" or "none"}."""
+    kept, made = Path(kept), Path(made)
+    old = [l if l.endswith("\n") else l + "\n" for l in call_lines(kept) if l.strip()] if calls_file(kept) else []
+    new = [l if l.endswith("\n") else l + "\n" for l in call_lines(made) if l.strip()]
+
+    def timeless(line: str) -> dict:
+        return {k: v for k, v in json.loads(line).items() if k not in CLOCK}
+    same = [j < len(old) and timeless(old[j]) == timeless(line) for j, line in enumerate(new)]
+    with _log_writer(calls_file(made)) as f:
+        f.write("".join(old[j] if s else line for j, (s, line) in enumerate(zip(same, new))))
+    start = "none"
+    if (made / "start.db").is_file():
+        start = "kept" if _content(kept / "start.db") == _content(made / "start.db") else "new"
+        if start == "kept":
+            shutil.copyfile(kept / "start.db", made / "start.db")
+    return {"calls": same.count(False), "of": len(new), "start": start}
+
+
 class Recorder:
     def __init__(self, store, name: str = "", folder: Path | None = None, rows: bool = False):
         from engine import streams
@@ -117,7 +227,7 @@ class Recorder:
         from npc import life
         self.meta = {
             "made": datetime.now(timezone.utc).isoformat(timespec="seconds"), "seed": store.meta.seed, "steps": store.meta.steps,
-            "turn": store.meta.turn, "data": statehash.data_hash(), "model": config.MODEL, "version": VERSION,
+            "turn": store.meta.turn, **statehash.data_hashes(), "model": config.MODEL, "version": VERSION,     # (f718) "data" and "words"
             "commit": commit(), "start": statehash.digest(store), "embed": embed.available(), "backfill": life.FIRST_BATCH,
             "save": store.meta.name,
             "profile": dict(budget.PROFILE), "limit_seconds": budget.B.get("limit_seconds"),     # (f468) the speeds the budget priced calls at
@@ -130,7 +240,7 @@ class Recorder:
             self.meta["sampling_arm"] = config.SAMPLING_ARM
         (self.dir / "meta.json").write_text(json.dumps(self.meta, indent=1), encoding="utf-8", newline="\n")
         self.inputs = (self.dir / "inputs.jsonl").open("w", encoding="utf-8", newline="\n")
-        self.calls = gzip.open(self.dir / "calls.jsonl.gz", "wt", encoding="utf-8", newline="\n")
+        self.calls = _calls_out(self.dir)
         self.turns = (self.dir / "turns.jsonl").open("w", encoding="utf-8", newline="\n")
         self.n_input, self.n_call, self.shown, self.open_input, self.inside = 0, 0, [], False, False
         self.asking = None

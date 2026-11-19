@@ -381,22 +381,38 @@ def _dungeon_boss(world, store, wild, now, rng, hall=None):
 
 # ---------- progress ----------
 
-def held(q: dict, pack: list) -> int:
+def wants(q: dict, item) -> bool:
+    """(f676) Whether this item is what a contract that counts the pack asks for."""
     if q["kind"] == "gather":
-        return inv.count_of(pack, q["good"])
-    if q["kind"] == "materials":
-        return sum(i.quantity for i in pack if i.base == "raw_material" and i.material == q["material"])
-    return q["progress"]
+        return bool(item.good) and item.good == q.get("good")
+    return q["kind"] == "materials" and item.base == "raw_material" and item.material == q.get("material")
 
 
-def done(q: dict, pack: list) -> bool:
-    return held(q, pack) >= q["count"]
+def held(q: dict, pack: list, among: list = ()) -> int:
+    """What the pack holds toward this contract. (f669) `among`, the player's contracts in order: one taken earlier for the same thing
+    has what it needs first, so two contracts never count the same leaves."""
+    if q["kind"] not in ("gather", "materials"):
+        return q["progress"]
+    def of(x) -> int:
+        return sum(i.quantity for i in pack if wants(x, i))
+    same = lambda x: x["kind"] == q["kind"] and x.get("good") == q.get("good") and x.get("material") == q.get("material")
+    have = of(q)
+    for o in among:
+        if o is q:
+            break
+        if same(o):
+            have -= min(o["count"], max(0, have))
+    return max(0, have)
 
 
-def progress_line(q: dict, pack: list, now: int) -> str:
-    status = "ready to turn in" if done(q, pack) else (
+def done(q: dict, pack: list, among: list = ()) -> bool:
+    return held(q, pack, among) >= q["count"]
+
+
+def progress_line(q: dict, pack: list, now: int, among: list = ()) -> str:
+    status = "ready to turn in" if done(q, pack, among) else (
         "to deliver" if q["kind"] == "deliver" else "not yet" if q["kind"] in ("delve", "dungeon_boss", "missing")
-        else f"{held(q, pack)}/{q['count']}")
+        else f"{held(q, pack, among)}/{q['count']}")
     who = "" if q["guild"] else f" · for {q['issuer_name']}"
     return f"[{q['letter']}] {q['title']} - {status}{who}"                 # (f491) no time left to tell: nothing runs out
 

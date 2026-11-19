@@ -76,7 +76,12 @@ WITHIN = re.compile(r"\b(upstairs|downstairs|my room|the room|a room|our rooms?|
 CLIMB = re.compile(r"\b(climb|clamber|scale|scramble|haul (myself|me) up|pull (myself|me) up|get up onto)\b")
 HIGH = re.compile(r"\b(roof|rooftop|wall|tree|ledge|rafters|chimney|eaves|balcony|cliff|rocks?|boulder)\b")
 FISHING = re.compile(r"\b(fish|fishing|angling|angle for|cast (a|my) line|rod and line)\b")
-OUT_OF_DUNGEON = re.compile(r"\b(out|surface|climb|back up|leave|exit|daylight|open air|turn back)\b")
+OUT_OF_DUNGEON = re.compile(r"\b(out of|(get|climb|head|go|walk|back|way|make it|find our|find my) out|surface|climb up|back up|leave|exit|daylight|"
+                            r"open air|turn back)\b")          # (f652) a way out, never "point out", "check out", "look out"
+ONWARD = re.compile(r"\b(delve|descend|next (chamber|room|hall|passage|level|floor)|to the next|deeper|further in|farther in|press(ing)? on|"
+                    r"onward|on ahead|(go|going|head|heading|climb|take the stairs) down|down the stairs|lower level|below)\b")   # (f652) the delve's own words
+WALKING = re.compile(r"\b(go|goes|going|went|walk|walking|head|heading|travel|ride|make (my|our) way|making (my|our) way|climb|climbing|get|"
+                     r"turn|leave|leaving|exit|continue|press|descend|step|move|moving|run|take)\b")
 GAMBLE = re.compile(r"\b(deal me in|hands? of cards|game of (dice|cards|chance)|roll (the |some )?dice|throw (the |some )?dice|"
                     r"play (some |a few |a hand of |at )?(cards|dice)|a wager|place a bet|double or nothing|for small stakes)\b")
 HAGGLE = re.compile(r"\b(do better than that|come down (a bit|a little|on)|knock (something|a bit|a little) off|too (much|dear|steep|rich)|"
@@ -86,8 +91,10 @@ TRAIN = re.compile(r"\b(teach|taught|train|training|lessons?|drills?|tutor|tutor
 ASKING = re.compile(r"\b(me|my|i want|i'd like|i would like|can you|could you|will you|would you|i wish|i need)\b")
 JOB = re.compile(r"\b((take|do|accept|start|finish|have) (the|that|this|your|my) (job|work|task)|put me to work|hire me|i'll work|"
                  r"ready to work|work for you)\b")
-PRAYING = re.compile(r"\b(pray|prayer|prayers|kneel|kneels|light a candle|lights? a candle|candle for|altar|offering|give thanks|gives thanks|"
-                     r"vow|blessing|the gods|the god|goddess)\b")
+PRAYING = re.compile(r"\b(pray|prayer|prayers|light a candle|lights? a candle|candle for|altar|shrine|idol|offering|give thanks|gives thanks|"
+                     r"vow|blessing|the gods|the god|goddess)\b")          # (f653) kneeling alone is no prayer: "I kneel and jam the plates"
+TELLS = re.compile(r"\b(last night|yesterday|the other day|earlier today|used to|ago|lost|won(?!')|played|threw|rolled)\b")   # (f653) a deed told of
+CLAUSE = re.compile(r"[.;!?,]|\s+(?:but|then|and then)\s+")
 LOOKING = re.compile(r"\b(look|looks|looking|examine|inspect|see|watch|glance|study|survey|around|peer|gaze|check|take in|scan|notice|read|"
                      r"admire|observe|eye)\b")
 PARTING = ("turn", "walk", "step", "nod", "wave", "leave", "move", "stop", "fall", "say", "go", "back")
@@ -126,6 +133,7 @@ class PlanRepairs:
         Repair("drop_restatements", 130, "drop_restatements", "a step that only says again what another does goes: the attack after the spell, the ingredient beside the craft, a look nobody asked for"),
         Repair("buy_what_was_named", 135, "buy_what_was_named", "a piece of stock the line never named, bought beside the asking for something else, goes: the asking stands (f342)"),
         Repair("name_the_target", 140, "name_the_target", "a step aimed at someone, with nobody named in it, is for the one person the line names"),
+        Repair("social_check", 155, "social_check", "'I try to persuade him: ...' said of the player's own act: the talk rolls that check (f683)"),
         Repair("deal_then_word", 165, "deal_then_word", "a word to someone, then a deal with them: the deal is settled first, so what they say knows how it went (f417)"),
     )
     DEALS = ("buy", "sell", "give", "show", "work", "accept_quest", "commission", "haggle", "gamble", "train")
@@ -176,6 +184,21 @@ class PlanRepairs:
 
     # ---------- conversation
 
+    def social_check(self, text: str, plan: list) -> None:
+        """(f683) "I try to persuade Fipen: ..." read as a plain talk rolled nothing, and the clue stayed shut for good: a social act
+        named in the player's own words, outside what they say aloud, is that check on the first talk the reading left without one."""
+        from engine import checks
+        own = re.sub(r"\"[^\"]*\"|“[^”]*”", " ", (text or "").lower())
+        said = next((c for c, stems in (checks.RULES.get("said_of_acts") or {}).items()
+                     if any(re.search(rf"\b{re.escape(s)}", own) for s in stems)), None)
+        if said is None:
+            return None
+        for a in plan:
+            if a.kind == "talk" and not set(a.checks) & set(checks.SOCIAL):
+                a.checks = list(a.checks) + [said]
+                return None
+        return None
+
     def one_goodbye(self, text: str, plan: list) -> list | None:
         """"Thanks, that's all. Goodbye." read as a talk and then a leave_conversation is one parting, said to the one they were talking
         with: the words go on the leaving step, which says them in parting (on_leave_conversation)."""
@@ -202,6 +225,7 @@ class PlanRepairs:
         deal first, so the answer is given knowing how it went: a night's smith said he did not deal in cloth and then bought the hood,
         an innkeeper agreed to a room that was never let. Steps after a journey are left where they are."""
         partner = self.partner.id if self.partner else ""
+        named = {x.target for x in plan if x.target}
         for k, a in enumerate(plan):
             who = a.target or partner
             if a.kind != "talk" or not who:
@@ -210,8 +234,8 @@ class PlanRepairs:
             for j, b in enumerate(plan[k + 1:], k + 1):
                 if b.kind in self.GOING:
                     break
-                if b.kind in self.DEALS and (b.target == who or (not b.target and b.kind not in actions.TARGETED)):
-                    last = j                         # a deal aimed at them; a buy with no one named may be from anyone
+                if b.kind in self.DEALS and (b.target == who or (not b.target and (b.kind not in actions.TARGETED or named <= {who}))):
+                    last = j                         # a deal aimed at them; one with no one named, in a line that speaks to them alone (f667)
             if last is not None:
                 return plan[:k] + plan[k + 1:last + 1] + [a] + plan[last + 1:]
         return None
@@ -222,30 +246,44 @@ class PlanRepairs:
         """A talk whose words are a pastime or a request the game has a kind for: a hand of cards is gamble, beating a price down is
         haggle (when a ware of the seller's is named), asking the instructor to teach is train, taking the job offered is work."""
         here = self.here_map()
-        low = text.lower()
-        question = low.strip().endswith("?")
+        line = text.lower()
+        question = line.strip().endswith("?")
+        alone = len(plan) == 1
         for a in plan:
             if a.kind != "talk" or (a.target and a.target not in here):
                 continue
+            part = self.line_part(text, f"{a.speech} {a.summary}") if alone or not (a.speech or a.summary) else ""
+            low = " . ".join([a.speech.lower(), a.summary.lower(), part]).strip(" .")
+            asks = lambda pat: any(pat.search(c) and not TELLS.search(c) for c in CLAUSE.split(low))   # (f653) asked, not told of, clause by clause
             who = here.get(a.target)
-            if GAMBLE.search(low):
+            if asks(GAMBLE):
                 a.kind = "gamble"
-            elif HAGGLE.search(low) and not question:
+            elif asks(HAGGLE) and not question:
                 sellers = [n for n in here.values() if self.wares_of(n)]
                 seller = who if who in sellers else (next((n for n in sellers if self.ware_named(low, n)), sellers[0] if sellers else None)
                                                     if who is None else None)      # (f545's review) the one who sells what is named
                 ware = self.ware_named(low, seller) if seller is not None else ""
                 if ware:
                     a.kind, a.ware, a.target = "haggle", ware, seller.id
-            elif TRAIN.search(low) and ASKING.search(low) and (not question or self.asks_what(low)):
+            elif asks(TRAIN) and ASKING.search(low) and (not question or self.asks_what(low)):
                 teacher = who if who is not None and who.role == "guild_instructor" else (self.instructor_here() if who is None else None)
                 if teacher is not None:
                     a.kind, a.target, a.item = "train", teacher.id, a.item or a.speech
-            elif JOB.search(low) and who is not None and not question and not re.search(r"\b(don'?t|do not|won'?t|not|never)\b", low):
+            elif asks(JOB) and who is not None and not question and not re.search(r"\b(don'?t|do not|won'?t|not|never)\b", low):
                 a.kind = "work"
         for a in plan:                                                # an 'other' that is a small rite is a prayer, anywhere
-            if a.kind == "other" and PRAYING.search(f"{a.summary} {low}".lower()) and not question:
+            own = f"{a.summary} . {self.line_part(text, a.summary) if alone or not a.summary else ''}".lower()   # (f653) the deed's own words
+            if a.kind == "other" and PRAYING.search(own) and not question:
                 a.kind = "pray"
+
+    @staticmethod
+    def line_part(text: str, words: str) -> str:
+        """(f653) The part of the typed line that says a deed: the clauses sharing a word (four letters or more) with the deed's own
+        words, else the whole line. "I whisper a prayer and pry open the chest", read as prying it open, is the prying."""
+        mine = {w for w in re.findall(r"[a-z]+", (words or "").lower()) if len(w) >= 4}
+        parts = [p for p in re.split(r"[.;!?,]|\s+(?:and then|then|and|but|while)\s+", (text or "").lower()) if p.strip()]
+        said = [p for p in parts if mine & set(re.findall(r"[a-z]+", p))]
+        return " . ".join(said or parts)
 
     def give_for_coin(self, text: str, plan: list) -> None:
         """(f429) The f425 night gave four things away that the player meant to sell or show: "I hand over my ash longbow and ask the
@@ -276,36 +314,67 @@ class PlanRepairs:
     # ---------- things and abilities
 
     def use_to_ability(self, text: str, plan: list) -> None:
-        """"I use Mending Light on myself": an ability named as if it were an item in the pack is the ability."""
-        from engine import inventory as inv, loadout
+        """"I use Mending Light on myself": an ability named as if it were an item in the pack is the ability. (f697) "Twin Flare at the
+        wisps", read as words to a companion: a talk whose words are the line's own, unquoted, and open with a prepared ability is it."""
+        from engine import inventory as inv, loadout, world_improv
+        prepared = loadout.prepared(self.player_of(self.acting).character)
+        verbs = "|".join(map(re.escape, world_improv.W["ability_opening"]))
+        aims = "|".join(map(re.escape, world_improv.W["ability_aiming"]))
+
+        def opens_with(words: str, ab) -> bool:                     # the words themselves open with it: no quote, name or colon before
+            name = re.escape(ab.name)
+            aimed = "" if " " in ab.name.strip() else rf"(?=\s+(?:{aims})\b)"
+            return bool(re.match(rf"\s*(?:I\s+(?:{verbs})\s+)?{name}\b{aimed}", words or "", re.I))
+
+        line_hit = next((ab for ab in prepared if opens_with(text, ab)), None)
         for a in plan:
+            if a.kind == "talk":
+                if line_hit is not None and opens_with((a.speech or "").strip(), line_hit):
+                    a.kind, a.ability, a.speech = "ability", line_hit.id, ""
+                continue
             if a.kind != "use" or not a.item.strip():
                 continue
             named = a.item.strip().lower()
-            hit = next((ab for ab in loadout.prepared(self.player.character) if named in (ab.name.lower(), ab.id.lower())), None)
+            hit = next((ab for ab in prepared if named in (ab.name.lower(), ab.id.lower())), None)
             if hit is not None and inv.find(self.pack, a.item) is None:
                 a.kind, a.ability, a.item = "ability", hit.id, ""
 
     # ---------- going nowhere
 
     def move_elsewhere(self, text: str, plan: list) -> None:
-        """A move that is not a journey: in a delve, out means leave_dungeon; a roof or a wall is a climb (other); upstairs, the bar, a
-        table, their room is within the place (look)."""
-        low = text.lower()
+        """A move that is not a journey: in a delve, out means leave_dungeon and on to the next chamber is the delve; a roof or a wall is
+        a climb (other); upstairs, the bar, a table, their room is within the place (look). (f652) Each read from the move's own words,
+        its destination and its summary, never a word elsewhere in the line ("I point out the wires, and we go on" is no way out)."""
         for a in plan:
             if a.kind != "move":
                 continue
             dest = a.destination.strip()
-            if self.player.delve and self.dungeon_here() and OUT_OF_DUNGEON.search(low):        # (f392) in one, standing at its mouth
-                a.kind, a.destination = "leave_dungeon", ""
-                continue
+            own = self.walk_words(text, a)
+            if self.dungeon_here():                                     # (f392) in one, or (f652) standing at its mouth
+                if ONWARD.search(own):
+                    a.kind, a.destination = "delve", ""
+                    continue
+                if self.player_of(self.acting).delve and OUT_OF_DUNGEON.search(own):
+                    a.kind, a.destination = "leave_dungeon", ""
+                    continue
             if dest in self.world.places or any(dest.lower() == pl.name.lower() or dest.lower() == pl.name.lower().removeprefix("the ")
                                                  for pl in self.world.places.values()):
                 continue
-            if HIGH.search(dest.lower()) and (CLIMB.search(low) or not GOING.search(low)):
+            if HIGH.search(dest.lower()) and (CLIMB.search(own) or not GOING.search(own)):
                 a.kind, a.destination, a.summary = "other", "", a.summary or text
-            elif WITHIN.search(dest.lower()) or WITHIN.search(low) and not self.local_person(dest):
+            elif WITHIN.search(own) and not self.local_person(dest):
                 a.kind, a.destination = "look", ""
+
+    @staticmethod
+    def walk_words(text: str, a) -> str:
+        """(f652) A walk's own words: its destination, its summary, and the part of the typed line that says the walk (a clause with a
+        verb of going or the destination's own words); the whole line only when no part of it does. "I point out the wires" is not."""
+        dest = (a.destination or "").lower()
+        named = {w for w in re.findall(r"[a-z]+", dest) if len(w) >= 4}
+        parts = [p for p in re.split(r"[.;!?,]|\s+(?:and then|then|and|but|while)\s+", (text or "").lower()) if p.strip()]
+        said = ([p for p in parts if named & set(re.findall(r"[a-z]+", p))]                  # the part naming where, else one that goes
+                or [p for p in parts if WALKING.search(p)] or parts)
+        return " ".join([dest, (a.summary or "").lower(), *said])
 
     def fishing(self, text: str, plan: list) -> list | None:
         """"I fish in the river for my supper" is one attempt where they stand: not a hunt for fish (search) and not a journey to the

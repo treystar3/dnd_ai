@@ -276,6 +276,7 @@ encounters:
   tracker_bonus: 0.15       # extra search chance for characters with the Tracker passive
   trail: {bonus: 0.25, fresh_minutes: 120}   # (f381) signs a search turned up: following them hunts that creature, with better odds
   roster_size: 6
+  in_view_minutes: 60       # (f700) a creature keeping its distance has moved on once this long has passed since it was seen
   elite_chance: 0.05
   elite_scaling: {from_level: 90, full_level: 140, health: 1.6, damage: 1.8}   # on top of the elite rank multipliers: x1.6 health, x1.8 damage by level 140
   elite_late: {start_level: 60, per_level: 0.005, cap: 0.45}   # elites turn up more often in the far lands

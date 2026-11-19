@@ -141,9 +141,9 @@ p = player(); p.moves = [call("bound", mid="warden")]
 f = combat.Combat(fighters=[p, foe()], record=False)
 summons.join_bound(f, ch)
 check("the Bound summon walks into a fight with its maker", summons.bound_of(f) is not None and f.bound_id == "warden")
-f.bound_fell = True
-note = summons.after_fight(ch, f)
-check("unmade in a fight, it stays unmade afterwards", ch.bound_broken and note)
+combat.take_damage(f, summons.bound_of(f), 10 ** 6, None, rng)
+note = summons.after_fight(ch, f, p)
+check("unmade in a fight, it stays unmade afterwards", f.bound_fell and ch.bound_broken and note)
 p = player(); p.moves = [call("bound", mid="warden")]
 f = combat.Combat(fighters=[p, foe()], record=False)
 summons.join_bound(f, ch)

@@ -66,15 +66,18 @@ class ExploreActions:
         lead = discovery.match_lead(data, here, seek, self.minutes)
         chance = X["lead_chance"] if lead else self.explore_chance(seek)
         self.end_conversation()
-        self.advance(self.rng.randint(*[h * 60 for h in X["hours"]]))
+        spent = self.rng.randint(*[h * 60 for h in X["hours"]])
+        self.advance(spent)
         if not discovery.room(data, here) or self.rng.random() >= chance:
             self.facade_met("facade" if self.part_of_here(seek) else "dead_end", text, f"looked for '{seek}' and found nothing new")
+            self.told("search_failed", hours=clock.describe_duration(spent), seek=seek, place=place.name)
             self.narrate(f"The player goes looking beyond what they already know, searching for: {seek}. They find nothing new "
                          f"- only more of {place.name}. Describe the search and its fruitlessness.", text)
             return
         found = self.invent_discovery(here, seek, lead, data)
         if not found:
             self.facade_met("facade" if self.part_of_here(seek) else "dead_end", text, f"looked for '{seek}': a lead came to nothing")
+            self.told("search_failed", hours=clock.describe_duration(spent), seek=seek, place=place.name)
             self.narrate(f"The player goes looking beyond what they already know, searching for: {seek}. A promising lead "
                          f"comes to nothing. Describe that.", text)
             return
@@ -92,7 +95,7 @@ class ExploreActions:
                          f"Describe arriving and what they see: {' '.join(p.visible)}", text)
         else:
             r = self.world.roads[found["id"]]
-            console.note(f"You find a way: {r.name} - {r.description}")
+            console.note(f"You find a way: {r.name}. {r.description}")
             console.note(f"It runs from here to {self.world.places[r.to].name}, about "
                          f"{clock.describe_duration(found['minutes'])} on foot.")
             self.narrate(f"After searching for {seek}, the player finds {r.name}: {r.description} It leads to "

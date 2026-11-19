@@ -27,6 +27,7 @@ import simlib
 simlib.install(simlib.Stub("warrior", 3))
 sys.path.insert(0, "tools/sim")
 import world_script
+import rows_v16
 from core.models import Character
 from engine import party as rules
 from engine import pulse
@@ -45,14 +46,10 @@ MADE = []
 
 
 def scratch(name: str, kept: str = "") -> CampaignStore:
-    """A new save, or a copy of one of the saves kept at version 16."""
-    folder = Path("saves") / name
-    shutil.rmtree(folder, ignore_errors=True)
+    """(f640) A save as version 16 kept it, its player in the row: a new one put back, or a copy of one of the saves kept at
+    that version with no later step run. The row's side of every comparison here, and what `adopt` is tried on."""
     MADE.append(name)
-    if kept:
-        folder.mkdir(parents=True)
-        shutil.copyfile(KEPT / kept, folder / DB_NAME)
-    return CampaignStore.open_or_create(name)
+    return rows_v16.opened(name, kept)
 
 
 def tables(store) -> set:
@@ -67,13 +64,20 @@ def others(store) -> dict:
     """Every table but the player's own record: the small table without its 'player' row, and the rest whole."""
     d = statehash.dump(store)
     d["kv"] = [r for r in d["kv"] if r[0] != "player"]
+    d.pop(playerstable.TABLE, None)                       # (f640) the fingerprint reads the players table: the record's other home
     return d
 
 
-# ---- not yet used
+# ---- (f640) in use: a save has the table, and one put back is the row
 plain = scratch("players_638_plain")
-check("a save is still version 16, has no players table, and its players are the row's", migrations.CURRENT == 16 and plain.version == 16
-      and type(plain._players) is playerstable.RowPlayers and "players" not in tables(plain), (type(plain._players).__name__, tables(plain)))
+shutil.rmtree(simlib.saves_path("players_638_live"), ignore_errors=True)
+MADE.append("players_638_live")
+live = CampaignStore.open_or_create("players_638_live")
+check("a save is version 17 and its players are the table's; one put back is version 16, its players the row's, with no players table",
+      migrations.CURRENT == 17 and live.version == 17 and type(live._players) is playerstable.TablePlayers and "players" in tables(live)
+      and plain.version == 16 and type(plain._players) is playerstable.RowPlayers and "players" not in tables(plain),
+      (type(live._players).__name__, type(plain._players).__name__, tables(plain)))
+live.close()
 check("a save with no player has none, by the store and by the port", not plain.player_exists() and plain.player_text() is None
       and plain._players.ids() == [] and not plain._players.exists(FIRST))
 check("the first character's id is the one a character has by default", playerstable.FIRST == FIRST == "player")
@@ -236,8 +240,8 @@ row.close(); tab.close()
 def pulse_writes(name: str, table: bool) -> tuple:
     g = simlib.campaign(name, seed=3, location="trading_square")
     MADE.append(name)
-    if table:
-        playerstable.adopt(g.store)
+    if not table:
+        rows_v16.player_to_row(g.store)                   # (f640) a save has the table: the row's side is put back
     ws = g.scene
     ws.enter("trading_square")
     had = ws.player.character.coins
@@ -284,14 +288,14 @@ check("an operation that wrote the player and did not stand is rolled back, and 
 
 # ---- the seeded world script, over the row and over the table
 with ThreadPoolExecutor(2) as pool:                      # each play in a process of its own (the stand-in model counts what it invents)
-    a, b = pool.map(lambda args: world_script.run_apart(*args), (("players_638_play_row", world_script.SEED, ()),
-                                                                 ("players_638_play_tab", world_script.SEED, ("--players", "table"))))
+    a, b = pool.map(lambda args: world_script.run_apart(*args), (("players_638_play_row", world_script.SEED, ("--players", "row")),
+                                                                 ("players_638_play_tab", world_script.SEED, ())))
 MADE.extend(("players_638_play_row", "players_638_play_tab"))
 check("the script was played over the row, and over the table", (a["players"], b["players"]) == ("RowPlayers", "TablePlayers"), (a.get("players"), b.get("players")))
 check("...all of it, in both", all(a["cover"].values()) and a["cover"] == b["cover"] and len(a["steps"]) == len(b["steps"]) > 20, a["cover"])
 apart = next((x[0] for x, y in zip(a["steps"], b["steps"]) if x != y), None)
 check("the world is the same after every step", a["steps"] == b["steps"], apart)
-check("every other table of the save holds the same", all(a["other"][t] == b["other"][t] for t in a["other"] if t not in ("kv", "all")) and len(a["other"]) >= 7,
+check("every other table of the save holds the same", all(a["other"][t] == b["other"][t] for t in a["other"] if t not in ("kv", "all", playerstable.TABLE)) and len(a["other"]) >= 7,
       [t for t in a["other"] if a["other"][t] != b["other"][t]])
 check("...and so does every other row of the small one", a["rest"] == b["rest"])
 check("the player's record at the end is the same text", a["player"] == b["player"] and len(a["player"] or "") > 1000,
@@ -303,7 +307,7 @@ check("the store was written at every step in both", a["wrote"] == b["wrote"] an
 
 plain.close(); bare.close()
 for name in MADE:
-    shutil.rmtree(f"saves/{name}", ignore_errors=True)
-    Path(f"saves/{name}.world_script.json").unlink(missing_ok=True)
+    shutil.rmtree(simlib.saves_path(name), ignore_errors=True)
+    simlib.saves_path(f"{name}.world_script.json").unlink(missing_ok=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

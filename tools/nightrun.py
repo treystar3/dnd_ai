@@ -30,7 +30,6 @@ import collections
 import json
 import os
 import random
-import shutil
 import subprocess
 import sys
 import threading
@@ -72,6 +71,20 @@ def server_back(seconds: int = 600, every: int = 5, state=None, sleep=time.sleep
         waited += every
 
 
+def town_around(ws) -> dict:
+    """(f723) The town's news, its happenings and the board's postings as they stand, each a list of lines: what a reply to a line
+    about something else should not be bringing up (tools/live_gate.py leaks). Read only: the facts are the truth layer's own, from
+    a scene of its own that the game never sees; the board is the one last posted, never posted anew here (a refresh is the
+    game's, inside a turn); the ordinary day anyone can see (the ambient lines) is no news."""
+    from engine import truth
+    scene = truth.Scene(ws)
+    gid = ws.hall_here()
+    posted = ws.store.load_place(gid).board if gid else []
+    return {"news": [f.text for f in scene.facts("news")],
+            "happenings": [f.text for f in scene.facts("happenings") if f.facet == "happenings"],
+            "board": [str(q.get("title") or "") for q in posted if q.get("title")]}
+
+
 class Run:
     """The harness: the console hooks that record the transcript and the time to the first word, the wrapped model client that counts
     every call, and the turn rows."""
@@ -94,6 +107,9 @@ class Run:
         self.stop_when = None                        # a run with a goal (tools/eventrun.py) says when it is reached
         self.passage: list[str] = []                 # (f368) everything the game said since the last line: what the bot's next line answers
         self.turn_notes: list[str] = []              # (f391) the notes the game showed this turn (refusals among them), kept in the turn row
+        self.keep_told = False                       # (f719) a scripted run keeps each passage the narrator showed in its turn's row
+        self.turn_told: list[str] = []
+        self.turn_said: list[list[str]] = []         # (f723) ...and each thing said aloud, [who, the words alone], in order
         self.cast: dict[str, dict] = {}              # (f391) everyone who travelled with the player, as the game knew them: for the summary's checks
 
     # ---- the console: everything the game prints goes to the transcript, and the first story line stamps the time
@@ -102,9 +118,9 @@ class Run:
         self.real = {k: console.now(k) for k in ("narrate", "say", "npc_says", "dialogue", "note", "wait", "ledger", "out",
                                                      "combat_numbers", "combat_panel", "debug", "ask", "status_block", "header")}
         console.put("narrate", lambda text: self.seen("", text))
-        console.put("say", lambda text, speaker="": self.seen(speaker or "says", text))
-        console.put("npc_says", lambda label, speech, gesture="": self.seen(label, speech + (f" ({gesture})" if gesture else "")))
-        console.put("dialogue", lambda before, speaker, speech, after: self.seen(speaker, " ".join(x for x in (before, f'"{speech}"', after) if x)))
+        console.put("say", lambda text, speaker="": self.seen(speaker or "says", text, text))
+        console.put("npc_says", lambda label, speech, gesture="": self.seen(label, speech + (f" ({gesture})" if gesture else ""), speech))
+        console.put("dialogue", lambda before, speaker, speech, after: self.seen(speaker, " ".join(x for x in (before, f'"{speech}"', after) if x), speech))
         console.put("note", lambda message, *a, **k: self.noted(str(message)))
         console.put("wait", lambda message: self.noted(str(message)))
         console.put("ledger", lambda message: self.noted(str(message)))
@@ -117,9 +133,13 @@ class Run:
         console.put("ask", self.ask)
         console.guard_outputs()                      # (f391) the transcript gets what the player would see, through the output gate
 
-    def seen(self, who: str, text: str) -> None:
+    def seen(self, who: str, text: str, words: str = "") -> None:
         if self.first_word is None and self.current is not None:
             self.first_word = time.time() - self.t_line
+        if not who:
+            self.turn_told.append(text.strip())
+        else:
+            self.turn_said.append([who, str(words or text).strip()])
         self.passage.append((f"{who}: " if who else "") + text.strip())
         self.transcript.write((f"**{who}:** " if who else "") + text.strip() + "\n\n")
 
@@ -176,6 +196,8 @@ class Run:
         text, kind = self.bot.decide()
         self.passage = []
         self.turn_notes = []
+        self.turn_told = []
+        self.turn_said = []
         self.sub_answers = 0
         self.current = {"n": len(self.rows) + 1, "time": datetime.now().isoformat(timespec="seconds"), "kind": kind, "text": text,
                         "where": self.bot.where(), "turn": self.bot.ws.store.meta.turn, "level": self.bot.c.level,
@@ -209,6 +231,14 @@ class Run:
                    deferred=list(spent.get("deferred") or []), dropped=list(spent.get("dropped") or []),
                    stand_ins=list(spent.get("stand_ins") or []),
                    recovered=int(getattr(getattr(self.bot, "ws", None), "recovered_at_load", 0) or 0) if row["n"] == 1 else 0)   # (f471)
+        if self.keep_told:
+            row["told"] = list(self.turn_told)
+            row["said"] = list(self.turn_said)
+            if self.turn_said:
+                try:
+                    row["around"] = town_around(self.bot.ws)
+                except Exception as e:
+                    self.errors.write(f"town_around: {type(e).__name__}: {e}\n")
         row["crashed"] = bool(row["hesitated"] and getattr(getattr(self.bot, "ws", None), "last_crash", False))   # (f492) the game's fault
         self.crash_streak = self.crash_streak + 1 if row["crashed"] else 0 if not row["hesitated"] else self.crash_streak
         if not row["hesitated"]:
@@ -327,6 +357,7 @@ class Run:
         info = {"ended": datetime.now().isoformat(timespec="seconds"), "turns": len(self.rows), "reason": self.reason,
                 "hours": round((time.time() - self.started) / 3600, 2), "cast": self.cast, "hygiene": dict(hygiene.REPAIRS),
                 "stale_world_saves": list(getattr(getattr(self.bot.ws.store, "_world", None), "stale", None) or []),   # (f589) for the owner to rule on
+                "fight_out_of_step": dict(getattr(self.bot.ws.store, "fight_watch", None) or {}),     # (f760) inputs that ended with the fight apart from its row
                 "name_repairs": dict(names.BY_TASK), "sampling_arm": __import__("config").SAMPLING_ARM, **extra}       # (f587) for A1
         (self.out / "run.json").write_text(json.dumps(info, indent=1), encoding="utf-8", newline="\n")
 
@@ -441,6 +472,9 @@ def batch(args) -> None:
     base = Path(args.out or "logs/nightrun")
     base.mkdir(parents=True, exist_ok=True)
     plan = [(classes[i % len(classes)], args.seed + i, points[i % len(points)], personas[i % len(personas)]) for i in range(args.runs)]
+    from storage import saves
+    for cls, seed, _start, _persona in plan:              # (f743) every run's save made before the first starts: a refused name stops no run midway
+        saves.scratch(f"{args.save or 'nightrun_' + stamp}_{cls}_{seed}", typed=bool(args.save))
     print(f"A night of {args.runs} runs, {args.hours:g} hours each ({args.runs * args.hours:g} in all): "
           + ", ".join(f"{c} seed {s} ({st}, {pe})" for c, s, st, pe in plan), flush=True)
     rows, stopped = [], False
@@ -537,13 +571,16 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=1, help="the campaign's seed and the bot's")
     ap.add_argument("--party", type=int, default=3, help="adventurers hired from the home hall before setting out (default 3, a full party; 0 for none)")
     ap.add_argument("--out", default="", help="where the logs go (default logs/nightrun/<when>)")
-    ap.add_argument("--save", default="", help="the save folder's name (default nightrun_<when>; never listed on the home page)")
+    ap.add_argument("--save", default="", help="the save folder's name (default nightrun_<when>; never listed on the home page): a scratch "
+                    "save, cleared at the start; a game, or a folder no tool made, is refused")
     ap.add_argument("--stub", action="store_true", help="play with the stand-in model (measures nothing real; for the test suite)")
     ap.add_argument("--record", action="store_true", help="(f442) keep a recording of the run in <out>/recording (engine/recording.py), for "
                     "tools/rerun.py and the real-card timing; the run is strict, so background people are waited for at each line")
     ap.add_argument("--runs", type=int, default=1, help="(f361) play this many runs one after another, each its own process with the seed counting up from --seed "
                                                         "and the class rotating; --hours is per run. A night left alone (default 1)")
     ap.add_argument("--classes", default="", help="with --runs: the classes to rotate through, comma-separated (default: every class, from --class on)")
+    ap.add_argument("--script", default="", help="(f719) play this file's typed lines in order in place of the bot (tools/live_gate.py); "
+                    "--turns cuts it short")
     ap.add_argument("--start", default="green", help="(f367) the starting point (data/rules/starts.yaml): green, known, veteran, scarred, legend")
     ap.add_argument("--starts", default="", help="with --runs: the starting points to rotate through, comma-separated (default: the file's rotation)")
     ap.add_argument("--persona", default="", help=f"(f368) the kind of player the bot is: {', '.join(PERSONAS)} (default: by the seed, in that order)")
@@ -556,13 +593,17 @@ def main() -> None:
     runtime_cli.add_args(ap)                                                                    # (f529) --attach: the open game's server
     args = ap.parse_args()
     if args.runs > 1:
+        if args.script:
+            die("--script plays one run: leave --runs out")
         batch(args)
         return
 
     stamp = datetime.now().strftime("%Y%m%d_%H%M")
+    save = args.save or f"nightrun_{stamp}"
+    from storage import saves
+    saves.scratch(save, typed=bool(args.save))           # (f743) before anything is made or opened: a game, or a folder no tool made, is refused
     out = Path(args.out or f"logs/nightrun/{stamp}")
     out.mkdir(parents=True, exist_ok=True)
-    save = args.save or f"nightrun_{stamp}"
 
     import config
     config.LOG_PATH = str(out / "llm_calls.jsonl")          # the run's own logs, kept whole: the game's trimming never touches them
@@ -598,7 +639,6 @@ def main() -> None:
     from engine import turnlog
 
     rng = random.Random(args.seed)
-    shutil.rmtree(f"saves/{save}", ignore_errors=True)
     session = CampaignSession.open(save)                                 # (f457) the campaign's session, as main.py opens it
     store, world = session.store, session.world
     store.meta.seed, store.meta.turn, store.meta.minutes = args.seed, 1, 8 * 60
@@ -632,7 +672,15 @@ def main() -> None:
     party = hire_party(ws, args.party)
 
     run = Run(out, args.hours, args.turns, live=not args.stub)
-    bot = Bot(ws, world, random.Random(args.seed * 7 + 1), stub, persona=persona, run=run, continuity=not args.no_continuity)   # (f473)
+    if args.script:                                                  # (f719) the gate's lines, typed as written
+        import live_gate
+        from nightbot import Scripted
+        typed = live_gate.load_script(Path(args.script))["lines"]
+        run.max_turns = min(args.turns or len(typed), len(typed))
+        run.keep_told = True
+        bot = Scripted(typed, ws, world, random.Random(args.seed * 7 + 1), stub, persona=persona, run=run, continuity=False)
+    else:
+        bot = Bot(ws, world, random.Random(args.seed * 7 + 1), stub, persona=persona, run=run, continuity=not args.no_continuity)   # (f473)
     run.bot = bot
     if stub is not None:
         stub.bot = bot
@@ -690,6 +738,7 @@ def main() -> None:
                     "persona": persona, "bot": bot.report(), "distinct": round(len(set(texts)) / len(texts), 3) if texts else 0,      # (f368)
                     "ended_by_player": ended_by_player(Path(config.PULSE_LOG_PATH)),
                     "save": save, "restarts": restarts, "stub": args.stub, "model": config.MODEL,
+                    "checked": dict(__import__("llm.gateway", fromlist=["CHECKED"]).CHECKED),          # (f719) for the live gate
                     "sampling": {"temp_add": config.TEMP_ADD, "repeat_add": config.REPEAT_ADD,          # (f387) which voice this night tried
                                  "think_tasks": sorted(getattr(config, "THINK_TASKS", ())), "think_room": getattr(config, "THINK_ROOM", None),   # (f533)
                                  "base": dict(_sampling.BASE), "table": {k: dict(v) for k, v in (getattr(config, "SAMPLING", {}) or {}).items()}},

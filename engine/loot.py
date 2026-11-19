@@ -213,6 +213,23 @@ def found_materials(category: str, level: int, rng: random.Random, bonus: float 
     return [raw]
 
 
+def remains_words(fallen: list) -> str:
+    """(f672) How the fallen can be worked, by what they would give: hide and meat are skinned and butchered, wood is cut; a felled
+    tree was offered for skinning."""
+    from engine import inventory
+    F = L.get("material_finds") or {}
+    fams = {m.family for e in fallen for m in items.MATERIALS.values()
+            if e.category in m.found_with and m.levels[0] * F.get("level_floor", 1) <= e.level <= m.levels[1]}
+    fams |= {m.family for e in fallen for m in items.MATERIALS.values() if e.creature in m.drops_from}
+    meat = any(e.creature in g.drops_from for e in fallen for g in inventory.GOODS.values())
+    one = len(fallen) == 1
+    if meat or "hide" in fams:
+        return f"skinned or butchered for {'its' if one else 'their'} hide and meat"
+    if fams == {"wood"}:
+        return f"cut for {'its' if one else 'their'} wood"
+    return "worked for what they yield"
+
+
 def has_remains(enemy) -> bool:
     """Whether a fallen creature leaves anything worth skinning or butchering. (f392) Never a person: a night's run offered to butcher
     bandits for hide and meat, and the party talked of eating a dead prisoner."""

@@ -15,7 +15,7 @@ from engine.party import P
 from llm.contracts import ActionIntent, CompanionReply, PartyIntent
 from llm.gateway import LLMError, generate
 from scenes import party_prompts as ppr
-from engine import actions, actor, clock, ledger, money
+from engine import actions, actor, clock, ledger, money, pulse, telling
 from ui import console
 
 G = quests.G
@@ -69,8 +69,8 @@ class PartyActions:
             return
         if not self.party_wanted():
             return
-        console.note("The clerk has heard where your trail leads: a fortified camp. The guild keeps adventurers who will go with you "
-                     "for a fee - say 'recruit help' to see who is free.")
+        console.note("The clerk knows where your trail leads: a fortified camp. The guild has adventurers who'll go with you "
+                     "for a fee. Say 'recruit help' to see who's free.")
 
     def party_roster(self) -> list[dict]:
         from engine import mentor
@@ -91,6 +91,8 @@ class PartyActions:
         except LLMError:
             return PartyIntent(kind=keyword_party(text) or "none")
 
+    AT_HALL = {"promote": "A promotion", "hire": "Hiring"}     # (f666) the party's acts done at a guild hall, before its clerk
+
     def party_turn(self, text: str) -> bool:
         """Handle hiring and directing a party. False means it is not about the party."""
         if self.combat or text.lstrip().startswith(("#", "/")):
@@ -110,9 +112,13 @@ class PartyActions:
             return False
         if kind in ("list", "hire"):
             return False                                    # (f309) talk about hiring is just talk; the hiring itself is done in the Board pane
-        if kind == "with" and self.player.party_mode == "with":
+        if kind == "with" and self.player.party_mode == "with" and not self.held_alone():
             return False                                    # (f386) they are already with you: the line is about something else ("head back to
                                                             # the guild house" was answered seven times with "your party moves beside you")
+        if kind in self.AT_HALL and not (self.at_guild_hall() and self.clerk_here()):
+            from engine import told
+            console.note(told.say("at_hall", self.store.meta.turn, act=self.AT_HALL[kind]))     # (f666) as hiring is
+            return True
         getattr(self, f"party_{kind}")(intent.target, text, offered)
         self.store.save_player(self.player)
         if kind in ("with", "hold") and self.party_proposal(text):
@@ -148,14 +154,15 @@ class PartyActions:
         self.party_service.join({"id": "npc_maren", "name": n.name, "role": "fighter", "level": mentor.M["troll_sheet"]["level_mentor"], "rank": "A",
                                  "blurb": "Maren Holt, an A-rank adventurer", "npc": n.id, "sheet": "maren", "stay": True})
         self.store.save_player(self.player)
-        console.note(f"{n.name} joins your party. She comes for her own reasons, and she is not paid. If she is hurt badly enough, she may not get up.")
+        console.note(f"{n.name} joins your party. She's coming for her own reasons, not for pay. If she's hurt badly enough, she may not get up again.")
         self.mentor_say("Fine. Someone has to keep you out of trouble. Lead on.", beat="the player has asked you to travel with them and you agree, dryly")
         return True
 
     def companion_home(self, npc_id: str) -> None:
         """A companion who leaves the party stays where they were let go, if that is a settlement; else they go back where they came from."""
         n = self.store.load_npc(npc_id)
-        spot = next((pid for pid in (self.player.location, self.here_top()) if pid and self.store.load_place(pid).populated), "")
+        spot = next((pid for pid in (self.player.location, self.here_top())                   # (f755) f735's one rule of a settlement (review Q15)
+                     if pid and pulse.settled(self.world, pid) and self.store.load_place(pid).populated), "")
         st = self.store.load_place(spot) if spot else None
         if st:
             if n.id not in st.residents:
@@ -203,10 +210,10 @@ class PartyActions:
         shape = self.world.bestiary.get(comp.creature) or _Shape(comp)
         f = combat.companion_fighter(shape, c.level, f"ally_{comp.id}", comp.name, gift=comp.source == "gift")
         if comp.dead:
-            state = "Dead - only a revival brings it back"
+            state = "Dead. Only a revival will bring it back"
         elif comp.fallen:
             wait = max(0, comp.recover_at - self.minutes)
-            state = "Fallen - back on its feet in " + clock.describe_duration(wait) if wait else "Fallen - ready to rise"
+            state = "Fallen, back on its feet in " + clock.describe_duration(wait) if wait else "Fallen, but ready to get up"
         else:
             state = "Ready"
         role = getattr(comp.role, "value", comp.role) or "striker"
@@ -223,6 +230,8 @@ class PartyActions:
             row["promote"] = money.fmt(rules.promotion_fee(m)) if m.get("capped") and rules.next_rank(row["rank"]) else ""
         from engine import statsheet
         row["tip"] = statsheet.lines(self.member_sheet(m), notes=False)
+        if m.get("held_at"):                                                 # (f651) the pane says where one held alone is (the owner, Q19)
+            row["doing"] = "holding back here, ready to come if there is trouble"
         return row
 
     def party_data(self) -> dict:
@@ -483,10 +492,36 @@ class PartyActions:
             return True
         if self.party_proposal(text):                       # (f386) "let's keep moving toward Parth" is the player's next step
             return True
+        if "?" not in text and self.goes_to_place(low):     # (f708) "Start the trek to Ironvein.": a step, in any wording
+            return True
         if self.COMMAND.match(low) and "?" not in text and not low.startswith(("go on", "go ahead", "look,")):
             return True
         m = self.TO_SOMEONE.match(low)
         return bool(m) and m.group(1) not in (first, "me", "us", "him", "her", "them", "you")
+
+    TOWARD = re.compile(r"\b(?:to|toward|towards|for|into)\s+(?:the\s+)?(?P<rest>.*)")
+
+    @staticmethod
+    def _plain(s: str) -> str:
+        return " ".join(re.sub(r"[^a-z ]", " ", re.sub(r"'s\b", "", s.lower().replace("’", "'"))).split())
+
+    def goes_to_place(self, low: str) -> bool:
+        """(f708) Does the line name a place walked to, other than here, right after to / toward / for / into? The place's whole name
+        opens the words that follow ("to Parth's gate", "toward the Greyhollow foothills"), so 'for the great help' is never the Great
+        River reaches. Only whole places, and the parts of this town: another town's chapel is not walked to by its name alone."""
+        from engine import mapview
+        here = self.player_of(self.acting).location
+        here_top = mapview.top_of(self.world, here)
+        names = set()
+        for pid, p in self.world.places.items():
+            top = mapview.top_of(self.world, pid)
+            if p.type != "road" and pid not in (here, here_top) and top in (pid, here_top):
+                names.add(self._plain(re.sub(r"^the\s+", "", p.name, flags=re.I)))
+        for m in self.TOWARD.finditer(low):
+            rest = self._plain(m.group("rest"))
+            if any(n and (rest == n or rest.startswith(n + " ")) for n in names):
+                return True
+        return False
 
     def npc_addressed(self, text: str, npc) -> bool:
         from engine import mentor
@@ -508,10 +543,41 @@ class PartyActions:
         m = self.hire_named(text)
         if not m:
             return self.hire_followup(text)
+        from engine import addressing
         first = m["name"].split()[0].lower()
         low = text.strip().lower()
-        direct = "?" in text or low.startswith((first, f"ask {first}", f"tell {first}", f"say to {first}"))
-        return m if direct or not self.action_line(text) else None
+        found = [a for a in addressing.addressed(text, {m["id"]: [m["name"].lower(), first]}) if m["id"] in a.who]
+        if not found and not re.fullmatch(rf"\W*{re.escape(first)}\W*", low):
+            return None                                  # (f654) named, not spoken to: "Raerei is still white as a sheet. We sit..."
+        if any(self.pack_thing_in(a.said or a.clause) for a in found) or any(a.mine for a in found):
+            return None                                  # (f654) something handed over, or the player's own deed: the interpreter reads it
+        if "?" not in text and self.goes_to_place(low):
+            return None                                  # (f708) "Morm, start the trek to Greyhollow.": a step, read with Morm as the one spoken to
+        spoken = {a.clause for a in found}
+        if any(self.own_deed(c) for c in addressing.clauses(text) if c not in spoken):
+            return None                                  # (f674) '"Pae, hold it off!" I cast Chilling Touch': the cast is the player's
+        return m
+
+    SAYING = re.compile(r"^(?:and\s+)?i\s+(?:ask|say|said|tell|told|whisper|call|shout|yell|reply|answer|add|mutter|murmur|laugh|sigh|grin|smile|nod)\b")
+
+    def own_deed(self, clause: str) -> bool:
+        """(f674) A sentence of the player's own deed, said to no one: one that starts with what the player does ("I cast", "we go"), or
+        names one of the acting character's abilities; never the words that only tag speech ("I ask", "I say")."""
+        low = " ".join((clause or "").lower().split()).strip(" .!?,;:\"'")
+        if not low or self.SAYING.match(low):
+            return False
+        names = [a.name.lower() for a in getattr(self.player_of(self.acting).character, "actives", []) or [] if a.name]
+        return bool(re.match(r"(?:and\s+|then\s+)?(?:i|we|let's|let us)\b", low)) or any(re.search(rf"\b{re.escape(n)}\b", low) for n in names)
+
+    HANDING = re.compile(r"\b(give|hand|take|here|toss|throw|pass|offer|feed|share|lend|drink|use|pour|apply|tip|eat|wear)\b")
+
+    def pack_thing_in(self, words: str) -> bool:
+        """(f654) Is a thing from the pack handed over or used ("take this healing draught", "I make Odly drink it")? Then it is a deed. The thing is
+        named as a given thing is named everywhere (listening.said)."""
+        from engine import inventory as inv
+        from scenes.listening import said
+        low = (words or "").lower()
+        return bool(self.HANDING.search(low)) and any(said(inv.label(i), low) for i in self.player_of(self.acting).character.inventory)
 
     @staticmethod
     def hurt_words(h: float) -> str:
@@ -574,6 +640,16 @@ class PartyActions:
             return "warned_self"
         return ""
 
+    def hire_move(self, m: dict, text: str, feeling: str | None = None) -> str:
+        """(f728) What a companion does with what was said to them, settled before they are asked to speak (engine/reply.py): on a die
+        of its own; '' with decide then speak off. Told of a loss in the character's own life, they answer it."""
+        from engine import quirks, reply as reply_rules, streams
+        if not reply_rules.on():
+            return ""
+        feeling = self.hire_feeling(m, text) if feeling is None else feeling
+        return reply_rules.companion_move(m, streams.keyed("move", str(m.get("id", "")), "hire", len(m.get("said") or [])),
+                                          forced=feeling in quirks.Q["answer_told"]["when"])
+
     def hire_subtext(self, m: dict, text: str) -> str:
         """What they feel and will not say, when there is real feeling in the moment."""
         from engine import quirks
@@ -597,7 +673,8 @@ class PartyActions:
         out = []
         if m["name"] not in framed:
             out.append(W["first"])
-        framed.add(m["name"])
+            framed.add(m["name"])
+            telling.noted(self)                                                 # (f761) kept in the save's telling row
         if in_fight:
             out.append(W["fight"])
         feeling = voice_profile.emotion_for(self.hire_feeling(m, text)) if text and not text.startswith("(") else ""
@@ -647,6 +724,7 @@ class PartyActions:
                               wp.dialogue_request(self.time_label(), self.place, others, name, looks, doing, self.temper_text(m), False,
                                                   reply_to or "(listening)", speech, gesture, False, self.recent_narration,
                                                   self.frame_for(m, P["frame"]["fight" if in_fight else "talk"]), reach=within, moment=reach.moment(fight=in_fight),
+                                                  in_view=self.in_view(),                                  # (f700)
                                                   why=why, already=self.shown_lines(), worn=self.worn_words("prose"), who_is=entities.who_is_who(self),
                                                   exemplars=self.exemplars("fight" if in_fight else "narration")),
                               DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS,
@@ -690,6 +768,10 @@ class PartyActions:
         fix = ""
         from engine import voice_profile
         feeling = self.hire_feeling(m, text)
+        from engine import reply as reply_rules
+        move = self.hire_move(m, text, feeling)                   # (f728) settled before they speak
+        if move:
+            console.debug(f"{m['name']} decided: move {move}")
         how, core, recalled, held = self.companion_brief(m, text, emotion=voice_profile.emotion_for(feeling),            # (f488) in its parts
                                                          relation=voice_profile.relation_kind(bond_tier=rules.bond_tier(m)), toward="the player")
         answer_to = None
@@ -702,9 +784,11 @@ class PartyActions:
             heard = [t for who, t in recent[-6:] if who not in ("Player", m["name"].split()[0])]           # (f382) what the others just said
             ctx = {"recent": convo.others_lately(m.get("said", []), before), "member": m, "player": player, "heard": heard,
                    "others": self.fellow_names(m), "said": text,                                                   # (f385)
-                   "gesture_state": quirks.gesture_state(m, self.gesturers(m)), "answer_to": answer_to, "known": view.scene.known_words(),
+                   "gesture_state": dict(quirks.gesture_state(m, self.gesturers(m)), **({"gesture_now": True} if move and reply_rules.wordless(move) else {})),   # (f728) a look may be the reply
+                   "answer_to": answer_to, "known": view.scene.known_words(),
                    "given_also": view.town_lines,                                          # (f488) the town's list, for the checks, given or not
-                   "worn": self.worn_words("speech")}                                      # (f582) the words worn in speech, for the check as well
+                   "worn": self.worn_words("speech"),                                      # (f582) the words worn in speech, for the check as well
+                   "uncontracted_ok": [] if voice_profile.contracts(m) else [""]}   # (f714)
             try:
                 r = generate("hire_chat", ppr.TALK_SYSTEM,
                              ppr.talk_prompt(how, core, self.hire_relation(m), now, rules.pick_memories(m, text, day=self.minutes // 1440), list(recent), called, text,
@@ -715,7 +799,7 @@ class PartyActions:
                                              again_how=convo.again_rule(quirks.repeat_manner(m)) if before else "", fix=fix, truth_text=view.text(),
                                              worn=self.worn_words("speech"), others=self.fellow_names(m), recalled=recalled,
                                              open_=self.hire_open(m, held), pronoun=brief.pronoun(self, self.acting),
-                                             exemplars=self.exemplars("speech", "small_talk")),
+                                             exemplars=self.exemplars("speech", "small_talk"), move=reply_rules.says(move) if move else ""),
                              CompanionReply, temperature=0.8, max_tokens=config.PROSE_MAX_TOKENS, retries=1, validation_context=ctx,
                              relaxed_context=dict(ctx, recent=[] if before else m.get("said", [])[-1:], answer_to=None, kit=False, worn=[]))
             except LLMError:
@@ -742,6 +826,8 @@ class PartyActions:
             self.companion_show(m, quirks.shown(reply, gesture, m["name"], rules.pronoun_of(m)), text)   # (f325) framed like Maren's and the townsfolk's
             rules.said(m, reply)
         quirks.note_line(m, gesture)
+        if move and (reply or gesture):                      # (f728) kept for the next roll, no longer than the rule looks back
+            m["moves"] = (list(m.get("moves") or []) + [move])[-int(reply_rules.R["moves"]["running"]):]
         said = [["Player", text[:250]]] + ([[m["name"].split()[0], reply[:300]]] if reply else ([[m["name"].split()[0], f"({gesture})"]] if gesture else []))
         recent += said
         brief.page(recent)                                  # (f488) cut only when full: a page turned, never slid each reply
@@ -787,10 +873,14 @@ class PartyActions:
         if not self.player.party:
             console.note("You have no party.")
             return
-        hay = f"{target} {text}".lower()
-        gone = [m for m in self.player.party if m["name"].lower() in hay or m["name"].split()[0].lower() in hay or m["role"] in hay]
-        if not gone or re.search(r"\b(all|everyone|party|disband)\b", hay):
+        meant = self.members_meant(target, text)                           # (f651) those named go, the rest stay
+        if meant is None and re.search(r"\b(all|everyone|everybody|whole party|the party|disband|all of you)\b", f"{target} {text}".lower()):
             gone = list(self.player.party)
+        elif meant is None:
+            console.note("There's no one in your party by that name. Say who to send away, or send the whole party.")
+            return
+        else:
+            gone = meant
         if any(m.get("tutorial") for m in gone):
             console.note("Maren shakes her head. \"Not until the job is done.\"")
             gone = [m for m in gone if not m.get("tutorial")]
@@ -803,20 +893,65 @@ class PartyActions:
         console.note(f"{', '.join(m['name'] for m in gone)} part ways with you. No refund.")
         self.narrate(f"[THE GAME HAS DECIDED: the player sends {', '.join(m['name'] for m in gone)} away; they leave.] Describe it.", text)
 
+    def members_meant(self, target: str, text: str) -> list[dict] | None:
+        """(f651) The members a party order is for: those the line speaks to by name, clause by clause (engine/addressing.py; "Kennard,
+        hold back. Everyone else, with me" is Kennard's), else those the reading's target names, by name or by role; None when the
+        line speaks to everyone, or no one is named: the order is the party's."""
+        from engine import addressing
+        party = [m for m in self.player_of(self.acting).party if m.get("name") and m.get("active", True) and not m.get("tutorial")]
+        people = {m["id"]: [m["name"].lower(), m["name"].split()[0].lower()] for m in party}
+        found = addressing.addressed(text or "", people)
+        said = {w for a in found for w in a.who if w != addressing.PARTY}
+        if said:
+            return [m for m in party if m["id"] in said]
+        if any(a.who == (addressing.PARTY,) and not re.search(r"\b(else|rest|others)\b", a.clause.lower()) for a in found):
+            return None
+        hay = (target or "").lower()
+        named = [m for m in party if hay and any(re.search(rf"\b{re.escape(w)}\b", hay) for w in (m["name"].lower(), m["name"].split()[0].lower(), m["role"]))]
+        return named or None
+
     def party_hold(self, target: str, text: str, offered: list[dict]) -> None:
-        if not self.player.party:
+        me = self.player_of(self.acting)
+        if not me.party:
             console.note("You have no party.")
+            return
+        meant = self.members_meant(target, text)
+        if meant is not None and len(meant) < len(me.party):              # (f651) one held back, the others stay
+            for m in meant:
+                m["held_at"] = me.location
+            console.note(f"{' and '.join(m['name'].split()[0] for m in meant)} will hold back here and come running if the alarm goes up.")
             return
         self.party_service.set_mode("hold")
-        self.player.party_hold_at = self.player.location                    # (f392) held back here: they fall in again when the player leaves
-        console.note("Your party will hold back and come running if the alarm goes up. They make no noise for you to answer for.")
+        me.party_hold_at = me.location                                      # (f392) held back here: they fall in again when the player leaves
+        console.note("Your party will hold back and come running if the alarm goes up. On your own, you make less noise.")
 
     def party_with(self, target: str, text: str, offered: list[dict]) -> None:
-        if not self.player.party:
+        me = self.player_of(self.acting)
+        if not me.party:
             console.note("You have no party.")
             return
+        for m in me.party:                                                  # (f651) those held back alone come too
+            m.pop("held_at", None)
         self.party_service.set_mode("with")
-        console.note("Your party moves beside you. Together you are loud.")
+        console.note("Your party moves up beside you. As a group, you're a lot louder.")
+
+    def held_alone(self) -> list[dict]:
+        """(f651) The companions held back on their own while the rest go with the player."""
+        return [m for m in self.player_of(self.acting).party if m.get("held_at")]
+
+    def party_falls_in(self, place_id: str) -> None:
+        """(f392) Leaving the place the party was held: they fall in beside the player again; (f651) and so does one held alone."""
+        me = self.player_of(self.acting)
+        if me.party_mode == "hold" and place_id != me.party_hold_at:
+            self.party_service.set_mode("with")
+            if me.party:
+                console.note("Your party falls in beside you again.")
+        back = [m for m in self.held_alone() if m["held_at"] != place_id]
+        for m in back:
+            m.pop("held_at", None)
+        able = [m for m in back if m.get("active", True) and not m.get("fallen") and not m.get("down")]
+        if able:
+            console.note(f"{' and '.join(m['name'].split()[0] for m in able)} {'falls' if len(able) == 1 else 'fall'} in beside you again.")
 
     # ---------- what happens to them ----------
 
@@ -835,10 +970,10 @@ class PartyActions:
         how = (f" by {by}" if by and by != "you" else "") + (f" at {here}" if here else "")
         rules.mourn(self.player.party, dead, self.minutes, self.player.location, how)     # (f503) the rule in engine/party.py
 
-    def party_after_fight(self, fallen: list, fighters=(), won: bool = False, hard: bool = False, fight=None) -> None:
+    def party_after_fight(self, fallen: list, fighters=(), won: bool = False, hard: bool = False, fight=None) -> "Aftermath":
         """Who went down, who limps on, whose trust moved. (f508) The party's record is written by services/fight.py end alone (each
         hire's fate, their wounds and mana, the fights counted, the companions who fell, the bound summon); its notes are told here, and
-        the scene keeps what is its own: the habits due, the banter, what each pair saw of the other."""
+        the scene keeps what is its own: the habits due, the banter, what each pair saw of the other. Returns what end returned."""
         import types
         from scenes.combat_scene import service_of
         if fight is None:                                   # called without a fight (a test, an old caller): what the service reads of one
@@ -865,6 +1000,7 @@ class PartyActions:
                     elif not won:
                         self.pair_event(a, b, "came off worse in a fight together.", "personal")
             self.store.save_player(self.player)             # what the pairs saw and the trust that moved: the scene's own writes
+        return after
 
     def tend_after_fight(self) -> bool:
         """(f396) After a fight: a hire who can heal and came through it on their feet sees to the player's wounds and the hurt hires'."""
@@ -899,10 +1035,10 @@ class PartyActions:
         c = self.player.character
         first = m["name"].split()[0]
         if pools.current(c, "health") >= pools.maximum(c, "health") * 0.98:
-            console.note(f"{first} looks you over: there is nothing that needs tending.")
+            console.note(f"{first} looks you over. Nothing needs tending.")
             return True
         if self.minutes - m.get("tended_at", -10 ** 9) < T["asked_every"]:
-            console.note(f"{first} has done what can be done for now; the rest wants rest and time.")
+            console.note(f"{first} can't do more for now. What's left will take rest and time.")
             return True
         self.advance(T["minutes"])
         gained, tended = techniques.tend(c, self.player.party, techniques.tend_pct(m, "asked"), self.minutes, m)

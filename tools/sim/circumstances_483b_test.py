@@ -138,12 +138,12 @@ for f in ("engine/matters.py", "engine/stakes.py"):
             unheld.append(f"{f}:{fn.name}")
 check("every place a clue's holder is bound writes their row (matters, stakes)", unheld == [], unheld)
 game.close()
-shutil.rmtree("saves/circumstances_483b", ignore_errors=True)
+shutil.rmtree(simlib.saves_path("circumstances_483b"), ignore_errors=True)
 
 # ---- an older save: the clues held in its open matters come forward as rows (v14)
 from storage.campaign import CampaignStore, SCHEMA_V1, SCHEMA_V2, SCHEMA_V3
 from storage import migrations
-root = Path("saves/circumstances_483b_old")
+root = simlib.saves_path("circumstances_483b_old")
 shutil.rmtree(root, ignore_errors=True)
 root.mkdir(parents=True)
 db = sqlite3.connect(root / "campaign.db")

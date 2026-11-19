@@ -21,12 +21,15 @@ TYPE_FAMILY = {"forest": "forest", "hills": "hills", "mountains": "mountains", "
                "town": "urban", "city": "urban", "village": "urban", "square": "urban", "inn": "urban", "shop": "urban",
                "guild": "urban", "temple": "urban", "smithy": "urban", "workshop": "urban", "yard": "urban", "guardpost": "urban"}
 
+UNDER = {"dungeon": "underground"}      # (f665) the place types under the ground, and the family their fights take
 FURTHER = " further on"     # (f571) a repeated zone beyond is this one further on; battlefield.ground_words reads its own name back
 FAMILIES = tuple(k for k in B if k not in ("sides", "side_link", "big", "tag_words", "hazards"))
 
 
 def family_of(place, world=None) -> str:
     """The battlefield family for a place: its biome, its parent's, or what its type implies; 'default' when nothing says."""
+    if getattr(place, "type", "") in UNDER and UNDER[place.type] in B:
+        return UNDER[place.type]                      # (f665) under the ground whatever the land above: no canopy, rain or creek bed
     biome = getattr(place, "biome", None)
     if not biome and world is not None and getattr(place, "parent", None):
         parent = world.places.get(place.parent)

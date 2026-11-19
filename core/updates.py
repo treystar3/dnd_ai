@@ -55,8 +55,8 @@ def latest_release(repo: str = "", timeout: float = 4.0) -> dict | None:
 
 
 def attempt_file() -> Path:
-    from core import paths
-    return paths.APP / "saves" / "update_attempt.json"
+    from storage import saves
+    return saves.folder_of() / "update_attempt.json"         # (f741) the saves folder by its one source (beside the exe when built)
 
 
 def note_attempt(info: dict) -> None:

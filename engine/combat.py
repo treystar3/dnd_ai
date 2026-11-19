@@ -1,7 +1,7 @@
 """The combat engine. Pure rules: no model calls, no printing.
 
 Everything here is deterministic given a random generator, so the same code runs real fights,
-the danger estimate shown to the player, and the balance simulator (tools/balance.py).
+the danger estimate (the debug view's and the tools', f647), and the balance simulator (tools/balance.py).
 """
 
 import copy
@@ -9,7 +9,7 @@ import math
 import random
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import yaml
 from core import yamlio
@@ -214,7 +214,7 @@ class Behaviour(Part):
     surrendered: bool = False            # yielded rather than fled: it can be taken prisoner
     talked: bool = False                 # spoken to once this fight, for good or ill (engine/parley.py)
     order: str = ""                      # what the player told this ally to do: focus | guard | hold | heal ("" = fight on their own)
-    order_target: str = ""               # the enemy a focus order names; (f406) for a heal order, who to heal ("self", or an ally's id)
+    order_target: str = ""               # the enemy a focus order names; (f406) for a heal order, who to heal ("self", or an ally's id); (f649) for a guard, whom
 
 
 class Summon(Part):
@@ -231,6 +231,26 @@ class Summon(Part):
 PARTS: dict[str, type] = {"identity": Identity, "stats": Stats, "resources": Resources, "position": Position, "carried": Carried,
                           "kit": Kit, "turn": Turn, "behaviour": Behaviour, "summon": Summon}
 FLAT: dict[str, str] = {name: part for part, cls in PARTS.items() for name in cls.model_fields}   # every flat name -> the part that holds it
+# (f752) Whose each field is, by field: the character gives it (rebuild takes it again) or the fight owns it (rebuild keeps it)
+GIVEN: frozenset[str] = frozenset("""
+    name level
+    attrs weapon_name weapon_damage weapon_attrs reach damage_type armor ward evasion_penalty armor_pierce crit_resist offhand_spell
+    adaptive weary armor_weight wears_metal
+    max_hp max_stamina max_mana
+    hold pace
+    moves bonuses legendary slays wards mech_names conditional""".split())
+FIGHT_OWNS: frozenset[str] = frozenset("""
+    id side flaw flaw_used size category creature spawn rank family story_id ally_role can_heal always_miss
+    element spell_share
+    hp stamina mana shield
+    zone_id row position_tags engaged_with covering starts_far fled
+    effects cooldowns
+    tether
+    defending move_round kill_round attacked_since_turn hit_element spell_mult spell_parts spell_kind counters relic_uses recent_casts
+    last_mobility shadow last_hurt_by charging casting winding counter_move sundered corroded attuned hardening_stacks windwalker_ready
+    deathward_used breath second_wind_used first_blood_used relentless aegis_round archmage_used spells_cast
+    temperament behaviors boss yields_at yield_text surrendered talked order order_target
+    summon_form summon_owner summon_of summon_until summon_tier summon_cast bound""".split())
 
 
 def fold_flat(data: dict) -> dict:
@@ -345,6 +365,15 @@ for _name, _part in FLAT.items():                          # (f508) the flat nam
 SHAPE = 1       # (f507) the saved fight's shape: a row of another is let go of with a line, never read in part (services/fight.py resume)
 
 
+class Purpose(BaseModel):
+    """(f765) What a fight is for beyond itself, kept on the fight so a resumed fight ends with it: its kind (scenes/combat_scene.py
+    PURPOSES says what each does at the end), the facts its end reads, and the id of the character it is for."""
+    model_config = ConfigDict(extra="forbid")
+    kind: str
+    data: dict = {}
+    by: str = ""
+
+
 class Combat(BaseModel):
     model_config = ConfigDict(extra="forbid")
     version: int = SHAPE
@@ -358,6 +387,7 @@ class Combat(BaseModel):
     place: str = ""
     conditions: list[str] = []     # triggers true for the whole fight: at_night, in_bad_weather, in_swamp...
     story: list[str] = []          # this round's events in words, for the narrator
+    told: list[str] = []           # (f661) this round's lines for the player: what the engine did beside what they asked (engine/told.py)
     opened: bool = False
     focus: str = ""                # the enemy the player last went after; companions follow it
     player_acted: bool = False     # the player has done something other than run
@@ -399,6 +429,31 @@ class Combat(BaseModel):
     ground_told: dict = {}         # (f571) each zone as last told to the narrator and who stood there then (battlefield.note_ground_told)
     felled_by: dict[str, str] = {}  # (f412) who struck each fallen fighter down, as the story names them: a night's narration gave a
                                     # pirate's killing blow on a companion to the player's own blade
+    purpose: Purpose | None = None  # (f765) a chamber, a camp, the Keeper, a town's gate: none for a fight for nothing beyond itself
+    ONE_OF_THE_FIGHT: ClassVar[tuple[str, ...]] = ("mentor_ally",)             # (f643) held by name while also in `fighters`
+    NOT_YET_IN_IT: ClassVar[tuple[str, ...]] = ("reserves", "ally_reserves")   # (f643) they leave their list as they enter
+
+    @model_validator(mode="after")
+    def one_fighter_each(self) -> "Combat":
+        """(f643) A fight read from its row has one fighter for each person: a field that names one of `fighters` holds that very
+        fighter, so an order, a wound or a draught on either is on both. Someone not in the fight yet keeps their own record."""
+        for name in self.ONE_OF_THE_FIGHT:
+            held = getattr(self, name)
+            there = self.get(held.id) if held is not None else None
+            if there is not None and there is not held:
+                setattr(self, name, there)
+        return self
+
+    @model_validator(mode="after")
+    def no_stale_tie(self) -> "Combat":
+        """(f766) A fight read from its row holds no tie to someone out of it: one a writer saved without the release is let go of
+        here, and the fight's log says so. It runs on every construction and pydantic keeps the fighters it is handed, so a
+        throwaway Combat is built from fresh fighters, never from live ones whose ties it would drop."""
+        from engine import battlefield as bf
+        for f, oid in bf.let_go_stale(self):
+            o = self.get(oid)
+            self.log.append(f"{f.name} is no longer tied to {o.name if o else oid}, who is out of the fight")
+        return self
 
     def get(self, fid: str) -> Fighter | None:
         return next((f for f in self.fighters if f.id == fid), None)
@@ -438,12 +493,19 @@ class Combat(BaseModel):
 ORDINALS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"]
 
 
+def plain_name(name: str, counted: bool = False) -> str:
+    """(f696) A fighter's name without the game's tags ("(elite)", "(bounty)") and, unless `counted`, its counter ("wolf 2"): the name
+    a narrator is told."""
+    out = re.sub(r"(?:\s*\([^()]*\))+\s*$", "", name or "").replace(" (elite)", "")
+    return out if counted else re.sub(r"\s+\d{1,2}$", "", out)
+
+
 def who(f: Fighter) -> str:
     if f.side == "player":
         return "you"
     if f.side == "ally":
         return f.name
-    name = re.sub(r"\s*\((?!elite\))[^)]*\)\s*$", "", f.name).replace(" (elite)", "")   # (f422) a tag such as "(bounty)" is not their name
+    name = plain_name(f.name, counted=True)                  # (f422) a tag such as "(bounty)" is not their name
     if name.lower().startswith(("the ", "a ", "an ", "one of ")) or (f.boss and name[:1].isupper()):
         return name                                   # already says what it is, or is a person with a name of their own
     prefix = "the hulking " if "(elite)" in f.name else "the "
@@ -708,6 +770,44 @@ def fighter_from_character(c: Character, fid: str = "player") -> Fighter:
     )
 
 
+def wear_armor(f: Fighter, step: float) -> None:
+    """(f752) What a fight takes from the armour the character gives: the armour cut by `step` percent, and the step kept after the
+    others in the fighter's counters (the caller's cap bounds them), so a rebuild wears a fresh armour by the same steps to the same
+    number, to the last bit."""
+    f.counters["armor_steps"] = [*f.counters.get("armor_steps", []), step]
+    f.armor *= 1 - step / 100
+
+
+def rebuild(f: Fighter, c: Character) -> None:
+    """(f752) The one Character -> Fighter step for a fighter already in a fight: every field the character gives (GIVEN) is taken
+    again from a fighter built fresh, every field the fight owns (FIGHT_OWNS) is kept. A maximum's gain is added to the current value
+    and a current is held under a maximum that fell; the fresh armour is worn by the steps the fight took (wear_armor); a pace the fight
+    quickened stays fast until the quickening ends and then falls back to the fresh pace."""
+    fresh = fighter_from_character(c, f.id)
+    for cur, top in (("hp", "max_hp"), ("stamina", "max_stamina"), ("mana", "max_mana")):
+        gained = getattr(fresh, top) - getattr(f, top)
+        setattr(f, top, getattr(fresh, top))
+        if gained > 0:
+            setattr(f, cur, min(getattr(f, top), getattr(f, cur) + gained))
+        elif gained < 0:
+            setattr(f, cur, min(getattr(f, top), getattr(f, cur)))
+    for name in sorted(GIVEN - {"max_hp", "max_stamina", "max_mana", "armor", "pace"}):
+        setattr(f, name, getattr(fresh, name))
+    steps = f.counters.get("armor_steps", [])
+    older = sum(steps) < f.counters.get("corroded", 0)        # (f752) worn before steps were kept (a fight saved earlier): left as it is
+    if not older:
+        armor = fresh.armor
+        for step in steps:
+            armor *= 1 - step / 100
+        f.armor = armor
+    if f.counters.get("quick_until") is None:
+        f.pace = fresh.pace
+    elif fresh.pace == "fast":                                # (f752) quickened: fast until it ends (on_turn_start), then pace_was
+        f.counters.pop("pace_was", None)
+    else:
+        f.counters["pace_was"] = ["slow", "normal", "fast"].index(fresh.pace)
+
+
 def creature_attrs(profile: dict[str, int], level: int) -> dict[str, int]:
     budget = 100 + 5 * (max(1, level) - 1)
     total = sum(profile.values()) or 1
@@ -898,6 +998,48 @@ def flat_bonus(f: Fighter, stat: str, triggers: set[str]) -> float:
     return sum(b.magnitude for b in f.bonuses if b.modifies == stat and b.trigger in triggers and b.flat)
 
 
+def in_fight(f: Fighter) -> bool:
+    """(f763) Still in the fight: alive and not fled (battlefield.standing's rule). What strikes or acts on someone asks it."""
+    return f.alive and not f.fled
+
+
+LEAVINGS = ("fled", "yielded", "gone")       # (f766) how a fighter leaves: out of it alive, out of it a prisoner, off the field
+
+
+def leave(combat: Combat, f: Fighter, how: str) -> bool:
+    """(f766) The one way a living fighter goes out of the fight: every tie released first, then fled (it ran, stood down or bolted),
+    yielded (fled, and can be taken prisoner) or gone (off the field: tamed, bound, freed by the seal). One who is down or already
+    out does not leave: False, and the fight's log says so."""
+    if how not in LEAVINGS:
+        raise ValueError(f"a fighter leaves a fight {' or '.join(LEAVINGS)}, not {how!r}")
+    if not in_fight(f):
+        combat.log.append(f"{f.name} is down and cannot leave the fight" if not f.alive else f"{f.name} has already left the fight")
+        return False
+    from engine import battlefield as bf
+    bf.release(combat, f)
+    if how == "gone":
+        combat.fighters[:] = [x for x in combat.fighters if x is not f]
+    else:
+        f.fled, f.surrendered = True, how == "yielded"
+    return True
+
+
+FOE_EFFECTS = ("damage", "control", "influence")       # (f763) the abilities that need a foe to land on
+
+
+def aim(combat: Combat, att: Fighter, move: Move, target: Fighter | None) -> Fighter | None:
+    """(f763) Who an ability goes at: one that needs a foe, named at someone no longer a foe in the fight (down, fled or turned),
+    goes at the nearest foe standing (None when none stands); anything else keeps its target. Only the player's side acts
+    through act_ability, so the foes are Combat.enemies()."""
+    foes = combat.enemies()
+    if target is None or any(e is target for e in foes):
+        return target
+    from engine import battlefield as bf
+    if move.effect not in FOE_EFFECTS and not (move.effect == "mobility" and bf.hostile(att, target)):
+        return target
+    return bf.closest(combat, att, foes)
+
+
 def is_companion(f: Fighter) -> bool:
     """A companion: a tamed, living creature (not a summon, a hired party member or a risen thrall)."""
     return f.side == "ally" and not f.ally_role and not f.id.startswith("thrall") and not f.summon_form
@@ -975,10 +1117,10 @@ def hit_parts(att: Fighter, dfn: Fighter, combat: Combat) -> tuple[float, list[l
         steps.append(["conditions", st])
     if "elevated" in att.position_tags and "elevated" not in dfn.position_tags:
         steps.append(["high ground", RULES["elevated_accuracy"]])
-    if att.reach == "ranged" and att.damage_type == "physical" and att.engaged_with:
-        steps.append(["point-blank (a ranged weapon with a foe on top of you)", -h.get("point_blank", 0)])
+    from engine import battlefield as bfm
+    if att.reach == "ranged" and att.damage_type == "physical" and (bfm.tied(combat, att) if combat is not None else att.engaged_with):
+        steps.append(["point-blank (a ranged weapon with a foe on top of you)", -h.get("point_blank", 0)])     # (f766) only someone standing on them
     if combat is not None:
-        from engine import battlefield as bfm
         steps += [st for st in bfm.hit_modifiers(combat, att, dfn) if st[0] != "high ground"]
     chance = sum(v for _, v in steps)
     return max(h["min"], min(h["max"], chance)), [[n, round(v, 1)] for n, v in steps if abs(v) >= 0.05]
@@ -1219,9 +1361,9 @@ def restore(combat: Combat | None, f: Fighter, amount: float, source: Fighter | 
         tell(combat, f"the healing meant for {who(f)} is drawn away into {who(thief)} (Life Theft)")
         return restore(combat, thief, amount, source, rng)
     if "unraveled" in f.statuses and combat is not None:
-        dealt = take_damage(combat, f, amount, source, rng or streams.get("combat"), "magical")
-        combat.log.append(f"{f.name}'s healing turns on it: {dealt} damage (Unraveled)")
-        tell(combat, f"the healing curdles in {who(f)} and tears at {vb(f, 'you', 'it')} instead ({dealt})")
+        dealt = side_damage(combat, f, amount, source, rng or streams.get("combat"), "magical",
+                            told=lambda d: f"the healing curdles in {who(f)} and tears at {vb(f, 'you', 'it')} instead ({d})",
+                            logged=lambda d: f"{f.name}'s healing turns on it: {d} damage (Unraveled)")
         return -float(dealt)
     before = f.hp
     f.hp = min(f.max_hp, f.hp + amount)
@@ -1235,6 +1377,21 @@ def take_damage(combat: Combat, dfn: Fighter, amount: float, source: Fighter | N
     data/rules/stages.yaml declares it and engine/damage.py runs it: one calculation, the value and its explanation together."""
     from engine import damage
     return damage.resolve("blow", combat, dfn, amount, source, rng, damage_type, rec)
+
+
+def side_damage(combat: Combat, dfn: Fighter, amount: float, source: Fighter | None, rng: random.Random,
+                damage_type: str = "physical", told=None, logged=None) -> int:
+    """(f757) Damage outside a blow's own path, told in order: the caller's lines (told for the story, logged for the log; a line, or
+    a function of what was dealt, "" to tell nothing) go before whatever the damage set off. Returns what was dealt."""
+    at, log_at = len(combat.story), len(combat.log)
+    dealt = take_damage(combat, dfn, amount, source, rng, damage_type)
+    line = logged(dealt) if callable(logged) else logged
+    if line:
+        combat.log.insert(log_at, line)
+    line = told(dealt) if callable(told) else told
+    if line:
+        tell(combat, line, at=at)
+    return dealt
 
 
 def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, label: str, rng: random.Random,
@@ -1255,6 +1412,8 @@ def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, 
 def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, label: str, rng: random.Random,
                   can_cleave: bool = True, can_riposte: bool = True, how: str = "", can_flurry: bool = True,
                   reliable: bool = False) -> bool:
+    if not in_fight(dfn):
+        return False                                        # (f763) no blow starts on one who is down or gone: no die, no second fall
     how = how or weapon_phrase(att)
     from engine import spellcraft as _sc
     if can_cleave and att.alive:
@@ -1412,6 +1571,7 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
         taken += extra
         if rec is not None:
             rec["extras"].append(["Spellblade (magic, after defence)", f"+{round(extra)}"])
+    at, log_at = len(combat.story), len(combat.log)     # (f757) the blow's lines go here, before all the blow sets off
     if "deflect" in D and rng.uniform(0, 100) < D["deflect"]:
         taken *= 0.5
         if rec is not None:
@@ -1424,8 +1584,7 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
             taken -= moved
             if rec is not None:
                 rec["extras"].append(["Guardian takes a share", f"-{round(moved)}"])
-            take_damage(combat, guard, moved, att, rng, att.damage_type)
-            tell(combat, f"{who(guard)} throws itself in the way and takes {round(moved)} of it")
+            side_damage(combat, guard, moved, att, rng, att.damage_type, told=f"{who(guard)} throws itself in the way and takes {round(moved)} of it")
     pre_shield = taken
     taken = take_damage(combat, dfn, taken, att, rng, att.damage_type, rec=rec)
     att.counters["last_hit"] = int(taken)               # what this blow dealt, for an ignite it sets (engine/afflictions.py)
@@ -1452,38 +1611,37 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
             tell(combat, f"{who(att)} {vb(att, 'strike', 'strikes')} the ice around {who(dfn)} and the cold bites deep - {vb(att, 'you are', 'it is')} slowed (Frost Armor)")
     if "thorn_pct" in D and att.reach in ("melee", "extended") and att.alive and att.side != dfn.side:
         back = D.get("thorn_flat", 0) + dfn.armor * D["thorn_pct"] / 100          # Thorns (buff): a little for anyone, a lot for the armored
-        back = take_damage(combat, att, back, dfn, rng, "physical")
-        combat.log.append(f"{att.name} is hurt by {dfn.name}'s thorns: {back}")
-        tell(combat, f"{who(att)} {vb(att, 'are', 'is')} torn for {back} by the thorns around {who(dfn)} (Thorns)")
+        side_damage(combat, att, back, dfn, rng, "physical",
+                    told=lambda d: f"{who(att)} {vb(att, 'are', 'is')} torn for {d} by the thorns around {who(dfn)} (Thorns)",
+                    logged=lambda d: f"{att.name} is hurt by {dfn.name}'s thorns: {d}")
     if "thorns" in D and att.reach == "melee" and att.alive and att.side != dfn.side:
         floor = AT.T["thorns_floor"] * RULES["mitigation"]["armor_k"] * growth(att.level)
         back = max(dfn.armor, floor) * D["thorns"] / 100
-        back = take_damage(combat, att, back, dfn, rng, "physical")
-        combat.log.append(f"{att.name} is hurt by {dfn.name}'s thorns: {back}")
-        tell(combat, f"{who(att)} {vb(att, 'are', 'is')} hurt for {back} as the blow rebounds (Thorns)")
+        side_damage(combat, att, back, dfn, rng, "physical", told=lambda d: f"{who(att)} {vb(att, 'are', 'is')} hurt for {d} as the blow rebounds (Thorns)",
+                    logged=lambda d: f"{att.name} is hurt by {dfn.name}'s thorns: {d}")
     note = {"graze": " (graze)", "crit": " (critical)"}.get(outcome, "")
     soak = f", {round(absorbed)} absorbed" if absorbed >= 1 else ""
-    combat.log.append(f"{att.name} {label} {dfn.name}: {taken} damage{note}{soak}")
+    combat.log.insert(log_at, f"{att.name} {label} {dfn.name}: {taken} damage{note}{soak}")
     quality = {"graze": "only a glancing blow", "crit": "a perfect strike, " + severity(taken, dfn.max_hp)}.get(outcome, severity(taken, dfn.max_hp))
     turned = f"; {whose(dfn)} {cover(dfn)} turns part of it" if absorbed > taken * 0.4 else ""
     after = f" - {who(dfn)} {vb(dfn, 'are', 'is')} {condition(dfn)}" if dfn.alive else ""
-    tell(combat, f"{who(att)} {vb(att, 'hit', 'hits')} {who(dfn)} {how}: {quality}{turned}{after}", rec)
+    tell(combat, f"{who(att)} {vb(att, 'hit', 'hits')} {who(dfn)} {how}: {quality}{turned}{after}", rec, at=at)
     emult = multiplier * {"graze": 0.5, "hit": 1.0, "crit": crit_multiplier(att)}[outcome]
     for el in elements.ELEMENTS:
         flat = flat_bonus(att, f"{el}_damage", {"always"})
         if flat > 0 and dfn.alive:
             part, _ = mitigate(dfn, flat * emult, "magical", att.level, combat, att)
             held, att.hit_element = att.hit_element, el
-            dealt = take_damage(combat, dfn, part, att, rng, "magical")
+            dealt = side_damage(combat, dfn, part, att, rng, "magical",          # (f349) told once a fight (lightning was narrated 56 rounds running); a kill by it is always told
+                                told=lambda d: (f"{el} damage follows the {'spell' if att.spell_kind == 'spell' else 'blow'} into {who(dfn)}"
+                                                + (f" - {who(dfn)} {vb(dfn, 'are', 'is')} {condition(dfn)}" if dfn.alive else ""))
+                                if not combat.burn_told or not dfn.alive else "",
+                                logged=lambda d: f"{att.name}'s {el} damage from gear hits {dfn.name}: {d}")       # (f419) lightning does not burn
             att.hit_element = held
             taken += dealt
-            combat.log.append(f"{att.name}'s {el} damage from gear hits {dfn.name}: {dealt}")       # (f419) lightning does not burn
             if rec is not None:
                 rec["extras"].append([f"{el.capitalize()} damage from gear", f"+{round(dealt)}"])
-            if not combat.burn_told or not dfn.alive:           # (f349) told once a fight (lightning was narrated 56 rounds running); a kill by it is always told
-                tell(combat, f"{el} damage follows the {'spell' if att.spell_kind == 'spell' else 'blow'} into {who(dfn)}"
-                     + (f" - {who(dfn)} {vb(dfn, 'are', 'is')} {condition(dfn)}" if dfn.alive else ""))
-                combat.burn_told = True
+            combat.burn_told = True
     if "acid_weapon" in A and dfn.alive and taken > 0 and att.spell_kind != "spell" and not warded(dfn, "acid"):
         cap = AT.BUFFS.get("acidcoat", {}).get("cap", 75)
         cut = min(cap, dfn.corroded + A["acid_weapon"] * (ATTUNE["acid"] if attuned(att, "acid") else 1))   # Acid Coating
@@ -1497,20 +1655,20 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
         el = buff.get("element") or "fire"
         part, _ = mitigate(dfn, dmg * A["elemental_weapon"] / 100, "magical", att.level, combat, att)
         held, att.hit_element = att.hit_element, el
-        extra = take_damage(combat, dfn, part, att, rng, "magical")
+        extra = side_damage(combat, dfn, part, att, rng, "magical",
+                            told=f"{el} flares along the blow and bites into {who(dfn)} ({buff.get('name') or 'Elemental Weapon'})",
+                            logged=lambda d: f"{att.name}'s {el} weapon hits {dfn.name}: {d}")
         att.hit_element = held
-        combat.log.append(f"{att.name}'s {el} weapon hits {dfn.name}: {extra}")
         if rec is not None:
             rec["extras"].append([f"{el.capitalize()} weapon", f"+{round(extra)}"])
-        tell(combat, f"{el} flares along the blow and bites into {who(dfn)} ({buff.get('name') or 'Elemental Weapon'})")
         if buff.get("exprs"):
             from engine import spellcraft
             spellcraft.carried(combat, att, dfn, buff["exprs"], buff.get("etier", "light"), buff.get("name", ""), taken, rng)
     att.counters["storm"] = att.counters.get("storm", 0) + 1 if "stormcaller" in A else 0
     if "stormcaller" in A and dfn.alive and att.counters["storm"] % 3 == 0:
         bolt, _ = mitigate(dfn, dmg * 0.5, "magical", att.level, combat, att)
-        combat.log.append(f"lightning strikes {dfn.name}: {take_damage(combat, dfn, bolt, att, rng, 'magical')} damage (Stormcaller)")
-        tell(combat, f"lightning answers {whose(att)} weapon and cracks down onto {who(dfn)} (Stormcaller)")
+        side_damage(combat, dfn, bolt, att, rng, "magical", told=f"lightning answers {whose(att)} weapon and cracks down onto {who(dfn)} (Stormcaller)",
+                    logged=lambda d: f"lightning strikes {dfn.name}: {d} damage (Stormcaller)")
     if outcome == "crit" and "bloodlust" in A:
         gain = round(att.max_hp * A["bloodlust"] / 100)
         restore(combat, att, gain)
@@ -1634,7 +1792,7 @@ def raise_thrall(combat: Combat, dead: Fighter, reason: str = "") -> None:
     if not reason:
         combat.thrall_used = True
     t = dead.model_copy(deep=True)
-    base = dead.name.replace(" (elite)", "")
+    base = plain_name(dead.name)                             # (f696) a risen bounty is no "(bounty)"
     for article in ("the ", "a ", "an ", "one of "):
         if base.lower().startswith(article):
             base = base[len(article):]
@@ -1776,12 +1934,12 @@ def can_use(f: Fighter, move: Move, combat: Combat | None = None) -> str | None:
     if why_not:
         return f"{move.name} cannot be used right now: {why_not}."
     if getattr(move, "channel", False) and not (f.damage_type == "physical" and f.reach in ("melee", "extended")):
-        return f"{move.name} is struck through a melee weapon, and you have none in hand."      # (f250: no longer cast bare)
+        return f"{move.name} needs a melee weapon, and you have none in hand."      # (f250: no longer cast bare)
     if move.effect == "relic" and move.uses and f.relic_uses.get(move.id, 0) >= move.uses:
-        return f"{move.name} has given all it has this fight."
+        return f"{move.name} is used up for this fight."
     from engine import combat_perks
     if f.cooldowns.get(move.id, 0) > 0 and not combat_perks.may_overcast(combat, f, move):
-        return f"{move.name} isn't ready yet ({f.cooldowns[move.id]} more rounds)."
+        return f"{move.name} isn't ready yet ({f.cooldowns[move.id]} more round{'' if f.cooldowns[move.id] == 1 else 's'})."     # (f672)
     have = f.stamina if move.resource == "stamina" else f.mana
     if move.resource == "mana":
         blood = mechanics(f, combat).get("overchannel", 0)
@@ -1792,6 +1950,13 @@ def can_use(f: Fighter, move: Move, combat: Combat | None = None) -> str | None:
     if f.stamina < stamina_part(f, move, combat):
         return f"Not enough stamina for {move.name}."
     return None
+
+
+def told_player(combat: Combat, att: Fighter, kind: str, **facts) -> None:
+    """(f661) A line for the player of what the engine did beside what they asked, when the one acting is a player."""
+    if att.side == "player":
+        from engine import told
+        combat.told.append(told.say(kind, combat.round, **facts))
 
 
 def act_attack(combat: Combat, att: Fighter, target: Fighter, rng: random.Random) -> None:
@@ -1815,6 +1980,7 @@ def act_attack(combat: Combat, att: Fighter, target: Fighter, rng: random.Random
         story = bf.approach(combat, att, target) if access.can_approach else ""
         combat.log.append(f"{att.name}: {access.why}" + (f"; {story}" if story else ""))
         tell(combat, f"{who(att)} {vb(att, 'are', 'is')} {access.why}" + (f" - {who(att)} {story}" if story else ""))
+        told_player(combat, att, "approach", foe=target.name)
         return                                           # getting there was the action: the blow comes next round
     att.counters.pop("tier_now", None)                   # a plain blow has no tier
     from engine import combat_perks
@@ -1945,8 +2111,8 @@ def apply_rider(combat: Combat, att: Fighter, t: Fighter, move: Move, rng: rando
             att.mana = min(att.max_mana, att.mana + back)
             tell(combat, f"{move.name} pulls {round(back)} mana back into {who(att)} ({r['label']})")
         return
-    if not t or not t.alive:
-        return
+    if not t or not in_fight(t):
+        return                                         # (f763) nothing more lands on one who yielded or fled at this blow
     if "status" in r:
         if rng.uniform(0, 100) < AT.value(r["chance"], move.tier) and add_status(combat, t, r["status"], r["rounds"], att):
             combat.log.append(f"{t.name} is {r['status']} ({r['label']})")
@@ -1973,22 +2139,28 @@ def apply_rider(combat: Combat, att: Fighter, t: Fighter, move: Move, rng: rando
 
 
 def act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | None, rng: random.Random,
-                give: list[Fighter] | None = None, echo: bool = False) -> str | None:
+                give: list[Fighter] | None = None, echo: bool = False, released: dict | None = None) -> str | None:
     """One ability, resolved. An echo (engine/combat_perks.py) is the same ability happening again on a perk's account: nothing is
-    paid or counted for it, and what it kills raises no further echoes."""
+    paid or counted for it, and what it kills raises no further echoes. A landing (released: the gathering's row, from
+    spellcraft.release) is a gathered ability going off: nothing asked or paid at its beginning is asked or paid again, and what
+    that payment settled lands with it."""
     from engine import combat_perks
-    problem = None if echo else can_use(att, move, combat)
+    again = echo or released is not None                # (f767) asked and paid already: a perk's repeat, or a gathering's landing
+    problem = None if again else can_use(att, move, combat)
     if problem:
         return problem
+    named, target = target, aim(combat, att, move, target)
+    if target is None and ((move.effect in FOE_EFFECTS and not combat.enemies()) or (echo and named is not None)):
+        return f"You have no one left to aim {move.name} at."     # (f763) before the cost; a perk's repeat is dropped by it
     if move.effect == "buff" and move.buff != "manashield" and combat_perks.has(att, "selfless", combat) \
-            and not [r for r in (give or []) if r is not att]:
+            and not [r for r in (give or []) if r is not att] and released is None:
         return f"{move.name} is for others: your blessings are not yours to keep (Selfless). Name who it is for."
-    if move.effect == "summon" and not echo:
+    if move.effect == "summon" and not again:
         from engine import summons
         why = summons.refuse(combat, att, move)
         if why:
             return why
-    if move.effect == "mobility" and not echo:
+    if move.effect == "mobility" and not again:
         from engine import movement
         if move.movement == "shadowmark" and att.shadow:
             movement.shadow_return(combat, att, move, "called back")   # the return is free: the price was paid going in
@@ -2001,7 +2173,7 @@ def act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | None
     att.counters["tier_now"] = 0 if move.effect == "buff" else combat_perks.TIER_CODE.get(move.tier, 0)    # (f400) a buff has no tier
     att.counters["reach_now"] = {"ranged": 1, "melee": 2, "extended": 2, "area": 3}.get(move.reach, 0)
     try:
-        return _act_ability(combat, att, move, target, rng, give, echo)
+        return _act_ability(combat, att, move, target, rng, give, echo, released)
     finally:
         from engine import movement as _mv
         _mv.reveal_after(att)
@@ -2013,8 +2185,11 @@ def act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | None
 
 
 def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | None, rng: random.Random,
-                 give: list[Fighter] | None, echo: bool) -> str | None:
+                 give: list[Fighter] | None, echo: bool, released: dict | None = None) -> str | None:
     from engine import combat_perks
+    from engine import spellcraft as _sc
+    again = echo or released is not None                # (f767) a repeat or a landing: nothing is paid or counted again
+    gathering = not again and _sc.cast_turns(move) > 1   # (f767) begun now, landing later: nothing lands or follows it yet
     if (move.effect != "buff" and move.effect != "healing") or (move.effect == "buff" and not AT.BUFFS.get(move.buff, {}).get("allies", True)):
         give = None                                    # only a blessing or a heal can go on someone else; a mana shield is your own
     if give:
@@ -2049,13 +2224,14 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
             story = bf.approach(combat, att, aim) if access.can_approach else ""
             combat.log.append(f"{att.name}: {access.why} ({move.name} is kept)")
             tell(combat, f"{who(att)} {vb(att, 'are', 'is')} {access.why}" + (f" - {who(att)} {story}" if story else ""))   # (f419) what is kept is the log's
+            told_player(combat, att, "approach", foe=aim.name)
             return None
-    cost = cost_of(att, move, combat) if not echo else 0
-    body = stamina_part(att, move, combat) if not echo else 0   # a channeled strike's stamina (f260)
+    cost = cost_of(att, move, combat) if not again else 0
+    body = stamina_part(att, move, combat) if not again else 0   # a channeled strike's stamina (f260)
     att.stamina -= body
     am = mechanics(att, combat)
-    free_cast = move.resource == "mana" and not att.archmage_used and "archmage" in am and not echo
-    if att.cooldowns.get(move.id, 0) > 0 and not echo:
+    free_cast = move.resource == "mana" and not att.archmage_used and "archmage" in am and not again
+    if att.cooldowns.get(move.id, 0) > 0 and not again:
         att.counters["overcasting"] = 1                  # Overcast: the cooldown is bought through (cost_of doubled it)
     if move.resource == "stamina":
         att.stamina -= cost
@@ -2069,22 +2245,24 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
              + (", and the spell burns the hotter for it" if "overchannel" in att.mech_names else "") + " (Overchannel)")
     else:
         att.mana -= cost
-    if att.counters.get("free_fire") and getattr(move, "element", "") == "fire" and not echo:
+    if att.counters.get("free_fire") and getattr(move, "element", "") == "fire" and not again:
         att.counters.pop("free_fire", None)
-    combat_perks.on_cast(combat, att, move, echo, cost)
+    combat_perks.on_cast(combat, att, move, again, cost)
+    if released is not None:
+        _sc.carry(att, released)
     if move.rider == "thrift":
         back = cost * AT.value(AT.RIDERS["thrift"]["refund"], move.tier) / 100
         if move.resource == "stamina":
             att.stamina = min(att.max_stamina, att.stamina + back)
         else:
             att.mana = min(att.max_mana, att.mana + back)
-    if move.resource == "mana" and not echo:
+    if move.resource == "mana" and not again:
         att.spells_cast += 1
         if "arcane_recall" in am:
             for k in list(att.cooldowns):
                 if k != move.id and att.cooldowns[k] > 0:
                     att.cooldowns[k] = max(0, att.cooldowns[k] - int(am["arcane_recall"]))
-    if "echoing" in am and not att.counters.get("echoed") and not echo:
+    if "echoing" in am and not att.counters.get("echoed") and not again:
         att.counters["echoed"] = 1
         att.stamina = min(att.max_stamina, att.stamina + body)
         if move.resource == "stamina":
@@ -2092,9 +2270,9 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
         else:
             att.mana = min(att.max_mana, att.mana + cost)
         tell(combat, f"the first working costs {who(att)} nothing - the effort echoes back (Echoing)")
-    if move.cooldown and not echo:
+    if move.cooldown and not again:
         att.cooldowns[move.id] = move.cooldown + 1
-    if getattr(move, "cooldown_days", 0) and not echo:
+    if getattr(move, "cooldown_days", 0) and not again:
         att.cooldowns[move.id] = 10 ** 6                     # (f397) a named spell: once this fight, and the day is kept (spells.day_cast)
         att.counters["day_cast"] = list(att.counters.get("day_cast", [])) + [move.id]
     ranked = bool(getattr(move, "rank", 0)) and move.effect == "damage"
@@ -2110,11 +2288,13 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
         att.archmage_used = True
         mult *= 1 + am["archmage"] / 100
         tell(combat, f"{who(att)} {vb(att, 'let', 'lets')} the first spell go without a breath of effort (Archmage's Focus)")
+    elif released is not None and released.get("archmage"):
+        mult *= 1 + released["archmage"] / 100            # (f767) the first spell's share, settled when it was begun
     enemies = combat.enemies()
-    from engine import spellcraft as _sc
+    focus_share = am["archmage"] if free_cast else 0
 
-    if move.effect != "damage" and _sc.cast_turns(move) > 1 and not att.counters.get("charged_release"):
-        _sc.wind_up(combat, att, move, target or (enemies[0] if enemies else None))    # gathered over turns, whatever it does
+    if move.effect != "damage" and gathering:                # gathered over turns, whatever it does
+        _sc.wind_up(combat, att, move, target or (enemies[0] if enemies else None), give, focus_share)
     elif move.effect == "damage":
         spell = move.resource == "mana"
         saved = (att.weapon_attrs, att.damage_type, att.weapon_damage, att.adaptive)
@@ -2148,8 +2328,8 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
         if mform == "sweep":
             targets = martial.sweep_targets(combat, att, target or (enemies[0] if enemies else None))
             share, area = martial.FORMS["sweep"]["share"], True
-        if spellcraft.cast_turns(move) > 1 and not att.counters.get("charged_release"):
-            spellcraft.wind_up(combat, att, move, targets[0] if targets else None)
+        if gathering:
+            spellcraft.wind_up(combat, att, move, targets[0] if targets else None, give, focus_share)
             targets = []
         elif form == "charged" and not ranked:
             mult *= spellcraft.FORMS["charged"]["mult"]       # a ranked spell's power is all in its form
@@ -2342,15 +2522,15 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
     else:
         combat.log.append(f"{att.name} uses {move.name}: no clear effect in the fight")
         tell(combat, f"{who(att)} {vb(att, 'try', 'tries')} {move.name}, but it changes little in the heat of the fight")
-    if "attunement" in am and not echo:
+    if "attunement" in am and not again:
         att.counters["attune"] = min(5, att.counters.get("attune", 0) + 1)
-    if move.resource == "mana" and "starfall" in am and att.spells_cast % 4 == 0 and att.alive and not echo:
+    if move.resource == "mana" and "starfall" in am and att.spells_cast % 4 == 0 and att.alive and not again:
         base = RULES["spell_base_damage"] * growth(att.level) * am["starfall"] / 100
         tell(combat, "the sky answers the fourth spell, and stars fall (Starfall)")
         for e in combat.enemies():
             dealt, _ = mitigate(e, base, "magical", att.level, combat, att)
-            combat.log.append(f"starfall hits {e.name}: {take_damage(combat, e, dealt, att, rng, 'magical')} damage")
-    if att.alive:
+            side_damage(combat, e, dealt, att, rng, "magical", logged=lambda d: f"starfall hits {e.name}: {d} damage")
+    if att.alive and not gathering:                       # (f767) what follows an ability follows its landing, once
         combat_perks.after_cast(combat, att, move, target, rng, give, echo, cost)
     return None
 
@@ -2465,6 +2645,8 @@ def act_flee(combat: Combat, rng: random.Random) -> bool:
         tell(combat, "your feet are frozen to the ground - there is no running")
         return False
     chance = flee_chance(combat)
+    from engine import told
+    told_player(combat, combat.player, "flight_odds", odds=told.odds(chance))     # (f661) how likely it was, in words
     if rng.uniform(0, 100) < chance:
         from engine import battlefield as bf
         bf.release(combat, combat.player)
@@ -2683,9 +2865,7 @@ def enemy_turn(combat: Combat, e: Fighter, rng: random.Random) -> None:
     pinned = {"slowed", "stunned", "prone", "grappled"} & set(e.statuses)
     if e.temperament == "passive" and combat.round > 1 and not pinned and not combat.gentle and \
             rng.random() < FLEE_CHANCE_PASSIVE.get(_pressed(combat, e), 0.4):
-        e.fled = True
-        from engine import battlefield as bf
-        bf.release(combat, e)
+        leave(combat, e, "fled")
         combat.log.append(f"{e.name} bolts and escapes")
         tell(combat, f"{who(e)} bolts for the trees and is gone")
         return
@@ -2703,11 +2883,12 @@ def enemy_turn(combat: Combat, e: Fighter, rng: random.Random) -> None:
     from engine import healing as _heal
     decided = combat_perks.pick_target(combat, e, targets, rng)             # a perk may decide it outright (Provoke, Pack Alpha)
     target = decided or _heal.attention_target(combat, e, rng) or target    # else healing draws the eye
-    guards = [t for t in targets[1:] if t.order == "guard" and t.alive]
-    if target is combat.player and guards and rng.random() < GUARD_CHANCE:
+    guards = [g for g in guards_of(combat, target) if g in targets]
+    if guards and rng.random() < GUARD_CHANCE:
+        meant = target
         target = rng.choice(guards)
-        combat.log.append(f"{target.name} steps in front of {combat.player.name}")
-        tell(combat, f"{who(target)} {vb(target, 'step', 'steps')} into the blow meant for you")
+        combat.log.append(f"{target.name} steps in front of {meant.name}")
+        tell(combat, f"{who(target)} {vb(target, 'step', 'steps')} into the blow meant for " + ("you" if meant is combat.player else who(meant)))
     from engine import summons as _sm
     if target is combat.player and "concealed" in target.position_tags:
         seen = [t for t in targets[1:] if t.alive]
@@ -2862,7 +3043,15 @@ def act_interpose(combat: Combat, f: Fighter, ally: Fighter | None) -> None:
 
 
 ORDERS = ("focus", "guard", "hold", "heal", "back")     # (f406) back: behind the player, in the back row, acting from there
-GUARD_CHANCE = 0.4          # an enemy that would strike the player strikes a guarding ally instead this often
+
+
+def guards_of(combat: Combat, target: Fighter) -> list:
+    """(f649) The allies told to guard this fighter, standing: the companion a guard order named, or the player when it named no one
+    on the player's side."""
+    side = {x.id for x in combat.player_side() if x is not combat.player}
+    charge = lambda g: g.order_target if g.order_target in side and g.order_target != g.id else combat.player.id
+    return [g for g in combat.allies() if g.order == "guard" and g.alive and g is not target and charge(g) == target.id]
+GUARD_CHANCE = 0.4          # an enemy that would strike the one guarded (the player, or the ally named) strikes the guard instead this often
 
 
 def give_order(combat: Combat, ally: Fighter, kind: str, target_id: str = "", same_command: bool = False) -> str:
@@ -2884,10 +3073,12 @@ def give_order(combat: Combat, ally: Fighter, kind: str, target_id: str = "", sa
     if kind == "focus":
         t = next((e for e in combat.enemies() if e.id == target_id), None)
         if not t:
-            return "There is nothing there for them to take."
+            return "There's no one there for them to attack."
         ally.order_target = t.id
     elif kind == "heal":
         ally.order_target = target_id if target_id == "self" or any(x.id == target_id for x in combat.allies()) else ""
+    elif kind == "guard":                                # (f649) whom to guard: a companion named, else the player ("")
+        ally.order_target = target_id if any(x.id == target_id and x is not ally for x in combat.allies()) else ""
     elif kind == "back":                                 # (f406) "get behind me": out of the press, into the back row
         from engine import battlefield as bf
         bf.release(combat, ally)

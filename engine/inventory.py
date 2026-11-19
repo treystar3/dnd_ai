@@ -93,6 +93,23 @@ def _head(name: str) -> str:
     return (w[:w.index("of")] or w)[-1] if "of" in w else (w[-1] if w else "")
 
 
+AFTER_HEAD = r"[,;!?.]|\b(?:for|with|to|until|till|tonight|from|so|please|that|which|because|at|in|near|by)\b"
+
+
+def asked_part(text: str) -> str:
+    """(f655) What is asked for, less a phrase after it that says for whom, how long, where or why ("a room for the night": a room)."""
+    import re
+    low = " ".join((text or "").lower().replace("_", " ").split())
+    m = re.search(AFTER_HEAD, low)
+    return (low[:m.start()].strip() if m and low[:m.start()].strip() else low)
+
+
+def asked_head(text: str) -> str:
+    """(f655) The word a request or a ware's name ends in, before any such phrase ("rope to climb with": rope; "a sack of salt": salt)."""
+    w = _plain_words(asked_part(text))
+    return w[-1] if w else ""
+
+
 FORMS = {_stem(w) for w in RULES.get("good_forms") or ()}
 TRIFLES = {_stem(w) for w in RULES.get("trifles") or ()}
 _SMALL = {"of", "the", "a", "an", "some", "two", "three", "few", "and", "for", "with", "from", "to", "at", "in", "on", "by", "per", "or",
@@ -126,6 +143,14 @@ def is_good(name: str) -> str:
         if mw and all(w in words for w in mw):
             return f"material:{m.id}"
     return ""
+
+
+def good_name(found: str) -> str:
+    """(f680) The name of what is_good found: a good's own name, or a raw material's ("material:<id>")."""
+    if found.startswith("material:"):
+        m = items.MATERIALS.get(found.split(":", 1)[1])
+        return m.name if m is not None else found.split(":", 1)[1].replace("_", " ")
+    return GOODS[found].name if found in GOODS else found.replace("_", " ")
 
 
 def category_word(cat: str) -> str:

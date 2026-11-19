@@ -16,7 +16,7 @@ simlib.install(stub)
 import config
 import ui.console as uc
 from core.interrupts import Interrupt
-from engine import operation, turnlog
+from engine import operation, recording, turnlog
 from llm.gateway import LLMError
 from npc.models import NPC
 bad = []
@@ -132,7 +132,7 @@ check("the first row after a load counts what was told at it, once", ws.recovere
 g.close()
 
 # ---- the recorder's call rows carry the operation and the need
-calls = [json.loads(l) for l in gzip.open(OUT / "calls.jsonl.gz", "rt", encoding="utf-8") if l.strip()]
+calls = recording.read_calls(OUT)
 chats = [c for c in calls if c["kind"] == "chat" and c.get("input") == 1]
 check("every recorded call carries its operation (empty outside any) and the line's need of it", chats and all("op" in c and "need" in c for c in chats)
       and any(c["task"] == "interpret_action" and c["op"] == "" and c["need"] == "required" for c in chats)

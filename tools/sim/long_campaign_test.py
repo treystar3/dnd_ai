@@ -28,7 +28,7 @@ def timed(label, fn, max_s, max_parsed=None):
     check(f"{label}: {dt * 1000:.0f} ms, {parsed['n']} records parsed (limits {max_s * 1000:.0f} ms, {max_parsed if max_parsed is not None else 'any'})", ok)
     return out
 
-root = Path("saves/longrun"); shutil.rmtree(root, ignore_errors=True)
+root = simlib.saves_path("longrun"); shutil.rmtree(root, ignore_errors=True)
 world = load_world()
 places = [p for p in world.places.values() if p.type != "road"]
 roles = list(world.roles)

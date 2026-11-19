@@ -39,8 +39,8 @@ kept = {k for k, f in F.items() if actor.KEPT in f.marks}
 check("every field is reset by a new line, put back by a failed operation, both, or kept: one of those, and kept is neither of the others",
       all(f.marks and f.marks <= {actor.LINE, actor.ROLLED, actor.KEPT} and (f.marks == {actor.KEPT} or actor.KEPT not in f.marks) for f in F.values()),
       {k: sorted(f.marks) for k, f in F.items()})
-check("the turn's fields are the twelve of a line, the step's four, and the four kept across lines", len(line) == 12 and len(rolled - line) == 4
-      and len(kept) == 4 and len(F) == 20, (len(line), len(rolled - line), len(kept), len(F)))
+check("the turn's fields are the nineteen of a line (f715: its plan and its own passages; f721: whether it was silent, and how it stood; f722: what waits behind its passage, and several actions told in one; f724: what the engine decided for its reply; and the count its input was given), the step's four, and the four kept across lines",
+      len(line) == 19 and len(rolled - line) == 4 and len(kept) == 4 and len(F) == 27, (len(line), len(rolled - line), len(kept), len(F)))
 check("only a field a new line resets has a fresh value, and only two are given by the scene (where the line began)",
       all(f.fresh is None for k, f in F.items() if k not in line) and {k for k in line if F[k].fresh is None} == {"line_from", "line_log"})
 check("every name a failed operation puts back has a home declared: the turn's, one character's view, or the scene's",
@@ -48,9 +48,9 @@ check("every name a failed operation puts back has a home declared: the turn's, 
       sorted(set(actor.HOMES) ^ set(WorldScene.ROLLED)))
 check("...the turn's are the fields the table says a failure puts back, and the scene's list still names each of them",
       {k for k, h in actor.HOMES.items() if h == actor.TURN} == rolled and rolled <= set(WorldScene.ROLLED))
-check("the four scene fields no list held are declared too, apart from the ones a failure puts back",
-      set(actor.UNLISTED) == {"broken", "last_text", "crash_after_commit", "recovered_at_load"} and not set(actor.UNLISTED) & set(WorldScene.ROLLED)
-      and not set(actor.UNLISTED) & set(F))
+check("the scene fields a failure leaves as they stand are declared too, apart from the ones it puts back (f720: every one, with its reason)",
+      {"broken", "last_text", "crash_after_commit", "recovered_at_load"} <= set(actor.UNLISTED) and not set(actor.UNLISTED) & set(WorldScene.ROLLED)
+      and not set(actor.UNLISTED) & set(F) and all(actor.ATTRS[k].why for k in actor.UNLISTED))
 
 # ---- the descriptors
 fields_on_scene = {k for k in dir(WorldScene) if isinstance(getattr(WorldScene, k, None), actor.TurnField)}
@@ -120,19 +120,19 @@ ws.begin_line()
 store.arm(False)
 check("a new line starts every field the table says it resets as the table says, each list its own",
       all(getattr(ws, k) == F[k].fresh() for k in line if F[k].fresh) and ws.line_from == ws.player.location and isinstance(ws.line_log, int)
-      and len({id(turn.values[k]) for k in line if isinstance(turn.values[k], list)}) == 6, {k: turn.values.get(k) for k in line})
+      and len({id(turn.values[k]) for k in line if isinstance(turn.values[k], list)}) == 7, {k: turn.values.get(k) for k in line})
 check("...and leaves the others as they stood", ws.ran == ["look"] and len(ws.interpret_calls) == 1)
 inside = {}
 with ws.operation("test", "a failing step") as op:
     inside["snapshot"] = turn.snapshot is not None
     ws.ran = ws.ran + ["made inside"]
-    ws.line_done.append("done inside")
+    ws.interpret_calls.append("made inside")
     ws.buffering = True
     raise LLMError("the model failed")
 check("the snapshot an open operation may have to give back is the context's, and the session holds none of its own",
       inside["snapshot"] and turn.snapshot is None and not hasattr(g.session, "_turn"))
-check("a failed operation puts the turn's rolled fields back on the context", op.state == "rolled_back" and ws.ran == ["look"] and ws.line_done == []
-      and ws.buffering is False and not set(F) & set(ws.__dict__), (ws.ran, ws.line_done, ws.buffering, sorted(set(F) & set(ws.__dict__))))
+check("a failed operation puts the turn's rolled fields back on the context", op.state == "rolled_back" and ws.ran == ["look"] and len(ws.interpret_calls) == 1
+      and ws.buffering is False and not set(F) & set(ws.__dict__), (ws.ran, ws.interpret_calls, ws.buffering, sorted(set(F) & set(ws.__dict__))))
 check("the context is the one the scene had before the failure and its reload", actor.turn_of(ws) is turn)
 
 # ---- two scenes

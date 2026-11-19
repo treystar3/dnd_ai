@@ -3,7 +3,6 @@ the tail is the part that changes); every call's log row and recording row carri
 the server's cached-prompt count when it gives one, outside the request's hash; a night's summary measures the speech tasks (prompt
 characters and first-try acceptance); card_profile --expected prices answers at their expected sizes; the training data keeps one prompt
 version per task; the server report warns of a model off the card; and the baseline's task names are checked at startup."""
-import gzip
 import types
 import json
 import shutil
@@ -72,8 +71,7 @@ row = rows[-1] if rows else {}
 check("the call was answered by the stand-in, and it was taken away after", answered == {"Read": 1} and not held.live(), answered)
 check("the call log's row carries the shape and the server's cached count", got.x == "fine" and row.get("chars") == len("Read the offer.") + len(p.render())
       and row.get("prompt_version") and row.get("tail_chars") == len("Morning.") and (row.get("tokens") or {}).get("cached") == 300, row)
-with gzip.open(folder / "calls.jsonl.gz", "rt", encoding="utf-8") as f:
-    crow = [json.loads(l) for l in f][-1]
+crow = recording.read_calls(folder)[-1]
 check("...and so does the recording's", (crow.get("shape") or {}).get("prompt_version") == row.get("prompt_version")
       and (crow.get("usage") or {}).get("cached") == 300, crow)      # (f527) the row's counts are the interface's usage
 check("...beside the request, never in what its hash is made of", "shape" not in (crow.get("request") or {}) and "chars" not in (crow.get("request") or {})

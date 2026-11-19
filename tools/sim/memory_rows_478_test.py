@@ -66,7 +66,7 @@ memory._CAPS = None
 game.close()
 
 # ---- an older save comes forward typed (v10), the least-work way
-root = Path("saves/memory_rows_478_old")
+root = simlib.saves_path("memory_rows_478_old")
 shutil.rmtree(root, ignore_errors=True)
 root.mkdir(parents=True)
 db = sqlite3.connect(root / "campaign.db")
@@ -107,10 +107,11 @@ game.close()
 '''
 outs = []
 for seed in ("1", "2"):
-    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env={"PYTHONHASHSEED": seed, "PATH": "/usr/bin:/bin"})
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                       env={"PYTHONHASHSEED": seed, "PATH": "/usr/bin:/bin", "MERAVIA_SAVES": str(simlib.saves_path())})   # (f741) its own saves
     outs.append(r.stdout.strip().splitlines()[-1] if r.stdout.strip() else r.stderr[-300:])
 check("a matter's holders hear of its end in one order under any hash seed", outs[0] == outs[1] == json.dumps(["amy", "bob", "kit", "zed"]), outs)
-shutil.rmtree("saves/memory_rows_478_seed", ignore_errors=True)
+shutil.rmtree(simlib.saves_path("memory_rows_478_seed"), ignore_errors=True)
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad), file=sys.__stdout__)
 sys.exit(1 if bad else 0)

@@ -228,8 +228,9 @@ def make_room(ws, actor_id: str, r) -> list[str]:
             spot = features.spot_of(ws)
             obj = objects.make(ws.store, here, n.name, n.what, "ruled", ws.minutes,
                                part=spot.ref if spot is not None else "", mark=mark)   # (f592) and the thing itself, there to be used
-            ledger.add("made", ref=obj.ref, name=obj.name, how="ruled", say=f"{obj.name} is here: {n.what}")
-            out.append(f"{n.name}: {n.what}")
+            came = (getattr(n, "where", "") or "").strip()                     # (f706) where it came from, never out of nowhere
+            ledger.add("made", ref=obj.ref, name=obj.name, how="ruled", say=f"{obj.name} is here: {n.what}" + (f", {came}" if came else ""))
+            out.append(f"{n.name}: {n.what}" + (f" ({came})" if came else ""))
     return out
 
 

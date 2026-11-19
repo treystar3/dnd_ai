@@ -49,6 +49,18 @@ voices:
   never_thanks:    {prompt: "never says thank you; shows it with a nod or by doing something useful instead", check: no_thanks, kind: persistent, weight: 1}
   one_sentence:    {prompt: "", check: "", kind: persistent, weight: 0}          # (f375) a length, not a voice: kept so an old hire's record still reads
 
+# (f670) why a hire calls the player by their nickname: given to the speaker with the name, so asked why, they have the answer
+nick_reasons:
+  Boots: "for the mud on the player's boots the day they met"
+  Captain: "half in jest, for the way the player gives orders"
+  Pup: "because the player seemed young and green to them when they met"
+  Greenhorn: "because the player was new to the work when they met"
+  Chief: "because the player is the one who hired them and pays them"
+  Sparrow: "for how quick and slight the player seemed the day they met"
+  Long-legs: "for the player's long stride on the road"
+  Trouble: "because trouble seems to follow the player wherever they go"
+  Badge: "for the guild badge the player wears"
+  the Hero: "dryly, for the player's habit of rushing in first"
 # ---- cursing. In-world curses always; real ones by config.PROFANITY: off | mild | strong.
 curses:
   world: ["ashes and rot", "Harl take it", "gutless tick", "salt in it", "black water", "rot and ruin", "by the bones"]
@@ -56,31 +68,38 @@ curses:
   strong: ["shit", "piss", "fuck", "arse"]
   pick: 3          # how many a cursing hire has for their own
 
-# ---- English is not their first language. Each tongue has a home in Meravia, a few consistent grammar habits, and its own words, always used
-# for the same thing. The engine supplies the words and their meanings; the model may use no others.
+# ---- English is not their first language. Each tongue has a home in Meravia, a manner, and its own words, always used for the same
+# thing. The engine supplies the words and their meanings; the model may use no others. (f727) manner: how their Common sounds in
+# every reply, never broken grammar. slips: the slips of grammar their tongue gives them, each shown once in a reply and only when
+# the engine rolls it (speech.yaml slip); a tongue may have none.
 tongues:
   rime:
     home: the Rimelands of the far north
-    habits: "now and then leaves out a small word before a noun, where English would want one; is precise and a little formal, and seldom uses contractions"
+    manner: "is precise and a little formal, and seldom uses contractions"
+    slips: ["a small word left out before a noun, where English would want one"]
+    contracts: false      # (f714) speaks without contractions: stiff speech is theirs, never sent back
     sayings: ["A cold hearth makes a short night.", "Snow remembers every footstep.", "Only a fool counts the winter before it is over.", "The wolf that howls is not the one to fear."]
     words: {vesh: "little brother or little sister, said to someone they are fond of", hrimma: "bad luck, said under the breath", skal: "good, or well done", tor: "enough, stop"}
     offer: [vesh, hrimma, skal, tor]
     fond_word: vesh
   sunscar:
     home: the Sunscar in the south
-    habits: "uses no contractions and no slang; now and then picks the wrong small joining word, the way a learner does; sometimes checks they were understood; is warm and courteous, a little more formal than the moment needs"
+    manner: "uses no contractions and no slang; sometimes checks they were understood; is warm and courteous, a little more formal than the moment needs"
+    slips: ["the wrong small joining word, the way a learner picks one"]
+    contracts: false      # (f714) speaks without contractions: stiff speech is theirs, never sent back
     sayings: ["Shade is a gift you give the next traveller.", "The well does not ask who is thirsty.", "Sand in the bread is still bread."]
     words: {aziri: "friend, said warmly", kesh: "nonsense, said with a wave of the hand", haddim: "by the sun, an oath", sabr: "patience"}
     offer: [aziri, kesh, haddim, sabr]
     fond_word: aziri
   salt:
     home: the Saltmarches on the coast
-    habits: "now and then reaches for an English word, does not find it, and describes around it; borrows the language of boats and weather for moods and plans without noticing; keeps sentences short and practical"
+    manner: "borrows the language of boats and weather for moods and plans without noticing; keeps sentences short and practical"
+    slips: ["an English word reached for and not found, and described around instead"]
     sayings: ["A calm sea never made a sailor.", "Mend the net before you need it.", "The tide does not wait for the slow."]
     words: {mora: "trouble, or a storm coming", leet: "small, or a small amount", brennan: "a friend you would sail with", wey: "yes, or all right"}
     offer: [mora, brennan, wey]
     fond_word: brennan
-tongue_prompt: "English is not their first language; they grew up speaking the tongue of {home}. They speak it well and plainly: their sentences are in normal English word order, and most lines are fully correct. Only now and then does home show through: {habits}. A word of their own tongue, or a saying from home, only when one is offered to them, and never any other. Never broken, never comic, never a caricature: a capable adult speaking a second language."
+tongue_prompt: "English is not their first language; they grew up speaking the tongue of {home}. They speak it well and plainly: their sentences are in normal English word order, and most lines are fully correct. Home shows through in how they say it: {habits}. A word of their own tongue, or a saying from home, only when one is offered to them, and never any other. Never broken, never comic, never a caricature: a capable adult speaking a second language."
 # ---- material: words that may be said as they are. The engine offers at most one of each kind per reply, this often, and not one used lately.
 material:
   curse: 0.35
@@ -162,7 +181,7 @@ flaws:
 errands:
   protect:
     where: guild
-    ask: "There is a guild courier here. I want an hour to send coin home. It will keep, if you would rather not."
+    ask: "There's a guild courier here. I'd like an hour to send coin home. It can wait, if you'd rather not."
     yes_line: "{name} comes back an hour later lighter in the purse and easier in the shoulders."
     no_line: "{name} nods, once, and says nothing more about it."
     memory_yes: "They gave me an hour to send coin home."
@@ -170,16 +189,16 @@ errands:
     minutes: 60
   wander:
     where: town_other
-    ask: "I have never been here. Give me an hour to walk it. I will find you."
-    yes_line: "{name} is gone an hour and comes back with the look of someone who has seen a thing they wanted to see."
+    ask: "I've never been here. Give me an hour to walk around. I'll find you."
+    yes_line: "{name} is gone an hour, and comes back in a good mood."
     no_line: "{name} looks at the street a moment longer, then falls in."
     memory_yes: "They gave me an hour to see a town I had never seen."
     memory_no: "They would not spare me an hour in a new town."
     minutes: 60
   revenge:
     where: guild
-    ask: "Before we go. I want to ask the clerk after {target}. It will take no time."
-    yes_line: "{name} speaks to the clerk a while, low, and comes back with nothing new in {their} face."
+    ask: "Before we go, I want to ask the clerk about {target}. It won't take long."
+    yes_line: "{name} talks to the clerk a while, keeping {their} voice low, and comes back with nothing new."
     no_line: "{name} says the name once more, under {their} breath, and lets it go for now."
     memory_yes: "They let me ask after {target} at the guild hall."
     memory_no: "They would not let me ask after {target}."
@@ -187,7 +206,7 @@ errands:
     targets: ["a man called Ferris Vane", "a woman who goes by the Widow Crane", "Aldo Marrow", "a one-eared sellsword called Tamsin", "a priest named Orrin"]
   atonement:
     where: shrine
-    ask: "I would like an hour here. Alone, if you can spare it."
+    ask: "I'd like an hour here. Alone, if you can spare it."
     yes_line: "{name} comes out an hour later with {their} face washed and nothing to say about it."
     no_line: "{name} touches the doorpost as you pass, and does not look back."
     memory_yes: "They gave me an hour alone at a shrine."
@@ -195,7 +214,7 @@ errands:
     minutes: 60
   coin:
     where: anywhere
-    ask: "I will ask this once. An advance on my pay, {sum}. I have a reason and I would rather not say it."
+    ask: "An advance on my pay, {sum}. I'd rather not say what for."
     yes_line: "{name} takes the coin and puts it away without counting it, which from {them} is a kind of thanks."
     no_line: "{name} shrugs. \"Fair. I did say once.\""
     memory_yes: "They advanced me {sum} without asking why."
@@ -203,9 +222,9 @@ errands:
     cost: 300
   glory:
     where: guild
-    ask: "When you hand that in. Tell the clerk my part in it. Not for the coin. So it is written down somewhere."
+    ask: "When you hand that in, tell the clerk my part in it. Not for the coin. I just want it written down somewhere."
     yes_line: "You tell the clerk. {name} pretends not to listen, and listens."
-    no_line: "{name} says nothing, which is louder than most things {they} say."
+    no_line: "{name} doesn't argue. The answer stings, though."
     memory_yes: "They told the clerk my part in a fight, so it was written down."
     memory_no: "They would not tell the clerk my part in a fight."
     minutes: 5

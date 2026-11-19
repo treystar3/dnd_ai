@@ -67,13 +67,13 @@ def use(combat, att, move, target, rng: random.Random) -> str | None:
         C.tell(combat, f"power wells up in {C.who(att)}, and everything {C.vb(att, 'you know', 'it knows')} comes closer to ready")
     elif kind == "nova":
         base = C.RULES["spell_base_damage"] * C.growth(att.level) * P["mult"] / 100
+        at = len(combat.story)                                      # (f757) the nova is told before what it sets off
         for e in enemies:
             dealt, _ = C.mitigate(e, base, "magical", att.level, combat, att)
-            taken = C.take_damage(combat, e, dealt, att, rng, "magical")
-            combat.log.append(f"{name} hits {e.name}: {taken} damage")
+            C.side_damage(combat, e, dealt, att, rng, "magical", logged=lambda d: f"{name} hits {e.name}: {d} damage")
             if P.get("status") and e.alive and not C.resist(att, e, ["wisdom", "charisma"], rng):
                 C.add_status(combat, e, P["status"], 2)
-        C.tell(combat, "it rolls out over the field and strikes every enemy: " + ", ".join(f"{C.who(e)} is {C.condition(e)}" for e in enemies))
+        C.tell(combat, "it rolls out over the field and strikes every enemy: " + ", ".join(f"{C.who(e)} is {C.condition(e)}" for e in enemies), at=at)
     elif kind == "rally":
         for a in combat.allies():
             C.restore(combat, a, a.max_hp * P["pct"] / 100)

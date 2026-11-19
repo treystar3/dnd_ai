@@ -12,8 +12,8 @@ BUY_WORDS = re.compile(r"\b(house|home|cottage|property|deed|townhouse|villa|lon
 
 class PropertyActions:
 
-    def ensure_homes(self) -> None:
-        prop.register(self.world, self.player)
+    def ensure_homes(self, record=None) -> None:
+        prop.register(self.world, self.player if record is None else record)     # (f733) a saved character's record: restore_map reads every one
 
     def home_here(self) -> dict | None:
         return self.player.homes.get(prop.town_of(self.world, self.player.location))
@@ -44,12 +44,12 @@ class PropertyActions:
         if self.player.homes:
             for t, h in self.player.homes.items():
                 console.note(f"You own {P['homes'][t]['name']} in {self.world.places[t].name}"
-                             + (f" - upgrades: {', '.join(h['upgrades'])}." if h["upgrades"] else "."))
+                             + (f". Upgrades: {', '.join(h['upgrades'])}." if h["upgrades"] else "."))
         else:
             console.note("You own no property yet.")
         if prop.for_sale(town) and town not in self.player.homes:
-            console.note(f"For sale here: {P['homes'][town]['name']} - {money.fmt(P['homes'][town]['price'])}. "
-                         f"A land agent handles it; say 'buy a house'.")
+            console.note(f"For sale here: {P['homes'][town]['name']}, for {money.fmt(P['homes'][town]['price'])}. "
+                         f"The land agent handles the sale. Say 'buy a house'.")
         if self.place.type == "home":
             h = self.home_here()
             for uid, u in P["upgrades"].items():
@@ -110,6 +110,9 @@ class PropertyActions:
         if not BUY_WORDS.search(words):
             return False
         town = prop.town_of(self.world, self.player.location)
+        if town in self.player.homes:
+            console.note("You already own a house here. Walk over to it to build.")   # (f730) theirs already: no refusal, the line goes on
+            return True
         if not prop.for_sale(town):
             self.refuse("No houses are for sale here. Land is sold only in the far lands, to those who have earned a place there."
                          if town in P["homes"] else "No houses are for sale here.")
@@ -118,8 +121,7 @@ class PropertyActions:
         if not agent:
             self.refuse("The land agent isn't here right now.")
             return True
-        if town in self.player.homes:
-            self.refuse("You already own a house here. Walk over to it to build.")
+        if self.one_only(intent):                                     # (f646)
             return True
         h = P["homes"][town]
         if c.coins < h["price"]:
@@ -129,8 +131,8 @@ class PropertyActions:
         self.player.homes[town] = {"day": clock.day(self.minutes), "upgrades": [], "last_garden": -1, "last_hearth": -1}
         self.ensure_homes()
         self.store.save_player(self.player)
-        console.note(f"You buy {h['name']}: {money.fmt(h['price'])}. It is called 'your house in {self.world.places[town].name}' "
-                     f"now; you can sleep there free, and keep your item box in it. Type #home.")
+        console.note(f"You buy {h['name']} for {money.fmt(h['price'])}. It's 'your house in {self.world.places[town].name}' "
+                     f"now. You can sleep there for free and keep your item box there. Type #home.")
         self.weight_hint = "major"
         self.narrate(f"The player buys {h['name']} from {agent.label(self.acting)} and is handed the key. "
                      "Describe the signing and the first look at the door.", text)

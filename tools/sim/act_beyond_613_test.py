@@ -60,6 +60,7 @@ ws.narrate = real_narrate
 check("the act's data checks clean", act.problems() == [], act.problems())
 
 # ---- one stance a person: a situation of the act corpus's own shape, the guard set against the act
+g.close()                                                    # (f743) the bench below clears this save: it is let go first
 from tools import ruling_eval as R
 b = R.Bench(save="act_beyond_613")
 try:

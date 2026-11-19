@@ -25,13 +25,13 @@ world = load_world()
 
 c, _ = simlib.make_character("warrior", random.Random(1))
 c.equipment = {}; c.companions = []; c.kit_given = False; c.coins = 0
-txt = K.give_starting_kit(c, "warrior", False, world)
+txt = K.give_starting_kit(c, "warrior", False, world, random.Random(1))
 check("an ordinary class gets a weapon", "main_hand" in c.equipment or any(items.base_of(i).is_weapon for i in c.equipment.values()), list(c.equipment))
 check("...and no companion", not c.companions)
 
 c, _ = simlib.make_character("warrior", random.Random(1))
 c.equipment = {}; c.companions = []; c.kit_given = False; c.coins = 0; c.actives = [a for a in c.actives if a.effect.value != "summon"]
-txt = K.give_starting_kit(c, "beast handler", True, world)
+txt = K.give_starting_kit(c, "beast handler", True, world, random.Random(1))
 check("a companion class gets its companion", len(c.companions) == 1, txt)
 check("...and a weapon as well: everyone wakes armed (f389)", any(items.base_of(i).is_weapon for i in c.equipment.values()), list(c.equipment))
 check("...and the narrator is told of both", "named Rook" in txt and "lies beside them" in txt and "in place of" not in txt, txt)
@@ -41,7 +41,7 @@ c, _ = simlib.make_character("summoner", random.Random(1))
 stub.cls = "warrior"
 c.equipment = {}; c.companions = []; c.kit_given = False; c.coins = 0
 bound = c.bound_summon
-txt = K.give_starting_kit(c, "summoner", False, world)
+txt = K.give_starting_kit(c, "summoner", False, world, random.Random(1))
 check("a summoner who keeps no companions carries a weapon", any(items.base_of(i).is_weapon for i in c.equipment.values()) and not c.companions, list(c.equipment))
 check("...and the narrator hears of its Bound summon", bound and "the summon they made" in txt, txt)
 
@@ -51,7 +51,7 @@ c.equipment = {}; c.companions = []; c.kit_given = False; c.coins = 0
 c.actives = [a for a in c.actives if not getattr(a, "channel", False)]
 c.concept, c.combat_identity, c.custom_class = "a centaur lancer hunter", "Lance and mobility", "Centaur Hunter"
 before = stub.calls.get("StartingKit", 0)
-txt = K.give_starting_kit(c, "Centaur Hunter (warrior): a hunter who skirmishes", False, world)
+txt = K.give_starting_kit(c, "Centaur Hunter (warrior): a hunter who skirmishes", False, world, random.Random(1))
 weapon = next(i for i in c.equipment.values() if items.base_of(i).is_weapon)
 check("a lancer hunter is handed a lance, not a bow for the hunter in them", items.base_of(weapon).id == "lance", items.base_of(weapon).id)
 check("...with no model call, the words having left one weapon", stub.calls.get("StartingKit", 0) == before)
@@ -60,7 +60,7 @@ c.equipment = {}; c.companions = []; c.kit_given = False; c.coins = 0
 c.actives = [a for a in c.actives if not getattr(a, "channel", False)]
 c.concept, c.combat_identity = "a wandering archer", "Arrows from cover"
 before = stub.calls.get("StartingKit", 0)
-K.give_starting_kit(c, "Archer (ranger)", False, world)
+K.give_starting_kit(c, "Archer (ranger)", False, world, random.Random(1))
 weapon = next(i for i in c.equipment.values() if items.base_of(i).is_weapon)
 check("an archer is offered only bows, and the model picks among them", "bow" in items.base_of(weapon).tags or items.base_of(weapon).id == "crossbow", items.base_of(weapon).id)
 check("...one call, among the bows", stub.calls.get("StartingKit", 0) == before + 1)
@@ -71,7 +71,7 @@ check("words that name no weapon leave the choice whole", len(K.named_weapons("a
 c, _ = simlib.make_character("warrior", random.Random(1))
 c.equipment = {}; c.companions = []; c.kit_given = False; c.coins = 0; c.start_weapon = "spear"
 before = stub.calls.get("StartingKit", 0)
-K.give_starting_kit(c, "warrior", False, world)
+K.give_starting_kit(c, "warrior", False, world, random.Random(1))
 check("the weapon chosen at the Threshold is the one they wake with", items.base_of(c.equipment["main_hand"]).id == "spear"
       and c.equipment["main_hand"].name == K.starting_weapon("spear").name and stub.calls.get("StartingKit", 0) == before)
 check("a word of the weapon's own wins over one that fits many: 'heavy hammer' is the warhammer",

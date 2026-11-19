@@ -50,7 +50,7 @@ for k in ("look", "wait", "search"):
     setattr(ws, f"on_{k}", lambda intent, text: None)
 refusals.SESSION.clear()
 ws.handle("I look around, wait a bit, look again and search the square for tracks")
-check("the player is told what the line left undone", any("not done - search the square for tracks" in n for n in notes), notes[-2:])
+check("the player is told what the line left undone", any("Left undone: search the square for tracks" in n for n in notes), notes[-2:])
 check("...and it is logged as a refusal of its own kind", refusals.SESSION and refusals.SESSION[-1]["kind"] == "undone" and "search the square" in refusals.SESSION[-1]["why"], refusals.SESSION[-1:])
 stub.a_ActionPlan = lambda u, k: {"actions": [{"kind": "look", "summary": "look around"}]}
 notes.clear()

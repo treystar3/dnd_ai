@@ -13,9 +13,20 @@ descriptor of the same name (TurnField), so no call site knows the field moved: 
 operation puts it back to what the operation found (ROLLED), or neither (KEPT: it stands across lines and failures until the
 turn's own code writes it). The operation's snapshot is kept here too (engine/session.py begin_turn, rollback).
 
-HOMES declares where every name a failed operation puts back belongs once a scene is split for several characters (multiplayer
-M1): the turn's, one character's view, or the scene's, shared by everyone in it. Only the turn's have moved; the rest are still
-attributes of the scene, and this is the list that split starts from.
+(f720) ATTRS declares every other attribute of the world scene, once: what a failed operation does with it (put back to what
+the operation found; left as it stands, with the reason; written only outside operations, so a failure finds it as it left it;
+read again from the save; set once when the scene is made) and where it
+belongs once a scene is split for several characters (multiplayer M1): one character's view, or the scene's, shared by everyone
+in it. A name that begins with `_` is a private cache, copied and put back whole by the session, and needs no row; nor does a
+property of the scene, which holds nothing of its own. HOMES (every
+name a failed operation puts back, with its home), UNLISTED (what a failure leaves as it stands) and WorldScene.ROLLED are read
+from FIELDS and ATTRS; tools/sim/rollback_declared_720_test.py holds every name the scene's code sets to a declaration.
+
+(f751) OPENING declares, beside it, what an opening (the save closed and opened again) does with every row of ATTRS and every
+private name set on a scene: kept in a row of the save, made again from the save, forgotten (why), or owed (kept by the owner's
+default and lost today, with who keeps it). The turn's fields need no row: a line sets each before it reads it. The
+reopen_declared test (tools/sim) holds every name to a row, and a session closed and opened part-way to the same session
+played straight.
 
 (f633) Registers is what a turn keeps while it is played, which five modules each held under names of their own: the operation
 open now, what reached the page and the calls made inside a transaction (engine/operation.py), the ledger's rows, the last
@@ -74,19 +85,26 @@ FIELDS: dict[str, Field] = {
     "line_ops": _f(LINE, fresh=list),                      # its operations that stood, in order
     "line_failed": _f(LINE, fresh=list),                   # ...and the player's that did not
     "line_world_failed": _f(LINE, fresh=list),             # ...and the world's own that did not
-    "line_done": _f(LINE, ROLLED, fresh=list),             # what the actions that stood did
     "passages": _f(LINE, fresh=list),                      # the passages its operations queued
     "line_untold": _f(LINE, fresh=list),                   # the passage operations told by a stand-in
     "unshown_ops": _f(LINE, fresh=dict),                   # operations whose later lines wait on a passage
+    "waiting": _f(LINE, ROLLED, fresh=list),               # what waits behind the line's one passage (f722)
     "collecting": _f(LINE, fresh=bool),                    # the line's actions are running
     "line_from": _f(LINE),                                 # where the line began
     "line_log": _f(LINE),                                  # where the journal stood when it began
     "line_losses": _f(LINE, ROLLED, fresh=int),            # deaths this line
+    "line_plan": _f(LINE, fresh=list),                     # the steps it was read as, all of them (f715)
+    "own_steps": _f(LINE, fresh=bool),                     # a passage asked for now is its own, not the world's (f715)
+    "silent": _f(LINE, ROLLED, fresh=bool),                # the tail found it showed the player nothing (f721): the close says so
+    "stood": _f(LINE, fresh=type(None)),                   # how the input stood, once settled (f721): True, "part" or False
+    "decision": _f(LINE, ROLLED, fresh=type(None)),        # what the engine decided for the line's reply (f724)
+    "input_count": _f(LINE, fresh=type(None)),             # the count its input was given, kept across a failed operation (f753)
     # ---- the step being done
     "step": _f(ROLLED, default=None),                      # the plan's step, while one is
+    "plan_now": _f(ROLLED, default=()),                    # ...and the plan it is a step of (f645)
     "ran": _f(ROLLED),                                     # the kinds of action the line has run
     "interpret_calls": _f(ROLLED),                         # the interpreter's calls, for the turn log
-    "buffering": _f(ROLLED),                               # several actions told in one passage
+    "buffering": _f(LINE, ROLLED, fresh=bool),             # several actions told in one passage; a line's (f722)
     # ---- kept across lines and failures: a failed operation puts `pending` back by its own hand and writes `halted` and
     # `last_failure` itself (scenes/world.py abandon, operation); `last_budget` is the last input's, closed
     "pending": _f(KEPT),
@@ -96,23 +114,129 @@ FIELDS: dict[str, Field] = {
 }
 
 TURN, VIEW, SCENE = "turn", "view", "scene"
-HOMES: dict[str, str] = {
-    **{name: TURN for name, f in FIELDS.items() if ROLLED in f.marks},
-    # ---- one character's view: what they were offered, what their own next step carries
-    "weight_hint": VIEW, "exits_due": VIEW, "journey_event_factor": VIEW, "haggle_factor": VIEW, "craft_boost": VIEW,
-    "camp_bonus": VIEW, "rank_options": VIEW, "learn_options": VIEW, "pending_check": VIEW, "pending_beats": VIEW,
-    "last_social": VIEW, "last_plan": VIEW, "sneaking": VIEW, "queued_buffs": VIEW, "fight_text": VIEW,
-    # ---- the scene's, shared by everyone in it: what was told of it, the conversation, the road being walked, the fight that
-    # is coming or was fled and how its beats landed on the party, what is in view
-    "recent_narration": SCENE, "convo": SCENE, "last_spoken": SCENE, "partner": SCENE, "stance": SCENE, "wildlife": SCENE,
-    "resume_pending": SCENE, "recently_fled": SCENE, "held_yield": SCENE, "orenna_fight": SCENE, "camp_fight": SCENE,
-    "dungeon_fight": SCENE, "surrender_took": SCENE, "last_hits": SCENE,
+SAVED, ONCE, OUTSIDE = "saved", "once", "outside"
+
+
+@dataclass(frozen=True)
+class Attr:
+    how: str                               # ROLLED, KEPT, OUTSIDE (written only outside operations), SAVED (read again from the
+                                           # save) or ONCE (set when the scene is made)
+    home: str                              # VIEW: one character's; SCENE: shared by everyone in the scene
+    why: str = ""                          # for one a failure does not put back: why not
+
+
+def _rows(how: str, home: str, names: str, why: str = "") -> dict[str, Attr]:
+    return {name: Attr(how, home, why) for name in names.split()}
+
+
+ATTRS: dict[str, Attr] = {
+    # ---- put back, one character's view: what they were offered, what their own next step carries, how they arrived
+    **_rows(ROLLED, VIEW, "weight_hint exits_due journey_event_factor haggle_factor craft_boost camp_bonus rank_options learn_options "
+                          "learn_request pending_check pending_beats last_social last_plan sneaking queued_buffs fight_text "
+                          "first_arrival revisit repairs"),
+    # ---- put back, the scene's: what was told of it, the conversation, the fight that was fled and how its beats landed on the
+    # party, what is in view, who came looking (they stand in the room, for everyone)
+    **_rows(ROLLED, SCENE, "recent_narration convo last_spoken partner stance moves wildlife wildlife_at recently_fled "
+                           "surrender_took last_hits visitors camp_events"),
+    # ---- left as it stands
+    **_rows(KEPT, VIEW, "broken", "the lines that failed on the game's own fault, and how often: a failure is what it counts"),
+    **_rows(KEPT, VIEW, "last_text", "the line last typed: it was typed, whatever came of it"),
+    **_rows(KEPT, SCENE, "crash_after_commit", "the suite's injection: the game stops after this kind's commit"),
+    **_rows(KEPT, VIEW, "rng", "the scene's dice: what a failed operation drew is spent, and the line typed again is a new input "
+                               "with dice of its own; an attempt that stood down to ask has them put back (asked_operation)"),
+    **_rows(KEPT, VIEW, "to_menu", "the player asked for the menu: they leave, whatever became of the command"),
+    # ---- written only outside operations
+    **_rows(OUTSIDE, VIEW, "line_text dropped_steps last_interpret", "the reading of the line, written as it is read, before its operations"),
+    **_rows(OUTSIDE, VIEW, "recovered_at_load", "outcomes told at this load: counted as the save opens, before any line"),
+    # ---- read again from the save, where an operation gives back (scenes/world.py give_back). The character's record is loaded
+    # again there too: it is the actor's, and the scene's name for it is a property, as its name for the save's question is
+    **_rows(SAVED, SCENE, "combat", "the fight, resumed from its row, or none"),
+    **_rows(SAVED, SCENE, "residents present", "the people of the place and who is here now, read again from their rows"),
+    # ---- set when the scene is made
+    **_rows(ONCE, SCENE, "session store world catalog", "the campaign's own: a turn writes through them, never over them"),
+    **_rows(ONCE, VIEW, "actor", "the scene's actor, made as it is given its player"),
 }
-UNLISTED: dict[str, str] = {               # scene fields no list held before this: a failure leaves each as it stands
-    "broken": VIEW,                        # the lines that failed on the game's own fault, and how often
-    "last_text": VIEW,                     # the line last typed
-    "recovered_at_load": VIEW,             # outcomes told at this load
-    "crash_after_commit": SCENE,           # the suite's injection: the game stops after this kind's commit
+HOMES: dict[str, str] = {**{name: TURN for name, f in FIELDS.items() if ROLLED in f.marks},
+                         **{name: a.home for name, a in ATTRS.items() if a.how == ROLLED}}
+UNLISTED: dict[str, str] = {name: a.home for name, a in ATTRS.items() if a.how in (KEPT, OUTSIDE)}
+
+IN_SAVE, REMADE, FORGOTTEN, OWED = "in the save", "remade", "forgotten", "owed"
+
+
+@dataclass(frozen=True)
+class Opening:
+    fate: str                              # IN_SAVE, REMADE, FORGOTTEN or OWED (the module's docstring says each)
+    why: str                               # IN_SAVE: the row; REMADE: from what; FORGOTTEN: why; OWED: "<who keeps it>: what a player meets"
+    fresh: Callable | None = None          # FORGOTTEN or OWED, for a name the scene's constructor sets: what a new scene holds
+
+
+def _opens(fate: str, names: str, why: str, fresh: Callable | None = None) -> dict[str, Opening]:
+    return {name: Opening(fate, why, fresh) for name in names.split()}
+
+
+# (f751) so what a close loses is declared, never found first by a player who stopped for the night
+OPENING: dict[str, Opening] = {
+    # ---- kept in the save
+    **_opens(IN_SAVE, "recent_narration", "story: the last six passages, put back by the opening when a passage was shown"),
+    **_opens(IN_SAVE, "convo partner stance moves last_spoken",
+             "talk: put back once everyone here is present and the one spoken with among them (restore_talk)"),
+    **_opens(IN_SAVE, "_hire_last", "talk: the hire who spoke last, by id, while a line could still go on with them (restore_talk)"),
+    **_opens(IN_SAVE, "visitors", "visitors: who came looking, until when and where, read as the scene is made"),
+    **_opens(IN_SAVE, "combat", "the fight's row, resumed by the opening, with what the fight is for"),
+    **_opens(IN_SAVE, "_worn _said_in_town _after_starts _after_opened _exemplars _framed_hires _partings_heard",
+             "telling: what the checks and prompts remember of the telling, put back as the scene is made (engine/telling.py)"),
+    # ---- made again from the save
+    **_opens(REMADE, "session store world catalog", "made with the scene, over the save"),
+    **_opens(REMADE, "actor", "made with the scene, over the save; its caches (f634) start empty, as a campaign's open puts them back"),
+    **_opens(REMADE, "rng", "the line's key: every input begins the scene's dice again (engine/streams.py)"),
+    **_opens(REMADE, "residents present _doing_changes _routine_here _routine_cache _streets_cache",
+             "the place's people and streets, read from their rows by the opening's entry"),
+    **_opens(REMADE, "first_arrival revisit", "the opening's restore, where the character stood before: no first arrival, and a return "
+                                              "where the place's people are written (an arrival only where they never stood)"),
+    **_opens(REMADE, "_door_loc", "the opening's restore: where the character stands, so the next line's door reads no arrival"),
+    **_opens(REMADE, "weight_hint", "the opening: none on a reload"),
+    **_opens(REMADE, "recovered_at_load _recovered_unreported", "the opening's recovery of what stood and was never shown (recover_unshown)"),
+    **_opens(REMADE, "_people_missing", "the opening's entry, when the place's people could not be written"),
+    **_opens(REMADE, "_talk_saved", "the talk row, read as the scene is made, with the place it was opened at: it waits there, across lines, "
+                                    "for its speaker (restore_talk)"),
+    **_opens(REMADE, "_telling_due", "the telling row, read as the scene is made: nothing is noted since it was written"),
+    **_opens(REMADE, "_truth", "the truth scene, built again from the state at its next read"),
+    **_opens(REMADE, "_house_names", "the house voices' names, from the data at the first read"),
+    # ---- forgotten: the line's own, set afresh before any later line reads it
+    **_opens(FORGOTTEN, "sneaking", "the line's own: every line sets it afresh", bool),
+    **_opens(FORGOTTEN, "queued_buffs", "the line's own: every line sets it afresh", list),
+    **_opens(FORGOTTEN, "fight_text", "the line's own: every line sets it afresh", str),
+    **_opens(FORGOTTEN, "last_text", "the line last typed: every line sets it", str),
+    **_opens(FORGOTTEN, "pending_check pending_beats", "the step's own: every step sets it afresh"),
+    **_opens(FORGOTTEN, "line_text dropped_steps last_interpret _asked_place _question_let_go repairs",
+             "the reading of the line: written as each line is read"),
+    **_opens(FORGOTTEN, "exits_due journey_event_factor haggle_factor camp_bonus _wrote_turn _time_notes _looking _heard_now _following "
+                        "_handed_in _back _live _deferred_from _deferred_exchange _arrival_lines",
+             "the line's own: set and spent inside the line that sets it"),
+    **_opens(FORGOTTEN, "last_plan surrender_took last_hits camp_events", "nothing in the game reads it after the line that wrote it"),
+    # ---- forgotten: what only spaces out chatter inside one sitting, or what this visit has been shown
+    **_opens(FORGOTTEN, "_banter_due _banter_last _banter_loc _chimed _party_said _quirk_loc _habits_at _habits_due _remembered "
+                        "_last_claims _last_topic", "the party's chatter, spaced out inside one sitting"),
+    **_opens(FORGOTTEN, "_framed_here _shown_here _crowd_told _happenings_seen _news_seen",
+             "what this visit has been shown: a new sitting is told the place afresh"),
+    **_opens(FORGOTTEN, "_stay _stay_people_turn", "the stay's one line, spaced inside one sitting: an opening begins no stay, the "
+                                                   "first line after it does"),
+    **_opens(FORGOTTEN, "_stood", "the opening's own: set and taken inside open_world"),
+    **_opens(FORGOTTEN, "_routine_marked", "the debug pulse log's mark, once a period: a new sitting marks it again"),
+    **_opens(FORGOTTEN, "broken", "the lines that failed on the game's own fault this sitting: a new sitting tries afresh", dict),
+    **_opens(FORGOTTEN, "to_menu", "the menu asked for ends the sitting", bool),
+    **_opens(FORGOTTEN, "crash_after_commit", "the suite's injection, for one sitting", str),
+    # ---- owed: kept by the owner's default, lost at a close today
+    **_opens(OWED, "craft_boost", "RELOAD-11: a crafting ability's boost is spent and the next piece of work after a close is not better"),
+    **_opens(OWED, "_appeared", "RELOAD-12: the day's count of people ruled into a place starts again at a close"),
+    **_opens(OWED, "_errand", "STALE_COPIES-3: a companion's errand asked for is forgotten at a close"),
+    **_opens(OWED, "rank_options learn_options learn_request",
+             "reported: what a teacher offered; after a close 'the first one' is a line about nothing"),
+    **_opens(OWED, "wildlife wildlife_at", "reported: the creature in view is gone after a close, and an attack on it finds nothing",
+             type(None)),
+    **_opens(OWED, "_trail", "reported: the fresh signs a search found; after a close they cannot be followed"),
+    **_opens(OWED, "recently_fled", "reported: a fight just fled may be met again by the next search after a close", bool),
+    **_opens(OWED, "last_social", "reported: a persuasion won over someone; after a close their secret is shut again"),
 }
 
 

@@ -83,7 +83,7 @@ def refuse(combat, att, move, target, give=None) -> str | None:
     from engine import summons
     kind = getattr(move, "movement", "")
     if any(b.get("kind") == "stoneform" for b in (att.buffs or {}).values()):
-        return "You are stone: you cannot use a movement ability until Stoneform ends."
+        return "You're stone. No movement abilities until Stoneform ends."
     if att.counters.get("moved_round") == combat.round and not (kind == "shadowmark" and att.shadow):
         return "You have already used a movement ability this turn."
     if kind == "breach":
@@ -92,16 +92,16 @@ def refuse(combat, att, move, target, give=None) -> str | None:
         if combat.battlefield is not None and bf.steps_between(combat, att, target) > 1:
             return f"{target.name} is too far away for {move.name}."
         if not bf.protected(combat, target):
-            return f"{target.name} is not behind any guard - you can reach it without {move.name}."
+            return f"{target.name} is not behind any guard, so you can reach it without {move.name}."
     elif kind == "shift":
         if not bf.engaged(combat, att):
-            return "Nothing is fighting you - there is nothing to pull free of."
+            return "Nothing is fighting you, so there's nothing to pull free of."
     elif kind == "shield_ally":
         if _ally_for(combat, att, give) is None:
             return "No ally is near enough to shield."
     elif kind == "relentless_advance":
         if "grappled" in att.statuses:
-            return "You are held fast - nothing breaks a grapple but getting free of it."
+            return "You're held fast. Get free of the grapple first."
         if target is None or target.side != "enemy":
             return f"{move.name} needs an enemy to close on."
         if bf.attack_access(combat, att, target).ok:
@@ -115,13 +115,13 @@ def refuse(combat, att, move, target, give=None) -> str | None:
             return "No enemy is suffering from one of your curses."
     elif kind == "grave_step":
         if not _corpses(combat):
-            return "No one has fallen in this fight yet - there is no body to step out of."
+            return "No one has fallen in this fight yet, so there's no body to step out of."
     elif kind == "soul_swap":
         if summons.yours(combat) is None:
             return "You have no summon standing to trade places with."
     elif kind == "bloodscent":
         if not [e for e in combat.enemies() if e.hp < e.max_hp * 0.5]:
-            return "No enemy is below half health - there is no blood to follow."
+            return "No enemy is below half health yet, so there's no blood to follow."
     elif kind == "vengeance_leap":
         hurt = combat.get(att.last_hurt_by) if att.last_hurt_by else None
         if hurt is None or not hurt.alive or hurt.fled or hurt.side == att.side:

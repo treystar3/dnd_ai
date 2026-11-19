@@ -60,6 +60,12 @@ def spell_of(att: C.Fighter, move) -> float:
     return C.RULES["spell_base_damage"] * C.growth(att.level) + focus
 
 
+def next_cast(combat: C.Combat) -> int:
+    """A new casting's serial: higher than every serial a summon in the fight holds, so no casting still in the list shares it,
+    whoever has left; while nobody has left, it is the list's length."""
+    return max(len(combat.fighters), 1 + max((f.summon_cast for f in combat.fighters if is_summon(f)), default=-1))
+
+
 def make(combat: C.Combat, att: C.Fighter, move, form: str | None = None, tier: str | None = None, until: int | None = None,
          name: str = "") -> list[C.Fighter]:
     """Build a summon's body (or bodies) from its caster. `until` is the round it fades (0: never)."""
@@ -73,9 +79,9 @@ def make(combat: C.Combat, att: C.Fighter, move, form: str | None = None, tier: 
         until = 0 if form == "bound" else combat.round + S["rounds"].get(tier, 3)
     cast_attr = getattr(move, "attribute", "") or "intelligence"
     base = name or getattr(move, "summon_name", "") or move.name
-    out, serial = [], len(combat.fighters)
+    out, serial = [], next_cast(combat)                      # (f756) a foe tamed, bound or freed shortens the list
     for i in range(bodies):
-        f = C.Fighter(id=f"summon_{move.id}_{combat.round}_{i}_{len(combat.fighters)}", name=base if bodies == 1 else f"{base} ({i + 1})",
+        f = C.Fighter(id=f"summon_{move.id}_{combat.round}_{i}_{serial}", name=base if bodies == 1 else f"{base} ({i + 1})",
                       side="ally", level=att.level, attrs=dict(att.attrs), hp=max(1.0, hp), max_hp=max(1, round(hp)),
                       weapon_name="strike", weapon_damage=dmg, weapon_attrs=[cast_attr], damage_type="magical",
                       element=getattr(move, "element", "") or "", armor=att.armor * S["defense"], ward=att.ward * S["defense"],
@@ -160,12 +166,13 @@ def burst(combat: C.Combat, f: C.Fighter, rng: random.Random) -> None:
     from engine import battlefield as bf
     victims = [e for e in bf.standing(combat, f.zone_id) if e.alive and bf.hostile(f, e)] if combat.battlefield else combat.enemies()
     held, f.hit_element = f.hit_element, f.element
+    at = len(combat.story)                                          # (f757) the burst is told before what it sets off
     for e in victims:
         hit, _ = C.mitigate(e, f.weapon_damage * spec["burst"], "magical", f.level, combat, f)
-        combat.log.append(f"{f.name} bursts over {e.name}: {C.take_damage(combat, e, hit, f, rng, 'magical')}")
+        C.side_damage(combat, e, hit, f, rng, "magical", logged=lambda d: f"{f.name} bursts over {e.name}: {d}")
     f.hit_element = held
     if victims:
-        C.tell(combat, f"{f.name} bursts apart" + (f" in {f.element}" if f.element else "") + f", and the blast takes {', '.join(C.who(e) for e in victims)}")
+        C.tell(combat, f"{f.name} bursts apart" + (f" in {f.element}" if f.element else "") + f", and the blast takes {', '.join(C.who(e) for e in victims)}", at=at)
 
 
 def on_fall(combat: C.Combat, f: C.Fighter, rng: random.Random) -> None:
@@ -190,11 +197,12 @@ def turn(combat: C.Combat, a: C.Fighter, rng: random.Random) -> bool:
         if a.element:
             victims = [e for e in bf.standing(combat, a.zone_id) if e.alive and bf.hostile(a, e)] if combat.battlefield else combat.enemies()
             held, a.hit_element = a.hit_element, a.element
+            at = len(combat.story)                                  # (f757) the pulse is told before what it sets off
             for e in victims:
                 hit, _ = C.mitigate(e, a.weapon_damage * spec["pulse"], "magical", a.level, combat, a)
-                combat.log.append(f"{a.name} pulses {a.element} into {e.name}: {C.take_damage(combat, e, hit, a, rng, 'magical')}")
+                C.side_damage(combat, e, hit, a, rng, "magical", logged=lambda d: f"{a.name} pulses {a.element} into {e.name}: {d}")
             a.hit_element = held
-            C.tell(combat, f"{a.name} pulses, and {a.element} washes over " + (", ".join(C.who(e) for e in victims) if victims else "empty ground"))
+            C.tell(combat, f"{a.name} pulses, and {a.element} washes over " + (", ".join(C.who(e) for e in victims) if victims else "empty ground"), at=at)
         else:
             pct = spec["empower"].get(a.summon_tier, 10)
             near = [f for f in combat.player_side() if f.alive and f is not a and (not combat.battlefield or f.zone_id == a.zone_id)]
@@ -244,9 +252,16 @@ def join_bound(fight: C.Combat, character) -> None:
     fight.fighters += make(fight, p, move, until=0)
 
 
-def after_fight(character, fight: C.Combat) -> str:
-    """A Bound summon destroyed in the fight stays unmade until its spell is cast again. Returns a note, or ''."""
-    if fight.bound_fell and getattr(character, "bound_summon", ""):
+def after_fight(character, fight: C.Combat, me: C.Fighter) -> str:
+    """What the fight did to this character's bond, read from how it ended for its own fighter `me`: a Bound summon of the bond's spell
+    standing at the end walks on with them (made anew in the fight, the bond is mended; with no bond yet, it is bound); else one of
+    theirs destroyed in it stays unmade until its spell is cast again. Returns a note, or ''."""
+    bond = getattr(character, "bound_summon", "")
+    standing = bound_of(fight, me)
+    if standing is not None and bond in ("", standing.summon_of):          # (f749) a recast in a fight holds as one outside it does
+        character.bound_summon, character.bound_broken = standing.summon_of, False
+        return ""
+    if bond and any(is_summon(f) and f.summon_form == "bound" and f.summon_owner == me.id and not f.alive for f in fight.fighters):
         character.bound_broken = True
         return "Your Bound summon was unmade in the fight. Cast its spell again to make it anew."
     return ""

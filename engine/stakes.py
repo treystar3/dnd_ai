@@ -54,9 +54,10 @@ def issuer_for(store, world, town: str, kind: str, rng: random.Random, taken: se
     return None
 
 
-def plan(ws, hall: str, new: list[dict]) -> None:
+def plan(ws, hall: str, new: list[dict], ask: bool = True) -> None:
     """New postings get their issuers and, for a few, more behind them; then one model call writes the reasons and results. Done at
-    the board's refresh (scenes/guild_actions.ensure_board)."""
+    the board's refresh (scenes/guild_actions.ensure_board). (f673) ask False: the issuers only, no model call (a refresh inside an
+    operation, whose re-run would find the request moved)."""
     from engine import pulse, towns
     from llm.gateway import generate, LLMError
     from llm.contracts import BoardStakes
@@ -74,7 +75,9 @@ def plan(ws, hall: str, new: list[dict]) -> None:
         q["issuer"], q["issuer_name"], q["issuer_role"] = who.id, who.name, who.role.replace("_", " ")
         q["more_wanted"] = rng.random() < G.get("chain", {}).get("chance", {}).get(q["kind"], 0)
         wanted.append(q)
-    if not wanted:
+    if not wanted or not ask:
+        for q in wanted:
+            q.pop("more_wanted", None)
         return
     cond = towns.condition(ws.store, ws.world, hall, ws.minutes)
     lines = towns.resident_lines(ws.world, hall, cond)

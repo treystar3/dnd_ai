@@ -31,8 +31,8 @@ payload["tag_name"] = "v0.0.1"
 check("an older release is not offered", updates.available("o/r") is None)
 # (f343) a release whose installer was built before the version was raised: installed, the game still reports the old version
 import tempfile, pathlib
-from core import paths as _paths
-_app = _paths.APP; _paths.APP = pathlib.Path(tempfile.mkdtemp())
+from storage import campaign as _campaign
+_saves = _campaign.SAVES_DIR; _campaign.SAVES_DIR = pathlib.Path(tempfile.mkdtemp())
 payload["tag_name"] = "v9.0.0"
 info = updates.available("o/r")
 check("the offer carries the version this game has", info and info["current"] == updates.VERSION and "again" not in info, info)
@@ -43,7 +43,7 @@ info = updates.available("o/r")
 check("the same release offered to the same version is named as an update that did not take", info and info.get("again", {}).get("from") == updates.VERSION, info)
 payload["tag_name"] = "v9.0.1"
 check("a newer release than the one tried is a plain offer again", "again" not in (updates.available("o/r") or {}))
-updates.attempt_file().unlink(); _paths.APP = _app
+updates.attempt_file().unlink(); _campaign.SAVES_DIR = _saves
 def boom(req, timeout=0): raise OSError("offline")
 urllib.request.urlopen = boom
 check("offline is silent", updates.latest_release("o/r") is None)

@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, ".")
 import simlib
 simlib.install(simlib.Stub("warrior", 3))
-from storage import saves, migrations
+from storage import campaign, saves, migrations
 from storage.campaign import CampaignStore, PlayerState
 from scenes import home
 from ui import console
@@ -21,7 +21,7 @@ def check(n, ok, x=""):
 
 world = load_world()
 root = Path(tempfile.mkdtemp())
-saves.SAVES_DIR = root
+campaign.SAVES_DIR = root
 
 def make(name, char_name, level=3, location="parth", minutes=1440 * 40, player=True):
     st = CampaignStore.open_or_create(name, saves_dir=root)
@@ -170,7 +170,7 @@ made = ThresholdScene().run()
 console.put("ask", real_ask); console.put("note", real_note); console.put("say", real_say); console.put("narrate", real_narrate)
 check("creation's prompt lets the window offer Main menu", asked == [True], asked)
 check("Main menu during creation leaves it with no character", made is None and "main menu" in said[-1].lower(), said[-1:])
-fresh = saves.new_name(); make(fresh, "", player=False); saves.touch(fresh)
+fresh = saves.new_name(); make(fresh, "", player=False)                # (f742) a new game is touched only once its character is saved
 check("a new game left before it had a character is discarded, folder and all",
       saves.discard(fresh) and not (root / fresh).exists() and fresh not in saves.load_index()["saves"] and saves.load_index()["last"] != fresh)
 check("...but a game with a character never is", not saves.discard("game_play") and (root / "game_play" / "campaign.db").exists())

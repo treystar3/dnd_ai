@@ -168,9 +168,10 @@ def fights_problems(data: dict | None = None) -> list[str]:
     limit = data.get("limit_seconds")
     if not isinstance(limit, (int, float)) or isinstance(limit, bool) or limit <= 0:
         bad.append(f"bundle_e_fights.yaml limit_seconds: needs a number above zero, not {limit!r}")
+    from engine.recording import calls_file                          # (f732) a kept recording's log, in either form
     replay = ROOT / "data" / "replay"                                # (f531) the kept recordings are a source tree's: a built game
     for name, rows in (data.get("goldens") or {}).items():          # ships without data/replay, and is not told they are missing
-        if replay.exists() and not (replay / "sessions" / str(name) / "calls.jsonl.gz").exists():
+        if replay.exists() and calls_file(replay / "sessions" / str(name)) is None:
             bad.append(f"bundle_e_fights.yaml goldens.{name}: no such recording is kept")
         for i, row in (rows or {}).items():
             for k in ("estimate", "operations", "reruns", "simulations"):
@@ -304,6 +305,66 @@ def ceilings_problems(ceil: dict | None = None) -> list[str]:
     return bad
 
 
+def gate_problems(F: dict | None = None, measured: dict | None = None) -> list[str]:
+    """(f719) data/replay/gate.yaml, the live gate's floors (the owner's numbers; unset until the owner sets them) and the sizes of
+    its quick run; and data/measured/live_gate.yaml, once a whole run has written it: the four measures it holds."""
+    HELD = ("reading_share", "phantoms_per_100", "unknown_names_per_100", "stiff_sent_back_share", "p95_seconds", "over_limit", "stand_ins",
+            "leaks", "townsperson_prompt_p95_chars", "first_try_share",       # (f723) the speech work's three
+            "leak_lines_with_news")                                           # (f729) whether the leak count could have failed
+    if F is None and not (ROOT / "data" / "replay" / "gate.yaml").exists():
+        return []                                                      # a build without the test data has no gate to hold
+    F = _load("data/replay/gate.yaml") if F is None else F
+    bad = []
+    held = F.get("floors")
+    if not isinstance(held, dict) or set(held) != set(HELD):
+        return [f"gate.yaml floors: one for each of {', '.join(sorted(HELD))}"]
+    for name, v in held.items():
+        if v is not None and (isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0):
+            bad.append(f"gate.yaml floors.{name}: a number, or nothing while the owner has not set it")
+        elif v is not None and name.endswith("_share") and v > 1:
+            bad.append(f"gate.yaml floors.{name}: a share, from 0 to 1")
+    speakers = F.get("speakers")                                       # (f723) each kind's tasks are tasks the budget knows
+    known = set(_load("data/rules/budget.yaml").get("tasks") or {})
+    if not isinstance(speakers, dict) or not speakers or not all(isinstance(v, list) and v and set(v) <= known for v in speakers.values()):
+        bad.append("gate.yaml speakers: each kind of speaker with a list of budget.yaml tasks")
+    readings = F.get("readings")                                       # (f729) the calls that read a line before someone speaks
+    if (not isinstance(readings, dict) or not set(readings) <= set(speakers if isinstance(speakers, dict) else {})
+            or not all(isinstance(v, list) and v and set(v) <= known for v in readings.values())):
+        bad.append("gate.yaml readings: a kind of speaker (one of speakers) with the budget.yaml tasks that read a line before they speak")
+    quick = F.get("quick") or {}
+    for name in ("cases", "lines"):
+        if not isinstance(quick.get(name), int) or isinstance(quick.get(name), bool) or quick[name] < 1:
+            bad.append(f"gate.yaml quick.{name}: a whole number, at least 1")
+    if measured is None and (ROOT / "data" / "measured" / "live_gate.yaml").exists():
+        measured = _load("data/measured/live_gate.yaml")
+    if measured is not None and not (isinstance(measured, dict) and all(isinstance(measured.get(k), dict) for k in ("reading", "inventions", "speech", "time"))):
+        bad.append("data/measured/live_gate.yaml: the gate's four measures (run tools/live_gate.py again)")
+    return bad
+
+
+def voice_problems(tongues: dict | None = None, slip: dict | None = None) -> list[str]:
+    """(f727) A voice in every line, a slip as rolled (engine/voice_profile.py manner, slip): each tongue has a manner and its slips
+    of grammar apart from it, both behaviour with no quoted words (habits is no longer read); the slip's odds by fluency and its
+    two lines (speech.yaml slip). With nothing given, the data's own."""
+    if tongues is None:
+        tongues = {**(_load("data/rules/quirks.yaml").get("tongues") or {}), **(_load("data/rules/speech.yaml").get("tongues") or {})}
+    SL = (_load("data/rules/speech.yaml").get("slip") if slip is None else slip) or {}
+    bad: list[str] = []
+    for t, spec in tongues.items():
+        if not (isinstance(spec.get("manner"), str) and spec["manner"].strip() and not QUOTED.search(spec["manner"])) or "habits" in spec:
+            bad.append(f"tongue '{t}': manner (how their Common sounds in every reply) must describe behaviour, no quoted words; habits is no longer read")
+        if not (isinstance(spec.get("slips"), list) and all(isinstance(x, str) and x.strip() and not QUOTED.search(x) for x in spec["slips"])):
+            bad.append(f"tongue '{t}': slips is a list of its slips of grammar (none is allowed), behaviour only, no quoted words")
+    odds = SL.get("one_in") or {}
+    if set(odds) != {"learner", "fluent"} or not all(isinstance(v, int) and not isinstance(v, bool) and v >= 1 for v in odds.values()):
+        bad.append("speech.yaml slip.one_in: learner and fluent, each a whole number from 1 (one reply in so many)")
+    if not isinstance(SL.get("shown"), str) or "{slip}" not in SL["shown"]:
+        bad.append("speech.yaml slip.shown: the line for a reply whose grammar slips, with {slip} in its place")
+    if not isinstance(SL.get("clean"), str) or not SL["clean"].strip():
+        bad.append("speech.yaml slip.clean: the line for a reply whose grammar is clean")
+    return bad
+
+
 def check() -> list[str]:
     broken = []
     for f in sorted((ROOT / "data").rglob("*.yaml")):              # every data file, not only the ones cross-checked below
@@ -355,12 +416,13 @@ def check() -> list[str]:
     for t, spec in tongues.items():
         words = spec.get("words", {}) or {}
         need(bool(spec.get("home")), f"tongue '{t}': needs a home")
-        need(bool(spec.get("habits")) and not QUOTED.search(spec.get("habits", "")), f"tongue '{t}': habits must describe behaviour, no quoted words")
         for w in spec.get("offer", []) or []:
             need(w in words, f"tongue '{t}': offers '{w}', which is not one of its words")
         for w in words:
             need(w not in seen, f"the word '{w}' belongs to both '{seen.get(w)}' and '{t}'")
             seen[w] = t
+
+    bad.extend(voice_problems(tongues, S.get("slip")))
 
     # ---- the profile tables
     strengths = set(S.get("strength", {}).get("weights", {}))
@@ -537,6 +599,8 @@ def check() -> list[str]:
     bad += _tm.problems()
     from engine import brief as _brief                                                          # (f486) the brief's numbers and words
     bad += _brief.problems()
+    from engine import reply as _reply, voice_rules as _stances                                 # (f724) the decision for a reply: its tables
+    bad += _reply.problems() + _stances.stance_problems()
     from engine import voices as _voices                                                      # (f350) voice kits: behaviour, never sound
     bad += _voices.problems()
     from engine import situations as _sit                                                    # (f542) a situation's parts: lists, caps, phrases
@@ -551,6 +615,27 @@ def check() -> list[str]:
     for k_ in RD_.get("stops", []):
         need(k_ in RD_.get("kinds", {}), f"road.yaml stops: '{k_}' is not a kind of happening (kinds)")
     need("sight" not in RD_.get("stops", []), "road.yaml stops: a passing sight never stops the walk (the owner, review Q2)")
+    need(isinstance(RD_.get("landmarks_kept"), int) and RD_["landmarks_kept"] > 0
+         and isinstance(RD_.get("landmark_margin"), (int, float)) and 0 <= RD_["landmark_margin"] < 0.5,
+         "road.yaml: landmarks_kept, a count above 0, and landmark_margin, a share under a half (f702)")
+    need(isinstance(RD_.get("matter_meets"), bool) and "meeting" in (RD_.get("stop_roles") or {}) and "meeting" in RD_.get("stops", []),
+         "road.yaml: matter_meets, true or false, with a meeting that stops the walk and a role for it (f710)")
+    need(isinstance(RD_.get("heard_clue"), str) and "{who}" in RD_["heard_clue"] and "{text}" in RD_["heard_clue"]
+         and isinstance(RD_.get("sight_must"), str) and RD_["sight_must"].strip(),
+         "road.yaml: heard_clue with {who} and {text}, and sight_must, the words a sight's writer is told (f710)")
+    from engine import failures as _fl
+    for _p in _fl.clause_problems():                                         # (f715)
+        need(False, _p)
+    from engine.field import F as _FF
+    from engine import world_improv as _WI
+    _pc = _FF.get("plain_camp") or {}
+    need(isinstance(_pc.get("minutes"), int) and _pc["minutes"] >= 0 and isinstance(_pc.get("share"), (int, float)) and 0 <= _pc["share"] <= 1
+         and isinstance(_pc.get("lasts_minutes"), int) and _pc["lasts_minutes"] > 0 and bool(_WI.W.get("camp_words")) and bool(_WI.W.get("camp_refused")),
+         "field.yaml plain_camp: minutes, share (0 to 1) and lasts_minutes; improv.yaml camp_words and camp_refused (f716)")
+    need(isinstance(RD_.get("landmark_scene_words"), int) and RD_["landmark_scene_words"] >= 2,
+         "road.yaml: landmark_scene_words, a count of 2 or more (f709: one shared word names nothing)")
+    need(isinstance(RD_.get("ambush_above"), int) and not isinstance(RD_.get("ambush_above"), bool) and RD_["ambush_above"] >= 0,
+         "road.yaml ambush_above: a whole number of levels, 0 or more (f705)")
     for k_, r_ in (RD_.get("stop_roles") or {}).items():
         need(r_ in _roles, f"road.yaml stop_roles.{k_}: '{r_}' is not a role")
     import string as _string                                                                  # (f541) the barrier's lines and where it lies
@@ -576,6 +661,17 @@ def check() -> list[str]:
             re.compile(RD_[path_[0]][path_[1]])
         except (KeyError, re.error) as e_:
             need(False, f"road.yaml {'.'.join(path_)}: {e_}")
+    try:
+        re.compile(_load("data/rules/guild.yaml")["handin_words"])                     # (f691)
+    except (KeyError, re.error) as e_:
+        need(False, f"guild.yaml handin_words: {e_}")
+    for k_ in ("room_words", "room_refused"):                                             # (f695)
+        try:
+            re.compile(_load("data/rules/improv.yaml")[k_])
+        except (KeyError, re.error) as e_:
+            need(False, f"improv.yaml {k_}: {e_}")
+    _pw = _load("data/rules/guild.yaml").get("payer_words") or {}                        # (f694)
+    need(all(_pw.get(k) for k in ("guild", "asker")), "guild.yaml payer_words: needs guild and asker")
     for t_ in Q.get("in_need", {}).get("kind", []) + Q.get("in_need", {}).get("hard", []):
         need(t_ in Q.get("blueprints", {}), f"quirks.yaml in_need: '{t_}' is not a temperament")
     from engine import voices as _vk                                                         # (f431) a blueprint line a kit forbids
@@ -637,8 +733,10 @@ def check() -> list[str]:
         need(False, p_)
     from engine import candidates as _cd
     need({"most_places", "places_by_meaning", "place_floor", "most_people", "people_by_meaning", "person_floor", "about_floor", "about", "always_if_short",
-          "generic_words", "named_town_types", "nearest_of_kind"} <= set(_cd.I) and set(_cd.I["about"]) == {"wares", "abilities", "pack", "recipes", "buyers", "stash"},
-         "interpret.yaml: needs the counts and floors, an 'about' sentence for wares, abilities, pack, recipes, buyers and stash, generic_words, named_town_types")
+          "generic_words", "function_words", "answer_back_words", "not_act_openers", "act_lead_ins", "act_person_swap", "not_act_first", "named_town_types", "nearest_of_kind"} <= set(_cd.I) and set(_cd.I["about"]) == {"wares", "abilities", "pack", "recipes", "buyers", "stash"},
+         "interpret.yaml: needs the counts and floors, an 'about' sentence for wares, abilities, pack, recipes, buyers and stash, generic_words, function_words, named_town_types")
+    need(all(isinstance(w, str) and len(w) >= 4 and w == w.lower() for w in _cd.I.get("function_words", [])),
+         "interpret.yaml: function_words are lower case words of four letters or more (f709: shorter ones never count)")
     from engine import severity as _sv
     SVD = _sv.SV
     need(set(SVD.get("level") or {}) == {"light", "personal", "heavy"} and all(set(row) == {"self", "close", "known", "distant"}
@@ -809,12 +907,29 @@ def check() -> list[str]:
     bad += model_problems()                                            # (f527) the model ids name the server's files
     bad += world_caps_problems()                                       # (f589) what the world's state keeps of each list
     bad += endings_problems()                                          # (f598) how a matter's ending is told and paid
+    from engine import told
+    bad += told.problems()                                             # (f661) what the engine decided, told to the player
+    from storage import statehash
+    bad += statehash.wording_problems()                                # (f718) the list of what is wording, held to the tree
+    bad += gate_problems()                                             # (f719) the live gate's floors, and its last measure's shape
     bad += grammar_problems()                                          # (f527) every contract has its grammar
     from llm import runtime as _runtime
     bad += _runtime.runtime_problems()                                 # (f522) the server's settings hold what the game sends
     from llm import launch as _launch
     bad += _launch.problems()                                          # (f526) the load screen's lines, once the owner's are in
+    bad += goods_problems()                                            # (f740) a good that carries its own state, one to a slot
     return bad
+
+
+OWN_STATE = ("codex",)                                                 # (f740) the goods whose Item holds state of its own (a codex its spell)
+
+
+def goods_problems(G: list | None = None) -> list[str]:
+    """(f740) A good whose Item carries its own state is one to a slot: read_codex spends the Item whole, and a stack shares one state."""
+    from engine.inventory import Good
+    rows, unset = (_load("data/world/goods.yaml") if G is None else G), Good.model_fields["stack"].default
+    return [f"goods.yaml {g.get('id')}: a {g.get('kind')} carries its own state, so its stack must be 1 (it is {g.get('stack', unset)})"
+            for g in rows or [] if g.get("kind") in OWN_STATE and g.get("stack", unset) != 1]
 
 
 def endings_problems(D: dict | None = None) -> list[str]:

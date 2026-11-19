@@ -27,7 +27,7 @@ from engine import actor
 from engine.session import CampaignSession
 from npc.traits import load_traits
 from scenes.goddess import ThresholdScene
-from storage.campaign import PlayerState, SaveTooNew
+from storage.campaign import PlayerState, SaveRefused
 from storage import saves
 from ui import console
 from llm.errors import Cancelled, LLMError                     # (f514) from the module that imports no model client
@@ -119,8 +119,8 @@ def play(args):
         if info:
             console.note(f"A newer version ({info['version']}) is available (this is {info.get('current', VERSION)}): {info['page']}")
             if info.get("again"):
-                console.note(f"It was installed already and the game still reports {info.get('current', VERSION)}: the installer on the release was "
-                             "most likely built before its version number was raised. Installing it again will change nothing.")
+                console.note(f"You've installed it already, but the game still says {info.get('current', VERSION)}. The installer for that release was "
+                             "probably built before its version number went up, so installing it again won't change anything.")
 
     from scenes import home
     choice = ("new", "") if args.new else None
@@ -140,10 +140,11 @@ def play(args):
                 return                                 # behind the loading line (Try again, or Quit)
         try:
             session = CampaignSession.open(name)       # (f453) the campaign's session: its store, its map (f434: its own, never another
-        except SaveTooNew as e:                        # save's), the work it starts in the background, and what it closes when it ends
+        except SaveRefused as e:                       # save's), the work it starts in the background, and what it closes when it ends
             console.note(str(e))
             continue
-        saves.touch(name)
+        if kind != "new":
+            saves.touch(name)                          # (f742) a new game is listed once its character is saved, so no way out leaves a dead row
         console.home_done()
         if screen is not None:
             screen.flush()                             # (f526's review) what the load said, now, on this thread, at a page's edge;
@@ -153,14 +154,25 @@ def play(args):
             player = store.load_player()
             console.note(f"Continuing as {player.character.name}, {player.character.custom_class}.")
         else:
-            character = ThresholdScene(session=session).run()
-            if character is None:                      # Main menu during creation: there is no game yet, so a new one is not kept
-                session.close()
-                if kind == "new":
-                    saves.discard(name)
-                continue
-            player = PlayerState(character=character, location=world.start_location)
-            store.save_player(player)
+            player = None
+            try:
+                character = ThresholdScene(session=session).run()
+                if character is not None:
+                    made = PlayerState(character=character, location=world.start_location)
+                    store.save_player(made)
+                    player = made
+                    saves.touch(name)
+            finally:
+                if player is None:                     # (f742) any way out with no character; closed first, or Windows keeps the folder
+                    try:
+                        session.close()
+                        if kind == "new":
+                            saves.discard(name)
+                    except Exception as e:             # (f742) a cleanup that fails is written down, never in place of the way out
+                        from engine import crashlog
+                        crashlog.record(e, "leaving character creation")
+            if player is None:
+                continue                               # Main menu during creation
 
         if screen is not None:
             screen.flush()                             # (f539) a load that finished during creation: its warning before the story
@@ -172,6 +184,7 @@ def play(args):
         finally:
             session.close()                            # the recorder, the background work, the database (written through as it goes;
                                                        # closing folds the write-ahead log in) and every binding this campaign set
+            saves.touch(name)                          # (f672) the Continue card's "played" is when it was last played, not opened
         if getattr(scene, "to_menu", False):
             choice = None                              # the main menu: New game, Load and the rest are there; the server stays loaded
         else:
@@ -187,14 +200,14 @@ def guarded(run, bridge):
     except LLMError as e:
         from engine import crashlog
         crashlog.record(e, "outside a turn: the model gave no usable answer")             # (f449) written down, so the logs sent carry it
-        console.out("\nThe model couldn't produce a usable answer and the game can't continue from this point.")
-        console.out("If you were already playing, what the world had settled before it stopped is saved, and is told when you come back.")
-        console.out("If you were still creating your character, nothing was saved - run main.py to start creation again.")
-        console.out(f"(details: {e} - see logs/llm_calls.jsonl and logs/crash.log)")
+        console.out("\nSomething went wrong behind the scenes, and the game has to stop here.")
+        console.out("If you were already playing, your game is saved up to where it stopped. You'll pick up from there next time.")
+        console.out("If you were still making your character, nothing was saved. Start the game again to make one.")
+        console.out(f"(For a bug report, see logs/llm_calls.jsonl and logs/crash.log: {e})")
         if bridge:
             bridge.failed = True
     except KeyboardInterrupt:
-        console.out("\nInterrupted. What the world had settled before it stopped is saved, and is told when you come back.")
+        console.out("\nInterrupted. Your game is saved up to where it stopped.")
     except SystemExit:
         raise
     except Exception as e:
@@ -204,7 +217,7 @@ def guarded(run, bridge):
             bridge.failed = True
         if bridge:
             import traceback
-            console.out("\nSomething went wrong and the game has to stop. What the world had settled before it stopped is saved, and is told when you come back.")
+            console.out("\nSomething went wrong and the game has to stop. Your game is saved up to where it stopped.")
             console.out("The details are written to logs/crash.log.")
             console.out(traceback.format_exc())
         else:

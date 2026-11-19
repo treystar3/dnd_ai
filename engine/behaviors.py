@@ -49,29 +49,37 @@ def _hurt(f, share: float) -> bool:
     return f.hp <= f.max_hp * share
 
 
-def _break(combat, f, surrender: bool) -> None:
+def _break(combat, f, surrender: bool) -> bool:
+    """A foe gives up the fight: it yields or runs. (f766) True when it broke; False when it turned its coat instead (Dread Regent),
+    was cut down by the parting strike owed a runner, or was already out of it, so its callers tell no break and roll nothing on one."""
     from engine import combat as C
     from engine import battlefield as bf
+    if not C.in_fight(f):
+        return False
     if not surrender:
         from engine import combat_perks as _cp
         if _cp.turn_coat(combat, f):
-            return                                      # Dread Regent: it turns on its own instead of running
+            return False                                # Dread Regent: it turns on its own instead of running
         hunter = next((o for o in bf.standing(combat, f.zone_id) if bf.hostile(o, f) and f.id in o.engaged_with
                        and "no_one_escapes" in C.mechanics(o, combat)), None)
-        if hunter is not None and f.alive:
+        if hunter is not None:
             C.tell(combat, f"{C.who(f)} turns to run, and {C.who(hunter)} {C.vb(hunter, 'take', 'takes')} the parting strike owed (No One Escapes)")
             from engine import streams
             C.apply_damage(combat, hunter, f, 1.0, "cuts down the fleeing", streams.keyed("escape", f.id, combat.serial, combat.round),
                            can_cleave=False, can_riposte=False)                           # (f501) its own die, never seeded by what was logged
-    f.fled = True
-    f.surrendered = surrender
-    bf.release(combat, f)
+            if not C.in_fight(f):
+                return False                            # (f766) cut down as it turned to run: its fall is told, never a flight
+    C.leave(combat, f, "yielded" if surrender else "fled")
     if surrender:
         combat.log.append(f"{f.name} yields")
         C.tell(combat, f"{C.who(f)} throws down {C.whose(f)} weapon and yields")
     else:
         combat.log.append(f"{f.name} flees")
         C.tell(combat, f"{C.who(f)} breaks and runs")
+    if f.side == "enemy":                               # (f663) the player is told, not only the narrator: it leaves the foes' list
+        from engine import told
+        combat.told.append(told.say("foe_yields" if surrender else "foe_flees", combat.round, foe=f.name))
+    return True
 
 
 def morale(combat, source, rng: random.Random) -> None:
@@ -83,8 +91,8 @@ def morale(combat, source, rng: random.Random) -> None:
     for e in rest:
         if e.boss or "fearless" in e.behaviors or rng.random() >= MORALE_ODDS:
             continue
-        _break(combat, e, can_surrender(e))
-        C.tell(combat, f"{C.who(e)} loses heart seeing {C.who(source)} break")
+        if _break(combat, e, can_surrender(e)):
+            C.tell(combat, f"{C.who(e)} loses heart seeing {C.who(source)} break")
 
 
 def _routs(e, combat) -> bool:
@@ -114,8 +122,7 @@ def morale_on_death(combat, fallen, rng: random.Random) -> None:
         if not _routs(e, combat):
             continue
         chance = odds + (M.get("frightened_bonus", 0.25) if "frightened" in e.statuses else 0)
-        if rng.random() < chance:
-            _break(combat, e, can_surrender(e))
+        if rng.random() < chance and _break(combat, e, can_surrender(e)):
             C.tell(combat, f"{C.who(e)} breaks, {why}")
 
 
@@ -127,14 +134,14 @@ def pre_turn(combat, e, target, rng: random.Random) -> bool:
     fearless = "fearless" in e.behaviors
     s = beh(e, "surrender")
     if s and not fearless and _hurt(e, s) and rng.random() < SURRENDER_ODDS:
-        _break(combat, e, True)
-        morale(combat, e, rng)
+        if _break(combat, e, True):
+            morale(combat, e, rng)
         return True
     s = beh(e, "flee_low")
     from engine import combat_perks as _cp
     if s and not fearless and _hurt(e, s) and rng.random() < FLEE_ODDS and "grappled" not in e.statuses and "frostwelded" not in e.statuses and not _cp.held_fast(combat, e):
-        _break(combat, e, False)
-        morale(combat, e, rng)
+        if _break(combat, e, False):
+            morale(combat, e, rng)
         return True
     s = beh(e, "use_item")
     if s and _hurt(e, s) and not e.counters.get("drank") and rng.random() < DRINK_ODDS:
@@ -242,7 +249,7 @@ def after_hit(combat, e, target, landed: bool, rng: random.Random) -> None:
     if c and target.armor > 0 and target.counters.get("corroded", 0) < CAP_CORRODE:
         step = min(c, CAP_CORRODE - target.counters.get("corroded", 0))
         target.counters["corroded"] = target.counters.get("corroded", 0) + step
-        target.armor *= 1 - step / 100
+        C.wear_armor(target, step)
         C.tell(combat, f"{C.whose(e)} touch eats at {C.whose(target)} armor")
     d = beh(e, "drain")
     if d and target.max_stamina:

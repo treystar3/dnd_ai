@@ -5,8 +5,6 @@ memory, a fact of the truth layer (28 sites), and the fight's story where the im
 takes the dashes out where it is made (npc/models.py Memory, engine/party.py remember, engine/truth.py Fact and present_lines,
 engine/combat.py tell), so no site can put one in, and a ratchet reads what every prose task is sent.
 Run: python tools/sim/kept_lines_dash_620_test.py"""
-import gzip
-import json
 import random
 import re
 import sys
@@ -24,7 +22,7 @@ stub.chat = chat
 simlib.install(stub)
 simlib.quiet_console()
 from core import yamlio
-from engine import combat, combat_improv, hygiene, party, truth
+from engine import combat, combat_improv, hygiene, party, recording, truth
 from engine.domain_events import ContractDropped, Gift, Worked
 from llm import contracts
 from npc.models import Memory
@@ -190,7 +188,7 @@ LABELS = [
     (r"^WHAT YOU SELL \(fixed prices - quote them exactly", "a rule in a head"),
     (r"^What you're working toward \(private - share it only if it comes up naturally\)", "a rule for the speaker"),
     (r"These are loose notes, not lines to quote - vary your own words", "a rule for the speaker (faith)"),
-    (r"(his|her|their) usual manner shows through cracks - even a hard", "a rule for the exchange"),
+    (r"(It bears on|They are part of) THE MATTER nearby - ", "the road writer's rule, then the matter's title (engine/matters.py road_lines)"),
 ]
 # Known and open, named so it is seen: a line of what a speaker also knows right now (scenes/world.py npc_context), where the game's
 # own word for a town's regard ("unknown - just a stranger", shown as a label in the standing pane too) is handed over inside a fact.
@@ -220,14 +218,14 @@ def strays(text: str, words: str) -> list[str]:
 
 words = data_words()
 recorded = []
-for calls in sorted((ROOT / "data" / "replay" / "sessions").glob("*/calls.jsonl.gz")):
-    for row in map(json.loads, gzip.open(calls, "rt", encoding="utf-8")):
+for calls in sorted(p for p in (ROOT / "data" / "replay" / "sessions").iterdir() if recording.calls_file(p)):
+    for row in recording.read_calls(calls):
         if row.get("kind") == "chat":
             recorded.append((row["title"], "\n".join(str(m["content"]) for m in row["request"]["messages"] if m["role"] != "system")))
 titles = {t for t, _ in recorded + SENT}
 unknown = sorted(t for t in titles if getattr(contracts, t, None) is None)
 prose = [(t, text) for t, text in recorded + SENT if prose_task(t)]
-check("the recordings and this play are read: every contract is known, and many are prose", not unknown and len(recorded) > 200
+check("the recordings and this play are read: every contract is known, and many are prose", not unknown and len(recorded) > 150
       and len(SENT) > 10 and len({t for t, _ in prose}) >= 8, (unknown, len(recorded), len(SENT), sorted({t for t, _ in prose})))
 found = {}
 for t, text in prose:

@@ -779,6 +779,7 @@ class ResidentSet(BaseModel):
 
 
 class MentorReply(BaseModel):
+    REPLY: ClassVar[bool] = True         # (f644) someone's spoken answer to the player: when it cannot be written, a reply did not come
     speech: str
     gesture: str = ""
     moves_on: bool = False          # the player was saying they are ready to go on or get moving, not asking or telling her something
@@ -816,6 +817,7 @@ def misaddressed(speech: str, others: list[str], said: str = "") -> str:
 
 class CompanionReply(BaseModel):
     """A hired adventurer answering the player: what they say, what they do, and anything from this exchange worth keeping."""
+    REPLY: ClassVar[bool] = True
     speech: str = ""
     gesture: str = ""
     remember: str = ""
@@ -1042,6 +1044,34 @@ def _no_tics(speech: str, last: str = "") -> None:
 NO_WORDS = re.compile(r"\W*(?:none|n/?a|nothing|silence|no reply|no answer|\.\.\.)?\W*", re.I)      # (f422) speech that says nothing
 
 
+def _clean_note(note: str) -> str:
+    """(f299) A journal note is the player's line about this person. One written in the speaker's own voice ("I must...") or carrying
+    stray instructions ("[THE GAME HAS DECIDED...]") is dropped: the plain line from what is known stands until a good one comes."""
+    n = " ".join((note or "").split())
+    return "" if "[" in n or "]" in n or re.search(r"\b(I|I'm|I've|I'll|my|me|myself)\b", n) else n
+
+
+def _speech_checks(speech: str, gesture: str, info: ValidationInfo) -> None:
+    """What a townsperson says aloud, checked: for a whole reply (NPCReply) and (f726) for the words alone (NPCSpeech)."""
+    if NO_WORDS.fullmatch(speech or "") and not (gesture or "").strip():                      # (f422) "None." was printed under their name
+        raise ValueError("say something: speech is the words they say aloud; for an answer with no words, put what they do in gesture")
+    if "*" in speech or "_" in speech:
+        raise ValueError("plain speech only: no asterisks, underscores or markdown in what is said")
+    _no_tics(speech, _ctx(info).get("last") or "")
+    from engine import voices
+    why = voices.check(_ctx(info).get("kit") or {}, speech)                                  # (f350) their own way of talking
+    if why:
+        raise ValueError(why)
+    hit = voices.house_hit(speech, _ctx(info).get("house") or ())
+    if hit:
+        raise ValueError(f"'{hit}' is how everyone in this town has been talking lately; say it your own way")
+    from engine import worn as _worn
+    lean = _worn.leaned_on(speech, list(_ctx(info).get("worn") or [])) if len(speech.split()) >= 12 else []
+    if len(lean) >= 2:                                                                       # (f349) the worn words are heard, not only told
+        raise ValueError(f"'{lean[0]}' and '{lean[1]}' are words everyone here has worn out lately; find other words")
+    _not_said_again(speech, info)
+
+
 class NPCAnswer(BaseModel):
     """(f487) What one reply means for one of the characters spoken to: their own trust, the name they gave, what to remember of them,
     what they promised, the note, the work or the request or the thing offered to them."""
@@ -1067,6 +1097,7 @@ class NPCAnswerPromised(NPCAnswer):
 
 
 class NPCReply(BaseModel):
+    REPLY: ClassVar[bool] = True
     speech: str
     gesture: str = ""
     intent: Literal["small_talk", "share", "withhold", "lie", "bargain", "help", "refuse", "threaten", "leave"]
@@ -1096,34 +1127,31 @@ class NPCReply(BaseModel):
 
     @model_validator(mode="after")
     def clean_note(self):
-        """(f299) A journal note is the player's line about this person. One written in the speaker's own voice ("I must...") or carrying
-        stray instructions ("[THE GAME HAS DECIDED...]") is dropped: the plain line from what is known stands until a good one comes."""
-        import re as _re
-        n = " ".join((self.journal_note or "").split())
-        if "[" in n or "]" in n or _re.search(r"\b(I|I'm|I've|I'll|my|me|myself)\b", n):
-            n = ""
-        self.journal_note = n
+        self.journal_note = _clean_note(self.journal_note)
         return self
 
     @model_validator(mode="after")
     def said_again(self, info: ValidationInfo):
-        if NO_WORDS.fullmatch(self.speech or "") and not (self.gesture or "").strip():          # (f422) "None." was printed under their name
-            raise ValueError("say something: speech is the words they say aloud; for an answer with no words, put what they do in gesture")
-        if "*" in self.speech or "_" in self.speech:
-            raise ValueError("plain speech only: no asterisks, underscores or markdown in what is said")
-        _no_tics(self.speech, _ctx(info).get("last") or "")
-        from engine import voices
-        why = voices.check(_ctx(info).get("kit") or {}, self.speech)                         # (f350) their own way of talking
-        if why:
-            raise ValueError(why)
-        hit = voices.house_hit(self.speech, _ctx(info).get("house") or ())
-        if hit:
-            raise ValueError(f"'{hit}' is how everyone in this town has been talking lately; say it your own way")
-        from engine import worn as _worn
-        lean = _worn.leaned_on(self.speech, list(_ctx(info).get("worn") or [])) if len(self.speech.split()) >= 12 else []
-        if len(lean) >= 2:                                                                     # (f349) the worn words are heard, not only told
-            raise ValueError(f"'{lean[0]}' and '{lean[1]}' are words everyone here has worn out lately; find other words")
-        _not_said_again(self.speech, info)
+        _speech_checks(self.speech, self.gesture, info)
+        return self
+
+
+class NPCSpeech(BaseModel):
+    """(f726) What a townsperson says, the decision made (npc/life.py speak; docs/design/28_phase4_plan.md A4): the words and a
+    gesture, nothing else. What the reply means is the decision's (engine/reply.py). Its speech is held to the checks a reply's
+    is."""
+    REPLY: ClassVar[bool] = True
+    speech: str
+    gesture: str = ""
+
+    _blank = blank_placeholders("gesture")
+
+    def spoken(self):
+        return [("", self.speech)]
+
+    @model_validator(mode="after")
+    def said_again(self, info: ValidationInfo):
+        _speech_checks(self.speech, self.gesture, info)
         return self
 
 
@@ -1151,6 +1179,7 @@ def parting_like(speech: str, heard: list[str]) -> str:
 class Parting(BaseModel):
     """(f347) One short line said by the person the player is leaving, in answer to a goodbye. No frame follows it. The context's
     `heard` holds the partings said lately by anyone in this town: a chorus of 'safe travels' across people is sent back."""
+    REPLY: ClassVar[bool] = True
     speech: str
     gesture: str = ""
 
@@ -1971,6 +2000,7 @@ class ExchangeLine(BaseModel):
 
 class Exchange(BaseModel):
     """People of the world talking to each other: who may speak, how many lines, and no facts that were not given."""
+    SPEAKS: ClassVar[bool] = True        # (f714) people talking: checked for stiff speech, as every REPLY is
     lines: list[ExchangeLine]
 
     def spoken(self):
@@ -2213,6 +2243,7 @@ class NPCReplyManyBase(BaseModel):
     the facts it carries, whether it gives their name); then one block for each character spoken to, each with what it means for them.
     Made per call by many_reply(ids): the server's grammar holds the number of blocks and the ids they may carry; this checks that each
     character has exactly one block and that a name is learned only from that character's own words."""
+    REPLY: ClassVar[bool] = True
     speech: str
     gesture: str = ""
     intent: Literal["small_talk", "share", "withhold", "lie", "bargain", "help", "refuse", "threaten", "leave"]
@@ -2251,6 +2282,61 @@ class NPCReplyManyBase(BaseModel):
         if len(lean) >= 2:                                               # (f582) checked as well as shown, as one reply's is
             raise ValueError(f"'{lean[0]}' and '{lean[1]}' are words everyone here has worn out lately; find other words")
         return self
+
+
+class NPCDecision(BaseModel):
+    """(f725) What only reading the line can settle before a townsperson speaks (npc/life.py decide; docs/design/28_phase4_plan.md
+    A3): what they do with the reply, which of the things they could tell they tell, a name given, what is offered or handed
+    over, what to keep of it. No words of theirs: those are asked for afterwards. Made per call by decision_contract(ids, most):
+    the server's grammar holds the ids and how many; the engine checks them again (engine/reply.py take)."""
+    intent: Literal["small_talk", "share", "withhold", "lie", "bargain", "help", "refuse", "threaten", "leave"]
+    shares: SkipJsonSchema[list[str]] = []
+    trust_change: int = 0
+    told_own_name: bool = False
+    learned_name: str = ""
+    remember: str = ""
+    gives: GiftProposal | None = None
+    offers_work: WorkOffer | None = None
+    offers_quest: QuestOffer | None = None
+    they_promised: SkipJsonSchema[str] = ""
+    journal_note: SkipJsonSchema[str] = ""        # (f726) asked for only when a note is due (decision_contract noted)
+
+    _blank = blank_placeholders("learned_name", "remember", "they_promised", "journal_note")
+    _promise = promise_field()
+
+    @model_validator(mode="after")
+    def clean_note(self):
+        self.journal_note = _clean_note(self.journal_note)
+        return self
+
+    def answers(self, to: str = "") -> list[NPCAnswer]:
+        """The one block of what it means for the one spoken to, for the one commit path (npc/life.py apply_answer)."""
+        made = NPCAnswerPromised if getattr(self, "ASKS_PROMISE", False) else NPCAnswer
+        return [made(to=to, trust_change=self.trust_change, learned_name=self.learned_name, remember=self.remember,
+                     they_promised=self.they_promised, journal_note=self.journal_note, offers_work=self.offers_work,
+                     offers_quest=self.offers_quest, gives=self.gives)]
+
+
+class NPCDecisionPromised(NPCDecision):
+    """(f725) The reading when what was said may promise them something (engine/brief.py promised), as NPCReplyPromised is."""
+    model_config = ConfigDict(title="NPCDecision")
+    ASKS_PROMISE: ClassVar[bool] = True
+    they_promised: str = Field("", json_schema_extra={"maxLength": _PROMISE_CHARS})
+
+
+def decision_contract(ids: list[str], most: int, promised: bool = False, noted: bool = False):
+    """(f725) The contract for one reading: `shares` may name only these ids, and no more than `most` of them. With nothing
+    offered, or a move that tells nothing, the answer has no place for an id. (f726) noted: a journal note is due, and the
+    answer has a place for it."""
+    from pydantic import create_model
+    base = NPCDecisionPromised if promised else NPCDecision
+    more = {}
+    if ids and most >= 1:
+        more["shares"] = (list[str], Field(default_factory=list, json_schema_extra={"items": {"type": "string", "enum": list(ids)},
+                                                                                    "maxItems": int(most)}))
+    if noted:
+        more["journal_note"] = (str, "")
+    return create_model("NPCDecision", __base__=base, **more) if more else base
 
 
 def many_reply(ids: list[str], promised: bool = False):

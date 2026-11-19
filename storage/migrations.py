@@ -3,7 +3,8 @@
 The rules: a new database is created at the baseline schema (storage.campaign.SCHEMA_V1) and nothing else; every change to the schema or
 to what a record means after that is a step here, and only here, so an old database is never half-shaped by the current schema before its
 own steps run. PRAGMA user_version says which steps a database has had; open_or_create() runs the rest in order, each in its own
-transaction, after taking a backup of the database as it was. A save from a newer build than this one is refused (SaveTooNew). Add a step
+transaction, after taking a backup of the database as it was. A save from a newer build than this one is refused (SaveTooNew), and so
+is one a step fails on (SaveNotMigrated, f640: the step's writes are taken back and the save is left at the last step that stood). Add a step
 whenever a record changes shape or meaning (a new table, an index, a renamed field, a value that now means something else); a default on a
 pydantic field covers a field that is merely new.
 
@@ -95,10 +96,7 @@ def _v6_maren_voice(store) -> None:
     if not store.npc_exists("maren"):
         return
     from engine import mentor
-    try:
-        player = store.load_player()
-    except Exception:
-        player = None
+    player = store.load_player() if store.player_exists() else None     # (f747) a record that does not read stops the step
     store.save_npc(mentor.own_voice(store.load_npc("maren"), player))
 
 
@@ -122,10 +120,9 @@ def _v8_hire_pronouns(store) -> None:
     """(f385) Every hire keeps she or he: the roster drew a gender with each name and never kept it, so the narrator called one hire she,
     he and they in one fight. An older save's hires get theirs back from their week's roster, drawn again (engine/party.py pronoun_of);
     a tamed companion gets one once."""
-    try:
-        player = store.load_player()
-    except Exception:
+    if not store.player_exists():                     # (f747) no player is nothing to do; a record that does not read stops the step
         return
+    player = store.load_player()
     from engine import party
     for m in player.party:
         party.pronoun_of(m, store.meta.seed, player.party_used)
@@ -256,9 +253,7 @@ def _v15_effect_rows(store) -> None:
     """(f507) A fight's statuses, buffs, curses and ground effects became rows of the fight's own record (engine/effects.py), and a
     fight row of another shape is refused rather than read in part. A fight saved mid-round under the old shape is let go of, as v3
     did, and a notice left that the next load tells once (failures.yaml fight_let_go): the fight is lost, never the game."""
-    if store.load_combat() is not None:
-        store.save_combat(None)
-        store.leave_notice("fight_let_go")
+    store.let_fight_go()
 
 
 def _v16_world_count(store) -> None:
@@ -294,6 +289,15 @@ def _v16_world_count(store) -> None:
     store._put("world_state", json.dumps(state))
 
 
+def _v17_tables(store) -> None:
+    """(f640) The world's four lists and the player's record leave the small table for tables of their own (storage/worldtables.py,
+    storage/playerstable.py): each list's items become rows in the list's order, the record moves as it was, and the store reads
+    and writes the tables from here on."""
+    from storage import playerstable, worldtables
+    worldtables.adopt(store)
+    playerstable.adopt(store)
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "one SQLite file per campaign, with an index over people", _v1_initial),
     (2, "memories as rows (npc_memory) with a window on the record; the event journal", _v2_memory_rows),
@@ -311,22 +315,45 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (14, "what a person knows of a matter kept as their own, past the matter's end", _v14_knows),                          # (f483)
     (15, "a fight's statuses, buffs, curses and ground as rows of its record; a fight saved under the old shape is let go", _v15_effect_rows),   # (f507)
     (16, "the world's own count of what happens: deeds numbered, and how far each person has answered each character", _v16_world_count),   # (f547)
+    (17, "the world's matters, deeds, news and effects, and the player's record, kept in tables of their own", _v17_tables),   # (f640)
 ]
 
 CURRENT = MIGRATIONS[-1][0]
+TABLED = 17                 # (f640) the step that moves the world and the player into their tables
+
+
+def in_rows(store) -> None:
+    """(f640) A save from before the tables is read where it kept them, the world's row and the player's, until its step moves
+    them: the older steps that read or write either (v6, v7, v8) go through the store as they always did."""
+    from storage.playerstable import RowPlayers
+    from storage.worldrow import RowWorld
+    store._world, store._players = RowWorld(store), RowPlayers(store)
+
+
+class StepFailed(Exception):
+    """(f640) A step raised: what it wrote is taken back, the steps before it stand, and the save is at the last of them."""
+
+    def __init__(self, version: int, error: BaseException):
+        super().__init__(f"the step to v{version} failed: {type(error).__name__}: {error}")
+        self.version = version
 
 
 def run(store) -> list[str]:
     """Bring the save to the current version. Returns what was done, one line per step."""
     done = []
     have = store.version
+    if have < TABLED:
+        in_rows(store)
     todo = [(v, w, s) for v, w, s in MIGRATIONS if v > have]
     if not todo:
         return done
     store.backup(f"v{have}")                              # as it was, in case a step commits a wrong transformation cleanly
     for version, what, step in todo:
-        with store.transaction():
-            step(store)
-            store.set_version(version)
+        try:
+            with store.transaction():
+                step(store)
+                store.set_version(version)
+        except Exception as e:
+            raise StepFailed(version, e) from e
         done.append(f"save brought to v{version}: {what}")
     return done

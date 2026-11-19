@@ -49,7 +49,7 @@ class InventoryActions:
             state = self.store.load_place(self.player.location)
             inv.leave_on_ground(state, leftover, self.minutes)
             self.store.save_place(state)
-            console.note(f"No room in your pack - {inv.label(leftover)} left on the ground here.")
+            console.note(f"No room in your pack, so you leave {inv.label(leftover)} on the ground here.")
             ledger.add("left", item=leftover.uid, say=f"{inv.label(leftover)} is LEFT LYING here: there was no room in the player's pack. "
                                                        "Never show it taken, pocketed or carried.")
         return Stowed(kept, leftover)
@@ -106,7 +106,7 @@ class InventoryActions:
             return False
         key = self.find_key(name)
         if key:
-            self.refuse(f"{cap_first(key.name)} is a {'quest' if key.kind == 'quest' else 'key'} item - you can't {what} it.")
+            self.refuse(f"{cap_first(key.name)} is a {'quest' if key.kind == 'quest' else 'key'} item. You can't {what} it.")
             return True
         return False
 
@@ -132,7 +132,7 @@ class InventoryActions:
         self.store.save_npc(npc)
         self.store.save_player(self.player)
         meant = f" (meant for {key.for_whom})" if key.for_whom else ""
-        console.note(f"{'Quest' if key.kind == 'quest' else 'Key'} item received: {key.name}{meant} - {key.description}")
+        console.note(f"{'Quest' if key.kind == 'quest' else 'Key'} item received: {key.name}{meant}. {key.description}")
 
     @staticmethod
     def how_many(intent) -> int:
@@ -207,10 +207,10 @@ class InventoryActions:
         c = self.player.character
         key = next((k for k in c.key_items if k.name == asked["data"]["item"]), None)
         if key is None:
-            console.note("It is no longer with you.")
+            console.note("You don't have it anymore.")
             return True
         c.key_items.remove(key)
-        unfinished = f" - it never reached {key.for_whom}" if key.for_whom else ""
+        unfinished = f", which never reached {key.for_whom}" if key.for_whom else ""
         c.item_history.append(f"Got rid of {key.name}{unfinished} (day {clock.day(self.minutes)}).")
         self.store.save_player(self.player)
         console.ledger(f"Discarded: {key.name}.")
@@ -245,6 +245,10 @@ class InventoryActions:
         if not item or not item.good or inv.GOODS[item.good].kind in ("herb", "trade"):        # (f545) a trade good is carried, never used
             self.refuse("You have nothing like that you can use." if not item else f"{items.display_name(item)} can't be used like that.")
             return
+        whom = self.used_on(intent, text)
+        if whom is not None:                                       # (f645) it is theirs or it is refused: never the player's in their place
+            self.use_on(whom, item, intent, text)
+            return
         used = inv.take(self.pack, inv.GOODS[item.good].name, 1)
         effect = self.consume(used)
         if self.frugal_save():
@@ -252,6 +256,62 @@ class InventoryActions:
             effect += " - and somehow there is still one left (Frugal Hands)"
         self.store.save_player(self.player)
         self.narrate(f"The player uses {inv.GOODS[used.good].name} ({inv.GOODS[used.good].description}), {effect}.", text)
+
+    def used_on(self, intent, text: str) -> tuple | None:
+        """(f645) Whom a thing from the pack is used on when not its user: ("hire", row), ("person", npc), ("away", name), or
+        ("ask", ...) when the line and the reading do not agree on someone; None for the user's own (docs/design/21, A3)."""
+        from engine import actions
+        names, target, rest = self.those_named(text), getattr(intent, "target", ""), self.rest_of_plan()
+        own = actions.takes_oneself(text)
+        if target in names:
+            if own:
+                return ("ask", names)                               # the line says both: theirs, and that the user takes it
+            hire = self.hire_by_id(target)
+            return ("hire", hire) if hire is not None else ("person", next(n for n in self.present if n.id == target))
+        if own and not any(p.kind == "use" for p in rest):
+            return None
+        if names or self.hire_by_id(target) is not None or any(n.id == target for n in self.present):
+            return ("ask", names or [target])                       # one says someone here, the other does not: it is not guessed
+        away = None if any(p.kind == "move" for p in rest) else self.named_away(text, {p.target for p in rest if p.target})
+        if away:
+            return ("away", away[1]) if target == away[0] else ("ask", [away[0]])
+        return None
+
+    def named_away(self, text: str, but: set = frozenset()) -> tuple | None:
+        """(f645) Someone of this town the acting character knows by name, named in the line and not in `but`: (id, first name)."""
+        from engine import mapview, retrieval
+        top = mapview.top_of(self.world, self.player_of(self.acting).location)
+        if not top:
+            return None
+        low = text.lower()
+        for r in retrieval.people_in_town(self.store, self.world, top):
+            first = r.name.split()[0] if r.name else ""
+            if first and r.id not in but and re.search(rf"\b{re.escape(first.lower())}\b", low) \
+                    and regard.of(self.store.load_npc(r.id), self.acting).name_known:
+                return r.id, first
+        return None
+
+    def use_on(self, whom: tuple, item: Item, intent, text: str) -> None:
+        """(f645) A thing used on someone else: theirs by the one path with giving, or refused in a line and kept."""
+        g, (kind, who) = inv.GOODS[item.good], whom
+        if kind == "away":
+            self.refuse(f"{who} is not here.")
+        elif kind == "ask":
+            self.refuse(f"Is the {g.name} for you or for someone else? Say you'll take it yourself, or give it to whoever it's for.")
+        elif kind == "hire":
+            first = who["name"].split()[0]
+            if self.player_of(self.acting).party_mode != "with":
+                self.refuse(f"{first} is not with you.")
+            elif not g.restores.get("health"):
+                self.refuse(f"{cap_first(g.name)} would do nothing for {first}.")
+            elif who.get("hp_frac", 1.0) >= 1.0:
+                self.refuse(f"{first} is not hurt.")
+            else:
+                intent.item = g.name
+                self.give_to_hire(who, intent, text)
+        else:
+            intent.item = g.name
+            self.on_give(intent, text)
 
     def frugal_save(self) -> bool:
         """Frugal Hands: a consumable that is not used up, some of the time (the mechanic's value is the percent)."""
@@ -323,10 +383,15 @@ class InventoryActions:
         state = self.store.load_place(self.player.location)
         item = inv.pick_up(state, intent.item or text, self.minutes)
         if not item and self.coin_word(intent.item or text):        # (f384) loot coin goes straight to the purse
-            self.refuse(f"Any coin worth taking is already in your purse ({money.fmt(self.player.character.coins)}); none lies here.")
+            self.refuse(f"There's no coin lying here. Any worth taking is already in your purse ({money.fmt(self.player.character.coins)}).")
             return
         if not item and self.take_object(intent.item or text, text):
             return                                           # (f592) a thing lying here, made real by a ruling
+        good = inv.is_good(intent.item or "")
+        if not item and good:                                # (f677) one of the game's own goods, and none lies here: the engine says so
+            from engine import told                          # (f680) in the good's own name, never the line's words
+            self.refuse(told.say("none_here", self.store.meta.turn, thing=inv.good_name(good)))
+            return
         if not item:                                         # not an item the game keeps: an ordinary bit of the scenery is narrated, and kept nowhere
             from scenes import world_prompts as wp
             self.narrate(wp.SCENERY_PICKUP.format(thing=(intent.item or "it").strip()), text)
@@ -367,6 +432,14 @@ class InventoryActions:
         if ware:
             intent.target, intent.ware = npc.id, ware.id
             self.on_buy(intent, text)
+            return
+        fee = self.fee_asked(npc, amount, f"{intent.item or ''} {text}".lower(), recent, intent)
+        if fee:                                               # (f660) coin for a deed with a price pays for it, or is refused: never a gift
+            kind, why = fee
+            if kind:
+                getattr(self, f"on_{kind}")(intent.model_copy(update={"kind": kind, "target": npc.id, "item": "", "ware": ""}), text)
+            else:
+                self.refuse(why)
             return
         if not amount:
             self.refuse("How much? Say an amount, or what you're paying for.")
@@ -413,6 +486,25 @@ class InventoryActions:
         if len(at_price) == 1:
             return at_price[0]
         return before[0] if len(before) == 1 and not amount else None
+
+    def fee_asked(self, npc, amount, said: str, recent: str, intent) -> tuple[str, str] | None:
+        """(f660) Coin handed to someone who takes coin for a deed with a price (each scene part's FEES: the clerk's joining fee): the
+        deed's kind when the coin meets its price and is said to be for it, or is that price exactly; else ("", why) to refuse it, the
+        coin kept. None when they take coin for nothing, or the words make it a gift or a bribe."""
+        if self.is_bribe(intent, said) or any(g in said for g in self.GIFT_WORDS):
+            return None
+        fees = [(kind, got) for cls in type(self).__mro__ for kind, fn in cls.__dict__.get("FEES", ()) if (got := getattr(self, fn)(npc))]
+        if not fees:
+            return None
+        for kind, (price, words, what) in fees:
+            named = any(re.search(rf"\b{re.escape(w)}", f"{said} {recent}") for w in words)
+            if price and amount and amount >= price and (named or amount == price):
+                return kind, ""
+        kind, (price, words, what) = fees[0]
+        short = bool(price and amount and amount < price)
+        return "", (f"{what[:1].upper() + what[1:]} costs {money.words(price)}, and that's more than you offered. You keep your coin." if short else
+                    f"{npc.label(self.acting)} takes coin for {what}" + (f" ({money.words(price)})" if price else "") +
+                    ", not as a gift. Say it's for that, or say it's a gift. Until then, you keep your coin.")
 
     def is_bribe(self, intent, text: str) -> bool:
         low = f"{text} {intent.summary}".lower()
@@ -491,8 +583,8 @@ class InventoryActions:
         return True
 
     def give_to_hire(self, m: dict, intent, text: str) -> None:
-        """(f420) Coin or a thing from the pack handed to a companion: it is theirs, they remember it, and a draught given to one who is
-        hurt is drunk. Before, only townsfolk could be given anything: 'I hand Odly the silver' was refused, there being no one here."""
+        """(f420) Coin or a thing from the pack handed to a companion: it is theirs, they remember it, and what restores health, given
+        to one who is hurt, is used at once."""
         from engine import party as rules
         c, first, day = self.player.character, m["name"].split()[0], clock.day(self.minutes)
         if self.coin_word(intent.item or "") and not inv.find(self.pack, intent.item or ""):
@@ -506,26 +598,26 @@ class InventoryActions:
             c.coins -= amount
             console.ledger(f"Gave {first} {money.fmt(amount)}. Purse: {money.fmt(c.coins)}")
             rules.remember(m, day, f"The player gave me {money.words(amount)}.", 2)
-            what, drunk = "some coin", False
+            what, used = "some coin", False
         else:
             item = inv.take(self.pack, intent.item or text, 1)
             if not item:
                 self.refuse("You aren't carrying that.")
                 return
             g = inv.GOODS.get(item.good) if item.good else None
-            drunk = bool(g and g.restores.get("health") and m.get("hp_frac", 1.0) < 1.0)
-            if drunk:
+            used = bool(g and g.restores.get("health") and m.get("hp_frac", 1.0) < 1.0)
+            if used:
                 m["hp_frac"] = min(1.0, m.get("hp_frac", 1.0) + g.restores["health"] / 100)
             else:
                 m.setdefault("given", []).append(inv.label(item))
                 del m["given"][:-10]
             console.ledger(f"Gave {first} {inv.label(item)}.")
-            rules.remember(m, day, f"The player gave me {inv.label(item)}" + (" when I was hurt, and I drank it." if drunk else "."), 2)
+            rules.remember(m, day, f"The player gave me {inv.label(item)}" + (" when I was hurt, and I used it." if used else "."), 2)
             what = inv.label(item)
         m["bond"] = m.get("bond", 0) + 1
         self.store.save_player(self.player)
-        ledger.add("given", to=m["id"], say=f"The player has handed {first} {what}" + (", and they drink it." if drunk else "; it is theirs now."))
-        self.narrate(f"The player hands {first} {what}." + (f" {first} drinks it down." if drunk else ""), text)
+        ledger.add("given", to=m["id"], say=f"The player has handed {first} {what}" + (", and they use it at once." if used else "; it is theirs now."))
+        self.narrate(f"The player hands {first} {what}." + (f" {first} uses it at once." if used else ""), text)
 
     def on_give(self, intent, text: str) -> None:
         if self.tithe_box(intent, text):
@@ -539,7 +631,8 @@ class InventoryActions:
         if hire is None and not any(n.id == intent.target for n in self.present):
             hire = self.hire_named(text)
         if hire is not None and self.player.party_mode == "with":
-            self.give_to_hire(hire, intent, text)                 # (f420) a companion is someone to give to as well
+            if not self.contract_asks(intent, text, f"hire:{hire['id']}", hire["name"]):
+                self.give_to_hire(hire, intent, text)             # (f420) a companion is someone to give to as well
             return
         npc = next((n for n in self.present if n.id == intent.target), None) or \
             (self.partner if self.partner in self.present else None)
@@ -565,7 +658,7 @@ class InventoryActions:
                 c.item_history.append(f"Delivered {key.name} to {npc.name}, as {key.source} asked (day {day}).")
                 console.ledger(f"Delivered: {key.name}.")
             else:
-                meant = f" - it was meant for {key.for_whom}" if key.for_whom else ""
+                meant = f", though it was meant for {key.for_whom}" if key.for_whom else ""
                 c.item_history.append(f"Gave {key.name} to {npc.name}{meant} (day {day}).")
                 console.ledger(f"Handed over: {key.name}{meant}.")
             from engine.domain_events import Delivered
@@ -578,6 +671,69 @@ class InventoryActions:
                 f"[They hand you {key.name} ({key.description}).]"
             self.on_talk(intent, text)
             return
+        if not self.contract_asks(intent, text, npc.id, npc.label(self.acting)):
+            self.give_goods(intent, text, npc)
+
+    def contract_asks(self, intent, text: str, to: str, name: str) -> bool:
+        """(f676) Goods a held contract asks for: given to the one who pays and enough of them, they hand it in; given to anyone else
+        (a companion too), or too few, the game asks first. False when no contract asks for them: the giving goes on."""
+        wanted = self.contract_wanting(intent.item or text, to)
+        if wanted is None:
+            return False
+        q, pays, ready, have = wanted
+        if pays and ready:                                    # (f676) to the one who pays: on_talk's turn_in hands it in
+            intent.target = to
+            self.on_talk(intent, text)
+            return True
+        from engine import told
+        goods = self.counted(inv.find(self.pack, intent.item or text), max(1, self.how_many(intent) or 1))
+        whose = f"{q['issuer_name']}'s" if not q["guild"] else "the guild's"
+        self.ask_next("give_wanted", told.say("give_short" if pays else "give_wanted", self.store.meta.turn, goods=goods, whose=whose,
+                                              title=q["title"], name=name, held=have, count=q["count"]),
+                      target=to, item=intent.item or text, count=intent.count or 0, text=text)
+        return True
+
+    def contract_wanting(self, name: str, to: str):
+        """(f676) The held contract these goods are for (one this person pays for first, when two ask for them), whether they pay for
+        it, whether it is ready to hand in, and how many the pack holds toward it; None when no contract asks for them."""
+        from engine import quests
+        item = inv.find(self.pack, name)
+        if item is None:
+            return None
+        mine = self.player_of(self.acting).quests
+        clerk = self.clerk_here()
+        found = [(q, (clerk is not None and to == clerk.id) if q["guild"] else to == q.get("issuer")) for q in mine if quests.wants(q, item)]
+        if not found:
+            return None
+        q, pays = next((f for f in found if f[1] and quests.done(f[0], self.pack, mine)), None) or \
+            next((f for f in found if f[1]), found[0])
+        return q, pays, quests.done(q, self.pack, mine), quests.held(q, self.pack, mine)
+
+    def on_answer_give_wanted(self, asked: dict, text: str):
+        """(f676) The answer to 'give a contract's goods to them anyway?': yes gives them, no keeps them."""
+        from engine import questions
+        yes = questions.yes_no(text)
+        if yes is None:
+            return None
+        if not yes:
+            console.note("Kept.")
+            return True
+        d = asked["data"]
+        from llm.contracts import ActionIntent
+        intent = ActionIntent(kind="give", target=d.get("target") or "", item=d.get("item") or "", count=d.get("count") or 0)
+        hire = self.hire_by_id(intent.target) if intent.target.startswith("hire:") else None
+        if hire is not None and self.player_of(self.acting).party_mode == "with":
+            self.give_to_hire(hire, intent, d.get("text") or text)
+            return True
+        npc = next((n for n in self.present if n.id == intent.target), None)
+        if npc is None:
+            self.refuse("There's no one here to give that to.")
+            return True
+        self.give_goods(intent, d.get("text") or text, npc)
+        return True
+
+    def give_goods(self, intent, text: str, npc) -> None:
+        """Goods from the pack given for nothing: taken, remembered, and the companions have a view."""
         item = inv.take(self.pack, intent.item or text, self.how_many(intent))   # (f545's review) as many as said, never a figure
                                                                                   # said of something else
         if not item:
@@ -606,7 +762,7 @@ class InventoryActions:
         leftover = inv.add(self.player.stash, item, self.stash_cap())
         if leftover:
             inv.add(self.pack, leftover, self.pack_slots() + 1)
-            console.note(f"The item box is full - kept {inv.label(leftover)}.")
+            console.note(f"The item box is full, so you keep {inv.label(leftover)} in your pack.")
         self.store.save_player(self.player)
         console.ledger(f"Stored: {inv.label(item)}. Item box {len(self.player.stash)}/{self.stash_cap()}.")
 
@@ -747,7 +903,7 @@ class InventoryActions:
         if spot is None:
             where = [p.name for p in self.world.places.values() if station in p.stations]
             self.refuse(f"Making {base.name} needs a {station.replace('_', ' ')}"
-                         + (f" - there's one at {', '.join(where)}." if where else "."))
+                         + (f". There's one at {', '.join(where)}." if where else "."))
             return
         owner = next((n for n in self.present if n.role == spot.get("owner")), None) if spot.get("owner") else None
         if spot.get("owner") and not owner:
@@ -783,10 +939,10 @@ class InventoryActions:
         self.to_pack(item)
         self.advance(round(crafting.RULES["gear_minutes"] * (1 - crafting.mechanic(c, "quick_hands") / 100)))
         self.store.save_player(self.player)
-        paid = f" Paid {money.fmt(fee)} to use the {station.replace('_', ' ')}." if fee else (" No workshop needed - you have made this before (Practiced Hands)." if practiced else "")
+        paid = f" Paid {money.fmt(fee)} to use the {station.replace('_', ' ')}." if fee else (" No workshop needed, since you've made this before (Practiced Hands)." if practiced else "")
         thrift = f" Saved {saved} material." if saved else ""
         console.ledger(f"Crafted: {quality_name(item)} (lv {item.item_level}).{paid}{thrift} "
-                     f"Crafting skill {before:.0f} -> {after:.0f}.")
+                     f"Crafting skill: {before:.0f}, now {after:.0f}.")
         self.narrate(f"The player spends a couple of hours {'with their tools, no workshop needed,' if practiced else 'at the ' + station.replace('_', ' ')} and makes "
                      f"{item.name} from {items.MATERIALS[material].name} - {item.rarity} work.", text)
 
@@ -831,7 +987,7 @@ class InventoryActions:
         self.store.save_player(self.player)
         console.ledger(f"Commissioned {items.MATERIALS[material].name} {base.label or base.name} from {crafter.label(self.acting)} "
                      f"for {money.fmt(price)}" + (" (your materials)" if use_own else "")
-                     + ". Ready in about a day - collect it while they're at work.")
+                     + ". It'll be ready in about a day. Come by for it during their working hours.")
         self.narrate(f"The player pays {crafter.label(self.acting)} to make {base.name} from "
                      f"{items.MATERIALS[material].name}. They agree it will be ready in a day or so.", text)
 
@@ -898,14 +1054,14 @@ class InventoryActions:
         for sl in data["sellers"]:
             console.note(f"{sl['name']}:")
             for w in sl["wares"]:
-                more = " - ".join(x for x in (w["detail"], w["note"]) if x)
-                console.note(f"  {w['name']}" + (f" ({more})" if more else "") + f" - {w['price_text']}")
+                more = "; ".join(x for x in (w["detail"], w["note"]) if x)
+                console.note(f"  {w['name']}" + (f" ({more})" if more else "") + f": {w['price_text']}")
             if sl["buys"]:
                 console.note(f"  buys: {', '.join(sl['buys'])}")
         if data["sell"]:
             console.note("Your pack would fetch:")
             for x in data["sell"]:
-                console.note(f"  {x['name']} - {x['total_text']} (from {x['buyer_name']})")
+                console.note(f"  {x['name']}: {x['total_text']} (from {x['buyer_name']})")
         self.show_stable()
         console.note(f"Your purse: {data['purse']}")
 
@@ -918,7 +1074,8 @@ class InventoryActions:
         if not named:
             return False
         npc, item, price = next(o for o in offers if o[1].uid == named.uid)
-        self.buy_stock_item(npc, item, price, text)
+        if not self.one_only(intent):                                 # (f646)
+            self.buy_stock_item(npc, item, price, text)
         return True
 
     def on_sell(self, intent, text: str) -> None:

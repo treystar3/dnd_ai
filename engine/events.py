@@ -531,8 +531,8 @@ def judge(ws, state, th, deed) -> bool:
     if not th.get("parts"):
         return False
     op = operation.current()
-    if op is not None and getattr(op, "rulings_wait", False):
-        return _wait(ws, th, deed)
+    if op is not None and (getattr(op, "rulings_wait", False) or operation.players_own(op.kind)):
+        return _wait(ws, th, deed)                       # (f684) the player's line first: ruled after it, in an operation of its own
     try:
         budget.allow("event_judge", len(pp.JUDGE_PARTS_SYSTEM) + 2400)
     except BudgetError:
@@ -595,15 +595,21 @@ def waiting(state: dict) -> list[dict]:
 
 def take_up_waiting(ws) -> bool:
     """(f597) After a line, where a situation's birth is asked (the owner, 2026-11-11: the player's line first): the oldest deed
-    waiting on a situation is ruled on, its call asked outside the transaction. One a line; one that still finds no room waits on."""
+    waiting on a situation is ruled on, its call asked outside the transaction. (f684) Every one waiting, oldest first across the
+    situations, as long as the budget has room; one that finds none waits on, and those after it."""
+    from engine import operation
     state = ws.store.load_world_state()
     rows = waiting(state)
     if not rows:
         return False
-    th = rows[0]
-    deed = th["waiting"].pop(0)
-    if not ruled_before(th, deed, state):                # ruled meanwhile, with nothing changed since: no more
-        judge(ws, state, th, deed)                       # no room again: it waits again (_wait)
+    queue = sorted(((d.get("seq", 0), i, th, d) for i, th in enumerate(rows) for d in th["waiting"]), key=lambda x: (x[0], x[1]))
+    op = operation.current()
+    for _, _, th, deed in queue:                         # (f684) oldest deed first, across every situation, until the budget has no room
+        if op is not None and getattr(op, "rulings_wait", False):
+            break
+        th["waiting"] = [d for d in th["waiting"] if d is not deed]
+        if not ruled_before(th, deed, state):            # ruled meanwhile, with nothing changed since: no more
+            judge(ws, state, th, deed)                   # no room again: it waits again (_wait), and the rest wait with it
     ws.store.save_world_state(state)
     return True
 
@@ -651,12 +657,19 @@ def lose(ws, state, th) -> None:
     fall = th.get("fallout") or {"description": "", "effects": []}
     pulse.end_thread(store, state, th, "ended", f"{th['title']} - lost. {fall.get('description', '')}".strip(), t)
     pulse.apply_effects(store, world, ws.catalog, state, fall.get("effects", []), th["tier"], t, th["title"], raw=True, thread_id=th["id"])
+    line = matters_line(th, "lost", ws.player_of(ws.acting))    # (f662) read before the matter is marked touched
     th["result"], th["ending_kind"], th["touched"] = "lost", "lost", True
     from engine import matters, threads as _threads
     _threads.follow_up(state, th, "ignored", random.Random(f"{store.meta.seed}:chain:{th['id']}"), t)
     if touched_by := sorted({c["by"] for c in th.get("changes") or [] if c.get("by")}):
         matters.remember(store, world, th, "lost", situation_name(ws, touched_by[0]), t, store.meta.turn)
-    console.note(matters.D["memory"]["ended"]["lost"].format(title=th["title"]))
+    if line:
+        console.note(line)
+
+
+def matters_line(th, kind: str, player) -> str:
+    from engine import matters
+    return matters.ended_line(th, kind, player)
 
 
 def situation_name(ws, cid: str) -> str:
@@ -710,8 +723,9 @@ def finish(ws, state, th, how: str, ending: str, kind: str = "achieved", contrib
             except Exception:
                 pass
     matters.remember(store, world, th, {"partly": "partly", "transformed": "transformed"}.get(kind, "settled"), name, t, ws.store.meta.turn)
-    console.note(matters.D["memory"]["ended"][kind].format(title=th["title"]) if contributors is not None
-                 else f"{th['title']} is ended - {how}.")      # (f598) told as it ended
+    line = matters.ended_line(th, kind, ws.player_of(ws.acting)) if contributors is not None else f"{th['title']} is ended, {how}."
+    if line:
+        console.note(line)                                 # (f598) told as it ended; (f662) only to one who met it
     if th["tier"] in ("campaign", "cataclysm") and kind in ("achieved", "partly"):
         grand_reward(ws, state, th)
     store.save_player(ws.player)
@@ -866,7 +880,7 @@ def fallen_allies(ws, fallen_ids: set[str]) -> None:
             n = ws.store.load_npc(m["npc"])
             if rng.random() < E["allies"]["death_when_down"]:
                 pulse.remove_npc(ws.store, ws.world, n, f"died fighting beside {ws.player.character.name}", ws.minutes, dead=True)
-                console.note(f"{n.name} is dead. They gave their life in the fight.")
+                console.note(f"{n.name} is dead, killed fighting at your side.")
                 _vacancy(ws.store, ws.world, n, ws.minutes, streams.get("events"))
                 state = ws.store.load_world_state() or pulse.empty_state(ws.minutes)
                 pulse.add_news(state, f"{n.name} fell fighting beside {ws.player.character.name}.", n.location, ws.minutes, ["everyone"])
@@ -1340,11 +1354,7 @@ def apply_player_events(ws) -> None:
         store.save_world_state(state)
         for a in pending:
             if not _begin_assault(ws, a):
-                st = store.load_world_state()
-                th = next((x for x in st.get("threads", []) if x["id"] == a["thread"]), None)
-                if th:
-                    town_outcome(store, ws.world, ws.catalog, st, th, a["town"], a["stage"], a["minute"], random.Random(f"{store.meta.seed}:fall:{a['town']}:{a['minute']}"))
-                    store.save_world_state(st)
+                assault_unfought(ws, a)
         state = store.load_world_state()
     if not state.get("player_events"):
         return
@@ -1362,13 +1372,13 @@ def apply_player_events(ws) -> None:
         if ev["kind"] == "warn" and home and not home.get("ruined"):
             fort = "fortify" in home["upgrades"]
             console.note(f"Word comes that {name} lies in the path of {ev['title']}. Your house there is in danger"
-                         + (" - though it is fortified." if fort else ". Walls (the Fortify upgrade) or your own presence would help."))
+                         + (", though it's fortified." if fort else ". Walls (the Fortify upgrade) or your own presence would help."))
         elif ev["kind"] == "fell" and home and not home.get("ruined"):
             p = C["home"]["fortified" if "fortify" in home["upgrades"] else "ruin_when_falls"]
             if rng.random() < p:
                 home["ruined"] = True
                 changed = True
-                console.note(f"{name} has fallen - and your house there is a ruin. Your things are safe in the item box. "
+                console.note(f"{name} has fallen, and your house there is in ruins. Your things are safe in the item box. "
                              f"You can rebuild it for {C['home']['rebuild_share']:.0%} of its price.")
             else:
                 console.note(f"{name} has fallen, but your house stands.")
@@ -1376,6 +1386,17 @@ def apply_player_events(ws) -> None:
     if changed:
         ws.ensure_homes()
         store.save_player(ws.player)
+
+
+def assault_unfought(ws, a: dict) -> None:
+    """(f324) The host at a town's gate with no fight to decide it: the town's roll runs, the player counted where they stand. (f765)
+    Also a gate fight let go of at load."""
+    store = ws.store
+    st = store.load_world_state()
+    th = next((x for x in st.get("threads", []) if x["id"] == a["thread"]), None)
+    if th:
+        town_outcome(store, ws.world, ws.catalog, st, th, a["town"], a["stage"], a["minute"], random.Random(f"{store.meta.seed}:fall:{a['town']}:{a['minute']}"))
+        store.save_world_state(st)
 
 
 def _begin_assault(ws, a: dict) -> bool:
@@ -1398,19 +1419,16 @@ def _begin_assault(ws, a: dict) -> bool:
     ws.narrate(f"{th['title'].upper()} REACHES {name.upper()}, NOW, WITH THE PLAYER IN IT. {stage.get('signs', '')} {stage['description']} "
                f"Show the host coming at the town - {creature.name.lower()}s at the gate - and the people's fear; the player stands between. "
                "Do not say how it goes.")
-    ws.assault = {"thread": th["id"], "town": a["town"], "stage": a["stage"], "minute": a["minute"]}
-    from scenes.combat_scene import CombatScene
-    ws.combat = CombatScene.begin(ws, creature, fighters, f"At the gate of {name},", big="wild")
+    from scenes.combat_scene import CombatScene, purpose
+    ws.combat = CombatScene.begin(ws, creature, fighters, f"At the gate of {name},", big="wild",
+                                  purpose=purpose(ws, "gate", thread=th["id"], town=a["town"], stage=a["stage"], minute=a["minute"]))
     console.debug(f"assault: {th['title']} at {a['town']} - {len(fighters)} x {creature.id}")
     return True
 
 
-def assault_over(ws, outcome: str) -> None:
-    """(f324) The fight at the gate is over: a victory holds the town without a roll; anything else lets the roll run, the player counted."""
-    a = getattr(ws, "assault", None)
-    if not a:
-        return
-    ws.assault = None
+def assault_over(ws, outcome: str, a: dict) -> None:
+    """(f324) The fight at the gate is over: a victory holds the town without a roll; anything else lets the roll run, the player counted.
+    (f765) `a` is the fight's purpose: the thread, the town, the stage and the minute the host came."""
     store = ws.store
     state = store.load_world_state()
     th = next((x for x in state.get("threads", []) if x["id"] == a["thread"]), None)
@@ -1428,9 +1446,9 @@ def assault_over(ws, outcome: str) -> None:
             ws.reputation_add(a["town"], C.get("held_reputation", 15))
         except Exception:
             pass
-        console.note(f"{name} holds. The gate is yours, and the town knows it.")
+        console.note(f"{name} holds. You kept the gate.")
     else:
-        console.note(f"The gate is lost; what becomes of {name} is in other hands now.")
+        console.note(f"The gate is lost. What happens to {name} now is out of your hands.")
 
 
 def after_ignored(store, world, state, th: dict, t: int) -> None:

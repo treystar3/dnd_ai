@@ -23,7 +23,6 @@ import argparse
 import collections
 import json
 import random
-import shutil
 import sys
 import time
 import traceback
@@ -502,7 +501,8 @@ def main() -> None:
     ap.add_argument("--turns", type=int, default=400, help="stop after this many typed lines (default 400)")
     ap.add_argument("--days", type=int, default=160, help="stop after this many in-game days (default 160)")
     ap.add_argument("--out", default="", help="where the logs go (default logs/eventrun/<when>)")
-    ap.add_argument("--save", default="", help="the save folder's name (default eventrun_<when>; never listed on the home page)")
+    ap.add_argument("--save", default="", help="the save folder's name (default eventrun_<when>; never listed on the home page): a scratch "
+                    "save, cleared at the start; a game, or a folder no tool made, is refused")
     ap.add_argument("--stub", action="store_true", help="the stand-in model (the test suite): the mechanics, not the writing")
     import runtime_cli
     runtime_cli.add_args(ap)                                                                    # (f529) --attach: the open game's server
@@ -510,9 +510,11 @@ def main() -> None:
     level = args.level or (60 if args.tier == "campaign" else 100)
 
     stamp = datetime.now().strftime("%Y%m%d_%H%M")
+    save = args.save or f"eventrun_{stamp}"
+    from storage import saves
+    saves.scratch(save, typed=bool(args.save))           # (f743) before anything is made or opened: a game, or a folder no tool made, is refused
     out = Path(args.out or f"logs/eventrun/{stamp}")
     out.mkdir(parents=True, exist_ok=True)
-    save = args.save or f"eventrun_{stamp}"
 
     import config
     config.LOG_PATH = str(out / "llm_calls.jsonl")
@@ -544,7 +546,6 @@ def main() -> None:
 
     catalog = load_traits()
     rng = random.Random(args.seed)
-    shutil.rmtree(f"saves/{save}", ignore_errors=True)
     session = CampaignSession.open(save)                                 # (f457) the campaign's session, as main.py opens it
     store, world = session.store, session.world
     store.meta.seed, store.meta.turn, store.meta.minutes = args.seed, 1, 400 * DAY + 8 * 60

@@ -2,7 +2,7 @@
 left it on the ground for want of room, and a bought tonic left on the ground was narrated as handed over; a road find was 'taken' with
 the pack full; a smith said he did not deal in cloth and then bought the hood, because his answer was written before the sale; and a won
 road fight walked on before the player had said what becomes of the one who yielded, while the arrival never heard of the fight."""
-import random, shutil, sys, types
+import random, shutil, sys
 sys.path.insert(0, ".")
 import simlib
 simlib.install(simlib.Stub("warrior", 7))
@@ -116,12 +116,13 @@ ws.player.road = {"id": "road_x", "from": road.from_, "to": road.to, "title": "W
 ws.road_fight_over("victory")
 check("a won road fight is kept to tell at the arrival", any("fought it out there, won" in l for l in ws.player.road["log"]), ws.player.road["log"])
 resumed = []
-ws.resume_road = lambda: (resumed.append(1), setattr(ws, "resume_pending", None))
-ws.held_yield = [types.SimpleNamespace(name="bandit 1", side="enemy")]
+ws.resume_road = lambda: (resumed.append(1), ws.player.road.update(resume="", won=False))
+ws.ask_next("yield", "The bandit has given up the fight.", foes=[])      # (f758) the one who yielded: the world's question
 ws.take_line = lambda text: True                       # (f463, f470) the line taken whole and nothing done: the tail is the point
 ws.turn("I look at the bandit")
-check("...and the walk does not go on while the one who yielded waits on the player's word", not resumed and ws.resume_pending)
-ws.held_yield = None
+check("...and the walk does not go on while the one who yielded waits on the player's word", not resumed and ws.walk_due() is False
+      and ws.player.road.get("resume") == road.to)
+ws.store.clear_question()
 ws.turn("I spare him")
 check("...and goes on once that is settled", resumed)
 told = []

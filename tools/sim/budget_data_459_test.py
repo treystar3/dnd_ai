@@ -56,7 +56,7 @@ draws = [failures.stood_lines([{"kind": "found", "facts": {"what": "a cache"}}],
 check("...and never the same line twice running", all(a != b for a, b in zip(draws, draws[1:])), draws[:4])
 v = failures.victory_stood({"xp": "40"}, rng)
 check("part_stood names what stood; shown_later, round_stood and goddess_silent stand alone; victory_stood takes the win's facts",
-      "the herbs bought" in failures.part_stood("the herbs bought", rng) and failures.shown_later(rng) in F["shown_later"] and failures.round_stood(rng) in F["round_stood"]
+      "looked around" in failures.part_stood("looked around", "speak with the clerk", rng) and failures.shown_later(rng) in F["shown_later"] and failures.round_stood(rng) in F["round_stood"]
       and failures.goddess_silent(rng) in F["goddess_silent"] and ("40" in v or v in F["victory_stood"]) and "{" not in v, v)
 d = copy.deepcopy(F)
 d["stood"]["gained"] = d["stood"]["gained"][:5] + ["{item} is yours."]
@@ -71,7 +71,8 @@ check("problems() rejects an unfillable placeholder, a brace left over, a dash, 
       any("{item}" in p or "cannot fill" in p for p in bad_) and any("brace" in p or "cannot be filled" in p for p in bad_) and any("dash" in p for p in bad_)
       and any("machinery" in p for p in bad_) and any("twice" in p for p in bad_) and any("goddess_silent" in p and "at least 6" in p for p in bad_)
       and any("stood.bogus" in p for p in bad_), bad_)
-check("lines() is still the two old lists, and no stand-in is among them", set(failures.lines()) == set(F["turn_not_taken"]) | set(F["turn_not_possible"])
+check("lines() is the lists of a turn not taken (f644: a reply that did not come is one), and no stand-in is among them",
+      set(failures.lines()) == set(F["turn_not_taken"]) | set(F["turn_not_possible"]) | set(F.get("reply_not_come") or [])
       and not (set(failures.lines()) & set(F["stood_any"]) | set(failures.lines()) & set(F["shown_later"])))
 sys.path.insert(0, "tools")
 import nightrun

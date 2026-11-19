@@ -138,9 +138,9 @@ partings:
 # (f485, owner question 11) A line's frame stood in for: when the narrator's frame was dropped by the turn's budget or failed, the words are
 # shown with the speaker's own short gesture; with none, one of these, drawn for the speaker (scenes/world.py show_speech). And a reply
 # with no words at all, which is shown as what they do, or, with nothing, one of no_words.
-frame_stand_in: ["answers after a moment", "looks up before answering", "gives it a moment's thought", "answers without hurry",
-                 "meets your eye to answer"]
-no_words: ["{speaker} says nothing.", "{speaker} gives no answer.", "{speaker} lets the silence answer.", "{speaker} only looks back at you."]
+frame_stand_in: ["takes a moment", "looks up", "thinks it over", "doesn't hurry",
+                 "meets your eye"]
+no_words: ["{speaker} says nothing.", "{speaker} doesn't reply.", "No reply from {speaker}.", "{speaker} only looks back at you."]
 
 # (f485) The conversation under way, as the save keeps it (kv talk, scenes/world.py talk_record): the most lines its record holds.
 conversation:

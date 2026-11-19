@@ -207,7 +207,7 @@ def on_hit(combat, att, dfn, taken: float, rng) -> None:
     if not ctx:
         return
     for eid in ctx["exprs"]:
-        if dfn.alive or eid in DEAD_OK:
+        if C.in_fight(dfn) or eid in DEAD_OK:              # (f763) a foe who yielded or fled at this blow is gone, as the dead are
             _express(combat, att, dfn, taken, rng, ctx, eid)
 
 
@@ -238,9 +238,9 @@ def _express(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> None:
             share = n["pct"] / 100 * (e.get("metal", 1) if eid == "conduction" and _metal(o) else 1)
             if C.attuned(att, "lightning"):
                 share *= C.ATTUNE["lightning"]                # an archon of storm arcs harder (f246)
-            dealt = C.take_damage(combat, o, taken * share, att, rng, "magical")
-            combat.log.append(f"{e['label']} from {att.name}'s {ctx['name']} hits {o.name}: {dealt} damage")
-            C.tell(combat, f"the lightning {'jumps' if eid == 'arc' else 'runs'} on into {C.who(o)} for {dealt} ({e['label']})")
+            C.side_damage(combat, o, taken * share, att, rng, "magical",
+                          told=lambda d: f"the lightning {'jumps' if eid == 'arc' else 'runs'} on into {C.who(o)} for {d} ({e['label']})",
+                          logged=lambda d: f"{e['label']} from {att.name}'s {ctx['name']} hits {o.name}: {d} damage")
     elif eid == "envenom" and dfn.alive:
         C.add_status(combat, dfn, "poisoned", 3, att)
     elif eid == "corrode" and dfn.alive and not C.warded(dfn, "acid"):
@@ -284,8 +284,7 @@ def _express(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> None:
     elif eid == "splash" and eid not in ctx["once"] and taken > 0:
         ctx["once"].append(eid)
         for o in [o for o in in_area(combat, att, dfn.zone_id, _foes(combat, att)) if o is not dfn and o.alive]:
-            dealt = C.take_damage(combat, o, taken * n["pct"] / 100, att, rng, "magical")
-            C.tell(combat, f"acid splashes over {C.who(o)} for {dealt} ({e['label']})")
+            C.side_damage(combat, o, taken * n["pct"] / 100, att, rng, "magical", told=lambda d: f"acid splashes over {C.who(o)} for {d} ({e['label']})")
     elif eid == "barkskin_graft" and att.alive and taken > 0:
         cap = att.max_hp * float(e.get("cap", 0.5))
         add = min(taken * n["pct"] / 100 * (C.ATTUNE["nature"] if C.attuned(att, "nature") else 1), max(0.0, cap - att.shield))
@@ -323,8 +322,7 @@ def _express_more(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> N
     if eid == "flashfire" and dfn.alive and "burning" in dfn.statuses:
         left = dfn.statuses["burning"] * afflictions.tick(dfn, "burning")
         E.end_status(dfn, "burning")                         # (f507) the strength goes with the row, after the burst read it
-        dealt = C.take_damage(combat, dfn, left, att, rng, "magical")
-        C.tell(combat, f"the fire on {C.who(dfn)} goes up all at once for {dealt} ({e['label']})")
+        C.side_damage(combat, dfn, left, att, rng, "magical", told=lambda d: f"the fire on {C.who(dfn)} goes up all at once for {d} ({e['label']})")
     elif eid == "pyre":
         if dfn.alive:
             dfn.counters["pyre_by"] = att.id
@@ -392,8 +390,7 @@ def _express_more(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> N
             att.pace = "fast"
     elif eid == "jumping_spark" and killed and foes_here:
         o = bf.closest(combat, att, foes_here) or foes_here[0]
-        dealt = C.take_damage(combat, o, taken, att, rng, "magical")
-        C.tell(combat, f"the bolt leaps from the fallen into {C.who(o)} for {dealt} ({e['label']})")
+        C.side_damage(combat, o, taken, att, rng, "magical", told=lambda d: f"the bolt leaps from the fallen into {C.who(o)} for {d} ({e['label']})")
     elif eid == "recharge":
         for k in list(att.cooldowns):
             att.cooldowns[k] -= 1
@@ -588,8 +585,8 @@ def on_any_hit(combat, att, dfn, taken: float, rng) -> None:
         att.counters["arcing"] = 1
         try:
             for o in others:
-                dealt = C.take_damage(combat, o, taken * num(e, "light", "pct", 30) / 100, att, rng, "magical")
-                C.tell(combat, f"the lightning runs through the ice into {C.who(o)} for {dealt} (Superconductor)")
+                C.side_damage(combat, o, taken * num(e, "light", "pct", 30) / 100, att, rng, "magical",
+                              told=lambda d: f"the lightning runs through the ice into {C.who(o)} for {d} (Superconductor)")
         finally:
             att.counters.pop("arcing", None)
 
@@ -603,8 +600,8 @@ def on_attack(combat, att) -> None:
             att.counters.pop("caustic_drip", None)
             return
         maker = combat.get(by)
-        dealt = C.take_damage(combat, att, amount, maker, combat.rng if hasattr(combat, "rng") else _RNG, "magical")
-        C.tell(combat, f"acid runs down {C.whose(att)} arm as {C.vb(att, 'you', 'it')} {C.vb(att, 'swing', 'swings')}: {dealt} (Caustic Drip)")
+        C.side_damage(combat, att, amount, maker, combat.rng if hasattr(combat, "rng") else _RNG, "magical",
+                      told=lambda d: f"acid runs down {C.whose(att)} arm as {C.vb(att, 'you', 'it')} {C.vb(att, 'swing', 'swings')}: {d} (Caustic Drip)")
 
 
 def on_move(combat, f) -> None:
@@ -615,8 +612,8 @@ def on_move(combat, f) -> None:
         if until < combat.round:
             f.counters.pop("bramble", None)
             return
-        dealt = C.take_damage(combat, f, amount, combat.get(by), _RNG, "magical")
-        C.tell(combat, f"the brambles tear at {C.who(f)} as {C.vb(f, 'you', 'it')} {C.vb(f, 'move', 'moves')}: {dealt} (Bramble Wrap)")
+        C.side_damage(combat, f, amount, combat.get(by), _RNG, "magical",
+                      told=lambda d: f"the brambles tear at {C.who(f)} as {C.vb(f, 'you', 'it')} {C.vb(f, 'move', 'moves')}: {d} (Bramble Wrap)")
 
 
 def turn_effects(combat, f, rng) -> None:
@@ -627,8 +624,7 @@ def turn_effects(combat, f, rng) -> None:
         if "slowed" not in f.statuses or not f.alive:
             f.counters.pop("frostbite", None)
         else:
-            dealt = C.take_damage(combat, f, fb[1], combat.get(fb[0]), rng, "magical")
-            C.tell(combat, f"the frostbite eats at {C.who(f)}: {dealt} (Frostbite)")
+            C.side_damage(combat, f, fb[1], combat.get(fb[0]), rng, "magical", told=lambda d: f"the frostbite eats at {C.who(f)}: {d} (Frostbite)")
     creep = f.counters.get("creeping")
     if creep and f.alive:
         left, pct = creep
@@ -641,8 +637,7 @@ def turn_effects(combat, f, rng) -> None:
     seed = f.counters.get("seed")
     if seed and f.alive and combat.round >= seed[1]:
         f.counters.pop("seed", None)
-        dealt = C.take_damage(combat, f, seed[2], combat.get(seed[0]), rng, "magical")
-        C.tell(combat, f"the seed in {C.who(f)} bursts: {dealt} ({seed[3]}, Seedburst)")
+        C.side_damage(combat, f, seed[2], combat.get(seed[0]), rng, "magical", told=lambda d: f"the seed in {C.who(f)} bursts: {d} ({seed[3]}, Seedburst)")
     if f.counters.get("turned") and f.counters.get("turned_until") is not None and f.counters["turned_until"] < combat.round:
         f.counters.pop("turned", None)
         f.counters.pop("turned_until", None)
@@ -964,8 +959,7 @@ def zone_turn(combat, f, rng=None) -> None:
     if z and f.alive and z.get("round") == combat.round:
         maker = combat.get(z["by"])
         if maker is None or _hostile(maker, f):
-            dealt = C.take_damage(combat, f, z["amount"], maker, rng, "magical")
-            C.tell(combat, f"the ball of lightning bursts over {C.who(f)} for {dealt} ({z['name']})")
+            C.side_damage(combat, f, z["amount"], maker, rng, "magical", told=lambda d: f"the ball of lightning bursts over {C.who(f)} for {d} ({z['name']})")
     z = eff.get("grasping_dead")
     if z and f.alive:
         maker = combat.get(z["by"])
@@ -992,11 +986,10 @@ def _zone_hurt(combat, f, z, eid, rng) -> None:
     held = maker.hit_element if maker is not None else ""
     if maker is not None:
         maker.hit_element = element
-    dealt = C.take_damage(combat, f, amount, maker, rng, "magical")
+    C.side_damage(combat, f, amount, maker, rng, "magical", told=lambda d: f"{z['name']} {'burns' if eid == 'burning_ground' else 'shocks'} {C.who(f)} for {d}",
+                  logged=lambda d: f"{z['name']} hurts {f.name}: {d} damage")
     if maker is not None:
         maker.hit_element = held
-    combat.log.append(f"{z['name']} hurts {f.name}: {dealt} damage")
-    C.tell(combat, f"{z['name']} {'burns' if eid == 'burning_ground' else 'shocks'} {C.who(f)} for {dealt}")
 
 
 def on_cross(combat, f, old: str, new: str) -> None:
@@ -1039,7 +1032,8 @@ def curse_turn(combat, f, rng=None) -> None:
         held = maker.hit_element if maker is not None else ""
         if maker is not None:
             maker.hit_element = c.get("element", "")
-        dealt = C.take_damage(combat, f, c["per"], maker, rng, "magical")
+        dealt = C.side_damage(combat, f, c["per"], maker, rng, "magical", told=lambda d: f"{c['name']} gnaws at {C.who(f)} for {d}",
+                              logged=lambda d: f"{c['name']} gnaws at {f.name}: {d} damage")
         if maker is not None:
             maker.hit_element = held
             hits = [e for e in c.get("exprs", []) if e in EXPR and not is_control(e)]
@@ -1048,8 +1042,6 @@ def curse_turn(combat, f, rng=None) -> None:
                 maker.casting = {"exprs": hits, "tier": c["tier"], "name": c["name"], "once": []}
                 on_hit(combat, maker, f, dealt, rng)
                 end(maker)
-        combat.log.append(f"{c['name']} gnaws at {f.name}: {dealt} damage")
-        C.tell(combat, f"{c['name']} gnaws at {C.who(f)} for {dealt}")
         c["left"] -= 1
         if c["left"] > 0:
             keep.append(c)
@@ -1065,10 +1057,14 @@ def cast_turns(move) -> int:
     return 2 if form_of(move) == "charged" or getattr(move, "martial_form", "") == "windup" else 1
 
 
-def wind_up(combat, att, move, target) -> None:
+def wind_up(combat, att, move, target, give=None, archmage=0.0) -> None:
+    """Begun and paid for: the gathering, and what its payment settled for the landing (the blessing's or heal's recipients, the
+    Archmage's Focus share, the blood paid, the weave's critical and the echo owed), kept as plain data on the saved fight row."""
     turns = cast_turns(move)
     att.charging = {"move": move.model_dump(), "target": target.id if target is not None else "", "round": combat.round,
-                    "left": turns - 1}
+                    "left": turns - 1, "give": [r.id for r in give or []], "archmage": archmage,
+                    "blood_cast": bool(att.counters.get("blood_cast")), "weave_crit": bool(att.counters.pop("weave_crit", None)),
+                    "echo_now": bool(att.counters.pop("echo_now", None))}
     combat.log.append(f"{att.name} winds up {move.name}")
     more = "all of next turn" if turns == 2 else f"all of the next {turns - 1} turns"
     C.tell(combat, f"{C.who(att)} {C.vb(att, 'begin', 'begins')} to gather {move.name} - it will take {more} to finish, "
@@ -1096,15 +1092,26 @@ def release(combat, f, rng=None) -> bool:
                        + ("one more turn" if ch["left"] == 1 else f"{ch['left']} more turns"))
         return True
     f.charging = {}
-    foes = _foes(combat, f)
-    t = next((e for e in foes if e.id == ch["target"]), None) or (foes[0] if foes else None)
-    if t is None:
-        C.tell(combat, f"the {move.name} {C.who(f)} gathered finds no one left to strike, and fades")
-        return True
+    t, give = combat.get(ch.get("target", "")), None
+    if move.effect in C.FOE_EFFECTS:                      # (f767) only what needs a foe asks for one; act_ability re-aims one who has left
+        foes = combat.enemies()
+        if not foes:
+            C.tell(combat, f"the {move.name} {C.who(f)} gathered finds no one left to strike, and fades")
+            return True
+        if t is None:
+            from engine import battlefield as bf
+            t = bf.closest(combat, f, foes)
+    else:                                                 # a recipient gone from the fight by now: the caster (healing.cast's rule)
+        give = [r for r in (combat.get(i) for i in ch.get("give", [])) if r is not None and not r.fled
+                and (r.alive or move.effect == "healing")] or None
     C.tell(combat, f"{C.who(f)} {C.vb(f, 'release', 'releases')} {move.name}")
-    f.counters["charged_release"] = 1
-    try:
-        C._act_ability(combat, f, move, t, rng or _RNG, None, True)
-    finally:
-        f.counters.pop("charged_release", None)
+    C.act_ability(combat, f, move, t, rng or _RNG, give=give, released=ch)
     return True
+
+
+def carry(att, ch: dict) -> None:
+    """At a gathered ability's landing, what its beginning's payment settled goes back on the caster for the blow and the perks
+    that follow it. A row saved before these keys keeps none of it, and lands as it did."""
+    for k in ("blood_cast", "weave_crit", "echo_now"):
+        if ch.get(k):
+            att.counters[k] = 1

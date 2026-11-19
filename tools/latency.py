@@ -8,6 +8,10 @@
                                                            (f510) fight inputs too, and every input under budget.yaml limit_seconds
     python tools/latency.py --rekeep MOST --note TEXT      (f571) the baseline's estimates set to today's price for each input the gate
                                                            prices dearer, by MOST seconds at most (an owner's accepted cost only)
+    python tools/latency.py --retold RECORDING --from N --note TEXT [--over I,J]
+                                                           (f640) a recording made again as another story from input N on: its kept
+                                                           estimates from there set to today's prices (plain inputs over the limit
+                                                           only when named; the inputs before N stay held to theirs)
     python tools/latency.py --fights                       (f510) the goldens' fight measures, to data/measured/bundle_e_fights.yaml
     python tools/latency.py --ceilings [RUN_DIR...]        (f490) each speech task's ceiling, from the night's p95 and the goldens
     python tools/latency.py --estimates RECORDING          (f490) a recording's inputs priced at expected answers, as the baseline keeps them
@@ -86,7 +90,7 @@ def calls_table(rows: list[dict]) -> list[str]:
 
 # (f475) The speech tasks Bundle D's briefs change, measured before they change (GOALS.md S7: prompt ceilings measured first). The list is
 # the baseline's own (data/measured/bundle_d_baseline.yaml speech_tasks), read when it is there.
-SPEECH = ("npc_conversation", "npc_parting", "npc_profile", "dialogue_frame", "work_offer_read", "hire_chat", "canon_extract", "canon_check",
+SPEECH = ("npc_conversation", "npc_decide", "npc_parting", "npc_profile", "dialogue_frame", "work_offer_read", "hire_chat", "canon_extract", "canon_check",
           "exchange", "overheard", "mentor_chat")
 BASELINE = Path(__file__).resolve().parent.parent / "data" / "measured" / "bundle_d_baseline.yaml"
 
@@ -114,19 +118,21 @@ def prompt_chars(row: dict) -> int | None:
 def speech_measures(calls: list[dict]) -> dict:
     """(f475) Per speech task: calls, prompt characters (p50, p95, most) at the first try, the tail's p50 when logged, first-try
     acceptance (first tries with no error, of all first tries), and the share of prompt tokens the server had cached, when it said."""
-    out = {}
-    for task in speech_tasks():
-        first = [r for r in calls if r.get("task") == task and int(r.get("attempt", 0) or 0) == 0]
-        if not first:
-            continue
-        sizes = [c for c in (prompt_chars(r) for r in first) if c is not None]
-        tails = [r["tail_chars"] for r in first if isinstance(r.get("tail_chars"), int)]
-        toks = [r["tokens"] for r in first if isinstance(r.get("tokens"), dict) and isinstance(r["tokens"].get("cached"), int)]
-        out[task] = {"calls": len(first), "first_try": round(sum(1 for r in first if not r.get("error")) / len(first), 3),
-                     "p50": int(pct(sizes, .5)) if sizes else None, "p95": int(pct(sizes, .95)) if sizes else None,
-                     "max": max(sizes) if sizes else None, "tail_p50": int(pct(tails, .5)) if tails else None,
-                     "cached": round(sum(t["cached"] for t in toks) / max(1, sum(t.get("prompt", 0) for t in toks)), 3) if toks else None}
-    return out
+    return {task: m for task in speech_tasks() if (m := first_tries(calls, (task,)))}
+
+
+def first_tries(calls: list[dict], tasks) -> dict | None:
+    """(f475) The measure itself, for these tasks taken together ((f723) the live gate's kinds of speaker); None with no call of theirs."""
+    first = [r for r in calls if r.get("task") in tasks and int(r.get("attempt", 0) or 0) == 0]
+    if not first:
+        return None
+    sizes = [c for c in (prompt_chars(r) for r in first) if c is not None]
+    tails = [r["tail_chars"] for r in first if isinstance(r.get("tail_chars"), int)]
+    toks = [r["tokens"] for r in first if isinstance(r.get("tokens"), dict) and isinstance(r["tokens"].get("cached"), int)]
+    return {"calls": len(first), "first_try": round(sum(1 for r in first if not r.get("error")) / len(first), 3),
+            "p50": int(pct(sizes, .5)) if sizes else None, "p95": int(pct(sizes, .95)) if sizes else None,
+            "max": max(sizes) if sizes else None, "tail_p50": int(pct(tails, .5)) if tails else None,
+            "cached": round(sum(t["cached"] for t in toks) / max(1, sum(t.get("prompt", 0) for t in toks)), 3) if toks else None}
 
 
 def speech_table(calls: list[dict]) -> list[str]:
@@ -332,12 +338,12 @@ def over_limit(root: Path = GOLDENS, limit: float | None = None, base: dict | No
     debt and is left out, unless it is a fight input: those are Bundle E's, and every one must fit. Empty lists everywhere: the limit
     holds."""
     import card_profile
-    from engine import budget
+    from engine import budget, recording
     if limit is None:
         limit = card_profile.budget_limit()
     out = {}
     with budget.priced(**((base or {}).get("priced_at") or {})):        # (f527) at the baseline's prices, whatever the card profile says now
-        for folder in sorted(p for p in Path(root).iterdir() if p.is_dir() and (p / "calls.jsonl.gz").exists()):
+        for folder in sorted(p for p in Path(root).iterdir() if p.is_dir() and recording.calls_file(p)):     # (f732) either form
             before = {int(k): float(v) for k, v in ((base or {}).get("estimates") or {}).get(folder.name, {}).items()} if base else {}
             fights = fight_inputs(folder) if base else set()
             out[folder.name] = [(i, round(s, 1)) for i, s in card_profile.estimate_inputs(folder, expected=True)
@@ -351,10 +357,11 @@ def fights_report(root: Path = GOLDENS) -> dict:
     odds' simulations (engine/combat.py danger runs eighty fights once per fight begun: an input with a combat_opening call)."""
     import card_profile
     from engine import combat as _combat
+    from engine import recording
     import inspect
     runs = inspect.signature(_combat.danger).parameters["runs"].default
     out = {}
-    for folder in sorted(p for p in Path(root).iterdir() if p.is_dir() and (p / "calls.jsonl.gz").exists()):
+    for folder in sorted(p for p in Path(root).iterdir() if p.is_dir() and recording.calls_file(p)):
         calls = card_profile.calls_of(folder)
         est = dict(card_profile.estimate_inputs(folder, expected=True))
         turns = load(folder / "turns.jsonl")
@@ -429,9 +436,10 @@ def dearer(now: dict, before: dict, inputs: set[int] | None = None) -> list[tupl
     return out
 
 
-def gate(base: dict | None = None, root: Path = GOLDENS) -> dict[str, list[tuple[int, float | None, float]]]:
+def gate(base: dict | None = None, root: Path = GOLDENS, every: bool = False) -> dict[str, list[tuple[int, float | None, float]]]:
     """(f490) The goldens against their pre-D prices (the baseline's estimates), every answer at its expected size: per golden, the inputs
-    with a speech call, (f510) or a fight call, priced dearer than before. Empty lists everywhere: the gate holds."""
+    with a speech call, (f510) or a fight call, priced dearer than before. Empty lists everywhere: the gate holds. (f700) every: each
+    input the baseline keeps a price for, the plain ones too (what --rekeep sets, since f640 holds every kept price)."""
     import card_profile
     from engine import budget
     base = _yaml(BASELINE) if base is None else base
@@ -440,7 +448,8 @@ def gate(base: dict | None = None, root: Path = GOLDENS) -> dict[str, list[tuple
         for name, before in (base.get("estimates") or {}).items():
             folder = Path(root) / name
             now = dict(card_profile.estimate_inputs(folder, expected=True))
-            out[name] = dearer(now, {int(k): v for k, v in (before or {}).items()}, speech_inputs(folder) | fight_inputs(folder))
+            out[name] = dearer(now, {int(k): v for k, v in (before or {}).items()},
+                               None if every else speech_inputs(folder) | fight_inputs(folder))
     return out
 
 
@@ -456,7 +465,7 @@ def rekeep(most: float, note: str, path: Path = BASELINE, root: Path = GOLDENS, 
         return "refused, nothing written: a re-keep says why (--note TEXT)"
     limit = card_profile.budget_limit() if limit is None else limit
     lines = Path(path).read_text(encoding="utf-8").split("\n")
-    got = gate(base=_yaml(path), root=root)
+    got = gate(base=_yaml(path), root=root, every=True)                # (f700) a plain input grown dearer is re-kept too
     over = [(n, i, b, s) for n, rows in got.items() for i, b, s in rows if b is None or s - b > most + 1e-9 or s > limit]
     if over:
         return "refused, nothing written: " + ", ".join(f"{n} input {i} ({b} -> {s} s)" for n, i, b, s in over)
@@ -482,13 +491,67 @@ def rekeep(most: float, note: str, path: Path = BASELINE, root: Path = GOLDENS, 
     return "\n".join(told) or "nothing dearer: nothing written"
 
 
+def retold(name: str, note: str, start: int = 0, path: Path = BASELINE, root: Path = GOLDENS, today: str = "", limit: float | None = None,
+           over: list[int] | tuple[int, ...] = ()) -> str:
+    """(f640) tools/latency.py --retold RECORDING --from N --note TEXT [--over I,J]: a recording made again as another story from
+    input N on has other lines there, so no kept price is the price of the same line: its kept estimates from N on are set to
+    today's prices (at the baseline's priced_at), and the header says when, why, from where and which plain inputs it now keeps
+    over the limit. The inputs before N are the same lines: they stay held to their kept prices. Refuses, writing nothing: without
+    a note; for a recording the baseline does not keep; when an input before N is dearer than kept, or gone (a line grown dearer
+    is --rekeep's); when nothing from N on differs from what is kept (no other story); when a fight input is over budget.yaml
+    limit_seconds (never kept); and when the plain inputs over it from N on are not exactly those the command names (a retelling
+    adds to Bundle D's debt only in the open)."""
+    import datetime
+    import textwrap
+    import card_profile
+    from engine import budget, recording
+    if not note.strip():
+        return "refused, nothing written: a retelling says why (--note TEXT)"
+    limit = card_profile.budget_limit() if limit is None else limit
+    base = _yaml(path)
+    folder = Path(root) / name
+    if name not in (base.get("estimates") or {}) or not recording.calls_file(folder):
+        return f"refused, nothing written: {name} is not a recording the baseline keeps"
+    with budget.priced(**(base.get("priced_at") or {})):
+        now = {i: round(s, 1) for i, s in card_profile.estimate_inputs(folder, expected=True)}
+    kept = {int(k): float(v) for k, v in (base["estimates"][name] or {}).items()}
+    grown = [i for i in sorted({i for i in set(now) | set(kept) if i < start}) if i not in now or i not in kept or now[i] > kept[i]]
+    if grown:
+        return (f"refused, nothing written: before input {start} the lines are the same, and these are dearer than kept or gone "
+                f"(a line grown dearer is --rekeep's): " + ", ".join(f"{name} input {i} ({kept.get(i)} -> {now.get(i)} s)" for i in grown))
+    new = {i: s for i, s in now.items() if i >= start}
+    if new == {i: s for i, s in kept.items() if i >= start}:
+        return f"refused, nothing written: nothing of {name} from input {start} on differs from what is kept: no other story to price"
+    fights = fight_inputs(folder)
+    lost = sorted(i for i, s in new.items() if s > limit and i in fights)
+    if lost:
+        return "refused, nothing written: over the limit in a fight: " + ", ".join(f"{name} input {i} ({now[i]} s)" for i in lost)
+    plain = sorted(i for i, s in new.items() if s > limit)
+    if plain != sorted(set(int(i) for i in over)):
+        return (f"refused, nothing written: {name} prices these plain inputs over the limit, and they are kept only when named "
+                f"(--over {','.join(str(i) for i in plain) or 'with none'}): " + (", ".join(f"input {i} ({now[i]} s)" for i in plain) or "none"))
+    lines = Path(path).read_text(encoding="utf-8").split("\n")
+    at = lines.index(f"  {name}:", lines.index("estimates:"))
+    end = next((k for k in range(at + 1, len(lines)) if not lines[k].startswith("    ")), len(lines))
+    lines[at + 1:end] = [x for x in lines[at + 1:end] if int(x.split(":")[0]) < start] + [f"    {i}: {s}" for i, s in sorted(new.items())]
+    when = today or datetime.date.today().isoformat()
+    text = (f"({when}, tools/latency.py --retold {name} --from {start}) {note}. Its {len(new)} inputs from {start} on set to today's prices"
+            + (": kept over the limit, plain inputs " + ", ".join(f"{i} ({now[i]} s)" for i in plain) if plain else ", none over the limit"))
+    k = next(j for j, line in enumerate(lines) if line.startswith("#   priced_at:"))
+    lines[k:k] = textwrap.wrap(text, width=136, initial_indent="#                 ", subsequent_indent="#                 ")
+    Path(path).write_text("\n".join(lines), encoding="utf-8", newline="\n")
+    return (f"{name}: {len(new)} inputs from {start} on set to today's prices"
+            + (f"; kept over the limit: {', '.join(str(i) for i in plain)}" if plain else ""))
+
+
 def golden_sizes(root: Path = GOLDENS) -> dict[str, tuple[int, str]]:
     """(f490) Per speech task, the largest prompt any golden recording sends, and the golden it is in."""
     import card_profile
+    from engine import recording
     tasks = set(speech_tasks())
     out: dict[str, tuple[int, str]] = {}
     for folder in sorted(Path(root).iterdir()) if Path(root).exists() else []:
-        if not (folder / "calls.jsonl.gz").exists():
+        if not recording.calls_file(folder):
             continue
         for c in card_profile.calls_of(folder):
             task = c.get("task") or card_profile.REQUIRED_TITLES.get(c.get("title", ""), "")
@@ -833,6 +896,16 @@ def main() -> None:
     if args[0] == "--rekeep":                                       # (f571) --rekeep MOST : the dearer inputs' estimates set to today's price
         k = args.index("--note") + 1 if "--note" in args[2:] else 0
         print(rekeep(float(args[1]), note=args[k] if 0 < k < len(args) else ""))
+        return
+    if args[0] == "--retold":                                       # (f640) --retold RECORDING --from N : another story's prices
+        k = args.index("--note") + 1 if "--note" in args[2:] else 0
+        o = args.index("--over") + 1 if "--over" in args[2:] else 0
+        f = args.index("--from") + 1 if "--from" in args[2:] else 0
+        if not 0 < f < len(args):
+            print("refused, nothing written: a retelling says from which input the story is another (--from N; 0 for a new recording)")
+            return
+        print(retold(args[1], note=args[k] if 0 < k < len(args) else "", start=int(args[f]),
+                     over=[int(x) for x in args[o].split(",") if x.strip()] if 0 < o < len(args) else ()))
         return
     if args[0] == "--fights":                                       # (f510) the goldens' fight measures, written to data/measured/bundle_e_fights.yaml
         print(write_fights())

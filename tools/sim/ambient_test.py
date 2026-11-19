@@ -44,7 +44,7 @@ check("nothing is ambient in the wild", ambient.lines(store, world, "greywood", 
 
 # ---- a funeral after a death, the watch when the stranger is wanted, a thin market when prices are high
 now = at(day + 1)
-store.journal(now - DAY, "npc_gone", "", "x1", "Old Tam is gone: killed by wolves on the sheep hill", {"how": "killed by wolves on the sheep hill", "place": "parth"})
+store.journal(now - DAY, "npc_gone", "", "x1", "Old Tam is gone: killed by wolves on the sheep hill", {"how": "killed by wolves on the sheep hill", "place": "parth", "dead": True})
 lines = ambient.lines(store, world, "trading_square", now)
 check("someone of the town killed lately means a funeral, with their name", any("Old Tam" in l for l in lines), lines)
 law.set_heat(ws.player, "parth", 50, clock.day(now))

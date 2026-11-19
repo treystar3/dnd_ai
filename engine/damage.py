@@ -393,9 +393,7 @@ def avenger(b: Blow) -> bool:
 def yields_break(b: Blow) -> bool:
     d = b.dfn
     if d.yields_at and d.alive and not d.fled and d.hp <= d.max_hp * d.yields_at:
-        from engine import battlefield as bf
-        d.fled = True
-        bf.release(b.combat, d)
+        C.leave(b.combat, d, "fled")
         C.tell(b.combat, d.yield_text or f"{C.who(d)} breaks off and is gone")
     return True
 

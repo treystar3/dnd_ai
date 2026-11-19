@@ -29,8 +29,6 @@ summary.md (a table per server, task and setting). It sends nothing anywhere but
 from __future__ import annotations
 
 import argparse
-import gzip
-import io
 import json
 import os
 import random
@@ -73,7 +71,7 @@ WARNINGS: list[str] = []          # what the reading had to step over (a cut-off
 
 
 def _lines(name: str, f):
-    """The rows of one calls.jsonl.gz, as far as it can be read: a run killed or zipped mid-night leaves a file with no end, and a row
+    """The rows of one call log, as far as it can be read: a run killed or zipped mid-night leaves a file with no end, and a row
     half-written; the rows before stand, and the gap is said."""
     n = 0
     try:
@@ -91,18 +89,19 @@ def _lines(name: str, f):
 
 
 def recorded_rows(path: Path):
-    """Every call row of the recordings at path: a .zip (each */calls.jsonl.gz inside), one recording folder, or a folder of them."""
+    """Every call row of the recordings at path: a .zip (each recording's call log inside), one recording folder, or a folder of them.
+    (f732) A log is read by engine/recording.py's reader, plain or gzipped."""
+    from engine import recording
     path = Path(path)
     if path.suffix.lower() == ".zip":
         with zipfile.ZipFile(path) as z:
-            for name in sorted(n for n in z.namelist() if n.endswith("calls.jsonl.gz")):
-                with gzip.open(io.BytesIO(z.read(name)), "rt", encoding="utf-8") as f:
-                    yield from _lines(name, f)
+            names = sorted(n for n in z.namelist() if recording.is_calls(n))
+        for name in names:
+            yield from _lines(name, recording.call_lines(path, name))
         return
-    files = [path / "calls.jsonl.gz"] if (path / "calls.jsonl.gz").exists() else sorted(path.rglob("calls.jsonl.gz"))
-    for p in files:
-        with gzip.open(p, "rt", encoding="utf-8") as f:
-            yield from _lines(str(p), f)
+    own = recording.calls_file(path)
+    for p in [own] if own else sorted({recording.calls_file(q.parent) for q in path.rglob("*") if recording.is_calls(q.name)}):
+        yield from _lines(str(p), recording.call_lines(p))
 
 
 SKIPPED: dict[str, int] = {}

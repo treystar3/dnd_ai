@@ -151,12 +151,17 @@ HABITS_HEAD = ("WHAT THE COMPANIONS DO NOW (a habit of each, and true: fold each
                "never word for word, never a sentence standing on its own at the end)")
 
 
+def in_view_line(in_view) -> str:
+    """(f700) A creature the game holds in view here, for every telling while it stays."""
+    return f"IN VIEW (here and keeping their distance, still there; the game holds them): {', '.join(in_view)}\n" if in_view else ""
+
+
 def narration_request(time_label: str, place, people: list[tuple[str, str, str]], event: str, player_text: str = "",
                       recent: list[str] = (), gear: str = "", marks: list[str] = (), ground: list[str] = (),
                       happenings: list[str] = (), streets: list[str] = (), town: str = "",
                       news: list[str] = (), already: list[str] = (), companions: list[str] = (), worn: list[str] = (),
                       unlooked: int = 0, who: list[str] = (), fallen: list[str] = (), parts: list[str] = (), told: list[str] = (),
-                      habits: list[str] = (), exemplars: str = "") -> str:
+                      habits: list[str] = (), exemplars: str = "", in_view: list[str] = ()) -> str:
     """already (f347): what the player has read about this place this visit (scenes/world.py shown_lines), so the narrator says what is new.
     companions (f349): the hires the event has act, the only ones the narrator hears of; worn: words recent passages leaned on. (f375) No
     length is given: the narrator writes what the moment holds. unlooked (f380): on walking in, PEOPLE HERE is only who the eye falls on
@@ -189,6 +194,7 @@ def narration_request(time_label: str, place, people: list[tuple[str, str, str]]
            if happenings else "")
         + (f"WHAT PEOPLE HERE ARE TALKING ABOUT (background only; nobody recites it, nobody addresses the player with it): {' '.join(news)}\n"
            if news else "")
+        + in_view_line(in_view)                                            # (f700) late: the cached head stays whole
         + (("WHAT THE GAME DID THIS TURN (true; tell it, and nothing that contradicts it): " + " ".join(told) + "\n") if told else "")
         + f"GAME EVENT: {event}{said}\n"                                    # (f416) what the game did first, the player's words after
         "RECENT NARRATION:\n" + ("\n".join(f"  - {r}" for r in list(recent)[-3:]) or "  (none)")
@@ -247,7 +253,7 @@ Respond only with JSON matching the schema."""
 
 def exchange_request(time_label: str, place, speakers: list[str], others: list[str], first: str, last: str, recent: list[str],
                      frame: str, player: str = "", reach: list[str] | None = None, moment: str = "easy", who: list[str] = (),
-                     exemplars: str = "") -> str:
+                     exemplars: str = "", in_view: list[str] = ()) -> str:
     visible = "; ".join(place.visible)
     return (
         f"SCENE\nTIME AND WEATHER: {time_label}\nPLACE: {place.name} - {visible}\n"
@@ -257,6 +263,7 @@ def exchange_request(time_label: str, place, speakers: list[str], others: list[s
         f"WITHIN REACH: {'; '.join(reach or []) or 'nothing in particular'}\n\n"
         f'THE FIRST LINE (printed by the game, do not repeat): "{first}"\n'
         f'THE LAST LINE (printed by the game, do not repeat): "{last}"\n'
+        + in_view_line(in_view) +                                          # (f700)
         "RECENT NARRATION:\n" + ("\n".join(f"  - {r}" for r in recent[-3:]) or "  (none)")
         + (f"\n\n{exemplars}" if exemplars else "")                         # (f583)
     )
@@ -266,7 +273,7 @@ def dialogue_request(time_label: str, place, others: list[str], who: str, looks:
                      manner: str, first: bool, player_did: str, speech: str, gesture: str, leaving: bool,
                      recent: list[str], frame: str = "",
                      reach: list[str] | None = None, moment: str = "easy", why: list[str] | None = None, already: list[str] | None = None,
-                     worn: list[str] | None = None, who_is: list[str] = (), exemplars: str = "") -> str:
+                     worn: list[str] | None = None, who_is: list[str] = (), exemplars: str = "", in_view: list[str] = ()) -> str:
     """why (f347): the engine's reasons this line gets a frame at all; already: what the player has read about this place this visit;
     worn (f349): words recent passages leaned on. frame (f375): what the frame shows (a companion's, Maren's), never how long it is."""
     visible = "; ".join(place.visible)
@@ -285,6 +292,7 @@ def dialogue_request(time_label: str, place, others: list[str], who: str, looks:
         f'THEY WILL SAY (printed by the game, do not repeat): "{speech}"\n'
         f"THEIR GESTURE: {gesture or 'none given'}\n"
         f"{'They are ending the conversation and leaving.' if leaving else ''}\n"
+        + in_view_line(in_view) +                                          # (f700)
         "RECENT NARRATION:\n" + ("\n".join(f"  - {r}" for r in recent[-3:]) or "  (none)")
         + (f"\n\n{exemplars}" if exemplars else "")                         # (f583)
     )

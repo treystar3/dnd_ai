@@ -56,9 +56,25 @@ class Listening:
                 a.kind, a.summary, a.speech = "other", (text or "").strip("* ").strip() or "a gesture", ""
 
     def to_the_named(self, text: str, plan: list) -> None:
-        """A talk aimed at a companion when the line names someone else here ("ask the hermit who he is") goes to the one it names."""
+        """A talk aimed at a companion goes to the one the line speaks to ("ask the hermit who he is"), when that is someone else here.
+        (f650) Spoken to, as engine/addressing.py reads it; a talk to anyone the line speaks to stays theirs. When the line speaks to no
+        one, the older rule: a person it names or by trade, unless it names the companion."""
+        from engine import addressing
+        if not any(a.kind == "talk" and str(a.target).startswith("hire:") for a in plan):
+            return
+        people = self.addressees_here()
+        found = [a for a in addressing.addressed(text or "", people) if a.who != (addressing.PARTY,)]
+        found += [b for a in found if a.mine for b in addressing.addressed(a.mine, people) if b.who != (addressing.PARTY,)]   # "..., then I ask Bram"
+        everyone = {w for a in found for w in a.who}
+        to = found[0].who if found else None
         for a in plan:
             if a.kind != "talk" or not str(a.target).startswith("hire:"):
+                continue
+            if to is not None:                             # (f650) the line speaks to someone: it is theirs; of two of a trade, the one already talking
+                talking = [w for w in to if w in (getattr(self.partner, "id", None), self.last_spoken)]
+                pick = a.target if a.target in everyone else (to[0] if len(to) == 1 else (talking[0] if talking else None))
+                if pick:
+                    a.target = pick
                 continue
             hire = self.hire_by_id(a.target)
             if hire and re.search(rf"\b{re.escape(hire['name'].split()[0].lower())}\b", (text or "").lower()):
@@ -66,3 +82,17 @@ class Listening:
             who = self.named_here(text)
             if who and not who.startswith("hire:") and who != a.target:
                 a.target = who
+
+    def addressees_here(self) -> dict:
+        """(f650) Everyone here the line can speak to, with the forms of their name: a person by their trade, and by name once the acting
+        character knows it; a companion by name, and as "my companion" when there is one."""
+        from engine import regard
+        out = {}
+        for n in self.present:
+            role = n.role.replace("_", " ")
+            known = regard.of(n, self.acting).name_known and n.name
+            out[n.id] = [f"the {role}", f"~{role}"] + ([n.name.lower(), n.name.split()[0].lower()] if known else [])   # "~": only when called
+        hires = [m for m in self.player_of(self.acting).party if m.get("permanent") and m.get("name")]
+        for m in hires:
+            out[f"hire:{m['id']}"] = [m["name"].lower(), m["name"].split()[0].lower()] + (["my companion", "my friend"] if len(hires) == 1 else [])
+        return out

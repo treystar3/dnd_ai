@@ -19,18 +19,18 @@ clerk:
     neutral: "The clerk is businesslike and polite. Maren is easy, courteous and wry with them, as with someone she has known a long while and respects. Her dryness is never aimed at the clerk or their work: no jabs at the paperwork, the quill, the ink, stains, the desk or how they do their job, and nothing that makes the clerk look small in front of the newcomer. Any warmth she shows is for the newcomer, and shown lightly."
   fallback:
     warm:
-      - ["clerk", "Maren Holt, as I live. And you have brought someone. Come in, come in, there is a stool if you want it."]
-      - ["maren", "Fresh as a daisy, this one, and not a scratch on them. Sign them in before the stool gets all the credit."]
-      - ["clerk", "Of course. Welcome to the guild. The fee is {fee} and then your name goes in the book."]
+      - ["clerk", "Maren Holt, as I live. And you've brought someone. Come in, come in, there's a stool if you want it."]
+      - ["maren", "Not a scratch on this one. Sign them in before they lose their nerve."]
+      - ["clerk", "Of course. Welcome to the guild. The fee is {fee}, and then your name goes in the book."]
       - ["maren", "See? Nobody bites. Mostly."]
     cold:
       - ["clerk", "Maren. Another stray, I see. The register is not a charity."]
-      - ["maren", "No, it is a book, and you are the person paid to write in it. Pen up, please. They are paying {fee} like everybody else."]
+      - ["maren", "No, it's a book, and you're the one paid to write in it. Pen up, please. They're paying {fee} like everybody else."]
       - ["clerk", "Fine. Name, then. Quickly."]
-      - ["maren", "Politely, if you do not mind. It costs nothing, and I will remember who bothered."]
+      - ["maren", "Politely, if you don't mind. Manners cost nothing."]
     neutral:
       - ["clerk", "Maren. Is this one of yours?"]
-      - ["maren", "For today. They need signing into the register, and I would take it as a kindness if you did it properly."]
+      - ["maren", "For today. They need signing into the register, and I'd take it as a kindness if you did it properly."]
       - ["clerk", "Always do. The fee is {fee}. Name in the book, and the badge is theirs."]
       - ["maren", "There. Not so terrible."]
 

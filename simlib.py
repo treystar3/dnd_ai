@@ -5,8 +5,37 @@ import json
 import os
 import random
 import re
+import sys
 import types
 from pathlib import Path
+
+# ------------------------------------------------------------------ (f741) a test's saves are its own
+
+
+def _own_saves() -> None:
+    """(f741) A test's saves are a folder of its own, never the player's saves/: the suite names one for each test it runs
+    (tools/run_suite.py, MERAVIA_SAVES), and a test run by hand (a *_test.py script) gets a fresh one here, removed when it ends (set
+    MERAVIA_SAVES to keep them). Every process the test starts finds it in MERAVIA_SAVES. A tool that imports simlib keeps saves/."""
+    if os.environ.get("MERAVIA_SAVES") or not Path(sys.argv[0] if sys.argv else "").name.endswith("_test.py"):
+        return
+    import atexit
+    import shutil
+    import tempfile
+    folder = tempfile.mkdtemp(prefix="meravia_saves_")
+    os.environ["MERAVIA_SAVES"] = folder
+    atexit.register(shutil.rmtree, folder, True)
+    if "storage.campaign" in sys.modules:                  # read from the environment before it was set
+        sys.modules["storage.campaign"].SAVES_DIR = Path(folder)
+
+
+_own_saves()
+
+
+def saves_path(*parts) -> Path:
+    """(f741) A path in the test's own saves folder (storage.campaign.SAVES_DIR, read now): what a test once wrote as saves/<...>."""
+    from storage import campaign
+    return Path(campaign.SAVES_DIR, *parts)
+
 
 # ------------------------------------------------------------------ the stand-in model
 
@@ -138,7 +167,7 @@ class Stub:
     def a_CompanionReply(self, u, k):
         if getattr(self, "companion", None):
             return self.companion(u)
-        return {"speech": "That is how it is with me.", "gesture": "", "remember": "", "impression": ""}
+        return {"speech": "Like that, mostly. Ask me again tomorrow.", "gesture": "", "remember": "", "impression": ""}
 
     def a_CanonCheck(self, u, k):
         if getattr(self, "canon", None):
@@ -183,7 +212,7 @@ class Stub:
         return {"personality": "Plain.", "voice": "Plain.", "concern": "A small worry.", "motive": motive}
 
     def a_NPCReply(self, u, k):
-        out = {"speech": "It is as it is.", "intent": "small_talk", **(getattr(self, "reply_extra", None) or {})}   # (f482) a test's planted words
+        out = {"speech": "Quiet enough, most days.", "intent": "small_talk", **(getattr(self, "reply_extra", None) or {})}   # (f482) a test's planted words
         if self.ask_help and "WORK YOU HAVE OFFERED" not in u:
             r = self.rng.random()
             if r < 0.5:
@@ -192,11 +221,24 @@ class Stub:
                 out["offers_quest"] = {"kind": "hunt", "what": self.rng.choice(["wolves", "boars", "goblins", "bandits"]), "count": 3}
         return out
 
+    def a_NPCDecision(self, u, k):
+        """(f725) What a townsperson does with a line: ordinary talk, or what a test planted (decide_extra: the fields, or a
+        function of the request that gives them)."""
+        extra = getattr(self, "decide_extra", None)
+        return {"intent": "small_talk", **((extra(u, k) if callable(extra) else extra) or {})}
+
+    def a_NPCSpeech(self, u, k):
+        """(f726) What a townsperson says, the decision made: the reply's planted words (reply_extra's speech and gesture), or what
+        a test planted for the words alone (speech_extra: the fields, or a function of the request that gives them)."""
+        planted = {f: v for f, v in (getattr(self, "reply_extra", None) or {}).items() if f in ("speech", "gesture")}
+        extra = getattr(self, "speech_extra", None)
+        return {"speech": "Quiet enough, most days.", **planted, **((extra(u, k) if callable(extra) else extra) or {})}
+
     def a_NPCReplyMany(self, u, k):
         """(f487) One block per character the format names, or what a test planted (many_extra: a list of blocks, as given)."""
         ids = (((k["format"].get("$defs") or {}).get("NPCAnswer") or {}).get("properties") or {}).get("to", {}).get("enum") or []
         blocks = getattr(self, "many_extra", None) or [{"to": t} for t in ids]
-        return {"speech": "It is as it is.", "intent": "small_talk", "answers": blocks}
+        return {"speech": "Quiet enough, most days.", "intent": "small_talk", "answers": blocks}
 
     def a_DialogueFrame(self, u, k):
         return {"before": "", "after": ""}
@@ -773,18 +815,101 @@ class Game:
         it (recover_unshown). The one injection point for the recovery tests."""
         self.scene.crash_after_commit = kind
 
+    def reopen(self, opening: bool = True, record=None):
+        """(f751) The game closed and opened again as main.py opens a save: the session closed, a new one over the same save, a new
+        scene on it (its map the save's, f733), the recorder installed if `record` names a folder, and the scene's opening run up to
+        its first prompt (WorldScene.opening). opening=False leaves the opening to the caller's run(). Returns the new scene."""
+        from engine.session import CampaignSession
+        self.session.close()
+        self.session = CampaignSession.open(self.name)
+        self.store, self.world = self.session.store, self.session.world
+        self.player, self._scene = self.store.load_player(), None
+        scene = self.scene
+        if record is not None:
+            self.session.record(folder=record, rows=True)
+        if opening:
+            scene.opening()
+        return scene
+
+    def forget(self, owed: bool = False) -> list[str]:
+        """(f751) What an opening is declared to forget (engine/actor.py OPENING), cleared on the live scene as a new scene holds it:
+        a session played straight and forgetting here is held equal to the same session closed and opened here. owed: and what an
+        opening loses today although it is meant to be kept (OWED), each until its feature lands. Returns the names."""
+        from engine import actor
+        scene, gone = self.scene, []
+        for name, row in getattr(actor, "OPENING", {}).items():
+            if row.fate != actor.FORGOTTEN and not (owed and row.fate == actor.OWED):
+                continue
+            if row.fresh is not None:
+                scene.__dict__[name] = row.fresh()
+            elif scene.__dict__.pop(name, actor.UNSET) is actor.UNSET:
+                continue
+            gone.append(name)
+        return gone
+
+
+def stored_names(tree, roots, through=()) -> set:
+    """(f720) Names stored or deleted on one of `roots` (a name, or an attribute called one of `through`), by `x.name = `, setattr, or
+    through x.__dict__ or vars(x) (a subscript, setdefault, pop, update). A name worked out at run time reads "<computed>"."""
+    import ast
+
+    def is_root(v) -> bool:
+        return (isinstance(v, ast.Name) and v.id in roots) or (isinstance(v, ast.Attribute) and v.attr in through)
+
+    def is_dict(v) -> bool:                              # x.__dict__ or vars(x)
+        return ((isinstance(v, ast.Attribute) and v.attr == "__dict__" and is_root(v.value))
+                or (isinstance(v, ast.Call) and isinstance(v.func, ast.Name) and v.func.id == "vars" and len(v.args) == 1 and is_root(v.args[0])))
+    out = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute) and isinstance(node.ctx, (ast.Store, ast.Del)) and is_root(node.value):
+            out.add(node.attr)
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in ("setattr", "delattr") and len(node.args) >= 2 and is_root(node.args[0]):
+            out.add(node.args[1].value if isinstance(node.args[1], ast.Constant) else "<computed>")
+        elif isinstance(node, ast.Subscript) and isinstance(node.ctx, (ast.Store, ast.Del)) and is_dict(node.value):
+            out.add(node.slice.value if isinstance(node.slice, ast.Constant) else "<computed>")
+        elif (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in ("setdefault", "pop", "update") and is_dict(node.func.value)
+              and node.args):
+            out.add(node.args[0].value if isinstance(node.args[0], ast.Constant) else "<computed>")
+    return out
+
+
+def scene_names() -> tuple[dict, dict, set]:
+    """(f751) The census of the world scene's names, the one walk tools/sim/rollback_declared_720_test.py and reopen_declared hold to
+    their tables: every name the scene's classes set on `self` ({name: {"Class.function"}}), every name a module of the game sets on a
+    scene ({name: {file}}), and the functions that set a name worked out at run time ("<computed>" in either)."""
+    import ast
+    import inspect
+    import textwrap
+    from scenes.world import WorldScene
+    stored = stored_names
+    own: dict[str, set] = {}
+    computed: set = set()
+    for cls in WorldScene.__mro__[:-1]:
+        for fn in [n for n in ast.walk(ast.parse(textwrap.dedent(inspect.getsource(cls)))) if isinstance(n, ast.FunctionDef)]:
+            for n in stored(fn, ("self",)):
+                own.setdefault(n, set()).add(f"{cls.__name__}.{fn.name}")
+                if n == "<computed>":
+                    computed.add(f"{cls.__name__}.{fn.name}")
+    outside: dict[str, set] = {}
+    root = Path(__file__).resolve().parent
+    for folder in ("engine", "services", "scenes", "npc", "world", "storage", "ui", "llm"):
+        for p in sorted((root / folder).rglob("*.py")):
+            for n in stored(ast.parse(p.read_text(encoding="utf-8")), ("ws", "scene", "world_scene"), through=("ws",)):
+                outside.setdefault(n, set()).add(p.relative_to(root).as_posix())
+    return own, outside, computed
+
 
 def campaign(name: str, cls: str = "warrior", seed: int = 1, minutes: int = 600, turn: int = 1, location: str | None = None,
              never_mentor: bool = True, fresh: bool = True, char_seed: int | None = None) -> Game:
     """Open a campaign the way the tests did by hand in a hundred files: a fresh save folder (unless fresh=False, for a save copied
     into place), its seed, clock and turn, a level-1 character of one of the stub's classes, standing where the world starts or at
     `location`, with Maren kept away unless asked for. Returns the Game; `.scene` builds the WorldScene on first use."""
-    import shutil
     from engine.session import CampaignSession
     from npc.traits import load_traits
+    from storage import saves
     from storage.campaign import PlayerState
     if fresh:
-        shutil.rmtree(f"saves/{name}", ignore_errors=True)
+        saves.scratch(name)                                  # (f743) a test's own save: a game's name, or a folder held open, is refused
     session = CampaignSession.open(name)                     # (f453) born when the save opens, as in main.py
     store, world = session.store, session.world
     if not store.player_exists():

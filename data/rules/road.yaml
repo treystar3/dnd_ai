@@ -27,8 +27,24 @@ tiers:
 # a stop is settled for the player: a find lies there until they pick it up, a hazard waits for how they get past it, someone in need is
 # helped only if the player helps (and walking past them is seen by the party).
 stops: [find, meeting, hazard, aid]
+# (f702) A sight does not stop the walk, but it stays where it was seen: a landmark of that road the player can go back to, the most
+# recent this many kept.
+landmarks_kept: 12
+# (f705) A road is a way through, not a place sought out for its danger: an ambush's foes are at most this many levels above the party's
+# leader (a level 32 pudding on an ordinary road met a level 17 mage).
+ambush_above: 3
+landmark_margin: 0.05      # never kept nearer either end of its road than this part of it
+landmark_scene_words: 2   # (f709) the words of what was seen there, besides its road's and its ends', that name a landmark
 # Who is there when the writer names nobody: someone in need, someone met on the way.
 stop_roles: {aid: wanderer, meeting: wanderer}
+# (f710, the owner 2026-11-16) A happening that bears on a matter and is rolled a sight is a meeting: what it shows is said by
+# someone, and a person met stops the walk (Q2). That person holds the matter's next clue. false: it stays a passing sight.
+matter_meets: true
+# (f710) A clue meant for another's lips (written in that holder's voice) held by someone met on the road: as heard, quoted and
+# said whose it is, never as their own words. {who}: the role it was meant for, with its article, or "someone".
+heard_clue: "Something heard from {who}: \"{text}\""
+# (f710) What the road's writer is told of a sight: seen in passing, nobody in it met.
+sight_must: ". A sight seen from the road in passing: no one in it is met or spoken with, and the walk goes on"
 
 # Bandits. Roads draw them more than the wilds do, a world event about bandits makes them the ambushers, and a rare
 # ambush may be a camp. Outlaws avoid anyone who far outlevels the road: they judge the odds, and let you pass.
@@ -66,10 +82,10 @@ danger_effect:                  # what an event may leave on the road itself (pe
 barrier:
   at: 0.5                       # where on the shut road the barrier lies, as a share of the way from the road's first end (one fixed point)
   ask_ratio: 2.0                # once met, a long way round more than this many times the shut walk is asked for, not taken unasked
-  meet: "The road on to {onward} is shut here. Back to {back}{round}."
-  round: ", or the long way round to {dest}, {time}"
-  none: "; there is no other way to {dest}"
-  ask: "{road} is shut ({why}). The long way round to {dest} is {time}: say so if you mean to take it."
+  meet: "The road on to {onward} is shut here. You can go back to {back}{round}."
+  round: ", or take the long way round to {dest}, {time}"
+  none: ". There's no other way to {dest}"
+  ask: "{road} is shut ({why}). The long way round to {dest} is {time}. If you want it, say so."
   around: "{road} is shut ({why}), so you go the long way round."
-  refused: "{road} is shut: {why}. There is no other way to {dest} until it opens."
+  refused: "{road} is shut: {why}. There's no other way to {dest}."
   wayfinder: "{road} is shut ({why}), but you know a way around."

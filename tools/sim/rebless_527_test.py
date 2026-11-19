@@ -254,7 +254,7 @@ check("the owner's creation and opening lines are in (6 Nov): one list per kind 
       and failures.opening_untold() in F["opening_untold"])
 L = yaml.safe_load(Path("data/rules/launch.yaml").read_text(encoding="utf-8"))
 check("the load screen's lines are in, every key, so the screen is on", set(L) == set(launch.KEYS) and launch.screen_on()
-      and launch.line("no_memory", needed=14) == "This computer does not have enough memory to hold the world. It needs at least 14 GB.")
+      and launch.line("no_memory", needed=14) == "This computer doesn't have enough memory to run the game. It needs at least 14 GB.")   # (f712)
 check("every new line passes the startup check: no machinery, no dash", failures.problems() == [] and launch.problems() == [])
 check("a chat-template or thinking token in an answer's prose is caught, with its reason",
       hygiene.problem("narrate", {"text": "The sea is grey.<end_of_turn>"})[0] == "template" and hygiene.problem("npc_conversation", {"speech": "<think>no</think>Yes."})[0] == "template"

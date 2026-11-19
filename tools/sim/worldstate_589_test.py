@@ -43,7 +43,7 @@ def watch(game):
         real(key, text)
         if key != "world_state":
             return
-        whole = json.loads(text or "{}")
+        whole = dict(store.load_world_state())            # (f640) the row's text holds a marker where each list stood: the whole is the load
         seen["saves"] += 1
         now = int(store.meta.minutes)
         asks = {(e["kind"], e["place"], e.get("good", "")) for e in whole.get("effects", [])} | {("prices", "nowhere", "")}

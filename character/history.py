@@ -6,16 +6,21 @@ saves/_history.json: {"runs": [{"class", "families", "offered", "chosen", "stats
 import json
 from pathlib import Path
 
-PATH = Path("saves/_history.json")
+NAME = "_history.json"     # (f741) in the saves folder, named by its one source when it is read
 KEEP = 6           # remember this many past characters
 CHOSEN_RECENT = 3  # mechanics picked in the last few characters are strongly avoided
 CHOSEN_FACTOR = 0.15
 OFFERED_FACTOR = 0.5   # mechanics merely offered last time are mildly avoided
 
 
+def path() -> Path:
+    from storage import saves
+    return saves.folder_of() / NAME
+
+
 def load() -> list[dict]:
     try:
-        return json.loads(PATH.read_text(encoding="utf-8")).get("runs", [])
+        return json.loads(path().read_text(encoding="utf-8")).get("runs", [])
     except (OSError, ValueError):
         return []
 
@@ -24,8 +29,8 @@ def record(custom_class: str, families: list[str], offered: list[str], chosen: l
     runs = (load() + [{"class": custom_class, "families": families, "offered": offered, "chosen": chosen,
                        "stats": stats}])[-KEEP:]
     try:
-        PATH.parent.mkdir(parents=True, exist_ok=True)
-        PATH.write_text(json.dumps({"runs": runs}, indent=1), encoding="utf-8")
+        path().parent.mkdir(parents=True, exist_ok=True)
+        path().write_text(json.dumps({"runs": runs}, indent=1), encoding="utf-8")
     except OSError:
         pass
 

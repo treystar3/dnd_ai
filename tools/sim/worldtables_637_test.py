@@ -28,6 +28,7 @@ import simlib
 simlib.install(simlib.Stub("warrior", 3))
 sys.path.insert(0, "tools/sim")
 import world_script
+import rows_v16
 from core.models import Character
 from storage import invariants, migrations, worldrow, worldtables
 from storage.campaign import DB_NAME, CampaignStore
@@ -43,9 +44,9 @@ MADE = []
 
 
 def scratch(name: str) -> CampaignStore:
-    shutil.rmtree(f"saves/{name}", ignore_errors=True)
+    """(f640) A new save put back as version 16 kept it: the row's side of every comparison here, and what `adopt` is tried on."""
     MADE.append(name)
-    return CampaignStore.open_or_create(name)
+    return rows_v16.opened(name)
 
 
 def tables(store) -> set:
@@ -65,10 +66,16 @@ def texts(store, name: str) -> list[str]:
     return [r[-1] for r in rows(store, name)]
 
 
-# ---- not yet used
+# ---- (f640) in use: a save has the tables, and one put back is the row
 plain = scratch("worldtables_637_plain")
-check("a save is still version 16, its world the one row, and a new save has none of the four tables", migrations.CURRENT == 16 and plain.version == 16
-      and type(plain._world) is worldrow.RowWorld and not tables(plain) & set(LISTS), (migrations.CURRENT, type(plain._world).__name__, tables(plain)))
+shutil.rmtree(simlib.saves_path("worldtables_637_live"), ignore_errors=True)
+MADE.append("worldtables_637_live")
+live = CampaignStore.open_or_create("worldtables_637_live")
+check("a save is version 17 and its world is the tables'; one put back is version 16, its world the one row, with none of the four",
+      migrations.CURRENT == 17 and live.version == 17 and type(live._world) is worldtables.TableWorld and set(LISTS) <= tables(live)
+      and plain.version == 16 and type(plain._world) is worldrow.RowWorld and not tables(plain) & set(LISTS),
+      (migrations.CURRENT, type(live._world).__name__, type(plain._world).__name__, tables(plain)))
+live.close()
 check("the four lists are the matters, the deeds, the news and the effects", LISTS == ("threads", "deeds", "news", "effects"), LISTS)
 
 # ---- the tables put under a store
@@ -379,8 +386,8 @@ tab._put(KEY, good)
 
 # ---- the seeded world script, over the row and over the tables
 with ThreadPoolExecutor(2) as pool:                      # each play in a process of its own (the stand-in model counts what it invents)
-    a, b = pool.map(lambda args: world_script.run_apart(*args), (("worldtables_637_play_row", world_script.SEED, ()),
-                                                                 ("worldtables_637_play_tab", world_script.SEED, ("--world", "tables"))))
+    a, b = pool.map(lambda args: world_script.run_apart(*args), (("worldtables_637_play_row", world_script.SEED, ("--world", "row")),
+                                                                 ("worldtables_637_play_tab", world_script.SEED, ())))
 MADE.extend(("worldtables_637_play_row", "worldtables_637_play_tab"))
 check("the script was played over the row, and over the tables", (a["world"], b["world"]) == ("RowWorld", "TableWorld"), (a.get("world"), b.get("world")))
 check("...the same steps, and every part of the script's coverage met over each", len(a["steps"]) > 20 and [s[0] for s in a["steps"]] == [s[0] for s in b["steps"]]
@@ -388,7 +395,7 @@ check("...the same steps, and every part of the script's coverage met over each"
 part = next((i for i, (x, y) in enumerate(zip(a["steps"], b["steps"])) if x[1] != y[1]), None)
 check("after every step the loaded world is the same, as text, keys and lists in their order", part is None,
       part is not None and (a["steps"][part][0], world_script.first_difference(a["steps"][part][1], b["steps"][part][1])))
-check("every other table of the save holds the same", all(a["other"][t] == b["other"][t] for t in a["other"] if t not in ("kv", "all")) and len(a["other"]) >= 7,
+check("every other table of the save holds the same", all(a["other"][t] == b["other"][t] for t in a["other"] if t not in ("kv", "all", *LISTS)) and len(a["other"]) >= 7,
       [t for t in a["other"] if a["other"][t] != b["other"][t]])
 check("...and so does every other row of the small ones", a["rest"] == b["rest"])
 check("...the player's record among them, the same text at the end", a["player"] == b["player"] and len(a["player"] or "") > 1000,
@@ -424,12 +431,9 @@ for name in sorted(want):
     if not (KEPT / name).exists():
         continue
     version = version_of(KEPT / name)
-    folder = Path("saves") / f"worldtables_637_kept_{Path(name).stem}"
-    shutil.rmtree(folder, ignore_errors=True)
-    folder.mkdir(parents=True)
+    folder = simlib.saves_path() / f"worldtables_637_kept_{Path(name).stem}"
     MADE.append(folder.name)
-    shutil.copyfile(KEPT / name, folder / DB_NAME)
-    kept = CampaignStore.open_or_create(folder.name)
+    kept = rows_v16.opened(folder.name, name)             # (f640) as version 16 read it: no later step run
     was = json.dumps(kept.load_world_state())
     worldtables.adopt(kept)
     lists_held[name] = [len(rows(kept, n)) for n in LISTS]
@@ -441,7 +445,7 @@ check("...the world script's end has all four lists in use", all(lists_held.get(
 for s in (plain, row, tab, bare):
     s.close()
 for name in MADE:
-    shutil.rmtree(f"saves/{name}", ignore_errors=True)
-    Path(f"saves/{name}.world_script.json").unlink(missing_ok=True)
+    shutil.rmtree(simlib.saves_path(name), ignore_errors=True)
+    simlib.saves_path(f"{name}.world_script.json").unlink(missing_ok=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

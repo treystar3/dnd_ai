@@ -178,7 +178,7 @@ ws.hold_yielded([yielded()])
 check("a foe that yielded asks the player: spare it, or finish it", NOTES and "Spare it, or finish it?" in NOTES[-1], NOTES)
 stub.plan = [{"kind": "look"}]
 ws.turn("finish it")
-check("'finish it' kills it: it counts for the contract", q["progress"] == 1 and not ws.held_yield, q)
+check("'finish it' kills it: it counts for the contract", q["progress"] == 1 and ws.store.load_question() is None, q)
 check("...and it can be skinned", any(c["creature"] == "wolf" for c in store.load_place("greywood").carcasses))
 SEEN = []
 real_notice = ws.notice
@@ -195,7 +195,7 @@ ws.hold_yielded([yielded()])
 stub.plan = [{"kind": "look"}]
 ws.turn("I look around the trees")
 check("a line about something else: it slips away, and the line is read as usual", any("slips away" in x for x in NOTES) and "spared" not in SEEN
-      and not ws.held_yield, NOTES)
+      and ws.store.load_question() is None, NOTES)
 ws.notice = real_notice
 check("the fight no longer spares a yielded foe on its own", "Spared(" not in open("scenes/combat_scene.py").read())
 

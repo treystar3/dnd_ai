@@ -5,6 +5,7 @@ a stage that changes prompts uses to compare the state alone."""
 import gzip, json, os, shutil, subprocess, sys
 from pathlib import Path
 sys.path.insert(0, ".")
+from engine import recording
 
 bad = []
 def check(n, ok, x=""):
@@ -20,13 +21,12 @@ def run(*args, hseed="2"):
     return out.returncode, (out.stdout + out.stderr).strip().splitlines()[-1:] or [""]
 
 code, said = run("--make", str(REC), "--inputs", "30", hseed="1")
-check("a stub session of 30 inputs is recorded", code == 0 and (REC / "calls.jsonl.gz").exists(), said)
+check("a stub session of 30 inputs is recorded", code == 0 and recording.calls_file(REC) is not None, said)
 code, said = run(str(REC))
 check("replayed in another process, every input matches: state, outcomes and words", code == 0 and said[0].startswith("all "), said)
 
 def calls():
-    with gzip.open(REC / "calls.jsonl.gz", "rt", encoding="utf-8") as f:
-        return [json.loads(l) for l in f]
+    return recording.read_calls(REC)
 def write(rows):
     with gzip.open(REC / "calls.jsonl.gz", "wt", encoding="utf-8") as f:
         f.writelines(json.dumps(r, ensure_ascii=False) + "\n" for r in rows)

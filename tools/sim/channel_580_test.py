@@ -160,14 +160,14 @@ def no_reading(u, k):
 
 stub.a_ActionPlan = no_reading
 stood = []
-during, after = Collect(), Collect()
-with console.use(during):
+during = Collect()
+with console.use(during):                                 # (f721) the input's close tells a line it could not take, whoever played it
     leaked_line = to_stdout(lambda: stood.append(ws.turn("juggle three lanterns")))
-with console.use(after):                                  # the game's loop tells a line it could not take (scenes/world.py run)
-    leaked_line += to_stdout(lambda: console.narrate(ws.failed_line("juggle three lanterns")))
-check("a line whose reading fails every try shows nothing of itself: no held line reaches the channel", stood == [False] and during.text == ""
+from engine import failures
+told = during.text.strip().strip("[]")
+check("a line whose reading fails every try shows nothing of itself: no held line reaches the channel", stood == [False] and len(during.text.strip().splitlines()) == 1
       and bool(getattr(ws, "last_failure", "")), (stood, during.text[:200], getattr(ws, "last_failure", "")))
-check("...the player is told so, on the channel", bool(after.text.strip()), after.text[:200])
+check("...the player is told so, on the channel, in the one line that closes it", told in failures.F["turn_not_taken"], during.text[:200])
 check("...and nothing of it goes round the channel to stdout", leaked_line == "", leaked_line[:200])
 
 g.session.close()

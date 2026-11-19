@@ -4,295 +4,406 @@
 # of uncertainty"). One is picked at random, never the one shown last. The rebuild's Stage 3 adds here the plain lines that tell an
 # outcome that stood when its passage could not be written.
 turn_not_taken:
-  - "That slipped away before anything came of it. Nothing has changed; say it again."
-  - "Nothing took hold that time, and nothing is lost. Try it once more."
-  - "That one got away before it began. All is as it was; say it again."
-  - "The moment passed before anything happened. Everything stands where it stood; go again."
-  - "Not yet: nothing happened, and nothing is lost. Say it again, or another way."
-  - "That didn't take. You are where you were, as you were; try it again."
-  - "Lost before it started, so nothing has happened. Say it once more."
-  - "That never quite began. The world is as you left it; say it again."
+  - "Nothing happens. Try that again."
+  - "That didn't work. Try again."
+  - "Nothing came of that. Say it again, or put it another way."
+  - "Hold on, that didn't happen. Once more?"
+  - "Nothing's changed. Say it again."
+  - "That didn't happen. Give it another try."
+  - "That went nowhere. Try it again."
+  - "Not quite. Say it once more."
 # (f449) The same line has now failed twice running on the game's own fault (not the model's): saying it a third time will not help.
 # The player is told to turn to something else, still in the world's words; what went wrong is in logs/crash.log.
 turn_not_possible:
-  - "That one the world will not take, however it is said. Turn your hand to something else."
-  - "Twice now that has come to nothing, and it will again. Try another thing."
-  - "Whatever stands in the way of that, saying it again will not move it. Do something else for now."
-  - "The world has no way to take that one. Leave it, and try something else."
+  - "You can't do that, however you put it. Try something else."
+  - "That won't work, not this way. Do something else."
+  - "There's no way to do that here. Try another thing."
+  - "Twice now, and nothing. Leave that one and try something different."
 
 # (f459) The rebuild's Stage 3: an action that committed is never undone because its passage could not be written. The player reads a
 # plain line in the narrator's voice telling what stood, filled from the outcome's facts ({what}, {who}, {amount}: labels, never ids),
 # one list per kind of ledger row (engine/ledger.py KINDS); a row with no facts to fill a line takes stood_any. None of these is a turn
 # not taken: the night's count of failed turns never sees them (engine/failures.py lines() is the two lists above and nothing else).
+# (f711, the owner 2026-11-16) In a human author's voice: what happened, plainly, never a word of the telling, the words or the story,
+# and never more than is known (the first set read "very ai and inhuman like").
 stood_any:
-  - "What you did stands; the telling of it slipped away. The world has kept the deed."
-  - "The deed is done, though no words came for it. Carry on; nothing is lost."
-  - "It happened, and it holds. The story of it will have to wait for another breath."
-  - "That stands as done. The words for it did not come, but the world remembers."
-  - "Done, and kept. Only the telling is missing; the rest is as real as the ground."
-  - "The thing is settled. No passage came, and none is needed for it to be so."
+  - "You manage it."
+  - "That's done."
+  - "You see it through."
+  - "You get it done."
+  - "You finish what you set out to do."
+  - "No trouble. It's done."
 stood:
+  arrived:                   # (f711) someone sent to find the player: {who} as the player knows them; {what} their trade, when the name is known
+    - "{who}, {what}, is here and has been asking for you by name."
+    - "{who}, {what}, has come looking for you."
+    - "Someone has been asking after you: {who}, {what}."
+    - "Someone has come looking for you: {who}."
+    - "There's {who}, come to find you."
+    - "Someone's here to see you: {who}."
+  happened:                  # (f711) a matter's moment in front of the player
+    - "Something's going on around you."
+    - "People nearby are looking at something."
+    - "There's a stir close by. Worth a look around."
+    - "People nearby have stopped what they were doing. Something is happening."
+    - "Look around. Things have changed."
+    - "You've missed something. Look around."
   gained:
-    - "{what} is in your pack now; the words for how it got there did not come."
-    - "You have {what}. The moment went untold, but the having is real."
-    - "{what} is yours, kept and counted. The telling slipped away."
-    - "Into the pack went {what}. That much stands, whatever words were lost."
-    - "You carry {what} from here on. The story of it went unsaid."
-    - "{what}, taken and kept. Nothing more came of the moment, and nothing more was needed."
+    - "You now have {what} in your pack."
+    - "Into your pack goes {what}."
+    - "You've got {what}."
+    - "You take {what}. It's yours now."
+    - "You pack away {what}."
+    - "You come away with {what}."
   paid:
-    - "You paid {who} {amount}; it is settled, though the scene went untold."
-    - "{amount} changed hands with {who}. The bargain holds."
-    - "The coin is spent: {amount} to {who}. What was bought is yours."
-    - "You have paid {amount}. {who} has it, and the matter is closed."
-    - "{who} took {amount} from you, fair and done. The words for it never came."
-    - "Paid, {amount} to {who}, and that is the end of it."
+    - "You pay {who} {amount}."
+    - "You hand over {amount} to {who}."
+    - "You count out {amount} for {who}."
+    - "That's {amount} gone, paid to {who}."
+    - "You settle up with {who}: {amount}."
+    - "You give {who} {amount}."
   received:
-    - "{who} paid you {amount}. The coin is in your purse, whatever else was lost."
-    - "{amount} came to you from {who}. It is counted."
-    - "You were paid: {amount}, from {who}. That stands."
-    - "Your purse is heavier by {amount}, {who}'s coin. The rest of the moment slipped by."
-    - "{who} has settled with you, {amount}. Done."
-    - "The payment stands, {amount} from {who}, though the scene went untold."
+    - "You're paid {amount} by {who}."
+    - "You get {amount} from {who}."
+    - "Your purse is {amount} heavier, thanks to {who}."
+    - "You take {amount} from {who} and pocket it."
+    - "You count the coins {who} gives you: {amount}."
+    - "That's {amount} to you, from {who}."
   found:
-    - "You found {what}. The finding stands, even untold."
-    - "{what} is found, and yours to make of what you will."
-    - "There it was: {what}. The words for the moment did not come, but the find is real."
-    - "You came upon {what}. The world has marked it so."
-    - "{what}, found and kept in mind. The telling slipped away."
-    - "The search turned up {what}. That much holds."
+    - "You find {what}."
+    - "There it is: {what}."
+    - "Your search turns up {what}."
+    - "You come across {what}."
+    - "Something catches your eye. It's {what}."
+    - "You've found {what}."
   moved:
-    - "You are at {what} now. The way there went untold."
-    - "You have come to {what}. Look about you; the words will follow another time."
-    - "{what}: that is where you stand. The crossing itself slipped by unsaid."
-    - "You moved to {what}, and there you are."
-    - "The ground under you is {what}'s. How you came went untold."
-    - "You stand at {what}. Nothing of the way there was kept but the arriving."
+    - "You're at {what} now."
+    - "You make your way to {what}."
+    - "You arrive at {what}."
+    - "You come to {what}. Have a look around."
+    - "Here you are, at {what}."
+    - "You reach {what}."
   took:
-    - "You have taken on {what}. It is yours to see through."
-    - "{what} is your charge now. The words at the taking did not come."
-    - "The task is accepted: {what}. That stands."
-    - "You said yes to {what}. The world holds you to it."
-    - "{what} is written down as yours. The moment of it went untold."
-    - "Taken on: {what}. Carry it from here."
+    - "You take on {what}."
+    - "You agree to {what}."
+    - "You've said yes to {what}."
+    - "You say you'll do it: {what}."
+    - "You accept {what}."
+    - "It's your job now: {what}."
   made:
-    - "{what} is here now, real as anything. The telling of it slipped away."
-    - "The world has {what} in it from this moment. Words or no words, it stands."
-    - "{what} is real now. Nothing more came of the moment than that, and that is enough."
-    - "Here is {what}, made and kept. The story of it went unsaid."
-    - "{what} exists now, and will tomorrow. The telling will have to wait."
-    - "What you asked for is here: {what}. It holds."
+    - "Now there's {what} here."
+    - "You look, and {what} is there."
+    - "You've got {what} to work with now."
+    - "Here's {what}, right in front of you."
+    - "It's ready: {what}."
+    - "You find {what} waiting for you."
   changed:
-    - "{what} is not as it was. The moment went untold, but the change is real."
-    - "You have changed {what}. It stays changed."
-    - "{what} bears the mark of what you did. The words for it did not come."
-    - "Something is different about {what} now, and will stay so."
-    - "{what}, altered by your hand. The telling slipped away."
-    - "The change to {what} holds. Only its telling is missing."
+    - "You make your changes to {what}."
+    - "That's {what} changed."
+    - "You change {what}."
+    - "When you step back, {what} isn't the same."
+    - "You set to work on {what}, and when you're done it's different."
+    - "You alter {what}."
   departed:
-    - "{who} is gone from here. The parting went untold."
-    - "{who} has left. The words at the leaving did not come."
-    - "You will not find {who} here now; they have gone."
-    - "{who} went on their way. That much stands."
-    - "The place is without {who} now. The moment slipped by unsaid."
-    - "{who} departed, and the world has marked it."
+    - "There's no sign of {who} here now."
+    - "You look around, and {who} has gone."
+    - "Then {who} leaves."
+    - "That's the last you see of {who}."
+    - "Off goes {who}."
+    - "You won't find {who} here anymore."
   ended:
-    - "{what} is at an end. The words for its ending did not come."
-    - "That matter, {what}, is closed. It stands closed."
-    - "{what} is finished. The telling slipped away, but the ending holds."
-    - "An end to {what}. Nothing more will come of it."
-    - "{what} is settled for good. The moment went unsaid."
-    - "You brought {what} to its end. The world has marked it done."
+    - "That's the end of {what}."
+    - "That's it for {what}."
+    - "It's over: {what}."
+    - "You're done with {what}."
+    - "Now {what} is over."
+    - "With that, {what} is finished."
   tended:
-    - "{who} saw to your wounds. You feel the better for it, though the moment went untold."
-    - "Your hurts were tended by {who}. The care stands."
-    - "{who} bound what needed binding. The words for it did not come."
-    - "You are mended, by {who}'s hands. The telling slipped away."
-    - "{who} tended you. The relief is real whatever was left unsaid."
-    - "The wounds are seen to; {who} did it. That holds."
+    - "You let {who} see to your wounds."
+    - "You wince while {who} dresses your wounds."
+    - "A few minutes with {who}, and your cuts are bound."
+    - "You sit still while {who} binds your hurts."
+    - "Thanks to {who}, the worst of it is bandaged."
+    - "You feel better now that {who} has patched you up."
   carried:                                           # (f592) a thing in the world carried in hand, no item of the pack
-    - "You carry {what} now, in hand. The moment went untold."
-    - "{what} is with you, held and not packed. That stands."
-    - "In your hands: {what}. The words for taking it did not come."
-    - "{what} goes where you go now. The telling slipped away."
-    - "You took up {what}. Nothing more came of the moment."
-    - "{what}, lifted and kept by you. The rest went unsaid."
+    - "You're carrying {what} now."
+    - "You pick up {what}."
+    - "In your hands: {what}."
+    - "You take up {what}."
+    - "You've got {what} in hand now."
+    - "You keep {what} close."
   left:
-    - "{what} lies here still, left where it was. The moment went untold."
-    - "You left {what} behind. It stays where you left it."
-    - "{what} is not in your pack; it lies here. That stands."
-    - "Left lying: {what}. The words for it did not come."
-    - "{what} remains here, untaken. The world has marked it so."
-    - "You did not take {what}. It is still here, for now."
+    - "You leave {what} where it is."
+    - "You set down {what}."
+    - "You put {what} down and leave it."
+    - "You leave {what} behind."
+    - "You don't take {what}."
+    - "You let {what} be."
   given:
-    - "You handed {what} to {who}. It is theirs now, whatever was left unsaid."
-    - "{who} has {what} from you. The giving stands."
-    - "{what} passed from your hands to {who}'s. The moment went untold."
-    - "Given: {what}, to {who}. That holds."
-    - "{who} took {what} from you with thanks that went unspoken. It is theirs."
-    - "You gave {who} {what}. The words for the moment did not come."
+    - "You hand {what} to {who}."
+    - "You give {who} {what}."
+    - "It's {who}'s now: {what}."
+    - "You pass {what} over to {who}."
+    - "You put {what} in the hands of {who}."
+    - "You let {who} have {what}."
   hurt:
-    - "You were hurt by {what}: {amount} of your health gone. The moment went untold."
-    - "{what} caught you. You are down {amount} of health, and that stands."
-    - "The hurt is real: {amount} of health lost to {what}."
-    - "{what} left its mark on you, {amount} of health. The telling slipped away."
-    - "You bled for that: {amount} of health, to {what}."
-    - "{what} hurt you. The wound stands, {amount} of health gone, whatever was left unsaid."
+    - "You take {amount} damage from {what}."
+    - "You're caught by {what} and lose {amount} health."
+    - "That hurts. You lose {amount} health."
+    - "You lose {amount} health to {what}."
+    - "Ouch. That's {amount} health."
+    - "It costs you {amount} health."
   closed:
-    - "{what} is shut. There is no way through it now."
-    - "The way is closed: {what}. The words for it did not come."
-    - "{what} will not open. That stands."
-    - "You find {what} shut against you, and it stays so."
-    - "Closed, {what}. The moment went untold."
-    - "{what} is barred. Nothing more came of the moment than that."
+    - "You find {what} shut."
+    - "The way through {what} is closed."
+    - "You can't get through {what}."
+    - "No way through: {what} won't open."
+    - "It's shut: {what}."
+    - "There's no getting past {what}."
   end:
-    - "There is no way further in than {what}. That is the end of it."
-    - "{what} is as far as it goes. The telling slipped away."
-    - "The way ends at {what}. Nothing lies beyond."
-    - "You have reached the end: {what}. The words for it did not come."
-    - "{what}, and no further. The world has marked it so."
-    - "Beyond {what} there is nothing. That stands."
+    - "This is as far as it goes: {what}."
+    - "There's no way further in than {what}."
+    - "The way ends at {what}."
+    - "You can't go on past {what}."
+    - "Beyond {what}, there's nowhere to go."
+    - "You've reached the end, at {what}."
   worked:
-    - "The work is done, {what}. The telling of it slipped away."
-    - "You worked, and {what} is finished. That stands."
-    - "{what}: done, and counted. The words for the labour did not come."
-    - "Your hands did {what}. The world has marked it done."
-    - "The job stands finished: {what}."
-    - "{what} is seen to. The moment went untold, but the work is real."
+    - "You get {what} done."
+    - "The job's finished: {what}."
+    - "You do the work: {what}."
+    - "That's {what} done."
+    - "You see to {what}."
+    - "You finish {what}."
   gathered:
-    - "You gathered {what}. It is in your pack, though the moment went untold."
-    - "{what}, gathered and kept. That stands."
-    - "Your gathering turned up {what}. The telling slipped away."
-    - "{what} is yours, picked and carried. The words for it did not come."
-    - "Gathered: {what}. The world has marked it so."
-    - "You have {what} from the gathering. That much holds."
+    - "You gather {what}."
+    - "You pick out {what}."
+    - "You collect {what} and pack it away."
+    - "You come back with {what}."
+    - "You stow {what} in your pack."
+    - "A bit of searching, and you have {what}."
   refused:
-    - "That part, {what}, did not happen. The rest stands."
-    - "{what} came to nothing; the world would not have it. What else you did holds."
-    - "No to {what}. The rest of what you did is as you left it."
-    - "{what} was not to be. The remainder stands."
-    - "The world said no to {what}. Everything else holds."
-    - "Of all you did, {what} did not happen. The rest did."
+    - "That part didn't happen: {what}."
+    - "Everything else went through, but not this: {what}."
+    - "No luck with {what}. The rest is done."
+    - "One thing didn't happen: {what}."
+    - "You couldn't manage {what}."
+    - "All but {what} got done."
   not_done:
-    - "You did not get to {what} this turn. What came before it stands."
-    - "{what} waits; the turn ran out before it. The rest holds."
-    - "Not yet done: {what}. Everything before it is as it stands."
-    - "{what} was left for another moment. What you did before holds."
-    - "The turn ended before {what}. The rest is done."
-    - "{what} is still ahead of you. Everything else stands."
+    - "You didn't get to {what}."
+    - "There wasn't time for {what}."
+    - "Not yet: {what}. You didn't get that far."
+    - "You stop short of {what}."
+    - "You never got as far as {what}."
+    - "Still to do: {what}."
 # A line of several actions in which some committed and a later one did not (decision 13): what stood is named in {done}.
+# (f715) A line that stood in part: what stood, as finished clauses ({done}: "walked to the guild hall and handed in the contract
+# 'Bounty: ...' and were paid 27 silver"), then what did not, as the clause its step set out to do ({missed}: "speak with the clerk");
+# never "the rest", never a pasted summary.
 part_stood:
-  - "Part of that stood: {done}. The rest came to nothing, and is as it was."
-  - "{done}: that much is done. What followed slipped away, and nothing of it is lost."
-  - "You got as far as this: {done}. The rest of the line did not take; say it again if you will."
-  - "What stands is {done}. The remainder never began; the world is as it was before it."
-  - "{done} holds. After that, nothing happened; try the rest once more."
-  - "This much is real: {done}. The rest fell short of happening."
+  - "You {done}, but you never got to {missed}."
+  - "You {done}. You didn't get to {missed}."
+  - "You {done}, but that's as far as it went. You never got to {missed}."
+  - "You {done}, and that was all. You didn't {missed}."
+  - "You {done}, but you didn't manage to {missed}. Try that part again."
+  - "You {done}. You didn't {missed}. Say it again if you still want to."
+# (f644, f715) What a walk did, as a clause after "you" (the owner read it in docs/design/25_speech_parts_camp.md).
+walked: "walked to {where}"
+# (f715) What a step did, as a clause after "you", by its kind: the fullest form whose facts are known ({who} as the player
+# knows them, {where} a place, {what} a thing, {act} an improvised act's own words), else a plainer one; every kind has a line
+# (data_check), default for one the table does not know.
+done:
+  move: ["went to {where}", "set off"]
+  explore: ["explored {where}", "went exploring"]
+  look: ["looked around"]
+  search: ["searched for {what}", "searched {where}", "searched the place"]
+  talk: ["spoke with {who}", "spoke up"]
+  leave_conversation: ["took your leave"]
+  buy: ["bought {what}", "made your purchase"]
+  sell: ["sold {what}", "made your sale"]
+  ability: ["used {what}", "used your ability"]
+  use: ["used {what}", "used what you had"]
+  drop: ["dropped {what}", "put it down"]
+  pick_up: ["picked up {what}", "picked it up"]
+  give: ["gave {what} to {who}", "gave {what}", "handed it over"]
+  show: ["showed {what} to {who}", "showed {what}", "showed it"]
+  discard: ["got rid of {what}", "got rid of it"]
+  store: ["put {what} away", "put it away"]
+  retrieve: ["took out {what}", "took it out"]
+  equip: ["put on {what}", "changed your gear"]
+  forage: ["foraged for {what}", "foraged"]
+  craft: ["made {what}", "set to work"]
+  work: ["did the work for {who}", "did the work"]
+  harvest: ["took what you could from {what}", "took what you could"]
+  join_guild: ["joined the guild"]
+  board: ["looked over the board"]
+  accept_quest: ["took on {what}", "took on the job"]
+  abandon_quest: ["gave up {what}", "gave up the job"]
+  train: ["trained with {who}", "trained"]
+  learn_ability: ["learned {what}", "learned something new"]
+  delve: ["went down into {where}", "went down"]
+  leave_dungeon: ["climbed back out"]
+  commission: ["ordered {what} from {who}", "put in an order"]
+  wait: ["waited a while"]
+  attack: ["attacked {who}", "attacked"]
+  release: ["let {who} go", "let them go"]
+  hand_over: ["handed {who} over", "handed them over"]
+  steal: ["took {what}", "took what you wanted"]
+  unlock: ["opened {what}", "got it open"]
+  pray: ["prayed"]
+  gamble: ["gambled"]
+  haggle: ["haggled with {who}", "haggled"]
+  other: ["tried to {act}", "tried something of your own"]
+  default: ["did what you set out to"]
+# (f715) What a step set out to do, as a clause after "you never got to", by its kind, as above.
+missed:
+  move: ["go to {where}", "set off"]
+  explore: ["explore {where}", "go exploring"]
+  look: ["look around"]
+  search: ["search for {what}", "search {where}", "search the place"]
+  talk: ["speak with {who}", "say your piece"]
+  leave_conversation: ["take your leave"]
+  buy: ["buy {what}", "make your purchase"]
+  sell: ["sell {what}", "make your sale"]
+  ability: ["use {what}", "use your ability"]
+  use: ["use {what}", "use it"]
+  drop: ["drop {what}", "put it down"]
+  pick_up: ["pick up {what}", "pick it up"]
+  give: ["give {what} to {who}", "give {what}", "hand it over"]
+  show: ["show {what} to {who}", "show {what}", "show it"]
+  discard: ["get rid of {what}", "get rid of it"]
+  store: ["put {what} away", "put it away"]
+  retrieve: ["take out {what}", "take it out"]
+  equip: ["put on {what}", "change your gear"]
+  forage: ["forage for {what}", "forage"]
+  craft: ["make {what}", "finish the work"]
+  work: ["do the work for {who}", "do the work"]
+  harvest: ["take what you could from {what}", "take what you could"]
+  join_guild: ["join the guild"]
+  board: ["look over the board"]
+  accept_quest: ["take on {what}", "take on the job"]
+  abandon_quest: ["give up {what}", "give up the job"]
+  train: ["train with {who}", "train"]
+  learn_ability: ["learn {what}", "learn it"]
+  delve: ["go down into {where}", "go down"]
+  leave_dungeon: ["climb back out"]
+  commission: ["order {what} from {who}", "put in an order"]
+  wait: ["wait a while"]
+  attack: ["attack {who}", "attack"]
+  release: ["let {who} go", "let them go"]
+  hand_over: ["hand {who} over", "hand them over"]
+  steal: ["take {what}", "take what you wanted"]
+  unlock: ["open {what}", "get it open"]
+  pray: ["pray"]
+  gamble: ["gamble"]
+  haggle: ["haggle with {who}", "haggle"]
+  other: ["{act}", "try what you had in mind"]
+  default: ["finish what you set out to do"]
 # An outcome that committed but was never shown before the game closed (decision 8): told once on the next load, before its lines.
 shown_later:
-  - "Before you left, this much had happened and went untold. Here it is now."
-  - "The world kept something back from last time. It is told now, once."
-  - "When you were last here, this stood and was not shown. Now it is."
-  - "Something settled before you went away, unspoken then. Here it is."
-  - "A moment from before, kept for your return."
-  - "This was so when you left, and was never told. It is told now."
+  - "To pick up where you were:"
+  - "Here's where you left off."
+  - "Where you left off:"
+  - "Picking up where you left off."
+  - "Last time, just before you stopped:"
+  - "Before you stopped last time, this had just happened."
 # (f507) A fight saved mid-round that this game could not take up again (a row of an older shape, or one that could not be read): the
 # fight is let go of, never the game, and the player is told so once at the next load, in the narrator's voice. (f512) The owner's own
 # six lines, 2026-11-04; (f513) the words that named a kind of place (a road, grass, a deserted spot) or had the player walk off made
 # neutral at the owner's word, since the line is shown wherever the save left the player: a cave, a street, a hall, a field.
 fight_let_go:
-  - "The fight is over. What became of your enemies, you cannot say. For now, the way is clear."
-  - "You return to find the fighting done. Of those you fought here, there is no sign."
-  - "Your foes have gone. You linger a moment, listening, but hear nothing of them."
-  - "No clash of steel greets your return. Whatever happened here after you left, it is finished."
-  - "The fight ended in your absence. Whether your enemies fled or met some other fate, you do not know."
-  - "All is quiet where you fought. You look once more around you, then put it behind you."
+  - "Your foes are gone."
+  - "The fight is done. There's no one to face."
+  - "When you look around, the fighting has stopped."
+  - "It's quiet now. The fight is over, and your enemies have gone."
+  - "The fight is over. Your enemies are gone."
+  - "No one is left to fight. It's over."
 # A fight round whose telling could not be written: the numbers carry the blows.
 round_stood:
-  - "The round is fought and done. The blows went untold, but every one of them landed where the numbers say."
-  - "That exchange stands as it fell. The telling slipped away; the wounds did not."
-  - "The round holds: what was struck was struck. The words for it did not come."
-  - "Blows traded, the round over. Only the telling is missing."
-  - "The fight moved on a round. What the numbers show is what happened."
-  - "That round is written in wounds, not words. It stands."
+  - "You trade blows, and the round ends."
+  - "The round is over."
+  - "A round passes, and the fight goes on."
+  - "The round goes by fast."
+  - "The fighting goes on. Another round done."
+  - "That's one more round fought."
 # A fight won whose aftermath could not be written: the win and its gains stand ({xp}, {coins}, {fallen}, {found} as the facts allow).
 victory_stood:
-  - "The fight is won, and it stands. {xp} experience is yours; the telling of the end slipped away."
-  - "Victory. {xp} experience earned, and the field is quiet. The words for the last blows did not come."
-  - "They are beaten. You are the better by {xp} experience, whatever went unsaid."
-  - "The fight ended in your favour, and that holds. Nothing of the win is lost but its telling."
-  - "Won. The story of the end will have to wait; the end itself is sure."
-  - "The last of them is down. The field is yours, and so is what it left."
+  - "The fight's over, and you're still standing. {xp} experience."
+  - "That's the last of them. {xp} experience."
+  - "You win. {xp} experience for the trouble."
+  - "They're beaten. You catch your breath. {xp} experience."
+  - "It's over, and you've won. {xp} experience."
+  - "The last one goes down. You've earned {xp} experience."
 # The goddess at a death whose words could not be written: her own lines, in her voice. The death stands either way.
 goddess_silent:
-  - "Hush now... I have you. The words I meant for you went out with the tide, and still I have you."
-  - "Oh, child. I had something to say, and the cold took it from me. Breathe. That part I can still give."
-  - "There you are. Whatever I meant to tell you is lost in the water... it does not matter. Go on; go back."
-  - "I reached for words and found only cold. Never mind them. You are not finished yet."
-  - "Little one... I lose things, down here. The thing I would have said is one of them. The breath I give you is not."
-  - "Not the words I wanted. They slipped. Take the warmth instead, and go."
+  - "Hush now... I have you. Breathe, little one, and go back."
+  - "Oh, child. Come here, out of the cold. You are not finished yet."
+  - "There you are. I have you now. Go on, go back."
+  - "Shh. Lean on me a moment. Then back you go."
+  - "Little one... you're cold. Here, take my warmth, and go."
+  - "Not yet, child. Feel the sea let go of you. Back to the light with you."
 # (f498) A fight begun whose opening could not be written: the fight is on, told plainly, with who came ({foe}) and how many ({count}).
 fight_begun:
-  - "A fight is on: {foe}, {count}. The ground and the light will have to wait; the blows will not."
-  - "It comes to blows before there is time to say how. {foe}, {count}, closing fast."
-  - "No telling how it opened, only that it has: {foe}, {count}, and the first moves already made."
-  - "The quiet breaks. {foe}, {count}, and the fight is joined where you stand."
-  - "What began it is lost in the rush of it: {foe}, {count}, and your weapon already in hand."
-  - "They are on you: {foe}, {count}. Whatever was said is said; now it is steel."
+  - "It comes to a fight: {foe}, {count}."
+  - "Weapons out. {foe}, {count}."
+  - "No time to think. {foe}, {count}, coming at you."
+  - "Trouble: {foe}, {count}."
+  - "Here they come: {foe}, {count}."
+  - "It's a fight now. {foe}, {count}, and close."
 
 # (f525, engine/failures.py; the lines read and approved by the owner on 6 Nov, f527) Creation and the opening go on through an outage.
 # creation_fail: the goddess's own words when a creation call failed (the player's line not read, the concept not read, the gifts or the
 # traits not shaped); nothing is lost and the step is asked again. One list per kind, three lines at least, never the one shown last.
 creation_fail:
   interpret:
-    - "Her gaze drifts, as if your words reached her from very far away. Say it to her once more."
-    - "The dark between you swallows what you said. She tilts her head and waits for you to say it again."
-    - "She leans closer, listening, but the words have slipped away from her. Tell her again."
+    - "She frowns, puzzled. Say it to her once more."
+    - "She tilts her head. She didn't catch that. Say it again."
+    - "She leans in close, listening. Tell her again."
   concept:
-    - "She reaches for the shape of who you were and finds only mist. Nothing is lost. Tell her again who you wish to become."
-    - "The picture of you blurs in her hands before she can hold it. Describe it to her once more."
-    - "She closes her eyes, searching, and opens them with a gentle apology. Tell her again what you would become."
+    - "She can't yet see who you mean to become. Tell her again."
+    - "She can't quite picture it. Describe yourself to her once more."
+    - "She shakes her head. Tell her again what you'd like to be."
   gifts:
-    - "The threads slip through her fingers before they can take a shape. Nothing is lost. Say yes again and she will try once more."
-    - "Your gifts will not settle in her hands just yet. Say yes again, and she will gather them anew."
-    - "Something in the weave unravels. She smiles, patient. Say yes once more."
+    - "Try saying yes again."
+    - "That didn't work. Say yes again."
+    - "She smiles, patient. Say yes once more."
   traits:
-    - "What is innate in you will not show itself yet. Choose your three techniques again, and she will look once more."
-    - "She searches you for what you were born with and finds it hidden. Choose your three again."
-    - "The deeper threads stay tangled. Nothing is lost. Choose your three techniques once more."
+    - "Choose the three you were born with, once more."
+    - "She can't find it yet. Choose your three again."
+    - "Choose your three once more, and she'll look again."
 # creation_stand_in: what she says for the step she is on when her own words could not be written; the page moves on (a refused pick
 # still shows the "That can't be done: ..." note with its reason). One list per step.
 creation_stand_in:
   name:
-    - "She waits, and the silence asks your name."
-    - "Her eyes rest on you, waiting to learn what you are called."
-    - "She tilts her head. What is your name, child?"
+    - "She waits for your name."
+    - "Her eyes rest on you. What are you called?"
+    - "She tilts her head. What's your name, child?"
   concept:
-    - "She waits to hear who you wish to become."
-    - "Her hands open in the dark, ready for the shape of your life."
-    - "Tell her who you would be. She is listening."
+    - "What will you become?"
+    - "Whatever you'll be, she's ready."
+    - "Tell her who you would be. She's listening."
   confirm_class:
-    - "She shows you what she sees in you, and waits to know if she has seen truly."
-    - "Is this you? Her look asks it plainly."
-    - "She holds the picture of you out to you, waiting for your word."
+    - "She shows you what she sees. Has she got you right?"
+    - "Is this you?"
+    - "Is this who you are?"
   actives:
-    - "Before you lie the gifts already in you. She waits for you to choose three."
-    - "Choose three, her gaze says, and carry them back with you."
-    - "She nods toward what you might carry. Three of them are yours to take."
+    - "Here are the gifts she can give you. Choose three."
+    - "Choose three to take back with you."
+    - "Three of these are yours to take."
   passives:
-    - "Now what you were born with. She waits for you to choose three."
-    - "Three more, she seems to say. The ones that are simply you."
-    - "She waits while you choose the three that were always in you."
+    - "Now for what you were born with. Choose three."
+    - "Three more. These are part of you already."
+    - "Choose the three you were born with."
   stats:
-    - "She waits for you to shape your body and mind."
-    - "Your strength, your wits, your spirit: she leaves the shaping to you."
-    - "Make yourself as you would be, her silence says."
+    - "Now shape your body and mind."
+    - "The shaping is up to you."
+    - "Shape yourself as you'd like to be."
   confirm_stats:
-    - "She looks at what you have made of yourself. Is this how you would be?"
-    - "This is the shape you chose. She waits for your word."
-    - "She waits to know if you are content to be made so."
+    - "She looks you over. Is this how you want to be?"
+    - "This is how you made yourself. Is it right?"
+    - "Are you happy with this?"
 # opening_untold: the narrator's plain line when the game's opening passage (the first waking, or where a loaded game left off) could
 # not be written; the game reaches its first line all the same.
 opening_untold:
-  - "You draw a breath, and the world settles around you."
-  - "The ground is solid beneath you, and the day goes on."
-  - "You take in your surroundings, and the world takes you in."
+  - "You take a breath and look around."
+  - "You stand up."
+  - "You get your bearings."

@@ -439,6 +439,9 @@ class FailingBench:
         return {"handled_by": "interpret", "kinds": ["look"], "first": {}, "steps": [], "moves": [], "talked": [], "hire": [],
                 "repairs": [], "read": None}
 
+    def close(self):                                             # (f743) evaluate lets its bench go, as a Bench does its save
+        pass
+
 
 real_bench = interp_eval.Bench
 interp_eval.Bench = FailingBench

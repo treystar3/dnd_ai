@@ -170,6 +170,7 @@ class View:
         self.skip: set[str] = set()
         self.allow: set[str] = set()                  # (f375) narrator-only facts this viewer is given for this reply ('crowd')
         self.drop: set[str] = set()                   # (f486) facets left out of this reply (engine/brief.py asked): read alone with lines()
+        self.hide: set[str] = set()                   # (f726) facts left out of this reply by id: a piece of the town's is told only as decided
 
     def asking(self, text: str) -> "View":
         """(f375) The same view for a reply to these words: the street scene comes in when they are about the town or its streets."""
@@ -189,7 +190,7 @@ class View:
         if name == "present":
             return self.present_lines()
         v = self.viewer
-        return [f.text for f in self.scene.facts(name) if v.sees(f) or (f.id and f.id in self.allow)]
+        return [f.text for f in self.scene.facts(name) if (v.sees(f) or (f.id and f.id in self.allow)) and not (f.id and str(f.id) in self.hide)]
 
     def present_lines(self) -> list[str]:
         """Who is here, as this viewer knows them: a townsperson knows their neighbours by name and sees strangers (Maren, the hires) as
@@ -314,7 +315,9 @@ def _present_people(ws) -> list[Present]:
                            doing="at the player's side", kind="companion",
                            note="the player's own companion: telling it to track, sniff out or hunt something is search; it is not talked with"))
     if ws.wildlife:
-        out.append(Present(id="wildlife", name=", ".join(e.name for e in ws.wildlife[1]), label=", ".join(e.name for e in ws.wildlife[1]),
+        from engine.combat import plain_name
+        seen = ", ".join(plain_name(e.name) for e in ws.wildlife[1])       # (f696) never the game's tag or counter
+        out.append(Present(id="wildlife", name=seen, label=seen,
                            desc="a creature, keeping its distance", doing="", kind="wildlife"))
     return out
 
@@ -444,7 +447,8 @@ def _board(scene: Scene):
     rank = ws.rank or "F"
     out = []
     for q in ws.ensure_board():
-        out.append(Fact("board", f"[{q['letter']}] {q['title']}" + ("" if quests.at_or_below(q["letter"], rank) else " (above the player's rank)"), known))
+        out.append(Fact("board", f"[{q['letter']}] {q['title']}" + ("" if quests.at_or_below(q["letter"], rank) else " (above the player's rank)"), known,
+                        id=f"board:{q.get('id', len(out))}"))             # (f724) a posting is a thing a reply can be decided to share
     if not out:
         out.append(Fact("board", "nothing is posted", known))
     held = [q["title"] for q in ws.player.quests if q.get("guild")]
@@ -460,6 +464,8 @@ def _happenings(scene: Scene):
     ws = scene.ws
     out = [Fact("happenings", h) for h in pulse.happenings_at(ws.store, ws.world, ws.player.location, ws.minutes)]
     out += [Fact("happenings", h) for h in moments.lines_at(ws.store, ws.player.location, ws.minutes)]       # (f348) a moment under way here
+    for i, f in enumerate(out):
+        f.id = f"happening:{i}"                                        # (f724) the town's own, by id; the ordinary day below has none
     out += [Fact("ambient", h) for h in ambient.lines(ws.store, ws.world, ws.player.location, ws.minutes, ws.player)]
     return out
 
@@ -470,8 +476,8 @@ def _news(scene: Scene):
     from engine import pulse
     ws = scene.ws
     state = ws.store.load_world_state()
-    return [Fact("news", pulse.news_text(n, ws.minutes), frozenset(f"groups:{g}" for g in n["groups"]))                      # (f356) a window that turns over by the day
-            for n in pulse.news_window(state or {}, ws.world, ws.player.location, ws.minutes, 8, key=str(ws.store.meta.seed))]
+    return [Fact("news", pulse.news_text(n, ws.minutes), frozenset(f"groups:{g}" for g in n["groups"]), id=f"news:{i}")      # (f356) a window that turns over by the day
+            for i, n in enumerate(pulse.news_window(state or {}, ws.world, ws.player.location, ws.minutes, 8, key=str(ws.store.meta.seed)))]
 
 
 @facet("fallen")

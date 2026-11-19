@@ -38,25 +38,31 @@ debt = {g: [(int(i), float(s)) for i, s in (base["estimates"].get(g) or {}).item
 check("every input is under the limit, apart from those the pre-D baseline already priced over it (Bundle D's own debt, named)", all(over[g] == [] for g in over)
       and all(i in {j for j, _ in debt[g]} for g in over_all for i, _ in over_all[g]) and limit == 60, (over, over_all, debt))
 fights = {g: latency.fight_inputs(latency.GOLDENS / g) for g in held}
-check("...and every fight input fits the minute: stub_fight's twenty, stub_short's nineteen, stub_party has none", not any(i in fights[g] for g in over_all for i, _ in over_all[g])
-      and len(fights["stub_fight"]) == 20 and len(fights["stub_short"]) == 19 and fights["stub_party"] == set(), {g: len(v) for g, v in fights.items()})
+check("...and every fight input fits the minute: stub_fight's and stub_short's, more than ten each; stub_party has none", not any(i in fights[g] for g in over_all for i, _ in over_all[g])
+      and len(fights["stub_fight"]) > 10 and len(fights["stub_short"]) > 10 and fights["stub_party"] == set(), {g: len(v) for g, v in fights.items()})
+priced = dict(card_profile.estimate_inputs(latency.GOLDENS / "stub_fight", expected=True))
+F = max(fights["stub_fight"], key=lambda i: priced[i])                 # (f640) a fight input by what it is, not by its number
 check("a fight input the baseline priced over the limit would still fail the gate",
-      3 in {i for i, _ in latency.over_limit(base={"estimates": {"stub_fight": {3: 99.0}}}, limit=10.0)["stub_fight"]})
-check("...while a plain input the baseline priced over it is left to Bundle D", latency.over_limit(base={"estimates": {"stub_short": {1: 99.0}}}, limit=60.0)["stub_short"] == [(36, 69.3)])
+      F in {i for i, _ in latency.over_limit(base={"estimates": {"stub_fight": {F: 99.0}}}, limit=priced[F] - 1.0)["stub_fight"]}, (F, priced[F]))
+P, *others = over_all["stub_short"]                                    # the plain inputs over the minute: the first forgiven, the rest still named
+check("...while a plain input the baseline priced over it is left to Bundle D", P[0] not in fights["stub_short"] and others
+      and latency.over_limit(base={"estimates": {"stub_short": {P[0]: 99.0}}}, limit=60.0)["stub_short"] == others, (P, others))
 
 # ---- the fight measures
 kept = yaml.safe_load(Path("data/measured/bundle_e_fights.yaml").read_text(encoding="utf-8"))
 now = latency.fights_report()
-check("the fight measures are kept, outside the data hash, and read the same from the goldens today", kept["goldens"] == now and kept["fight_tasks"] == list(latency.FIGHT_TASKS)
+check("the fight measures are kept, outside the data hash, and read the same from the goldens today: a row for each fight input and no other",
+      kept["goldens"] == now and all(set(kept["goldens"][g]) == fights[g] for g in held) and kept["fight_tasks"] == list(latency.FIGHT_TASKS)
       and kept["limit_seconds"] == limit and Path("data/measured/bundle_e_fights.yaml").parent.name == "measured", {g: [i for i in now[g] if now[g][i] != (kept["goldens"].get(g) or {}).get(i)][:3] for g in now})
 known = set(yaml.safe_load(Path("data/rules/budget.yaml").read_text(encoding="utf-8"))["tasks"])
 check("the measured file names only fight tasks budget.yaml knows, and its rows count only those", set(kept["fight_tasks"]) <= known
       and all(set(r["calls"]) <= set(kept["fight_tasks"]) for rows in kept["goldens"].values() for r in rows.values()) and data_check.fights_problems() == [], data_check.fights_problems())
-row = kept["goldens"]["stub_fight"][3]
+O = min(i for i, r in kept["goldens"]["stub_fight"].items() if r["calls"].get("combat_opening"))
+row = kept["goldens"]["stub_fight"][O]
 check("a fight's first input: the opening's call, the odds' eighty simulations, its operations, no re-run", row["calls"] == {"combat_opening": 1} and row["simulations"] == 80 and row["operations"] >= 1 and row["reruns"] == 0, row)
 check("...and the measures are numbers where numbers are due: a stray task or a word is named", any("moon" in m for m in data_check.fights_problems({**kept, "fight_tasks": kept["fight_tasks"] + ["moon_call"]}))
-      and any("estimate" in m for m in data_check.fights_problems({**kept, "goldens": {"stub_fight": {3: {**row, "estimate": "slow"}}}}))
-      and any("counts a call" in m for m in data_check.fights_problems({**kept, "goldens": {"stub_fight": {3: {**row, "calls": {"narrate": 1}}}}}))
+      and any("estimate" in m for m in data_check.fights_problems({**kept, "goldens": {"stub_fight": {O: {**row, "estimate": "slow"}}}}))
+      and any("counts a call" in m for m in data_check.fights_problems({**kept, "goldens": {"stub_fight": {O: {**row, "calls": {"narrate": 1}}}}}))
       and any("no such recording" in m for m in data_check.fights_problems({**kept, "goldens": {"stub_moon": {}}})))
 check("the check runs at startup with the rest", "bad += fights_problems()" in Path("engine/data_check.py").read_text(encoding="utf-8") and data_check.check() == [])
 

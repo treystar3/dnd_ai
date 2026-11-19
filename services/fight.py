@@ -79,6 +79,7 @@ class FightSpec:
     initiated: bool = False
     prepare: Callable | None = None                  # a scripted fight sets itself up after the estimate
     characters: list = field(default_factory=list)   # (f508) the characters who fight, one player fighter each; the service's own when empty
+    purpose: combat.Purpose | None = None            # (f765) what it is for beyond itself, in its row from the first save
 
 
 @dataclass
@@ -161,11 +162,12 @@ class Rewards:
 @dataclass
 class Aftermath:
     """(f508) What a fight left on the party's record, told by the service (end): the notes in order, who came through (member, health
-    fraction), whether any hire went down, whether the record changed."""
+    fraction), whether any hire went down, whether the record changed, and the ids of the hires it buried or killed."""
     notes: list
     seen: list
     any_down: bool
     changed: bool
+    died: list = field(default_factory=list)
 
 
 @dataclass
@@ -177,6 +179,8 @@ class Captive:
     creature: str
     id: str
     tip: bool
+    people: str = ""                     # (f746) decided with the name, so the name is built for them
+    gender: str = ""
 
 
 class FightService:
@@ -186,7 +190,7 @@ class FightService:
         self.party = party                   # PartyService: a hire going down is its decision (decide_down)
         self.dice = dice                     # the fight's stream (streams.get("combat")), reseeded at every input
         self.actor = actor                   # (f632) who fights (engine/actor.py): their record is read when it is asked for
-        self.world = world                   # read for the bestiary
+        self.world = world                   # read for the bestiary and a place's peoples
         self.now = now                       # the game's minute
         self.given = list(characters) if characters else None   # (f508) who fights as a player, when the caller or the fight's spec says
 
@@ -233,10 +237,14 @@ class FightService:
             near.append(ally)
         near = taming.strongest(near, c.level)
         notes += party_rules.sync_levels(self.player.party, c.level)
-        members = [party_rules.fighter(m, minutes=now) for m in self.player.party if not m.get("tutorial")]
+        party = self.player.party
+        members = [party_rules.fighter(m, minutes=now) for m in party if not m.get("tutorial")]
         formed = bool(members) and not (hold and self.player.party_mode == "hold")
         if hold and self.player.party_mode == "hold":
             return near, members, notes, formed
+        if hold:                                          # (f651) at a camp, one held back alone arrives later with the reserves
+            back = {f"ally_{m['id']}" for m in party if m.get("held_at") and not m.get("tutorial")}
+            return near + [f for f in members if f.id not in back], [f for f in members if f.id in back], notes, formed
         return near + members, [], notes, formed
 
     def begin(self, spec: FightSpec) -> tuple[combat.Combat, Opening]:
@@ -257,7 +265,7 @@ class FightService:
                     me.cooldowns[m.id] = 10 ** 6
             mes.append(me)
         fight = combat.Combat(fighters=mes + list(spec.allies) + list(spec.enemies), players=[m.id for m in mes], place=spec.place,
-                              conditions=list(spec.conditions))
+                              conditions=list(spec.conditions), purpose=spec.purpose)
         fight.record = True                 # keep a breakdown of every blow for the window's combat log
         combat.fight_key(fight)             # (f500) the fight's serial, drawn once here from the ids stream: never by an estimate's copy, never
         #                                     by a mark read before the first blow, so the dice after it are the same whatever is estimated
@@ -296,9 +304,49 @@ class FightService:
 
     @staticmethod
     def row(fight: combat.Combat, creature: str) -> str:
-        return json.dumps({"creature": creature, "fight": fight.model_dump(mode="json")})     # (f497) by the fields' types:
+        data = fight.model_dump(mode="json")                # (f497) by the fields' types:
         # a fighter's float left as the int it was given (bleed 0, armor 0) is written 0.0 live as it is resumed, so a round run again from
         # the resumed row saves the row its first attempt would have (the digests of a stood-down round and a straight one agree)
+        if data.get("purpose") is None:
+            data.pop("purpose", None)                       # (f765) a fight for nothing beyond itself writes the row it always wrote
+        return json.dumps({"creature": creature, "fight": data})
+
+    @staticmethod
+    def purpose_of(raw: str | None) -> combat.Purpose | None:
+        """(f765) What a saved fight was for, read from its row whatever the row's shape, so a fight let go of at load can hand it on;
+        None when the row says nothing of it or does not read (a damaged row loses it with the fight)."""
+        try:
+            given = (json.loads(raw or "").get("fight") or {}).get("purpose")
+            return combat.Purpose.model_validate(given) if given else None
+        except Exception:
+            return None
+
+    @staticmethod
+    def apart(row: str, stored: str | None, most: int = 8) -> list[str]:
+        """(f760) Where a fight's row and the one stored differ, as paths into the row (".fight.shown"), the first `most`; [] when the two
+        are the same text."""
+        if row == stored:
+            return []
+        if stored is None:
+            return ["a fight with no row"]
+        out: list[str] = []
+
+        def walk(a, b, path: str) -> None:
+            if len(out) >= most:
+                return
+            if isinstance(a, dict) and isinstance(b, dict):
+                for k in sorted(set(a) | set(b)):
+                    walk(a.get(k), b.get(k), f"{path}.{k}")
+            elif isinstance(a, list) and isinstance(b, list) and len(a) == len(b):
+                for i, (x, y) in enumerate(zip(a, b)):
+                    walk(x, y, f"{path}[{i}]")
+            elif a != b:
+                out.append(path)
+        try:
+            walk(json.loads(row), json.loads(stored), "")
+        except ValueError:
+            return ["a row that does not read"]
+        return out or ["the same fight, written otherwise"]
 
     def save(self, fight: combat.Combat, creature: str) -> None:
         self.store.save_combat(self.row(fight, creature))
@@ -339,7 +387,7 @@ class FightService:
         f = fight
         p = (f.get(intent.actor) if intent.actor else None) or f.player
         notes: list[str] = []
-        f.log, f.story, f.hits = [], [], []
+        f.log, f.story, f.hits, f.told = [], [], [], []
         target = f.get(intent.target) if intent.target else None
         if intent.kind != "interpose" and (not target or not target.alive or target.side != "enemy" or target.fled):
             target = battlefield.closest(f, p, f.enemies())
@@ -401,9 +449,10 @@ class FightService:
             f.over = "victory"
         p.counters.pop("moved_now", None)
         if p.counters.pop("free_action", None) and not f.over:   # a movement on its own did not use the action - the player acts again
-            return RoundOutcome("free", notes, [])
+            return RoundOutcome("free", notes + f.told, [])     # (f661) what the engine did beside what was asked, said to the player
         if not f.over:
             combat.finish_round(f, self.dice)
+        notes += f.told                                   # (f661, f663) the round's lines for the player, the foes' turns among them
         killed = self.hires_down(f)
         self._publish(RoundFought(minute=self.now(), serial=f.serial, round=f.round, over=f.over))
         return RoundOutcome("round", notes, killed, over=f.over)
@@ -492,7 +541,7 @@ class FightService:
         field_rules.start_cooldown(self.player.field, ability, self.now())
         if self.dice.random() < taming.bind_chance(c, target, creature, ability.tier):
             comp = taming.bind(c, creature, target.name)
-            f.fighters.remove(target)
+            combat.leave(f, target, "gone")
             f.tamed.append(comp.name)
             f.log.append(f"{f.player.name} binds {target.name} with {ability.name}; it is now a companion")
             combat.tell(f, f"{target.name} stops fighting and settles beside you - it is yours now ({comp.name}, a new companion)")
@@ -511,7 +560,7 @@ class FightService:
             return
         if self.dice.random() < taming.chance(c, target, creature):
             comp = taming.bind(c, creature, target.name)
-            f.fighters.remove(target)
+            combat.leave(f, target, "gone")
             f.tamed.append(comp.name)
             f.log.append(f"{f.player.name} tames {target.name}; it is now a companion")
             combat.tell(f, f"{target.name} stops fighting and settles beside you - it is yours now ({comp.name}, a new companion)")
@@ -566,6 +615,8 @@ class FightService:
         if not intent.step or intent.kind in ("move", "flee", "talk"):
             return False
         if intent.step == "advance":
+            if target is not None and bf.attack_access(f, p, target).ok:
+                return False                              # (f670) already in reach: no step to take, and the round is the blow's
             if p.pace == "slow":
                 story = (bf.approach(f, p, target) if target else "") or "moves up"
                 f.log.append(f"{p.name} {story}")
@@ -641,18 +692,10 @@ class FightService:
     # ---------- the character and the fighter
 
     def refresh(self, fight: combat.Combat) -> str:
-        """Attribute points spent in the middle of a fight: bring the fighter's maximums, attributes and defences in line with the character,
-        and add what each maximum gained to the current value (the same rule as outside a fight), so the bars and spell costs agree.
-        The one Character -> Fighter path, for every player fighter (f508). Returns sync's note."""
+        """The character changed in the middle of a fight (an attribute point spent): each player fighter rebuilt from its character
+        by the one Character -> Fighter step (combat.rebuild, f508), which keeps what the fight itself did. Returns sync's note."""
         for c, p in self.cast(fight):
-            fresh = combat.fighter_from_character(c, p.id)
-            for cur, top in (("hp", "max_hp"), ("stamina", "max_stamina"), ("mana", "max_mana")):
-                gained = getattr(fresh, top) - getattr(p, top)
-                setattr(p, top, getattr(fresh, top))
-                if gained > 0:
-                    setattr(p, cur, min(getattr(p, top), getattr(p, cur) + gained))
-            p.attrs = fresh.attrs
-            p.ward, p.armor = fresh.ward, fresh.armor
+            combat.rebuild(p, c)
         return self.sync(fight)
 
     def sync(self, fight: combat.Combat) -> str:
@@ -703,7 +746,7 @@ class FightService:
         party = self.player.party
         ids = {a.id for a in fallen}
         by_id = {a.id: a for a in fight.fighters}
-        notes, seen, changed = [], [], False
+        notes, seen, changed, died = [], [], False, []
         now = self.now()
         for m in list(party):
             if m.get("npc") or m.get("tutorial"):
@@ -721,6 +764,7 @@ class FightService:
                     self.party.bury(m)
                 else:
                     self.party.kill(m)                           # an old-style hireling who went down does not get back up
+                died.append(m["id"])
                 notes.append(f"{m['name']} has fallen.")
                 changed = True
             elif m.get("permanent") and fid in by_id:
@@ -741,16 +785,18 @@ class FightService:
         if changed or seen:
             self.store.save_player(self.player)
         notes += self.companions_after(fight, {a.id for a in fallen if a.id.startswith("ally_")})
-        return Aftermath(notes, seen, bool(ids), changed)
+        return Aftermath(notes, seen, bool(ids), changed, died)
 
     def companions_after(self, fight: combat.Combat, fallen_ids: set) -> list:
-        """A companion who went down is out for a day, and may not survive. A Bound summon unmade in the fight stays unmade until
-        its spell is cast again. Returns the notes for the player."""
+        """A companion who went down is out for a day, and may not survive. What the fight did to each character's Bound summon is
+        written back from that character's own fighter (engine/summons.py after_fight). Returns the notes for the player."""
         c = self.player.character
         notes = []
-        note = summons.after_fight(c, fight)
-        if note:
-            notes.append(note)
+        for ch, me in self.cast(fight) if isinstance(fight, combat.Combat) else ():   # (f749) each bond from its own fighter; a stand-in has none
+            note = summons.after_fight(ch, fight, me)
+            if note:
+                notes.append(note)
+        if notes:
             self.store.save_player(self.player)
         rules = combat.RULES["creatures"]["companion_fall"]
         changed = False
@@ -783,7 +829,7 @@ class FightService:
             self.store.save_player(self.player)
         return notes
 
-    def yields(self, fight: combat.Combat, allowed: bool = True) -> None:
+    def yields(self, fight: combat.Combat, allowed: bool = True, among: set | None = None) -> None:
         """(f392) A won fight against outlaws can leave one who lives and yields (arcs.yaml prisoner.chance): chosen here among the fallen,
         before the after-fight passage is written, so the story and the captive agree. It used to be rolled afterwards, among the dead:
         a night's run had an outlaw narrated dead and then throwing down his weapon. An arc's camp has its leader's own way, and a dungeon
@@ -792,7 +838,8 @@ class FightService:
         f = fight
         if not allowed:
             return
-        fallen = [e for e in f.fighters if e.side == "enemy" and not e.alive and e.category in R["people_categories"]]
+        fallen = [e for e in f.fighters if e.side == "enemy" and not e.alive and e.category in R["people_categories"]
+                  and (among is None or e.id in among)]           # (f663) among: those standing when the winning round began
         if not fallen or any(e.alive and e.surrendered for e in f.fighters if e.side == "enemy"):
             return
         PR = R["prisoner"]
@@ -878,12 +925,15 @@ class FightService:
         c.coins += coins
         return leveling.gain_xp(c, xp)
 
-    def captives(self, fight: combat.Combat, yielded: list, leader: str | None = None) -> list:
+    def captives(self, fight: combat.Combat, yielded: list, place: str, leader: str | None = None) -> list:
         """Foes who yielded and are taken: people can be bound and kept (questioned, let go, handed to the watch); the rest wait on the
         player (f385). (f392) No more than walk bound at once (lifecycles.yaml captive.most_escorted): the rest wait on the player's word
         like any foe who yields. An arc's camp leader is taken by the camp's own way (arc_actions.camp_fight_over). Returns the records,
-        strongest first, each named apart from every name already in the save (f422)."""
+        strongest first, each with a people (the one their kind names, else that of `place`, the id of the place the fight is in) and a
+        name and gender built for it by npc/names.pick, apart from every name already in the save and from each other (f422)."""
+        from engine import look
         from engine.arcs import A as R
+        from npc import names
         present = tuple(entities.L["captive"]["present_with_player"])
         escorted = list(dict.fromkeys(e.links.get("npc", "") for e in self.store.find_entities(kind="captive", state=present, owner="player")))
         room = entities.L["captive"]["most_escorted"] - len(escorted)
@@ -891,14 +941,16 @@ class FightService:
         if not ppl:
             return []
         rng = streams.keyed("surrender", fight.serial)                                               # (f501) the fight's own die
-        taken = {n.split()[0].lower() for n in self.store.npc_names() if n}            # (f422) no two captives, or a captive and a
-        out = []                                                                            # townsman, share a name in one save
-        for e in ppl:
-            free = [n for n in R["prisoner"]["names"] if n.split()[0].lower() not in taken] or R["prisoner"]["names"]
-            name = rng.choice(free)
-            taken.add(name.split()[0].lower())
+        peoples = self.world.peoples_at(place)
+        taken = list(self.store.npc_names())
+        out = []
+        for i, e in enumerate(ppl):
             kind = re.sub(r" ?\d+$", "", re.sub(r"\s*\([^)]*\)", "", e.name)).strip()            # (f422) no "(bounty)" on what they are
-            out.append(Captive(name, kind, e.level, e.creature, e.id, rng.random() < R["prisoner"]["tip_chance"]))
+            folk = look.people_named(f"{e.creature} {kind}", peoples)
+            namer = streams.keyed("captive_name", fight.serial, n=i)                     # (f746) its own die: the tip's keep theirs
+            name, gender = names.pick(folk, taken, namer)
+            taken.append(name)
+            out.append(Captive(name, kind, e.level, e.creature, e.id, rng.random() < R["prisoner"]["tip_chance"], folk, gender))
         return out
 
     FALLBACK_FIRST = ["Ashen", "Hollow", "Ember", "Gloam", "Thorn", "Dusk", "Varr", "Kestrel", "Wraith", "Sable", "Oath", "Rime"]

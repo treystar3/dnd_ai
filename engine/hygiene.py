@@ -38,7 +38,13 @@ PLAYER = re.compile(r"\b([Tt])he player(?!s)(?!\s+of\b)('s)?(\s+([A-Za-z]+))?")
 QUOTED = re.compile(r'"[^"]*"|“[^”]*”'                                  # someone's words, or (f447) words written on a page:
                     r"|(?<![\w])'(?=\S)(?:[^']|'(?=\w))*?(?<=\S)'(?!\w)"      # in single quotes, its own apostrophes kept ('I'm done')
                     r"|‘(?:[^’]|’(?=\w))*’")
-FIRST = re.compile(r"\b(I|[Mm]e|[Mm]y|[Mm]ine|[Mm]yself)\b")
+FIRST = re.compile(r"\b(I|[Mm]e|[Mm]y|[Mm]yself)\b")
+_FS = H.get("first_person_senses") or {}
+_words = lambda k: "|".join(map(re.escape, _FS.get(k) or ["(?!)"]))
+MINE_OWN = re.compile(                                                     # (f693) "mine" is first person only as a possessive
+    rf"\b(?i:{_words('mine_after')})[ \t]+(?:all[ \t]+)?mine\b|'s[ \t]+(?:all[ \t]+)?mine(?=[ \t]*(?:[^\w\s]|$))"
+    rf"|(?:^|[.!?][ \t]+|\n)Mine[ \t]+(?:{_words('mine_opens')}|'s)\b")
+RULER = re.compile(rf"\b(?:{_words('ruler_titles')})[ \t]+[A-Z][a-z]+[ \t]+I\b")     # (f693) King Harald I: a numeral
 # (f404) "[h4_damage_implied/hidden_by_rules? No wait, use events only.]": the model's note to itself. A bracket that is not a blow's tag
 # and has the marks of one: an underscore, a question, a slash, a broken tag (h4...), or four words or more.
 NOTE = re.compile(r"[ \t]*\[(?!\s*h\d+\s*\])(?=[^\]\n]*(?:_|\?|/|\bh\d|(?:\S+\s+){3}\S))[^\]\n]{1,240}\]")
@@ -67,6 +73,22 @@ def prose_of(value, key: str = "") -> list[str]:
     return []
 
 
+_SP = H.get("speech") or {}
+_STIFF = re.compile(r"\b(?:" + "|".join(re.escape(w) for w in sorted(_SP.get("uncontracted", []), key=len, reverse=True)) + r")\b"
+                    + r"(?=\s+(?!(?:" + "|".join(re.escape(w) for w in _SP.get("not_after", [])) + r")\b)[A-Za-z])", re.I) \
+    if _SP.get("uncontracted") else None
+
+
+def stiff_speech(text: str) -> list[str]:
+    """(f714) The uncontracted pairs in one speaker's words when there are more of them than hygiene.yaml speech.most, else []."""
+    found = [m.group(0) for m in _STIFF.finditer(text or "")] if _STIFF else []
+    return found if len(found) > int(_SP.get("most", 1)) else []
+
+
+def stiff_reason() -> str:
+    return str(_SP.get("reason", ""))
+
+
 def problem(task: str, value) -> tuple[str, str]:
     """(kind, what was found) for the first thing in this answer's prose that is the machinery's, or ('', '')."""
     for t in prose_of(value):
@@ -86,7 +108,8 @@ def problem(task: str, value) -> tuple[str, str]:
         if m:
             return "player", m.group(0).split("'")[0].strip()
         if task in NARRATOR:
-            m = FIRST.search(QUOTED.sub(" ", t))
+            said = QUOTED.sub(" ", t)
+            m = FIRST.search(RULER.sub(" ", said)) or MINE_OWN.search(said)
             if m:
                 return "first_person", m.group(0)
     return "", ""
@@ -181,6 +204,10 @@ def clean(text: str) -> str:
     lead = re.match(r'^\s*\{\s*"[A-Za-z_]+"\s*:\s*"', t)
     if lead:
         t = t[lead.end():]
+        REPAIRS["json"] += 1
+    tail = re.search(r'"\s*,?\s*$', t)
+    if tail and (t.count('"') + t.count("“") + t.count("”")) % 2 == 1 and tail.start() > 0:   # (f688) a field's closing quote and comma left on the passage: 'doorframe.",'
+        t = t[:tail.start()].rstrip()
         REPAIRS["json"] += 1
     m = JSON_BITS.search(t)
     if m and m.start() > 0:
@@ -313,6 +340,13 @@ def undash_answer(task: str, value) -> None:
 
 def problems() -> list[str]:
     bad = []
+    if not (H.get("phantom") or {}).get("reason") or not (H.get("phantom") or {}).get("before"):          # (f701)
+        bad.append("hygiene.yaml: needs phantom.reason and phantom.before")
+    for k in ("mine_after", "mine_opens", "ruler_titles"):                    # (f693)
+        if not (H.get("first_person_senses") or {}).get(k):
+            bad.append(f"hygiene.yaml: needs first_person_senses.{k}")
+    if not (_SP.get("uncontracted") and isinstance(_SP.get("most"), int) and _SP.get("reason")):          # (f714)
+        bad.append("hygiene.yaml: needs speech.uncontracted, speech.most and speech.reason")
     for k in ("prose_fields", "narrator_tasks", "reasons"):
         if not H.get(k):
             bad.append(f"hygiene.yaml: needs {k}")

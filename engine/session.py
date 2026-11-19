@@ -8,15 +8,15 @@ the open turn, the casting cache, the planned anchors, the world's reactions) st
 and a creation call or a backfill still running when the save closed ran on, so that had the next session's recorder been installed,
 its answer would have been written down as that session's.
 
-- CampaignSession.open(name) resets what it owns, opens the store (SaveTooNew propagates to the caller, who tells the player, as before)
+- CampaignSession.open(name) resets what it owns, opens the store (a save refused propagates to the caller, who tells the player)
   and presents the map: a CampaignWorld over the one authored World (world/campaign.py). (f633) What it owns is declared in
   engine/owned.py STATE, the one table of every piece of state outside a save: the rows that say how they are put back (the turn's
   registers, the acting character's caches, the campaign's) are reset at open (a session never closed, after a crash, leaves
   nothing behind) and at close, never at adopt.
 - adopt(store, world) wraps a store and a world a scene was built on the old way (a test's fixture, a harness, the hundred and twenty
   constructor sites the ratchet of f450 counts down): every scene has a session either way, and nothing is reset under the test's feet.
-- scene(catalog, player) builds the WorldScene on the session's store and world; record() installs the recorder, which close() closes
-  first, so the last input's state is written before the store goes.
+- scene(catalog, player) builds the WorldScene on the session's store and world, (f733) with the save's own places put back on its map;
+  record() installs the recorder, which close() closes first, so the last input's state is written before the store goes.
 - (f454) The session owns the event bus (engine/domain_events.py Bus) and makes it current while it plays: the scene's reactions and the
   journal subscribe on it, the scene's deeds and the party's changes are published on it, and close() clears it and leaves an IdleBus
   behind, which delivers to nobody and counts. A closed campaign's listeners never hear the next campaign's events.
@@ -82,11 +82,17 @@ class CampaignSession:
     def open(cls, name: str, saves_dir=None) -> "CampaignSession":
         """The session of the save of this name, made if there is none: the one way the game opens a campaign (main.py, tools/rerun.py,
         simlib.campaign). Nothing of a session before this one in the process, closed or not, reaches it."""
-        from storage.campaign import SAVES_DIR, CampaignStore
+        from storage.campaign import SAVES_DIR, CampaignStore, SaveRefused
         from world.campaign import CampaignWorld
         from world.loader import authored
         reset()
-        store = CampaignStore.open_or_create(name, saves_dir or SAVES_DIR)     # SaveTooNew propagates: the caller tells the player
+        try:
+            store = CampaignStore.open_or_create(name, saves_dir or SAVES_DIR)
+        except SaveRefused as e:                           # the caller tells the player; (f640) why a step failed is kept for the logs
+            if e.__cause__ is not None:
+                from engine import crashlog
+                crashlog.record(e.__cause__, "a save not brought up to this version", save=name)
+            raise
         return cls(store, CampaignWorld(authored()))
 
     @classmethod
@@ -97,7 +103,10 @@ class CampaignSession:
 
     def scene(self, catalog, player):
         from scenes.world import WorldScene
-        return WorldScene(self.store, self.world, catalog, player, session=self)
+        made = WorldScene(self.store, self.world, catalog, player, session=self)
+        made.restore_map()                                 # (f733) the save's own places on its map, whoever builds the scene and runs it or not
+        made.stand_read()                                  # (f736) ...and its character, if the save stands them off it, where they would wake
+        return made
 
     def record(self, apart: bool = False, folder=None, rows: bool = False):
         """(f440) Record this session, so the real turn can replay it (tools/rerun.py); closed first when the session closes. (f476) `rows`:
@@ -172,12 +181,14 @@ class CampaignSession:
                     rolled[k] = copy.deepcopy(home[k])
                 except Exception:
                     rolled[k] = home[k]
-        turn.snapshot = (self.world.snapshot(), held, rolled)     # (f499) the fight's marks are its row's: the transaction takes them back
+        from engine import ledger                      # (f499) the fight's marks are its row's: the transaction takes them back
+        turn.snapshot = (self.world.snapshot(), held, rolled, ledger.told_marks())   # (f720) ...and which of the turn's rows were told already
 
     def rollback(self, scene, op_id: str = "") -> None:
         """The turn rolled back (scenes/world.py reload_after_rollback, first thing): the map's additions, the scene's private caches,
         the ledger's rows and totals and the casting cache go back to the turn's start. The store's reload follows. (f463) With op_id,
-        one operation of the line rolled back: that operation's ledger rows alone go (engine/ledger.py rollback_op); the rest stand."""
+        one operation of the line rolled back: that operation's ledger rows alone go (engine/ledger.py rollback_op); the rest stand,
+        (f720) untold again where this operation took them to tell."""
         from engine import ledger
         if op_id:
             ledger.rollback_op(op_id)
@@ -187,8 +198,9 @@ class CampaignSession:
         turn = actor.turn_of(scene)
         if turn.snapshot is None:
             return
-        snap, held, rolled = turn.snapshot
+        snap, held, rolled, told = turn.snapshot
         turn.snapshot = None
+        ledger.untell(told)                            # (f720) rows of the line that this operation took to tell are untold again
         self.world.restore(snap)
         for k in [k for k in scene.__dict__ if k.startswith("_")]:
             del scene.__dict__[k]

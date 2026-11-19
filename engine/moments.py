@@ -91,22 +91,31 @@ def choose(ws, rng: random.Random, present: int) -> dict | None:
     return rng.choices(opts, weights=[float(s.get("weight", 1)) / (1 + times[s["id"]]) for s in opts])[0]
 
 
-def on_enter(ws) -> None:
-    """On arrival: a moment still on carries on (its visitor back in the room after a reload); one that ended while the player was away
-    is closed; otherwise one roll for this place and period."""
-    from engine import clock, pulse
-    pid = ws.player.location
-    st = ws.store.load_place(pid)
-    now = ws.minutes
-    if st.moment and st.moment.get("until", 0) > now:
+def carry_on(ws):
+    """A moment still on here carries on (its visitor back in the room after a reload); one that ended while the player was away is
+    closed. (f764) All an opening does of a moment (scenes/world.py restore): an opening is no arrival, so it rolls nothing. Returns the
+    place's record when no moment is on, else None."""
+    st = ws.store.load_place(ws.player_of(ws.acting).location)
+    if st.moment and st.moment.get("until", 0) > ws.minutes:
         if st.moment.get("visitor") and not any(n.id == st.moment["visitor"] for n in ws.residents) and ws.store.npc_exists(st.moment["visitor"]):
             v = ws.store.load_npc(st.moment["visitor"])
             if not v.gone:
                 ws.residents.append(v)
         ws.refresh_present()
-        return
+        return None
     if st.moment:
         end(ws, st)
+    return st
+
+
+def on_enter(ws) -> None:
+    """On arrival: a moment on carries on and one that ended is closed (carry_on); otherwise one roll for this place and period."""
+    from engine import clock, pulse
+    st = carry_on(ws)
+    if st is None:
+        return
+    pid = st.id
+    now = ws.minutes
     if ws.place.danger or not ws.world.peoples_at(pid) or ws.combat:
         return
     key = f"{clock.day(now)}:{clock.period(now)}"

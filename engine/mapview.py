@@ -1,17 +1,20 @@
 """The map: the world's settlements and wild places drawn on the illustrated map of Meravia.
 
-Where a place sits is in data/world/map.yaml (0-1000, x to the right, y down, north up); a place with no entry there falls back to its own
-x and y in places.yaml, and last to a spring layout of the travel times (always the same). The road shapes are in data/world/map_roads.json.
+Where a place sits is its own x and y in places.yaml, else its entry in data/world/map.yaml (0-1000, x to the right, y down, north up).
+A place with neither (a find, a dungeon's entrance, the stop on the road) sits off the drawn places by the ways it was made with; only
+a world with nothing drawn is laid out by springs of the travel times (always the same). The road shapes are in data/world/map_roads.json.
 Only places you have been, and the places they lead to, are shown; the rest of the map is fog."""
 import heapq
 import json
 import math
 import random
+import statistics
 
 import yaml
 from core import yamlio
 
 from core.paths import BUNDLE
+from engine import streams
 
 SIZE = 1000.0
 SETTLEMENTS = ("city", "town", "village")
@@ -55,7 +58,8 @@ def graph(world) -> dict[str, dict[str, int]]:
 
 
 def layout(world) -> dict[str, tuple[float, float]]:
-    """A place's own x and y if it has them, else a spring layout of the travel graph, scaled into 0..SIZE."""
+    """Each top-level place's own x and y if it has them, else where the map draws it; a place with neither is left for position().
+    A world with nothing drawn (no written road between two drawn places) is laid out by springs of the travel graph, into 0..SIZE."""
     c = world.cache("layout")                                  # (f452) the world's own; laid out once, never again when the map moves
     if "pos" in c:                                             # (a re-run would move every bearing word and part the kept recordings)
         return c["pos"]
@@ -67,12 +71,8 @@ def layout(world) -> dict[str, tuple[float, float]]:
         c["pos"] = dict(_LAYOUT_MEMO[key])                    # each world its own dict (f452): never another world's to change
         return c["pos"]
     drawn_now = _map_files()[0]
-    if all(i in drawn_now or None not in (getattr(world.places[i], "x", None), getattr(world.places[i], "y", None)) for i in ids):
-        out = {}                                               # (f558) every place drawn or placed: the spring layout would be thrown away
-        for i in ids:
-            p = world.places[i]
-            own = getattr(p, "x", None), getattr(p, "y", None)
-            out[i] = (own[0], own[1]) if None not in own else (float(drawn_now[i][0]), float(drawn_now[i][1]))
+    if _scale(world) is not None:                              # (f754) never springs on a drawn map: they moved each made place at every open
+        out = {i: xy for i in ids for xy in [_drawn_at(world.places[i], drawn_now)] if xy is not None}
         _remember(key, out)
         c["pos"] = out
         return out
@@ -145,19 +145,85 @@ def _layout_key(world, g: dict, ids: list) -> tuple:
                    getattr(world.places[i], "y", None), tuple(drawn.get(i) or ())) for i in ids),)
 
 
+def _drawn_at(place, drawn: dict) -> tuple[float, float] | None:
+    """A place's own x and y, else where the map draws it, else None."""
+    own = getattr(place, "x", None), getattr(place, "y", None)
+    if None not in own:
+        return (own[0], own[1])
+    return (float(drawn[place.id][0]), float(drawn[place.id][1])) if place.id in drawn else None
+
+
+def _scale(world) -> float | None:
+    """(f754) The drawn map's length for a minute's walk: the median over the written roads between two drawn places, so a made place
+    sits as far off as its walk is long with no number of its own. None when no written road joins two drawn places."""
+    c = world.cache("layout")
+    if "scale" not in c:
+        written = getattr(world, "authored", world)            # the written roads alone: a track found later leaves the scale as it is
+        drawn = _map_files()[0]
+        g = graph(written)
+        at = {i: _drawn_at(written.places[i], drawn) for i in g}
+        per = [math.dist(at[a], at[b]) / m for a in sorted(g) for b, m in sorted(g[a].items()) if a < b and m > 0 and at[a] and at[b]]
+        c["scale"] = statistics.median(per) if per else None
+    return c["scale"]
+
+
+def _off(pid: str, near: tuple[float, float], length: float) -> tuple[float, float]:
+    """(f754) `length` off `near`, at a heading drawn from the place's own id (the same in every session), inside the map's frame."""
+    a = math.radians(streams.fixed("map", pid).uniform(0, 360))
+    x, y = near[0] + math.sin(a) * length, near[1] - math.cos(a) * length
+    return (round(min(SIZE, max(0.0, x)), 1), round(min(SIZE, max(0.0, y)), 1))
+
+
+def _placed(world) -> dict[str, tuple[float, float]]:
+    """(f754) The laid-out places as they are, the rest in rings out from them by the ways they were made with (a found track left
+    out; a way to a place inside another is one to the place it is in): off one placed neighbour by its walk in the map's scale, or
+    amid several. A function of the save alone, so a made place sits in the same spot in every session."""
+    c = world.cache("layout")
+    mark = (getattr(world, "version", None), len(world.places))     # a campaign's map moves its version at every write
+    if mark[0] is not None and c.get("placed", (None,))[0] == mark:
+        return c["placed"][1]
+    at = dict(layout(world))
+    g = graph(world)
+    scale = _scale(world) or 0.0
+    tracks = {frozenset((world.roads[r].from_, world.roads[r].to)) for r in (world.added()["roads"] if hasattr(world, "added") else ())}
+    left = sorted(i for i in g if i not in at)
+    ways = {i: {n: m for n, m in g[i].items() if frozenset((i, n)) not in tracks} for i in left}
+    for i in left:
+        for n, m in sorted(world.places[i].connects.items()):
+            if n not in g and n in world.places and frozenset((i, n)) not in tracks:
+                ways[i].setdefault(top_of(world, n), m)
+        ways[i].pop(i, None)
+    while left:
+        ring = {}
+        for i in left:
+            near = sorted(n for n in ways[i] if n in at)
+            if len(near) == 1:
+                ring[i] = _off(i, at[near[0]], ways[i][near[0]] * scale)
+            elif near:
+                ring[i] = (sum(at[n][0] for n in near) / len(near), sum(at[n][1] for n in near) / len(near))
+        if not ring:
+            break
+        at.update(ring)
+        left = [i for i in left if i not in ring]
+    c["placed"] = (mark, at)
+    return at
+
+
 def position(world, pid: str) -> tuple[float, float]:
-    """(f452) Where a place sits on the map. A place made after the map was laid out (a find, a stop on the road, a dungeon's entrance)
-    sits where its neighbours are, or where its parent is; the rule the exits used (engine/exits.py), now the map's own, so #map standing
-    on such a place draws it instead of raising KeyError."""
+    """(f452) Where a place sits on the map: the rule the exits use too (engine/exits.py), so #map standing on a made place draws it.
+    (f754) A top-level place with no position of its own (a find, a stop on the road, a dungeon's entrance) is placed by _placed(); a
+    place inside another, or one no way joins to the map, sits where its neighbours are, or where its parent is."""
     pos = layout(world)
     if pid in pos:
         return tuple(pos[pid])
+    at = _placed(world)
+    if pid in at:
+        return tuple(at[pid])
     place = world.places.get(pid)
-    links = set(graph(world).get(pid, {})) | set(getattr(place, "connects", {}) or {})
-    near = [pos[n] for n in links if n in pos]
+    near = [at[n] for n in sorted(getattr(place, "connects", {}) or {}) if n in at]
     if not near:
         parent = getattr(place, "parent", None)
-        near = [pos[parent]] if parent in pos else []
+        near = [at[parent]] if parent in at else []
     if not near:
         return (0.0, 0.0)
     return (sum(x for x, _ in near) / len(near), sum(y for _, y in near) / len(near))

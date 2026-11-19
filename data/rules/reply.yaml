@@ -1,0 +1,108 @@
+# (f724) THE DECISION FOR A REPLY (docs/design/28_phase4_plan.md, Part A; engine/reply.py). Before a townsperson is asked to speak,
+# the engine settles what it can settle without reading the line: how they are for this talk (the stance, voice.yaml), the move
+# they make, and what they could share with the one in front of them and whether they would. The model is then asked only to say
+# it (f726).
+
+# The switch. false: people speak as they did, and nothing below is rolled or kept. The owner turns it on once the measures say
+# so (f728: no leaks in the gate's talk lines, talk time within a fifth of before, the owner's blind reading).
+decide_then_speak: false
+
+# THE MOVE: what they do with what was asked, one a reply, on the reply's own die. weight: how often, all else being equal.
+# needs: what must be true of them for the move to be theirs at all (concern: something weighs on them). by_stance, by_trust and
+# by_kit multiply a move's weight (a move not named is times 1; 0 takes it away): the stance of this talk, their trust in this
+# character (low: under `below`; high: `from` and over), and the habits of their voice (voices.yaml axes, option by option).
+# The same move comes at most `running` times in a row. When the game has decided something they must say in this reply (work
+# handed in, a check that won them over), the move is `forced`, whatever the dice and the run.
+# (f725) most: how many of the things they could tell the move lets them tell in one reply (what the game has decided they
+# tell, an opened secret, is over and above it). intent: what the reply comes to when the reading of the line fails and the
+# engine's own candidates are the whole decision. says: the move in plain words, as the model is told it.
+# (f728) wordless: under this move a look alone is a whole reply, so a companion's gesture is not held back for coming too soon.
+# The numbers are the owner's; these are the first proposal.
+moves:
+  running: 2
+  forced: answer
+  kinds:
+    answer:      {weight: 40, most: 4, intent: share, says: "You answer what was asked, as far as you know it."}
+    part:        {weight: 18, most: 1, intent: share, says: "You answer the part you care about and leave the rest."}
+    ask_back:    {weight: 12, most: 1, intent: small_talk, says: "You want to know something of them first: you ask it, and give little until you hear."}
+    own_trouble: {weight: 8, needs: concern, most: 0, intent: small_talk, says: "You turn to what weighs on you instead of what was asked."}
+    deflect:     {weight: 8, most: 0, intent: withhold, says: "You turn it aside: it is not yours to say, or they should ask someone else."}
+    joke:        {weight: 6, most: 0, intent: small_talk, says: "You make light of it."}
+    quiet:       {weight: 6, most: 0, intent: small_talk, wordless: true, says: "You give a word or two, or only a look."}
+  by_stance:
+    busy:      {answer: 0.8, part: 1.6, quiet: 1.6, joke: 0.5, own_trouble: 0.5}
+    wary:      {answer: 0.5, ask_back: 2.5, deflect: 2.0, joke: 0.3}
+    tired:     {part: 1.5, quiet: 2.0, joke: 0.5, ask_back: 0.5}
+    grievance: {own_trouble: 6.0}
+    after:     {ask_back: 2.0, own_trouble: 1.5}
+  by_trust:
+    low:  {below: 35, answer: 0.6, deflect: 2.0, quiet: 1.5, joke: 0.5}
+    high: {from: 65, answer: 1.3, joke: 1.5, deflect: 0.3, quiet: 0.5}
+  by_kit:
+    questions:
+      never: {ask_back: 0}
+      after: {ask_back: 1.5}
+      first: {ask_back: 2.0}
+    refusing:
+      flat:   {quiet: 1.5}
+      excuse: {deflect: 1.5}
+      turn:   {ask_back: 1.3}
+
+# (f728) A COMPANION'S MOVE. One who travels with the character makes a move each reply too: the same table, a die of their
+# own. They need no reading of the line (nothing of theirs is gated or offered), and they have no stance. trust: how each tier of
+# their bond (party.yaml bond.tiers) stands where a townsperson's trust in the character does, for by_trust above; a closer tier
+# is never less. What weighs on a companion is felt and shown, never the subject (quirks.yaml subtext), so a move that needs
+# a concern is not theirs. Told of a loss in the character's own life (quirks.yaml answer_told) the move is the forced one.
+# The numbers are the owner's; these are the first proposal.
+companion:
+  trust: {cold: 20, hired hand: 50, trusted: 70, devoted: 90}
+
+# (f725) THE READING: what only reading the line can settle (do they leave, refuse, bargain; which of the things they could
+# tell answers what was asked; a name given; work, a request or a thing offered; a promise made them). One small call before they
+# speak (npc/life.py decide), its answer checked by the engine (engine/reply.py take). lines: how many of the talk's last lines
+# it is given. max_tokens: the most its answer may be. temperature: low, it is a reading. (f726) memories: how many of their
+# latest memories of the one in front of them it is given.
+decide:
+  lines: 4
+  memories: 4
+  max_tokens: 200
+  temperature: 0.2
+
+# (f726) THE SPEAKING: the decision in plain words, as the one who speaks is told it (engine/reply.py words; npc/prompts.py
+# speak_prompt). They are told the move (its `says` above), then what the reading settled. intents: each intent a reply has, in
+# words ("" where the move's own words say it). tells: a name given, a thing handed over, paid work at the engine's figures, a
+# request; each with the places its figures go (yours: what a thing to carry is called when the reading named none).
+# speak.lived: how many things of their own days (what they lived through, about no one) the one who speaks is given beside
+# what they remember of the character in front of them. Never a thing they hold to tell: that is told only as decided.
+speak:
+  lived: 4
+intents:
+  small_talk: ""
+  share: ""
+  withhold: "You keep back what they asked for."
+  lie: "What you say of it is not so, and you say it as plainly as if it were."
+  bargain: "You name your price or your terms."
+  help: "You agree to it."
+  refuse: "You decline outright."
+  threaten: "You threaten them."
+  leave: "You end the talk here and step away, and you say so aloud: a goodbye, an excuse or a dismissal."
+tells:
+  name: "You give them your name."
+  yours: "something of yours"
+  gift: "You hand them {name} ({description}), and say that you do."
+  work: "You offer them paid work: {task}, about {minutes} minutes of it, for {pay} copper. Say the pay as it is."
+  hunt: "You ask their help with a need of yours: to hunt {count} {what}."
+  gather: "You ask their help with a need of yours: to bring you {count} {what}."
+  deliver: "You ask their help with a need of yours: to carry {item} to {to}."
+
+# WHAT THEY WOULD SHARE. Each thing they could say in this reply is of a kind; a kind under `trust` is told only to someone they
+# trust that far ("refusal": voice.yaml exemplars refusal_trust, the line under which their examples are refusals). What anyone
+# standing there can see (a happening in the street, a posting on the wall) is told to anyone. A clue is what the talk is for.
+# A secret has its own gate (scenes/arc_actions.py), and is theirs to tell only while it is open.
+share:
+  lore:      {trust: 0}
+  clue:      {trust: 0}
+  news:      {trust: refusal}
+  happening: {trust: 0}
+  board:     {trust: 0}
+  secret:    {gate: true}

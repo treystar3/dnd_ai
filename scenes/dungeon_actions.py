@@ -17,7 +17,7 @@ class DungeonActions:
     def ensure_dungeons(self) -> None:
         """Make a dungeon beneath each dangerous wild place, remake any that are due, and put entrances on the map."""
         known = {d["place"]: d for d in self.store.load_dungeons()}
-        changed = False
+        made = set()
         for place in [p for p in self.world.places.values() if p.danger and p.type != "dungeon"]:
             if place.danger[1] < D["min_zone_level"] or place.id in dungeons.FIXED_PLACES:
                 continue
@@ -32,16 +32,23 @@ class DungeonActions:
                 if d is not None:
                     if self.player.delve and self.player.delve.get("dungeon") == d["id"]:
                         self.player.delve = None
-                        console.note(f"{cap_first(d['name'])} has shifted and been remade - your progress there is lost.")
+                        console.note(f"{cap_first(d['name'])} has shifted and been remade. Your progress there is gone.")
                     fresh["entrance"] = d["entrance"]
                     self.void_dungeon_contracts(d["id"], fresh)
                 known[place.id] = fresh
-                changed = True
-        if changed:
+                made.add(place.id)
+        if made:
             self.store.save_dungeons(list(known.values()))
-        for d in known.values():                                    # (f451) through the campaign's world
-            if d["entrance"] not in self.world.places:
-                self.world.add_place(dungeons.entrance_place(d, self.world))
+        self.place_dungeons(known.values(), made)
+
+    def place_dungeons(self, known, made=()) -> None:
+        """Each dungeon's entrance and its way on the map (f451: through the campaign's world). (f733) The read half restore_map puts
+        back at every open; a dungeon made or remade here (`made`, by the place above it) replaces the entrance the map held."""
+        for d in known:
+            if d["place"] not in self.world.places:
+                continue                        # (f733) its place gone from the data: left off, as a home or a find is, so the save opens
+            if d["entrance"] not in self.world.places or d["place"] in made:
+                self.world.add_place(dungeons.entrance_place(d, self.world), replace=True)
             self.world.link(d["place"], d["entrance"], 10)
 
     def dungeon_here(self) -> dict | None:
@@ -73,13 +80,13 @@ class DungeonActions:
         if console.panel("dungeon", {"name": d["name"], "theme": d["theme"], "beneath": self.world.places[d["place"]].name, "remade_days": days,
                                      "floors": floors, "on_floor": (delve["floor"] + 1) if delve else 0}):
             return
-        console.note(f"{d['name'].upper()} - a {d['theme']} beneath {self.world.places[d['place']].name}. "
+        console.note(f"{d['name'].upper()}: a {d['theme']} beneath {self.world.places[d['place']].name}. "
                      f"Remade in {days} days.")
         for i, fl in enumerate(d["floors"]):
             n = len(fl["chambers"])
             done = n if i < cf else (cc + 1 if i == cf else 0)
             boss = " · boss" if i == len(d["floors"]) - 1 else ""
-            console.note(f"  floor {i + 1} [{fl['letter']}] - {done}/{n} chambers cleared{boss}")
+            console.note(f"  floor {i + 1} [{fl['letter']}]: {done}/{n} chambers cleared{boss}")
             if self.owns("arcane_echoes") or (self.owns("spirit_guide") and self.companion_here()):
                 kinds = sorted({self.world.bestiary[ch["creature"]].name.lower() for ch in fl["chambers"] if ch["kind"] == "fight"})
                 traps = sum(ch["kind"] == "trap" for ch in fl["chambers"])
@@ -124,11 +131,11 @@ class DungeonActions:
             for i in range(chamber["count"]):
                 name = chamber.get("name") or (d["boss_name"] if rank == "boss" else creature.name.lower() + (f" {i + 1}" if chamber["count"] > 1 else ""))
                 foes.append(combat.fighter_from_creature(creature, chamber["level"], rank, f"e{i + 1}", name, "near"))
-            self.dungeon_fight = (d["id"], f, c, d["made"])
-            from scenes.combat_scene import CombatScene
-            console.note(label + (" - the master of this place waits here." if rank == "boss" else ""))
+            from scenes.combat_scene import CombatScene, purpose
+            console.note(label + (". The master of this place waits here." if rank == "boss" else ""))
             self.combat = CombatScene.begin(self, creature, foes, f"In the {d['theme']}'s depths ({label.lower()}),",
-                                            big="lair" if rank == "boss" else "")
+                                            big="lair" if rank == "boss" else "",
+                                            purpose=purpose(self, "dungeon", dungeon=d["id"], floor=f, chamber=c, made=d["made"]))
             return
         console.note(label)
         if kind == "trap":
@@ -154,8 +161,9 @@ class DungeonActions:
                 self.to_pack(item)
                 found.append(item.name)
             console.ledger(f"Found: {', '.join(found)}.")
-            self.narrate(f"The player finds a cache in a chamber of {d['name']}: {', '.join(found)}. Describe where it was "
-                         f"hidden, fitting a {d['theme']}.", text)
+            self.narrate(f"The player finds a cache in a chamber of {d['name']} and takes it: {', '.join(found)}, now in their purse and "
+                         f"pack, nothing of it left lying there. Describe where it was hidden, fitting a {d['theme']}, and the player "
+                         "taking it.", text)                                # (f670) told as taken: a later 'take the pouch' found it empty
         elif kind == "rest":
             self.player.delve["rest"] = True
             self.narrate(f"The player reaches a quiet chamber in {d['name']} - nothing lives here, and it would be a "
@@ -223,17 +231,14 @@ class DungeonActions:
                 self.store.save_world_state(state)
         self.store.save_player(self.player)
 
-    def dungeon_fight_over(self, outcome: str) -> None:
-        """Called when a fight that started in a dungeon ends."""
-        info = getattr(self, "dungeon_fight", None)
-        self.dungeon_fight = None
-        if not info:
-            return
-        d = next((x for x in self.store.load_dungeons() if x["id"] == info[0]), None)
-        if d is not None and d["made"] != info[3]:
+    def dungeon_fight_over(self, outcome: str, info: dict) -> None:
+        """Called when a fight that started in a dungeon ends. (f765) `info` is the fight's purpose: the dungeon, floor, chamber and
+        when the dungeon was made."""
+        d = next((x for x in self.store.load_dungeons() if x["id"] == info.get("dungeon")), None)
+        if d is not None and d["made"] != info.get("made"):
             return  # the dungeon was remade mid-fight
         if outcome == "victory" and d:
-            self.chamber_cleared(d, info[1], info[2])
+            self.chamber_cleared(d, info["floor"], info["chamber"])
         elif outcome == "fled":
             console.note("You fall back to the chamber you came from. The way ahead is still held.")
         elif outcome == "defeat":
@@ -247,7 +252,7 @@ class DungeonActions:
         self.player.delve = None
         self.advance(15, exert=True)
         self.store.save_player(self.player)
-        console.note(f"You climb back out of {d['name']}. Your progress is kept until it is remade.")
+        console.note(f"You climb back out of {d['name']}. You'll pick up where you left off, unless the place is remade first.")
         self.narrate(f"The player climbs back up out of {d['name']} into the open air.", text)
 
     def dungeon_search(self, text: str) -> None:

@@ -8,7 +8,7 @@ import random
 import re
 from types import SimpleNamespace
 
-from engine import clock, combat, money, party, pools, quests
+from engine import clock, combat, money, party, pools, quests, world_perks
 from ui import console
 
 G = quests.G
@@ -29,9 +29,29 @@ class TrialActions:
 
     def trial_due(self) -> str | None:
         """The rank this member has earned on paper (level and contracts), if any: it is theirs once they win the trial."""
-        if not self.rank:
+        p = self.player_of(self.acting)
+        if not p.guild_rank:
             return None
-        return quests.promotion_due(self.rank, self.player.character.level, self.player.guild_done, 1 if self.owns("born_to_rank") else 0)
+        return quests.promotion_due(p.guild_rank, p.character.level, p.guild_done, 1 if world_perks.owns(p.character, "born_to_rank") else 0)
+
+    def trial_standing(self) -> None:
+        """The register's answer to where the acting member stands toward the next rank: held at the top, earned on paper, or what is
+        still missing."""
+        p = self.player_of(self.acting)
+        if not p.guild_rank:
+            return
+        nxt = quests.next_rank(p.guild_rank)
+        if not nxt:
+            console.note(f"You already hold the highest rank, {p.guild_rank}.")
+            return
+        if self.trial_due():
+            console.note(f"You have earned rank {nxt} on paper. To hold it you must win a trial against an examiner of that rank: "
+                         f"say \"I'd like to take the trial\".")
+            return
+        need = G["ranks"][nxt]["requires"]
+        counted = sum(n for l, n in p.guild_done.items() if quests.LETTERS.index(l) >= quests.LETTERS.index(p.guild_rank))
+        console.note(f"The register says you are not ready to stand for rank {nxt}: level {need['level']} (you are {p.character.level}) and "
+                     f"{need['completed']} contracts at {p.guild_rank} or higher (you have {counted}).")
 
     def at_guild_hall_here(self) -> bool:
         return self.place.type == "guild" and bool(self.rank)
@@ -59,25 +79,11 @@ class TrialActions:
                 console.note("Trials of rank are held at a guild hall.")
                 return True
             return False
-        if self.rank == quests.LETTERS[-1]:
-            console.note(f"You already hold the highest rank, {self.rank}.")
-            return True
         nxt = self.trial_due()
-        if QUESTION.search(text) and not STANDING.search(text):     # "what do I need for the next rank?" asks; it does not step into the ring
-            if nxt:
-                console.note(f"You have earned rank {nxt} on paper. To hold it you must win a trial against an examiner of that rank: "
-                             f"say \"I'd like to take the trial\".")
-                return True
-            nxt = quests.next_rank(self.rank)
-        if not nxt:
-            nxt = quests.next_rank(self.rank)
-            need = G["ranks"][nxt]["requires"]
-            counted = sum(n for l, n in self.player.guild_done.items() if quests.LETTERS.index(l) >= quests.LETTERS.index(self.rank))
-            lvl = self.player.character.level
-            console.note(f"The register says you are not ready to stand for rank {nxt}: level {need['level']} (you are {lvl}) and "
-                         f"{need['completed']} contracts at {self.rank} or higher (you have {counted}).")
+        if not nxt or (QUESTION.search(text) and not STANDING.search(text)):   # (f739) who is due decides; a question is answered, not fought
+            self.trial_standing()
             return True
-        wait = self.player.trial.get("wait_until", -1)
+        wait = self.player_of(self.acting).trial.get("wait_until", -1)
         if self.minutes < wait:
             console.note(f"No examiner will see you yet. Come back in {clock.describe_duration(wait - self.minutes)}.")
             return True
@@ -104,13 +110,18 @@ class TrialActions:
         f.side = "enemy"
         return f, role
 
-    def trial_start(self, nxt: str) -> None:
-        c = self.player.character
-        t = self.player.trial
+    def trial_start(self, nxt: str) -> bool:
+        """The one way into a trial: True when the duel began."""
+        me = self.player_of(self.acting)
+        if not nxt or self.trial_due() != nxt:                  # (f739) no caller starts a trial for a rank the register has not earned
+            self.trial_standing()
+            return False
+        c = me.character
+        t = me.trial
         f, role = self.examiner(nxt)
         t.update(pending=nxt, examiner=f.name, tries=t.get("tries", 0) + 1,
                  pools={p: float(getattr(c, p)) for p in pools.POOLS})
-        self.store.save_player(self.player)
+        self.store.save_player(me)
         master = nxt == quests.LETTERS[-1]
         label = "the guild master" if master else f"a rank-{nxt} guild member"
         console.note(f"Trial for rank {nxt}: you face {f.name}, {label}. Nobody dies here: the first blow that would end a fighter decides it. "
@@ -120,6 +131,7 @@ class TrialActions:
         scene = SimpleNamespace(name=f.name, temperament="aggressive")
         from scenes.combat_scene import CombatScene
         self.combat = CombatScene.begin(self, scene, [f], "", duel=intro)
+        return True
 
     def trial_over(self, won: bool, fight) -> None:
         c = self.player.character
@@ -138,7 +150,7 @@ class TrialActions:
         else:
             wait = T["retry_days"] * clock.MINUTES_PER_DAY
             t["wait_until"] = self.minutes + wait
-            console.note(f"You lose the trial. You keep rank {self.rank}. You may stand again in {clock.describe_duration(wait)}.")
+            console.note(f"You lose the trial. You keep rank {self.rank}, and you can try again in {clock.describe_duration(wait)}.")
             self.narrate(f"[THE GAME HAS DECIDED: the player lost the trial for guild rank {nxt}; {who}, the examiner, stops the blow and "
                          "tells the player plainly what they lacked. The blows were pulled and nobody is hurt.] Describe the moment.", "")
         self.store.save_player(self.player)

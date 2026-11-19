@@ -6,6 +6,7 @@ Mixed into WorldScene. A button click runs quietly: one line in the log, no narr
 
 from engine import clock, crafting, inventory as inv, items, money, needs, pools, pulse
 from engine import regard                                   # (f480)
+from engine.names import cap_first
 from scenes.inventory_actions import quality_name
 from ui import console
 
@@ -31,6 +32,12 @@ class ShopActions:
         return round(base * max(0, 1 - off / 100) * pulse.price_factor(self.store, self.world, self.player.location, self.minutes, good)
                      * self.heat_price() * getattr(self, "haggle_factor", 1.0))                  # (f332) a price a haggle won
 
+    @staticmethod
+    def with_level(item, text: str) -> str:
+        """(f672) A row's words with the item's level written once: the summary's own when it has one, else put first. The page sets the
+        dot after it (app.js tidy): "lv 6 · · lv 6" was the level written by the shop, the summary and the page."""
+        return text if text.startswith("lv ") else f"lv {item.item_level} {text}"
+
     def wares_of(self, npc) -> list:
         """(f545) What this person sells: their trade's list, and what they really hold of a good (a situation's stock, sold until it is
         gone). Every reader of a seller's wares asks here."""
@@ -43,10 +50,11 @@ class ShopActions:
         rope ladder", "grain alcohol")."""
         if not wanted:
             return None
-        asked = inv._plain_words(wanted)
-        return next((w for w in wares if w.id == wanted), None) or next((w for w in wares if wanted in w.name.lower()), None) or \
-            next((w for w in wares if asked and asked[-1] in inv.ware_words(w)
-                  and asked[-1] in {inv._head(w.name), inv._head(w.id.replace("_", " "))}
+        head = inv.asked_head(wanted)                    # (f655) "a room for the night" asks for a room, never the night
+        return next((w for w in wares if w.id == wanted), None) or \
+            next((w for w in wares if re.search(rf"\b{re.escape(inv.asked_part(wanted))}\b", inv.asked_part(w.name))), None) or \
+            next((w for w in wares if head and head in inv.ware_words(w)
+                  and head in {inv._head(w.name), inv.asked_head(w.name), inv._head(w.id.replace("_", " "))}
                   | ({inv._head(inv.GOODS[w.item].name)} if w.kind == "item" and w.item in inv.GOODS else set())), None)
 
     def quote_ware(self, seller, ware, announce: bool = False):
@@ -56,8 +64,8 @@ class ShopActions:
                                     or self.player.free_room_day == clock.day(self.minutes)):
             ware = ware.model_copy(update={"price": 0})
             if announce:
-                console.note("The room is yours tonight, free - " + ("you're well thought of here."
-                             if self.player.free_room_day != clock.day(self.minutes) else "paid for with a song."))
+                console.note("The room is yours tonight, free. " + ("You're well thought of here."
+                             if self.player.free_room_day != clock.day(self.minutes) else "Your song paid for it."))
         return ware
 
     def sell_rate(self, item, buyer) -> float:
@@ -79,10 +87,87 @@ class ShopActions:
 
     # ---------- doing it ----------
 
-    def buy_ware(self, seller, ware, text: str = "", quiet: bool = False) -> bool:
-        """Pay for one of a seller's listed wares (food, rooms, materials, goods). ware is the unpriced listing."""
+    SINGLY = "That is sold one at a time. Ask for one."
+    ROOM_SINGLY = "Rooms go one at a time, for one night. Ask for a room."
+    MOST_AT_ONCE = 99                                         # (f646) how_many's own most (scenes/inventory_actions.py)
+
+    @staticmethod
+    def count_asked(intent) -> int:
+        """(f646) How many a purchase asks for: the reading's own count, never a number read out of a name ("a meal for the two of
+        us", "Blade of Seven Stars"), which would spend coin nobody offered."""
+        return max(1, int(getattr(intent, "count", 1) or 1))
+
+    def one_only(self, intent) -> bool:
+        """(f646) A thing sold singly (a piece of gear, a mount, a house) asked for in a number: refused in a line, before anything
+        is paid."""
+        if self.count_asked(intent) <= 1:
+            return False
+        self.refuse(self.SINGLY)
+        return True
+
+    def held_of(self, seller, ware) -> list:
+        """(f646) The rows of what this seller holds of a ware sold from their own stock."""
+        from engine import situation_parts
+        return situation_parts.held(self.store, seller.id, ware.item)
+
+    @staticmethod
+    def several(name: str, n: int, measure: bool = False) -> str:
+        """(f646) A ware by its number, as a person would say it: "a jar of wine" is "three jars of wine", "bandage" "two bandages";
+        and a good sold by measure under its bare name ("salt") is "three measures of salt"."""
+        from engine import mentor, quests
+        if n <= 1:
+            return name
+        bare = re.sub(r"^(?:a|an|the|some)\s+", "", name.strip(), flags=re.I)
+        word = next((w for w, k in mentor.WORD_NUM.items() if k == n), str(n))
+        if measure:
+            return f"{word} measures of {bare}"
+        head, of, rest = bare.partition(" of ")
+        return f"{word} {head if head.endswith('s') else quests.plural(head)}{of}{rest}"
+
+    def ware_several(self, ware, n: int) -> str:
+        """(f646) A seller's ware by its number (several). What they hold goes by the good's bare name ("wine"): it is said as the
+        trades sell it ("jars of wine"), or by measure when no trade does and it is a good of that kind."""
+        good = inv.GOODS.get(ware.item) if ware.kind == "item" else None
+        name = ware.name
+        if good is not None and name == good.name:
+            name = next((w.name for r in self.world.roles.values() for w in r.sells if w.kind == "item" and w.item == good.id), name)
+        return self.several(name, n, measure=good is not None and bool(good.mass) and name == good.name)
+
+    @staticmethod
+    def set_down(st, what: str) -> str:
+        """(f646) Several bought and the pack too full (f417): none of them fit, or only some."""
+        none = st.kept is None
+        return f"They have {what}, but no room to carry {'them' if none else 'all of them'}: {'they are' if none else 'the rest is'} set down here."
+
+    def buy_ware(self, seller, ware, text: str = "", quiet: bool = False, count: int = 1) -> bool:
+        """Pay for a seller's listed ware (food, rooms, materials, goods), `count` of it (f646). ware is the unpriced listing."""
         c = self.player.character
+        n = held = max(1, int(count))                         # (f646) held: how many of them come out of what the seller holds
+        if n > 1 and ware.kind == "room":                     # (f646) before the quote: a free room is not announced and then refused
+            self.refuse(self.ROOM_SINGLY)
+            return False
+        if n > self.MOST_AT_ONCE:                             # (f646) refused, never cut to what is sold and charged for that
+            self.refuse(f"No one sells more than {self.MOST_AT_ONCE} of a thing at once.")
+            return False
+        if ware.kind == "room" and self.player.room == self.player.location and self.player.room_until > self.minutes:
+            console.note("You already have a room here until mid-morning tomorrow. No charge.")   # (f730) theirs already: no refusal, no quote, the line goes on
+            return True
         ware = self.quote_ware(seller, ware, announce=True)
+        if n > 1:                                             # (f646) a count asked for is kept whole, or refused in a line
+            total = ware.price * n
+            if ware.id.startswith("stock:"):                  # what they hold first; the rest from their trade's own list, at its price
+                have = sum(int(e.data.get("count", 0)) for e in self.held_of(seller, ware))
+                trade = next((w for w in self.world.roles[seller.role].sells if w.kind == "item" and w.item == ware.item), None)
+                if have < n and trade is None:
+                    self.refuse(f"{cap_first(seller.label(self.acting))} has only {'the one' if have == 1 else self.ware_several(ware, have)} to sell.")
+                    return False
+                held = min(have, n)
+                if held < n:
+                    total = ware.price * held + self.quote_ware(seller, trade).price * (n - held)
+            if c.coins < total:
+                self.refuse(f"{cap_first(self.ware_several(ware, n))} come to {money.words(total)}, and you have {money.words(c.coins)}.")
+                return False
+            ware = ware.model_copy(update={"price": total, "name": self.ware_several(ware, n)})
         if c.coins < ware.price:
             if quiet:
                 console.note(f"You can't afford {ware.name} ({money.fmt(ware.price)}). Purse: {money.fmt(c.coins)}")
@@ -90,9 +175,6 @@ class ShopActions:
                 self.narrate(f"The player tries to pay {seller.label(self.acting)} for {ware.name}, which costs {money.words(ware.price)}, "
                              f"but they only have {money.words(c.coins)}. Show the awkward moment.", text)
                 self.halted = True
-            return False
-        if ware.kind == "room" and self.player.room == self.player.location and self.player.room_until > self.minutes:
-            self.refuse("You already have a room here until mid-morning tomorrow. No charge.")
             return False
         c.coins -= ware.price
         self.use_barter()                                    # (f418) the price it bought was the bargained one
@@ -103,22 +185,25 @@ class ShopActions:
             self.player.room, self.player.room_until = self.player.location, nights_end
             effect = "They are shown a small room upstairs that is theirs until mid-morning tomorrow."
         elif ware.kind == "material" and ware.item:
-            st = self.to_pack(items.make_raw(ware.item))
-            effect = f"They take {ware.name}." if st.left is None else f"They have {ware.name}, but no room to carry it: it is set down here."
+            st = self.to_pack(items.make_raw(ware.item).model_copy(update={"quantity": n}))
+            effect = (f"They take {ware.name}." if st.left is None
+                      else f"They have {ware.name}, but no room to carry it: it is set down here." if n == 1 else self.set_down(st, ware.name))
         elif ware.kind == "item" and ware.item:
-            if ware.id.startswith("stock:"):                          # (f545) from what they hold: one fewer, until it is gone
+            if ware.id.startswith("stock:"):                          # (f545) from what they hold: that many fewer, until it is gone
                 from engine import situation_parts
-                situation_parts.take_stock(self.store, seller.id, ware.item, 1, self.minutes, "sold_out")
-            st = self.to_pack(inv.make_good(ware.item, 1))           # (f417) a full pack: it is bought, and set down here, not pocketed
-            effect = (f"They put {inv.GOODS[ware.item].name} in their pack." if st.left is None
-                      else f"They have {inv.GOODS[ware.item].name}, but no room in their pack for it: it is set down here.")
+                situation_parts.take_stock(self.store, seller.id, ware.item, held, self.minutes, "sold_out")
+            st = self.to_pack(inv.make_good(ware.item, n))           # (f417) a full pack: it is bought, and set down here, not pocketed
+            what = inv.GOODS[ware.item].name if n == 1 else ware.name
+            effect = (f"They put {what} in their pack." if st.left is None
+                      else f"They have {what}, but no room in their pack for it: it is set down here." if n == 1 else self.set_down(st, what))
         elif ware.kind in ("meal", "drink"):
             meal = needs.N["meal"]
             share = {"stamina": 0.25, "health": meal["health"] / 100} if ware.kind == "meal" else {"stamina": 0.08, "health": 0.0}
-            for pool, part in share.items():
-                top = pools.maximum(c, pool)
-                setattr(c, pool, min(top, pools.current(c, pool) + top * part))
-            needs.eat(c, meal["feeds"] if ware.kind == "meal" else 5)
+            for _ in range(n):                                        # (f646) each one paid for is eaten or drunk
+                for pool, part in share.items():
+                    top = pools.maximum(c, pool)
+                    setattr(c, pool, min(top, pools.current(c, pool) + top * part))
+                needs.eat(c, meal["feeds"] if ware.kind == "meal" else 5)
             effect = "They eat and feel restored." if ware.kind == "meal" else "They drink."
             from engine import world_perks
             if ware.kind in world_perks.P["tavern_ear"]["wares"]:
@@ -135,7 +220,7 @@ class ShopActions:
             if ware.kind == "room":
                 console.note("A room upstairs is yours until mid-morning tomorrow.")
             elif ware.kind in ("meal", "drink"):
-                console.note(effect)
+                console.note("You eat, and feel better for it." if ware.kind == "meal" else "You drink.")   # (f712) the player's, not the narrator's
         else:
             self.narrate(f"The player pays {seller.label(self.acting)} for {ware.name}, and the coins change "
                          f"hands. {effect} Describe the exchange.", text)
@@ -245,7 +330,7 @@ class ShopActions:
                 note = f"needs you at level {need} to equip" if c.level < need else ""
                 relic = i.uid.startswith("relic_")
                 lines.append({"kind": "stock", "key": i.uid, "name": f"{i.name}, {i.title}" if relic else quality_name(i), "rarity": i.rarity,
-                              "detail": f"lv {i.item_level} · {i.description if relic else items.summary(i)[:90]}",
+                              "detail": self.with_level(i, i.description if relic else items.summary(i)[:90]),
                               "price": price, "price_text": money.fmt(price), "price_short": money.short(price), "afford": c.coins >= price, "note": note})
             sellers.append({"id": n.id, "name": n.label(self.acting), "wares": lines,
                             "buys": [b for b in role.buys if b != "any"] or (["anything"] if "any" in role.buys else [])})

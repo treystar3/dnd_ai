@@ -63,7 +63,7 @@ from scenes.world import WorldScene
 from storage.campaign import CampaignStore, PlayerState
 from ui import console
 from world.loader import load_world
-shutil.rmtree("saves/guard_test", ignore_errors=True)
+shutil.rmtree(simlib.saves_path("guard_test"), ignore_errors=True)
 world = load_world(); store = CampaignStore.open_or_create("guard_test"); store.meta.seed = 3; store.save_meta()
 char, _ = simlib.make_character("warrior", random.Random(2))
 store.save_player(PlayerState(character=char, location="parth"))
@@ -72,8 +72,8 @@ console.put("note", lambda t, *a, **k: notes.append(t)); console.put("narrate", 
 ws = WorldScene(store, world, load_traits(), store.load_player()); ws.player.mentor["never"] = True
 ws.enter("parth")
 ws.remember_narration("A passage the player did not like.")
-config.REPORTS_PATH = "saves/guard_test/reports"
-config.LOG_PATH = "saves/guard_test/llm_calls.jsonl"
+config.REPORTS_PATH = str(simlib.saves_path("guard_test/reports"))
+config.LOG_PATH = str(simlib.saves_path("guard_test/llm_calls.jsonl"))
 Path(config.LOG_PATH).write_text(json.dumps({"turn": ws.store.meta.turn, "task": "narrate", "attempt": 0, "error": None, "raw": '{"text": "A passage the player did not like."}'}) + "\n", encoding="utf-8")
 ws.command("#report that passage was out of place")
 files = sorted(Path(config.REPORTS_PATH).glob("*.json"))
@@ -96,6 +96,6 @@ check("no creature carries a name that is a trademark outside the SRD", "mind fl
       and all(c.family != "mind_flayer" for c in world.bestiary.values()))
 check("a store build can turn the release check off", getattr(config, "UPDATE_CHECK", None) is True and 'getattr(config, "UPDATE_CHECK", True)' in Path("main.py").read_text(encoding="utf-8"))
 
-shutil.rmtree("saves/guard_test", ignore_errors=True)
+shutil.rmtree(simlib.saves_path("guard_test"), ignore_errors=True)
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")
 sys.exit(1 if bad else 0)

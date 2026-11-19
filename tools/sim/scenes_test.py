@@ -33,10 +33,14 @@ data["places"].append({"place": {"id": "x_reopen_probe", "name": "the Reopen Pro
 t.store.save_discoveries(data)
 t.ws.ensure_discoveries()
 check("a place the scene added is on its session's map", "x_reopen_probe" in t.ws.world.added()["places"])
+from world.loader import Place
+old_map = t.ws.world
+old_map.add_place(Place(id="x_unsaved_probe", name="the Unsaved Probe", type="wild", region=authored().places[here].region, visible=["A probe."]))
 t.reopen()
 check("a reopen is a new session over the same save, the old one closed, the scene's its own", t.session is not first and first.closed and t.ws.session is t.session)
-check("...its map is read from the store: the find is absent until ensured from it, then back", "x_reopen_probe" not in t.ws.world.added()["places"]
-      and (t.ws.ensure_discoveries(), "x_reopen_probe" in t.ws.world.added()["places"])[1], t.ws.world.added()["places"])
+# (f733) the new scene is made over the save's map: the saved find is back with no run() and no ensure, the unsaved place is not
+check("...its map is read from the store: the saved find is back on a map of its own, the place never saved is not", t.ws.world is not old_map
+      and "x_reopen_probe" in t.ws.world.added()["places"] and "x_unsaved_probe" not in t.ws.world.places, t.ws.world.added()["places"])
 t.close()
 check("...and closing the table leaves nothing of it in the process", simlib.residue() == {}, simlib.residue())
 

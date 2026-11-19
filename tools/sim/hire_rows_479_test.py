@@ -41,7 +41,7 @@ check("a hire's thirty memories are all rows, the ninth and the thirtieth among 
       and any(LINES[8] == r["text"] for r in rows) and any(LINES[29] == r["text"] for r in rows), len(rows))
 check("...typed: what they lived with the player is experienced, about the player, seen first hand",
       all(r["kind"] == "experienced" and r["subject"] == "player" and r["source"] == "self" for r in rows), rows[:1])
-raw = json.loads(store._kv_text("player"))
+raw = json.loads(store.player_text())
 check("the player's record carries none of a hire's memories", all("memories" not in m for m in raw["party"]), list(raw["party"][0]))
 back = store.load_player()
 check("...and a reload gives the hire the window of eight the party always read", len(back.party[0]["memories"]) == memory.HIRE_WINDOW
@@ -68,7 +68,7 @@ check("a dismissed hire's rows stay", len(memory.records(store, "hire:h1")) == 3
 game.close()
 
 # ---- an older save (v10) with three hires of eight memories each comes forward and reads the same
-root = Path("saves/hire_rows_479_old")
+root = simlib.saves_path("hire_rows_479_old")
 shutil.rmtree(root, ignore_errors=True)
 root.mkdir(parents=True)
 db = sqlite3.connect(root / "campaign.db")
@@ -93,7 +93,7 @@ check("v11: three hires' eight memories each become rows, and read back the same
       and all(len(memory.records(st, f"hire:o{k}")) == 8 for k in range(3)) and before == after, (before[1], after[1]))
 check("...the told one told, the counted one counted, the keyed one keyed", [r["kind"] for r in memory.records(st, "hire:o0")].count("told") == 1
       and any(r["times"] == 2 for r in memory.records(st, "hire:o0")) and any(r["about"] == "k3" for r in memory.records(st, "hire:o0")))
-check("...and the player's record no longer carries them", all("memories" not in m for m in json.loads(st._kv_text("player"))["party"]))
+check("...and the player's record no longer carries them", all("memories" not in m for m in json.loads(st.player_text())["party"]))
 st.close()
 shutil.rmtree(root, ignore_errors=True)
 

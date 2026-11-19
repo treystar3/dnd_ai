@@ -3,6 +3,7 @@
 same words, after a session of walks, talk, fights and road stops the night bot chooses, a pane command, and a turn the model failed
 that was rolled back and tried again. And the source keeps it so: no unseeded generator, no roll of the global random module, no draw
 from the machine's own entropy outside character creation, and no uuid, in the game's code."""
+# suite: serial (f717)
 import ast, json, os, pathlib, random, shutil, subprocess, sys
 sys.path.insert(0, ".")
 import simlib
@@ -70,11 +71,11 @@ print("RESULT " + json.dumps({"all": statehash.digest(store)["all"], "after": AF
 
 # ---- one save, played twice in two processes
 for s in ("det439_base", "det439_a", "det439_b"):
-    shutil.rmtree(f"saves/{s}", ignore_errors=True)
+    shutil.rmtree(simlib.saves_path(s), ignore_errors=True)
 simlib.campaign("det439_base", seed=39, turn=1, minutes=480).close()      # (f450) the suite's one way to open a campaign
 for s in ("det439_a", "det439_b"):
-    shutil.copytree("saves/det439_base", f"saves/{s}")
-script = pathlib.Path("saves/det439_child.py")
+    shutil.copytree(simlib.saves_path("det439_base"), str(simlib.saves_path(s)))
+script = simlib.saves_path("det439_child.py")
 script.write_text(CHILD, encoding="utf-8")
 runs = {}
 for name, hseed in (("det439_a", "1"), ("det439_b", "2")):
@@ -94,7 +95,7 @@ if "all" in a and "all" in b:
     check("...after every input, not only at the end", a["after"] == b["after"], first)
     check("...and the player was shown the same words", a["shown"] == b["shown"] and a["lines"] == b["lines"], (a["lines"], b["lines"]))
 for s in ("det439_base", "det439_a", "det439_b"):
-    shutil.rmtree(f"saves/{s}", ignore_errors=True)
+    shutil.rmtree(simlib.saves_path(s), ignore_errors=True)
 script.unlink(missing_ok=True)
 
 # ---- the source keeps it so

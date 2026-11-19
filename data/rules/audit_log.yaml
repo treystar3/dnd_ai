@@ -17,6 +17,7 @@ tasks:
   combat_narrate:        "the narrator describing a round of a fight"
   dialogue_frame:        "the narrator framing a spoken line with what the speaker does"
   npc_conversation:      "a person of the world answering the player"
+  npc_decide:            "reading what a person of the world does with what the player said, before they speak"
   npc_profile:           "writing a person's personality the first time they are spoken to"
   populate_place:        "making the people of a place the first time it is entered"
   hire_chat:             "a hired companion answering the player"

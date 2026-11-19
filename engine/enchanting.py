@@ -142,8 +142,8 @@ def enchant(c: Character, item: Item, option: Option, rng: random.Random) -> tup
     chance = success_chance(item)
     c.coins -= cost
     if option.reagent:
-        reagent = next(i for i in c.inventory if i.base == "raw_material" and i.material == option.reagent)
-        c.inventory = [i for i in c.inventory if i.uid != reagent.uid]
+        from engine import crafting
+        crafting.use_material(c.inventory, option.reagent, 1)          # (f740) one off the stack, as the question says, not the whole Item
     if rng.uniform(0, 100) >= chance:
         return False, "The binding fails. The reagent is spent and the fee is gone."
     from engine import accessories

@@ -194,10 +194,9 @@ class OrennaActions:
         creature = self.world.bestiary["bound_executioner"]
         foe = combat.fighter_from_creature(creature, self.player.character.level + 1, "elite", "e1", "the Bound Executioner", "near")
         foe.yields_at, foe.yield_text = E["yield_at"], E["yield_story"]
-        self.orenna_fight = "executioner"
-        from scenes.combat_scene import CombatScene
+        from scenes.combat_scene import CombatScene, purpose
         console.narrate(E["fight_intro"])
-        self.combat = CombatScene.begin(self, creature, [foe], "Facing you,")
+        self.combat = CombatScene.begin(self, creature, [foe], "Facing you,", purpose=purpose(self, "orenna", foe="executioner"))
         return True
 
     # ---------- the seal, in the fight with the High Keeper ----------
@@ -265,16 +264,12 @@ class OrennaActions:
             keeper.boss["guards"] = bosses.B["max_guards"]      # his witnesses are gone: no one steps in to defend him
         bound = combat.fighter_from_creature(exec_c, lvl - 1, "elite", "e2", "the Bound Executioner", "near")
         bound.bound = True
-        self.orenna_fight = "keeper"
-        from scenes.combat_scene import CombatScene
-        self.combat = CombatScene.begin(self, keeper_c, [keeper, bound], "Before you,", big="lair")
+        from scenes.combat_scene import CombatScene, purpose
+        self.combat = CombatScene.begin(self, keeper_c, [keeper, bound], "Before you,", big="lair", purpose=purpose(self, "orenna", foe="keeper"))
 
-    def orenna_fight_over(self, outcome: str) -> None:
-        kind = getattr(self, "orenna_fight", None)
-        self.orenna_fight = None
-        if not kind:
-            return
-        if kind == "executioner":
+    def orenna_fight_over(self, outcome: str, info: dict) -> None:
+        """(f765) `info` is the fight's purpose: which of the quest's two fights it was."""
+        if info.get("foe") == "executioner":
             if outcome == "victory":
                 console.narrate(O["executioner"]["yield"])
             return

@@ -3,13 +3,13 @@ fight's opening and in every round, a single open zone included: so the prose an
 hazardous zone says its own hazard where the data names one (hazards), else treacherous footing. The block is headed as facts to show
 only when they matter, in the narrator's own words. Nothing the engine hands over for open ground speaks of walls or crates, and no
 tag phrase stands word for word in a recorded fight's narrations."""
-import gzip, json, random, re, sys
+import json, random, re, sys
 sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 71)
 simlib.install(stub)
 from pathlib import Path
-from engine import battlefield as bf, battlefield_builder as bb, combat, data_check
+from engine import battlefield as bf, battlefield_builder as bb, combat, data_check, recording
 from engine.battlefield import BattleEdge, BattleZone, Battlefield
 from scenes import combat_prompts as cp
 from world.loader import authored
@@ -170,13 +170,12 @@ stub.plan = None
 # ---- no tag phrase stands word for word in a recorded fight's narrations
 phrases = list(W.values()) + list(H.values()) + ["treacherous footing that can wound"]
 told, copied = 0, []
-for calls in sorted(Path("data/replay/sessions").glob("*/calls.jsonl.gz")):
-    for raw in gzip.open(calls, "rt", encoding="utf-8"):
-        row = json.loads(raw)
+for calls in sorted(p for p in Path("data/replay/sessions").iterdir() if recording.calls_file(p)):
+    for row in recording.read_calls(calls):
         if str(row.get("task", "")).startswith("combat_") and "interpret" not in str(row.get("task")):
             told += 1
             answer = str(row.get("answer", "")).lower()
-            copied += [(calls.parent.name, p) for p in phrases if p.lower() in answer]
+            copied += [(calls.name, p) for p in phrases if p.lower() in answer]
 check(f"no tag phrase is copied into any of {told} recorded fight narrations", told > 0 and not copied, copied)
 
 # ---- held at start-up
@@ -229,6 +228,25 @@ with tempfile.TemporaryDirectory() as d:
     check("--note writes the date, the reason, the cost and the inputs set into the estimates' header, as comments",
           "2026-01-01" in head and "f999: a reason, owner accepts up to 1 s" in head and f"stub_fight inputs {i}" in head
           and yaml.safe_load(after) == want, head[-400:])
+
+with tempfile.TemporaryDirectory() as d:                             # (f700) a plain input, no speech and no fight, grown dearer
+    kept = Path(d) / "baseline.yaml"
+    folder = latency.GOLDENS / "stub_short"
+    gated = latency.speech_inputs(folder) | latency.fight_inputs(folder)
+    est = base["estimates"]["stub_short"]
+    lim = card_profile.budget_limit()
+    with budget.priced(**(base.get("priced_at") or {})):
+        today_short = {k: round(s, 1) for k, s in card_profile.estimate_inputs(folder, expected=True)}
+    j = next(k for k in est if k not in gated and est[k] < lim - 1 and today_short.get(k) == est[k])
+    at = text.index("  stub_short:", text.index("estimates:"))
+    cheap = text[:at] + text[at:].replace(f"    {j}: {est[j]}", f"    {j}: {round(est[j] - 0.1, 1)}", 1)
+    kept.write_text(cheap, encoding="utf-8", newline="")
+    said = latency.rekeep(0.2, N, path=kept, today="2026-01-01")
+    check("a plain input grown dearer is re-kept too, at today's price", f"input {j}" in said
+          and yaml.safe_load(kept.read_text(encoding="utf-8"))["estimates"]["stub_short"][j] == est[j], said)
+    kept.write_text(cheap, encoding="utf-8", newline="")
+    said = latency.rekeep(0.2, N, path=kept, limit=est[j] - 0.05)
+    check("...and refused when it would carry that input over the limit", said.startswith("refused") and kept.read_text(encoding="utf-8") == cheap, said)
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

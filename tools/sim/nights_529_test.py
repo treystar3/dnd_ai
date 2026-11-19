@@ -14,6 +14,7 @@
 - server_back waits for a restarting server and gives up on one that failed for good (tools/sim/nightrun_test.py).
 
 Run: python tools/sim/nights_529_test.py"""
+# suite: serial (f717)
 
 import ast
 import glob
@@ -32,6 +33,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT / "tools" / "sim"))
+import simlib                                               # (f741) a saves folder of the test's own, run by hand too
 
 import config
 from llm import backend, runtime, sampling, worker
@@ -53,7 +55,7 @@ lay = Layout(base)
 CFG = runtime.settings()
 
 # ---- a night of three runs at once, each on a server of its own
-for d in glob.glob(str(ROOT / "saves" / "nights529*")):
+for d in glob.glob(str(simlib.saves_path() / "nights529*")):
     shutil.rmtree(d, ignore_errors=True)
 out = base / "night"
 env = lay.env(cuda=[THE_3060], FAKE_LOAD_SECONDS="0.3", FAKE_SEED="5")
@@ -85,7 +87,7 @@ if runs and (runs[0] / "recording").is_dir():
     check("the recorded run replays exactly", rr.returncode == 0 and last[0].startswith("all ") and "inputs matched" in last[0], (rr.stdout + rr.stderr)[-800:])
 else:
     check("the recorded run replays exactly", False, "no recording")
-for d in glob.glob(str(ROOT / "saves" / "nights529*")):
+for d in glob.glob(str(simlib.saves_path() / "nights529*")):
     shutil.rmtree(d, ignore_errors=True)
 
 # ---- no tool sends the backend the old client's keywords

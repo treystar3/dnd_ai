@@ -32,11 +32,18 @@ class AuditActions:
             abilities={k: a.name for a in self.player.character.actives for k in (a.id.lower(), a.name.lower())},
             place=self.place.name, wildlife=bool(self.wildlife),
             partner=self.partner.label(self.acting) if self.partner else "",
-            workers={n.id for n in self.present if offer_open(self.store, n, self.acting)}, people_at=self.people_at)
+            workers={n.id for n in self.present if offer_open(self.store, n, self.acting)}, people_at=self.people_at,
+            hunts=self.hunted_here)
         sit.lines = [f"Place: {sit.place}.", "People here: " + (", ".join(sit.present.values()) or "no one") + ".",
                      "Talking with: " + (sit.partner or "no one") + ".",
                      "Pack: " + (", ".join(self.pack_names()) or "empty") + "."]
         return sit
+
+    def hunted_here(self, target: str) -> bool:
+        """(f698) Does a target name a creature the acting character's place holds (its roster, read and never written)?"""
+        from engine import encounters
+        roster = encounters.roster_of(self.store, self.world, self.player_of(self.acting).location)
+        return bool(roster and self.creature_named(roster, target))
 
     def people_at(self, place: str) -> set[str]:
         """(f384) Who is found at a place, by id, name, label and work, lower case: what a talk after a walk may be aimed at."""
@@ -105,6 +112,8 @@ class AuditActions:
             from scenes import plan_repairs
             self.__dict__.setdefault("repairs", []).append({"rule": "audit_fix", "before": plan_repairs.brief(plan), "after": plan_repairs.brief(res.plan)})
         self.log_turn(text, sit, raw_plan, res, time.perf_counter() - start)
+        if res.dropped:
+            console.debug(f"audit dropped its own unasked additions: {'; '.join(res.dropped)}")    # (f707)
         if res.status == "changed":
             console.debug(f"audit changed the plan: {res.verdict or res.reason}")
         if res.status == "failed":
@@ -164,18 +173,18 @@ class AuditActions:
         path = folder / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_turn{turn}.json"
         path.write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
         refusals.note("reported", note or "(no note)", "the player flagged what was shown", self.player.location, turn)
-        console.note(f"Reported. What you just read, your note and the calls behind it are saved in {path}. Nothing is sent anywhere.")
+        console.note(f"Reported. What you just read and your note are saved in {path}, with the game's records behind them. Nothing is sent anywhere.")
         return str(path)
 
     def ask_back(self, kind: str, text: str, why: str, meaning: str = "", place: str = "") -> None:
         """(f321) A line that could not be read is answered with one question in character - from the one being spoken to, or a beat from
         the narrator - and the player's next line is read together with this one. Every one is logged as a refusal."""
         from engine import refusals
-        if getattr(self, "pending_clarify", None):                       # asked once already and still unread: say so plainly, once
+        if getattr(self, "pending_clarify", None) and not getattr(self, "_question_let_go", False):   # asked once already and still unread (f713: not a new line)
             def give_up():
                 refusals.note("clarify_failed", text, why, self.player.location, self.store.meta.turn)
                 self.pending_clarify = None
-                console.note("That still didn't come through - try it in different words.")
+                console.note("Still not sure what you mean. Try it in different words.")
             self.clarify_commit(text, give_up)
             return
         people = ", ".join(f"{n.id}: {n.label(self.acting)}" for n in self.present) or "nobody"
@@ -197,9 +206,10 @@ class AuditActions:
             elif asked:
                 console.narrate(asked)
             else:
-                console.note("I'm not sure what you meant - could you say it another way?")
+                console.note("I'm not sure what you meant. Could you say it another way?")
             refusals.note(kind, text, why, self.player.location, self.store.meta.turn, asked)
-            self.pending_clarify = {"text": text, "question": asked, **({"place": place} if place else {})}   # (f428) a far place asked about
+            own = getattr(self, "last_text", "") or text                  # (f713) the line the player typed, never an earlier join: questions never chain
+            self.pending_clarify = {"text": own, "question": asked, **({"place": place} if place else {})}   # (f428) a far place asked about
         self.clarify_commit(text, commit)
 
     def clarify_commit(self, text: str, fn) -> None:
@@ -220,5 +230,5 @@ class AuditActions:
                      partner=self.partner.id if self.partner else "", last_spoken=self.last_spoken or "",
                      raw=raw_plan, final=[s.model_dump(exclude_defaults=True) for s in res.plan],
                      risk=res.risk, audit=res.status, meaning=res.meaning, described=res.described,
-                     verdict=res.verdict, reason=res.reason, calls=res.calls, seconds=round(seconds, 2),
+                     verdict=res.verdict, reason=res.reason, calls=res.calls, seconds=round(seconds, 2), dropped=list(res.dropped),
                      repairs=list(getattr(self, "repairs", [])), interpreter=list(getattr(self, "interpret_calls", [])))

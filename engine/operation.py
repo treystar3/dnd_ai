@@ -41,6 +41,9 @@ class Operation:
     crashed: bool = False           # (f466) ...and which of the two
     void: bool = False              # (f470) nothing took the line inside it: ended without a record, nothing written, nothing shown
     actor: str = ""                 # (f629) the character whose entry opened it (engine/actor.py who); "" when none was bound
+    did: list = field(default_factory=list)        # (f644) what it did, in the player's terms, said as it ran; kept for the line, not saved
+    speech: bool = False            # (f644) it did not stand because someone's spoken words could not be written
+    aim: str = ""                   # (f715) what its step set out to do, as a clause ("speak with the clerk"), named if it did not stand
 
     def record(self) -> dict:
         """What the save keeps of it: no lines (they are the presentation entry's) and no state (a record is a commit)."""
@@ -56,8 +59,10 @@ class Operation:
         for name, a, k in self.held:
             if name in ("combat_state", "combat_panel"):           # (f497) the fight's pane: load re-shows it from the row (scenes/world.py enter)
                 continue
-            if name == "marker":
-                out.append(["marker", [], {}])
+            if name == "waited":                                   # (f722) earlier operations' lines are their own entries': here, whose
+                out.append(["waited", [e[4] for e in a[0]], {}])
+            elif name == "marker":
+                out.append(["marker", ["line"] if a[0][0] == "line" else [], {}])   # (f722) the line's one passage, or its own
             elif name == "legendary_reveal":
                 from engine import items
                 out.append(["note", [f"A legendary find: {items.display_name(a[0])}."], {}])
@@ -67,6 +72,16 @@ class Operation:
 
 
 PRESENTED_KEEP = 400              # (f467) what reached the page is taken per input by the recorder; without one, the last few hundred are kept
+PLAYERS = {"line", "passage", "round", "aftermath", "goddess", "opening", "naming", "clarify"}   # (f684) the player's own operations,
+PLAYERS_PREFIX = ("action:", "command:", "act:")                                                 # and these families of them
+
+
+def players_own(kind: str) -> bool:
+    """(f684) One of the player's own operations (a step, a fight's round, a telling, their own act ruled), whose time the turn's budget
+    keeps for the line; every other kind is the world's (arrival, law, tail, the board, a situation's own)."""
+    return kind in PLAYERS or kind.startswith(PLAYERS_PREFIX)
+
+
 TELLING = {"passage", "round", "aftermath", "goddess", "opening"}   # (f470) operations that are the call itself (the telling): not counted; (f498) the fight's opening
 
 
@@ -116,6 +131,14 @@ def begin(kind: str, steps: int, index: int, revision_seen: int, text: str = "",
     mine.claim()                                    # (f633) the turn is the thread's that opened it
     mine.operation = op
     return op
+
+
+def did(what: str) -> None:
+    """(f644) The open operation did this, in the player's terms (a step's summary, what was handed in and paid): what a line that
+    stood in part names, if this operation commits. Said outside any operation, it is said to nobody."""
+    op = current()
+    if op is not None and what:
+        op.did.append(what)
 
 
 def current() -> Operation | None:

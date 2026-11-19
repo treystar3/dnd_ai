@@ -47,7 +47,12 @@ class ExitActions:
         top = self.here_top()
         if not top or self.player.delve or self.combat:
             return False
-        gp, why = exits.match(self.world, top, text)
+        deeds = self.own_deeds(text)                     # (f654) words told to someone are no way out
+        gp, why = exits.match(self.world, top, deeds)
+        named = self.landmark_named(deeds, aimed=True) if gp or why else None
+        if named is not None and named[1]:               # (f709) down a road to a thing kept on it, named wholly: there, not the far end
+            self.go_landmark(named[0], text)
+            return True
         if gp:
             self.leave_by(gp, text)
             return True
@@ -56,6 +61,13 @@ class ExitActions:
             self.refuse(why + (f" Roads out of here: {rows}." if rows else ""))
             return True
         return False
+
+    def own_deeds(self, text: str) -> str:
+        """(f654) The line less the words said to someone here ("I tell the guard the road north is clear"): the clauses said to no one,
+        and the player's own part of those said to someone ("I tell Hollis goodbye and head out the north gate")."""
+        from engine import addressing
+        spoken = {a.clause: a.mine for a in addressing.addressed(text or "", self.addressees_here())}
+        return " . ".join(spoken.get(c, c) for c in addressing.clauses(text or "") if spoken.get(c, c))
 
     def goroad_click(self, text: str, back_to: str = "places") -> None:
         """The pane's hidden command:  #goroad <direction>  (#maproad from the map pane, which redraws the map instead of the places list)"""
@@ -154,7 +166,7 @@ class ExitActions:
         members, fork = gp["members"], gp["fork_minutes"]
         if exits.wants_back(text):
             self.advance(fork, exert=True)
-            console.note("You turn back and walk the road home.")
+            console.note("You turn back and walk the way you came.")
             return True
         chosen = exits.pick(gp, text)
         if chosen is None:

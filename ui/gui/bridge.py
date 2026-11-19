@@ -34,6 +34,21 @@ def is_view(text: str) -> bool:
     return text.startswith("#") and text[1:].strip().lower() in VIEWS
 
 
+SAID = ("create:name", "create:calling")     # (f671) the player's own words sent by a creation page's box: shown as said, without the prefix
+
+
+def echoed(text: str) -> str:
+    """(f671) What the page shows of a line sent: '' for a view, a pane's button or any machinery (HIDDEN, the creation pages' choices);
+    the player's own words from a creation box without their prefix; else the line as typed."""
+    low = text.lower()
+    head = next((s for s in SAID if low.startswith(s)), "")
+    if head:
+        return text[len(head):].strip()
+    if is_view(text) or low.startswith(HIDDEN) or low.startswith("create:"):
+        return ""
+    return text
+
+
 class Closed(SystemExit):
     """Raised inside the game when the window is gone and a sub-prompt would otherwise wait forever."""
 
@@ -223,8 +238,9 @@ class Bridge:
                 return "quit"
             raise Closed()
         text = text.strip()
-        if not is_view(text) and not text.lower().startswith(HIDDEN):
-            self.emit(k="echo", text=text)
+        shown = echoed(text)
+        if shown:
+            self.emit(k="echo", text=shown)
         if not text.startswith("#"):
             self.dirty = True
         return text

@@ -5,6 +5,8 @@ and narrates the round from the engine's log.
 """
 
 import re
+from dataclasses import dataclass
+from typing import Callable
 
 from core.models import Item
 import config
@@ -16,7 +18,7 @@ from llm.gateway import LLMError, generate
 from scenes import combat_prompts as cp
 from scenes.voice import fresh
 from ui import console
-from engine import actor, asked, streams
+from engine import actor, asked, streams, telling
 from services.fight import FightService, FightSpec, RoundIntent, ROLE_PROFILES, _Shape, whose_blow   # (f503) the fight's mechanics; the
 #                                                                             helpers kept importable from here (party_actions, tests)  # noqa
 
@@ -142,6 +144,43 @@ def read_effect(words: str) -> str:
     return combat_improv.effect_by_words(words)
 
 
+@dataclass(frozen=True)
+class Kind:
+    """(f765) One kind of fight that is for something beyond itself: what its end does (the outcome, the purpose's facts, the fallen,
+    who yielded), what a fight of it let go of at load hands on, and what is read of it while it is fought."""
+    over: Callable                                           # (ws, outcome, data, dead, yielded) when the fight ends
+    let_go: Callable | None = None                           # (ws, data) when a saved fight of the kind cannot be resumed
+    hold: bool = False                                       # a party told to hold back reaches the fight later
+    yields: bool = True                                      # a foe may be rolled to yield at a won fight's end
+    takes: str = ""                                          # the fact naming the foe the kind takes alive by its own way
+    away_told: Callable = lambda data: False                 # the kind tells a foe's getting away itself: no plain line for it
+
+
+# (f765) what a fight is for, by kind: one place, so a fight resumed after a close ends as it would have, and a new kind says it all here
+PURPOSES: dict[str, Kind] = {
+    "dungeon": Kind(over=lambda ws, outcome, data, dead, yielded: ws.dungeon_fight_over(outcome, data)),
+    "camp": Kind(over=lambda ws, outcome, data, dead, yielded: ws.camp_fight_over(outcome, data, dead, yielded),
+                 hold=True, yields=False, takes="leader"),
+    "orenna": Kind(over=lambda ws, outcome, data, dead, yielded: ws.orenna_fight_over(outcome, data),
+                   away_told=lambda data: data.get("foe") == "executioner"),
+    "gate": Kind(over=lambda ws, outcome, data, dead, yielded: events.assault_over(ws, outcome, data),
+                 let_go=lambda ws, data: events.assault_unfought(ws, data)),
+}
+
+
+def purpose(ws, kind: str, **data) -> combat.Purpose:
+    """(f765) What a fight begun now is for: a kind PURPOSES names, the facts its end reads, and the acting character's id."""
+    if kind not in PURPOSES:
+        raise KeyError(f"no kind of fight purpose called {kind!r} (scenes/combat_scene.py PURPOSES)")
+    return combat.Purpose(kind=kind, data=data, by=ws.acting)
+
+
+def kind_of(fight) -> Kind | None:
+    """(f765) The kind a fight is for, or None for a fight for nothing beyond itself (and for a kind this build does not know)."""
+    p = getattr(fight, "purpose", None)
+    return PURPOSES.get(p.kind) if p is not None else None
+
+
 class CombatScene:
     def __init__(self, world_scene, fight: combat.Combat, creature_name: str):
         self.ws = world_scene
@@ -224,13 +263,15 @@ class CombatScene:
     @classmethod
     def begin(cls, ws, creature, enemies: list[combat.Fighter], how: str, reserves: list[combat.Fighter] | None = None,
               wave: tuple[int, int, int] = (2, 2, 1), prepare=None, duel: str = "", big: str = "",
-              initiated: bool = False, told: str = "") -> "CombatScene":
+              initiated: bool = False, told: str = "", purpose: combat.Purpose | None = None) -> "CombatScene":
         # told (f404): the passage that already showed the foe arrive, a scripted entrance; the fight's opening is not narrated again
+        # purpose (f765): what the fight is for beyond itself (purpose()), on the fight from its first row
         c = ws.player.character
         if not duel:
             events.recruit_allies(ws, enemies)
         prep = [] if duel else ws.field_prep(enemies)
-        near, later = ([], []) if duel else cls.allies(ws, hold=bool(getattr(ws, "camp_fight", None)))
+        kind = PURPOSES.get(purpose.kind) if purpose is not None else None
+        near, later = ([], []) if duel else cls.allies(ws, hold=bool(kind and kind.hold))
         tether_notes = ws.tether_for(near)
         from engine import battlefield_builder
         ground = battlefield_builder.for_scene(ws, duel=bool(duel), big="" if duel else battlefield_builder.big_kind(enemies, reserves or [], big))
@@ -243,16 +284,14 @@ class CombatScene:
                 stealth = ws.resolve("stealth")                # (f503) rolled here, on the checks stream; the service reads the degree
         spec = FightSpec(creature=creature, enemies=enemies, allies=near, later=later, battlefield=ground, place=ws.place.name,
                          conditions=sorted(ws.conditions()), reserves=list(reserves or []), wave=wave, duel=bool(duel),
-                         prebuffs=prebuffs, stealth=stealth, initiated=initiated, prepare=prepare)
+                         prebuffs=prebuffs, stealth=stealth, initiated=initiated, prepare=prepare, purpose=purpose)
         fight, opening = service_of(ws).begin(spec)            # (f503) the fight built, its serial drawn once, the odds, the row saved
         prep += opening.notes
         scene = cls(ws, fight, creature.name)
         label, rate = opening.label, opening.rate
-        console.debug(f"danger estimate: {rate:.0%} win rate")
+        console.debug(f"danger estimate: {label}, {rate:.0%} win rate")   # (f647) the label is the debug view's and the tools', never the player's
         opening_events = [TAG.sub("", e) for e in opening.events]      # the opening blows are logged, not narrated with figures
-        manner = {"aggressive": "They mean to attack.",
-                  "territorial": "It holds its ground and warns the player off - they could still back away.",
-                  "passive": "It turns on the player."}[creature.temperament]
+        manner = cls.stance_told(creature.temperament, enemies, can_flee=not duel and not getattr(fight, "mentor", None))
         where = "far off" if enemies and all(e.starts_far for e in enemies) else "close at hand"
         odds = {"trivial": "no real threat", "favorable": "the player should win this",
                 "even": "a real fight that could go either way",
@@ -283,14 +322,15 @@ class CombatScene:
             # could not be written; fight_begun stands in): the notes and the pane below keep their place on the page behind it
         for line in prep + tether_notes:
             console.note(line)
+        read = []                                              # (f647) what their own abilities read of the fight, in figures
         if pools.mechanic(c, "keen_judge") is not None:
-            label = f"{label} - you judge your odds at {rate:.0%}"
+            read.append(f"you judge your odds at {rate:.0%}")
         sworn = next((p.subject for p in c.passives if p.mechanic == "sworn_enemy" and p.subject), "")
         if sworn and getattr(creature, "category", "") == sworn:
-            pace_word = {"slow": "slow - it cannot follow a quick step", "fast": "fast - it will run you down",
+            pace_word = {"slow": "slow: it can't keep up with a quick step", "fast": "fast: it will run you down",
                          "normal": "no quicker than you"}[enemies[0].pace if enemies else "normal"]
-            label = f"{label} - a sworn foe: you read it at a glance ({rate:.0%} odds, {pace_word})"
-        scene.show(danger=label)
+            read.append(f"a sworn foe, read at a glance: {rate:.0%} odds, {pace_word}")
+        scene.show(read="; ".join(read))
         ws.store.save_combat(scene.to_json())                  # the row as the telling left it (what was shown of the fight, f499)
         return scene
 
@@ -314,11 +354,12 @@ class CombatScene:
         """Where someone stands, in a few plain words: whom they are on, their row, or which part of the field they are in."""
         f = self.fight
         p = f.player
-        if x.engaged_with:
-            if p.id in x.engaged_with and x.side == "enemy":
+        from engine import battlefield as bf
+        ties = bf.tied(f, x)                                 # (f766) someone standing, never a tie left by the fallen or the gone
+        if ties:
+            if any(o is p for o in ties) and x.side == "enemy":
                 return "on you"
-            names = [o.name.split()[0] for o in f.fighters if o.id in x.engaged_with and o.alive]
-            return f"tied up with {names[0]}" if names else "in the melee"
+            return f"tied up with {ties[0].name.split()[0]}"
         here = f.battlefield.zones.get(x.zone_id).name if f.battlefield and x.zone_id in f.battlefield.zones else ""
         if f.battlefield and x.zone_id != p.zone_id:
             return f"at {here}" if here else "at a distance"
@@ -332,7 +373,7 @@ class CombatScene:
             return f"poisoned ({n} stack{'s' if n != 1 else ''}" + (f", {fixed} won't fade" if fixed else "") + ")"
         return status.replace("_", " ")
 
-    def pane_data(self, danger: str = "") -> dict:
+    def pane_data(self, read: str = "") -> dict:
         """The fight as plain data for the window's combat pane."""
         f, p = self.fight, self.fight.player
         def fighter(x):
@@ -370,7 +411,7 @@ class CombatScene:
             items_now.append({"name": g.name, "qty": it.quantity, "text": effect or g.description, "ready": not reason, "reason": reason})
         you = fighter(p)
         you["buffs"] = [[b.get("name", k), b.get("rounds", 0)] for k, b in p.buffs.items()]
-        return {"round": f.round, "danger": danger, "enemies": [fighter(e) for e in f.enemies()],
+        return {"round": f.round, "danger": read, "enemies": [fighter(e) for e in f.enemies()],
                 "reserves": len(f.reserves), "allies": [fighter(a) for a in f.allies()], "you": you,
                 "moves": moves, "items": items_now, "hits": f.hits, "over": f.over or ""}
 
@@ -382,14 +423,13 @@ class CombatScene:
             return console.ability_tip(a, c.level)
         return [["h", m.name]] + ([["", m.text]] if getattr(m, "text", "") else [])
 
-    def show(self, danger: str = "") -> None:
-        if console.combat_state(self.pane_data(danger)):
+    def show(self, read: str = "") -> None:
+        if console.combat_state(self.pane_data(read)):
             return
         p = self.fight.player
         lines = []
-        if danger:
-            head, _, rest = danger.partition(" - ")
-            lines.append(f"⚔ Danger: {head.upper()}" + (f" ({rest})" if rest else ""))
+        if read:                                              # (f647) a reading an ability gives; the danger label is not shown
+            lines.append(f"⚔ {read[:1].upper()}{read[1:]}")
         for e in self.fight.enemies():
             status = f" · {', '.join(e.statuses)}" if e.statuses else ""
             lines.append(f"{e.name} (lv {e.level}) {console.meter(e.hp, e.max_hp)} {round(e.hp)}/{e.max_hp} · {self.spot(e)}{status}")
@@ -457,6 +497,10 @@ class CombatScene:
         """(f383) Which order the line gives, read past the ones it says not to give: "do not heal me anymore, focus on attacking" was read
         as heal, the first pattern in the table to match anywhere. An order inside a clause with a not before it, or anymore after it, is
         not given; of the rest the first in the line is. A line that only says what not to do gives the other thing (stop healing: fight)."""
+        return self.order_at(low)[0]
+
+    def order_at(self, low: str) -> tuple[str, int]:
+        """(f649) The order the words give (order_kind) and where its word ends, so whom it is for is read from what follows the word."""
         import re
         hits = []
         for k, pat in self.ORDER_WORDS:
@@ -464,61 +508,116 @@ class CombatScene:
                 start = max(low.rfind(c, 0, m.start()) for c in (",", ";", ".", " but ", " then ", " and ", " instead"))
                 ends = [i for i in (low.find(c, m.end()) for c in (",", ";", ".", " but ", " then ", " and ")) if i >= 0]
                 before, after = low[max(0, start):m.start()], low[m.end():min(ends) if ends else len(low)]
-                hits.append((m.start(), k, bool(re.search(self.NOT, before)) or bool(re.search(r"\b(anymore|any more|no longer)\b", after))))
+                hits.append((m.start(), k, bool(re.search(self.NOT, before)) or bool(re.search(r"\b(anymore|any more|no longer)\b", after)), m.end()))
         plain = sorted(h for h in hits if not h[2])
-        if plain:
-            return plain[0][1]
-        return self.INSTEAD[sorted(hits)[0][1]] if hits else ""
+        if plain:                                            # whom: after the last word of that order ("needs healing, heal him")
+            return plain[0][1], max(h[3] for h in plain if h[1] == plain[0][1])
+        return (self.INSTEAD[sorted(hits)[0][1]], len(low)) if hits else ("", len(low))
 
     def order_of(self, text: str):
-        """('ally', kind, enemy id) when the line is an order to a party member by name (or to the party), else None. No model call: a plain
-        pattern, so an order never costs a turn or a wait."""
+        """(allies, kind, target) when the line gives an order to a party member it speaks to, or to the party; else None. (f649) The
+        first of orders_in: one order a turn."""
+        found = self.orders_in(text)
+        return found[0] if found else None
+
+    def orders_in(self, text: str) -> list[tuple]:
+        """(f649) Every order the line gives, in order: (allies, kind, target). Who is told is who the line addresses (engine/addressing.py),
+        never a companion named anywhere in it; the order is read from what is said to them, with the player's own abilities and worn
+        gear taken out first and the player's own part of the words cut off. No model call, so an order never costs a turn."""
         import re
-        if "?" in text:                                  # a question is for talking, not an order
-            return None
-        low = " " + text.lower() + " "
+        from engine import addressing
         allies = [a for a in self.fight.allies() if a.alive and (a.ally_role or combat.is_companion(a))]       # (f384) the animal companion too
         if not allies:
-            return None
-        named = [a for a in allies if re.search(r"\b" + re.escape(a.name.split()[0].lower()) + r"\b", low)]
-        everyone = bool(re.search(r"\b(everyone|all of you|you all|party|you two|you both|team)\b", low))
-        if not named and not everyone:
-            return None
-        kind = self.order_kind(low)
-        if not kind:
-            return None
-        target = ""
-        if kind == "heal":                                   # (f406) "heal yourself", "Jorn, heal Bryn": who the heal is for
-            if re.search(r"\b(yourself|yourselves|himself|herself|themselves|themself|your own)\b", low):
-                target = "self"
-            elif len(named) >= 2:
-                order = sorted(named, key=lambda a: low.find(a.name.split()[0].lower()))
-                return [order[0]], kind, order[1].id
-        if kind == "focus":
-            foes = [e for e in self.fight.enemies() if e.alive and not e.fled]
-            hit = next((e for e in foes if e.name.lower() in low or any(w in low for w in (e.name.lower().split()[-1],))), None)
-            target = (hit or next((e for e in foes if e.id == self.fight.focus), None) or (foes[0] if foes else None))
-            target = target.id if target else ""
-        return (named or allies), kind, target
+            return []
+        people = self.addressees(allies)
+        line = addressing.without(text, self.own_names()).replace(addressing.APOS, "'")
+        out = []
+        for who, said, clause, _mine in addressing.addressed(line, people, others=[e.name for e in self.fight.enemies()],
+                                                             asks=lambda s: bool(self.order_kind(f" {s} "))):
+            if "?" in clause:                                # a question is for talking, not an order
+                continue
+            low = " " + said + " "
+            kind, end = self.order_at(low)
+            if not kind:
+                continue
+            told = allies if who == (addressing.PARTY,) else [a for a in allies if a.id in who]
+            target = ""
+            if kind in ("heal", "guard"):                    # (f406, f649) whom: read from the words right after the order's own word
+                whom = re.split(r"[,;.]|\b(?:and|while|so|before|but|then|as|because|until)\b", low[end:], maxsplit=1)[0]
+                named = [i for i in addressing.spoken_of(whom, people) if i not in who]
+                earlier = [i for i in addressing.spoken_of(line[:max(0, line.find(clause))] + " . " + low[:end], people) if i not in who]
+                if kind == "heal" and re.search(r"\b(yourself|yourselves|himself|herself|themselves|themself|your own)\b", whom):
+                    target = "self"
+                elif re.search(r"\b(me|myself|us)\b", whom):
+                    target = ""
+                elif named:
+                    target = named[0]
+                elif re.search(r"\b(him|her|them)\b", whom):    # a him or her is a companion, never the player: back, then on
+                    later = [i for i in addressing.spoken_of(low[end:] + " . " + line[line.find(clause) + len(clause):], people) if i not in who]
+                    if not (earlier or later):
+                        continue
+                    target = earlier[-1] if earlier else later[0]
+            if kind == "focus":
+                foes = [e for e in self.fight.enemies() if e.alive and not e.fled]
+                hit = next((e for e in foes if e.name.lower() in low or any(w in low for w in (e.name.lower().split()[-1],))), None)
+                target = (hit or next((e for e in foes if e.id == self.fight.focus), None) or (foes[0] if foes else None))
+                target = target.id if target else ""
+            out.append((told, kind, target))
+        return out
 
-    def give_orders(self, who, kind: str, target: str) -> None:
+    @staticmethod
+    def stance_told(temperament: str, enemies, can_flee: bool) -> str:
+        """(f668) What the narrator is told of the foes' stance, on what the engine holds: a warning off offers a way back only when
+        there is one (all far off, flight open), and foes the engine will not let be reasoned with are told not to talk or wait for an
+        answer. A centaur warned the player off and waited for a reply in a fight already begun, then "cannot be reasoned with"."""
+        from engine import parley
+        far = bool(enemies) and all(e.starts_far for e in enemies)
+        manner = {"aggressive": "They mean to attack.",
+                  "territorial": "It holds its ground and warns the player off" + (": they could still back away." if far and can_flee
+                                                                                   else ", and the fight is already on."),
+                  "passive": "It turns on the player."}[temperament]
+        if enemies and not any(parley.speaks(e) for e in enemies):
+            manner += " It does not speak, bargain or wait for an answer: words will not reach it."
+        return manner
+
+    @staticmethod
+    def addressees(allies) -> dict:
+        """(f649) Each companion's forms of name, for engine/addressing.py: the full name, then the first."""
+        return {a.id: [a.name.lower(), a.name.split()[0].lower()] for a in allies}
+
+    def own_names(self) -> list[str]:
+        """(f649) The names of the player's own abilities and the gear they wear: never read as an order ("Guard Breaker", "Shield Wall")."""
+        names = [m.name for m in self.fight.player.moves if m.name]
+        ws = getattr(self, "ws", None)
+        try:
+            c = ws.player_of(ws.acting).character
+        except AttributeError:
+            c = None
+        if c is not None:
+            from engine import items
+            names += [items.display_name(i) for i in (getattr(c, "equipment", None) or {}).values() if i is not None]
+        return names
+
+    def give_orders(self, who, kind: str, target: str) -> bool | None:
+        """The order given, said, and the fight saved; (f649) True when someone was told, False when refused, None when this turn's
+        order was already given (no other order in the line can be)."""
         f = self.fight
         again = f.order_round == f.round and f.round and any(a.id in f.ordered for a in who)      # (f383) putting this turn's order right
         told = self.service.orders(f, who, kind, target)        # one order a turn is one command, even to the whole party
         for problem in told.problems:
             console.note(problem)
         if told.stopped:
-            return
+            return None
         if told.told:
-            whom = next((a.name.split()[0] for a in f.allies() if a.id == target), "") if kind == "heal" else ""
-            line = {"focus": "to attack {foe}", "guard": "to guard you", "hold": "to hold back", "back": "to get behind you",
+            whom = next((a.name.split()[0] for a in f.allies() if a.id == target), "") if kind in ("heal", "guard") else ""
+            line = {"focus": "to attack {foe}", "guard": f"to guard {whom}" if whom else "to guard you", "hold": "to hold back", "back": "to get behind you",
                     "heal": "to tend their own wounds" if target == "self" else (f"to tend {whom}" if whom else "to tend you")}[kind]
-            foe = next((e.name for e in f.enemies() if e.id == target), "")
-            foe = ("the " + foe) if foe and foe[0].islower() else foe        # "the troll", "the wolf 1", but "Old Brannoch" as is
+            foe = next((combat.who(e) for e in f.enemies() if e.id == target), "")   # (f696) "the second wolf", never "the wolf (elite)"
             console.narrate(("Instead, you tell " if again else "You tell ") + " and ".join(a.name.split()[0] for a in told.told) + " "
                             + line.format(foe=foe or "their foe") + ".")
         self.show()
         self.ws.store.save_combat(self.to_json())
+        return bool(told.told)
 
     def turn(self, text: str, forced=None) -> None:
         """One player turn. forced is an intent already decided (a fight opened with an ability, f248): it is not interpreted."""
@@ -530,10 +629,20 @@ class CombatScene:
         if self.ally_for_item(text):
             from llm.contracts import CombatIntent
             self.free_item(CombatIntent(kind="item", item=text), text)
+            self.after_free(text)
             return
-        order = self.order_of(text)
-        if order:
-            self.give_orders(*order)
+        orders = self.orders_in(text)
+        if orders:
+            given = None
+            for k, o in enumerate(orders):                   # (f649) a refused order lets the next be given; one already given ends it
+                done = self.give_orders(*o)
+                if done is None or done:
+                    given = k if done else None
+                    break
+            order = orders[given if given is not None else 0]
+            waiting = [a.name.split()[0] for o in orders[given + 1:] for a in o[0]] if given is not None else []
+            if waiting:                                      # (f649) one order a turn: the others are said to wait, not dropped unsaid
+                console.note(f"One order a turn: {' and '.join(dict.fromkeys(waiting))} will have to wait for the next.")
             mine = self.own_part(text, order[0])
             if mine and self.ws.combat is self and not f.over:      # (f406) "Jorn, heal yourself. I use spark bolt": both are done
                 self.act(self.interpret(mine), mine)
@@ -542,21 +651,28 @@ class CombatScene:
         self.act(intent, text)
 
     def own_part(self, text: str, told) -> str:
-        """(f406) The player's own action in a line that also gives an order: the clauses that do not name whoever was told, and that say
-        what the player does ('I cast...', 'I use...', or an ability of theirs by name). '' when the line is only the order. A night's play
-        had 'Jorn, heal yourself. I use spark bolt' give the order and drop the spell, and the player typed the spell again."""
+        """(f406) The player's own action in a line that also gives an order: the clauses said to no one that say what the player does
+        ('I cast...', 'I use...', or an ability of theirs by name), whoever they name (f649). '' when the line is only the order. A
+        night's play had 'Jorn, heal yourself. I use spark bolt' give the order and drop the spell, and the player typed it again."""
         import re
-        names = [a.name.split()[0].lower() for a in told]
+        from engine import addressing
+        allies = [a for a in self.fight.allies() if a.alive and (a.ally_role or combat.is_companion(a))] or list(told)
+        own = self.own_names()
+        spoken = {c: m for _who, _said, c, m in addressing.addressed(text, self.addressees(allies), others=[e.name for e in self.fight.enemies()],
+                                                                     asks=lambda s: bool(self.order_kind(f" {addressing.without(s, own)} ")))}
         moves = [m.name.lower() for m in self.fight.player.moves if m.name]
-        clauses = re.split(r'(?<=[.!;])\s+|["\u201c\u201d]+|\s+(?:and then|then|while)\s+|\s+and\s+(?=i\b)', text, flags=re.I)
         mine = []
-        for c in clauses:
-            c = (c or "").strip(" .,;:!")
-            low = c.lower()
-            if not low or any(re.search(r"\b" + re.escape(n) + r"\b", low) for n in names):
+        for clause in addressing.clauses(text):
+            if clause in spoken:                             # said to a companion: only the part the player says they do themself
+                part = spoken[clause]
+                if part and (re.match(r"(i|i'll|i'm|i will|let me|now i|and i)\b", part.lower()) or any(m in part.lower() for m in moves)):
+                    mine.append(part)
                 continue
-            if re.match(r"(i|i'll|i'm|i will|let me|now i|and i)\b", low) or any(m in low for m in moves):
-                mine.append(c)
+            for c in re.split(r"\s+(?:and then|then|while)\s+|\s+and\s+(?=i\b)", clause, flags=re.I):
+                c = (c or "").strip(" .,;:!")
+                low = c.lower()
+                if low and (re.match(r"(i|i'll|i'm|i will|let me|now i|and i)\b", low) or any(m in low for m in moves)):
+                    mine.append(c)
         return ". ".join(mine)
 
     def outside_ability(self, intent, text: str) -> str:
@@ -569,7 +685,7 @@ class CombatScene:
             named = a.id == getattr(intent, "ability", "") or (a.name and re.search(rf"\b{re.escape(a.name.lower())}\b", low))
             if named and a.context == UseContext.OUT_OF_COMBAT and not any(m.id == a.id for m in self.fight.player.moves):
                 return (f"{a.name} works outside a fight, not in one: {a.description.strip()} "
-                        "Use it once the fight is over; for now, pick one of your fighting abilities from the panel.")
+                        "Use it once the fight is over. For now, pick one of your fighting abilities from the panel.")
         return ""
 
     def act(self, intent, text: str) -> None:
@@ -597,7 +713,10 @@ class CombatScene:
             return
         if intent.kind == "item":
             self.free_item(intent, text)
+            self.after_free(text)
             return
+        intent = self.aim(intent, text)
+        standing = {e.id for e in f.fighters if e.side == "enemy" and e.alive}
         effect = ""
         if intent.kind == "other":                             # (f503) an improvisation's effect: read by the helper model's embeddings when
             words = intent.summary or text                     # it is there (the scene's read, a proposal), kept across a restart (f500),
@@ -614,6 +733,8 @@ class CombatScene:
             self.show()
             self.ws.store.save_combat(self.to_json())
             return
+        if f.over == "victory":
+            self.settle_yield(standing)                    # (f663) before the round is told: the one who yields is told alive
         self.narrate_round(text)
         self.sync_player()
         for m, _by in outcome.killed:                          # those who saw it react now, in the fight, not after it
@@ -772,6 +893,65 @@ class CombatScene:
 
     ITEM_VERBS = r"\b(give|hand|toss|throw|pass|use|drink|feed|pour|apply|administer|let)\b"
 
+    def foe_named(self, text: str):
+        """(f659) The one foe the player's words name ("wolf 2", "the troll"), standing or not; None when none or several."""
+        import re
+        low = " ".join((text or "").lower().split())
+        hits = [e for e in self.fight.fighters if e.side == "enemy" and e.name
+                and re.search(rf"(?<![\w']){re.escape(e.name.lower())}(?![\w'])", low)]
+        return hits[0] if len(hits) == 1 else None
+
+    def aim(self, intent, text: str):
+        """(f659) The foe the player names is the target, whatever the reading said ("Guard Breaker on wolf 2" struck wolf 3); one already
+        down or gone is said to be, with the foe turned on instead. A step aimed at a companion or the player is left alone."""
+        f = self.fight
+        aimed = f.get(intent.target) if intent.target else None
+        named = self.foe_named(text)
+        move = next((m for m in f.player.moves if m.id == (intent.ability or intent.move)), None)
+        if named is None or (aimed is not None and aimed.side != "enemy") or intent.kind not in ("attack", "ability", "move", "other") \
+                or (move is not None and str(getattr(move.effect, "value", move.effect)) in ("healing", "buff", "defense", "mobility", "summon")):
+            return intent                                   # a ward, a heal or a step is the player's own, whoever is near
+        if named.alive and not named.fled:
+            return intent if intent.target == named.id else intent.model_copy(update={"target": named.id})
+        from engine import battlefield
+        other = battlefield.closest(f, f.player, f.enemies())
+        if other is None:
+            return intent
+        console.note(f"{named.name[:1].upper() + named.name[1:]} is already {'gone' if named.fled else 'down'}: you turn on {other.name} instead.")
+        return intent.model_copy(update={"target": other.id})
+
+    def past_item(self, text: str) -> str:
+        """(f659) The player's own acts in a line beyond the part that uses a draught or other consumable ("I drink the draught, then
+        strike wolf 1": the strike)."""
+        import re
+        from engine import addressing
+        moves = [m.name.lower() for m in self.fight.player.moves if m.name]
+        out = []
+        for clause in addressing.clauses(text):
+            for c in re.split(r",?\s+(?:and then|then|while|and)\s+", clause, flags=re.I):
+                c = (c or "").strip(" .,;:!")
+                low = c.lower()
+                if not low or (re.search(self.ITEM_VERBS, low) and self.names_consumable(low)):
+                    continue
+                if re.match(r"(i|i'll|i'm|i will|let me|now i|use|attack|strike)\b", low) or any(m in low for m in moves):
+                    out.append(c)
+        return ". ".join(out)
+
+    def names_consumable(self, low: str) -> bool:
+        """(f659) Do these words name a consumable used in a fight (by its name, or a draught's)? Read from the goods, not the pack: the
+        last draught drunk is still the draught the line names."""
+        import re
+        return bool(re.search(r"\b(draught|draft|potion|elixir|tonic|salve|philtre)\b", low)) or \
+            any(g.combat and g.name.lower() in low for g in inventory.GOODS.values())
+
+    def after_free(self, text: str) -> None:
+        """(f659) A draught does not use the action: the rest of the line is the player's act this turn, read and done."""
+        rest = self.past_item(text)
+        if rest and self.ws.combat is self and not self.fight.over:
+            nxt = self.interpret(rest)
+            if nxt.kind != "item":
+                self.act(nxt, rest)
+
     def ally_for_item(self, text: str):
         """The party member a consumable is meant for, when the line names one ('give Maren a healing draught'), else None."""
         import re
@@ -800,13 +980,13 @@ class CombatScene:
         """A draught or other consumable: one a turn, and it does not use up the action - the player is asked what they do next."""
         f = self.fight
         if f.duel:
-            console.note("No potions or draughts in a trial: you face the examiner with what you carry in your hands.")
+            console.note("No potions or draughts in a trial. You face the examiner with what's in your hands.")
             return
         from engine import combat_perks
         p = f.player
         used = p.counters.get("items_used", 0) if (f.item_round == f.round and p.counters.get("items_round") == f.round) else 0
         if used >= combat_perks.item_limit(f, p):
-            console.note("You have already used an item this turn. Do something else, and you can use another on your next turn."
+            console.note("You've already used an item this turn. Do something else now, and use another next turn."
                          if used == 1 else "Two items is all even you can manage in a turn. Do something else.")
             return
         ally = self.ally_for_item(text)
@@ -838,8 +1018,8 @@ class CombatScene:
     # ---------- endings ----------
 
     def companions_after_fight(self, fallen_ids: set[str]) -> None:
-        """A companion who went down is out for a day, and may not survive; a Bound summon unmade stays unmade (services/fight.py
-        companions_after). The notes shown here."""
+        """A companion who went down is out for a day, and may not survive; what the fight did to the Bound summon is written back
+        (services/fight.py companions_after). The notes shown here."""
         for note in self.service.companions_after(self.fight, fallen_ids):
             console.note(note)
 
@@ -871,8 +1051,8 @@ class CombatScene:
         ws.advance_quiet(ending.minutes)
         dead, fallen = ending.dead, ending.fallen
         events.fallen_allies(ws, set(ending.fallen_ids))
-        ws.party_after_fight(fallen, f.fighters, f.over == "victory", any(e.level >= ws.player.character.level for e in f.fighters if e.side == "enemy"),
-                             fight=f)                        # (f508) the service's end writes the party's record (hires, companions, the bound summon); the scene tells
+        after = ws.party_after_fight(fallen, f.fighters, f.over == "victory", any(e.level >= ws.player.character.level for e in f.fighters if e.side == "enemy"),
+                                     fight=f)                # (f508) the service's end writes the party's record (hires, companions, the bound summon); the scene tells
         if f.over == "victory" and not f.no_rewards:
             dead_ = [e for e in f.fighters if e.side == "enemy" and not e.alive]
             from engine.domain_events import LootedDead
@@ -882,41 +1062,36 @@ class CombatScene:
             from engine.domain_events import Fled
             ws.notice(Fled(minute=ws.minutes, place=ws.player.location))
         if f.over == "victory":
-            self.victory()
-            ws.dungeon_fight_over("victory")
+            self.victory(after.died)
             ws.road_fight_over("victory")
-            ws.camp_fight_over("victory", dead, [e for e in f.fighters if e.side == "enemy" and e.alive and e.surrendered])
-            ws.orenna_fight_over("victory")
+            self.purpose_over("victory", dead, [e for e in f.fighters if e.side == "enemy" and e.alive and e.surrendered])
             ws.mentor_fight_over("victory", f)
-            ws.assault_fight_over("victory")
         elif f.over == "fled":
             if not f.mentor:
                 console.note("You got away.")
-            ws.dungeon_fight_over("fled")
             ws.road_fight_over("fled")
-            ws.camp_fight_over("fled", dead)
-            ws.orenna_fight_over("fled")
+            self.purpose_over("fled", dead)
             ws.mentor_fight_over("fled", f)
-            ws.assault_fight_over("fled")
             ws.recently_fled = True
         elif self.phoenix():
-            ws.dungeon_fight_over("fled")
             ws.road_fight_over("fled")
-            ws.camp_fight_over("fled", dead)
-            ws.orenna_fight_over("fled")
-            ws.assault_fight_over("fled")
+            self.purpose_over("fled", dead)
             ws.recently_fled = True
         else:
-            ws.dungeon_fight_over("defeat")
             ws.road_fight_over("defeat")
-            ws.camp_fight_over("defeat", dead)
-            ws.orenna_fight_over("defeat")
-            ws.assault_fight_over("defeat")
+            self.purpose_over("defeat", dead)
             self.defeat()
         if f.over in ("victory", "fled") and ws.player.party:
             ws.tend_after_fight()                          # (f396) a priest on their feet sees to the wounds
         events.release_allies(ws)
         ws.store.save_player(ws.player)
+
+    def purpose_over(self, outcome: str, dead: list, yielded: list = ()) -> None:
+        """(f765) What the fight was for, done as its kind says for this outcome, read from the fight itself: the same whether it was
+        begun in this sitting or resumed from its row. Nothing for a fight for nothing beyond itself."""
+        kind = kind_of(self.fight)
+        if kind is not None:
+            kind.over(self.ws, outcome, dict(self.fight.purpose.data), dead, list(yielded))
 
     def phoenix(self) -> bool:
         """A Phoenix item turns one killing blow aside every few days: half health, nothing lost, the fight is over."""
@@ -925,19 +1100,37 @@ class CombatScene:
         if saved is None:
             return False
         item, wait = saved
-        console.note(f"The killing blow lands - and {items.display_name(item)} burns white. You rise from the ashes at half strength; "
-                     f"the fight is over. (It cannot do this again for {wait:g} days.)")
+        console.note(f"The killing blow lands, and {items.display_name(item)} burns white. You rise from the ashes at half strength, "
+                     f"and the fight is over. (It can't do this again for {wait:g} days.)")
         ws.narrate("A killing blow falls on the player, but their Phoenix relic flares and refuses it. They stagger up, alive, the "
                    "enemies recoiling or gone.")                                                   # (f415) no length (f375)
         return True
 
-    def victory(self) -> None:
+    def yield_allowed(self) -> bool:
+        kind = kind_of(self.fight)
+        return (kind is None or kind.yields) and self.ws.place.type not in ("dungeon", "road")
+
+    def settle_yield(self, standing: set) -> None:
+        """(f663) Who yields at a won fight's end, settled before the round's passage is written and only among those standing when
+        the round began: the passage tells them beaten and alive. It was rolled after it, among the dead, and a fanatic told felled
+        like a log then yielded and was both bound and dead."""
+        f = self.fight
+        self.yield_settled = True
+        before = {e.id for e in f.fighters if e.side == "enemy" and e.alive and e.surrendered}
+        self.service.yields(f, allowed=self.yield_allowed(), among=standing)
+        for e in f.fighters:
+            if e.side == "enemy" and e.alive and e.surrendered and e.id not in before:
+                combat.tell(f, f"{combat.who(e)} goes down beaten but alive, throws down {combat.whose(e)} weapon and yields")
+
+    def victory(self, died: tuple | list = ()) -> None:
+        """(f750) `died`: the ids of the hires this fight's end buried or killed (services/fight.py end)."""
         if self.fight.no_rewards:
             self.sync_player()
             return
         ws, f, svc = self.ws, self.fight, self.service
         c = ws.player.character
-        svc.yields(f, allowed=not getattr(ws, "camp_fight", None) and ws.place.type not in ("dungeon", "road"))
+        if not self.__dict__.get("yield_settled"):        # (f663) settled already when the round that won was told
+            svc.yields(f, allowed=self.yield_allowed())
         dead = [e for e in f.fighters if e.side == "enemy" and not e.alive]
         yielded = [e for e in f.fighters if e.side == "enemy" and e.alive and e.surrendered]
         if not dead and not yielded and self.tamed:
@@ -945,11 +1138,13 @@ class CombatScene:
             self.sync_player()
             return
         if not dead and not yielded:
-            if getattr(ws, "orenna_fight", None) != "executioner":
-                console.note("They got away - nothing to show for it this time.")
+            kind = kind_of(f)
+            if not (kind and kind.away_told(f.purpose.data)):
+                console.note("They got away. You've nothing to show for this one.")
             self.sync_player()
             return
         ws.record_kills(dead)
+        ws.tally_foes(yielded)                                 # (f669) a foe taken alive counts for the contract as one killed
         if ws.place.danger and ws.owns("victors_name"):
             ws.reputation_add(ws.nearest_town(ws.player.location), 1)
         won = svc.rewards(f, dead, yielded)                   # (f503) the take under the engine's own names; the bodies and carcasses written
@@ -976,15 +1171,15 @@ class CombatScene:
         place, when = self.ws.place.name, self.ws.time_label()        # as they were at the win: what follows a fight may move the player
         if found:                                                      # (f502) the finds' names and their lines: an operation of their own,
             self.ws.mark_passage("naming", lambda: self.name_finds(to_name, found, copies, originals), None)   # after the win's commit, before the aftermath
-        self.ws.mark_passage("aftermath", lambda: self.aftermath_now(dead, kept, lying, skinnable, fallen, place, when, coins, copies),
+        self.ws.mark_passage("aftermath", lambda: self.aftermath_now(dead, kept, lying, skinnable, fallen, place, when, coins, copies, died),
                              lambda rng: failures.victory_stood({**facts, "found": ", ".join(self.final_name(i, copies) for i in found)}, rng))   # (f464)
         console.ledger(f"Victory. +{total_xp} XP" + (f", {money.fmt(coins)}" if coins else ""))
         if levels:
-            console.note(f"LEVEL UP! You are now level {c.level}. {c.unspent_points} points to spend - #allocate")
+            console.note(f"LEVEL UP! You are now level {c.level}, with {c.unspent_points} points to spend. Type #allocate.")
             self.ws.ranks_in_reach(c.level - levels)                          # (f397) a new rank of spells, when one comes within reach
         if skinnable:
-            console.note(f"The fallen can be skinned or butchered for {'their' if skinnable > 1 else 'its'} hide and meat - "
-                         "say so if you want to.")
+            from engine import loot
+            console.note(f"The fallen can be {loot.remains_words([e for e in dead if loot.has_remains(e)])}. Say so if you want to.")   # (f672)
 
     @staticmethod
     def name_of(i) -> str:
@@ -1063,12 +1258,14 @@ class CombatScene:
                 console.ledger(f"Found: {item.name} ({item.rarity}) - {items.summary(item)}")
 
     def aftermath_now(self, dead: list, kept: list, left: list, skinnable: int, fallen: str, place: str = "", when: str = "",
-                      coins: int = 0, copies: dict | None = None) -> None:
+                      coins: int = 0, copies: dict | None = None, died: tuple | list = ()) -> None:
         """(f464) The passage after a fight won, written from the facts the round committed, as an operation of its own: the win stands
         whatever becomes of its telling (victory_stood in its place). `place` and `when` are the win's, captured when it was marked.
-        (f502) `kept` and `left` are the finds, named here as the save holds them once the naming operation has run (final_name)."""
+        (f502) `kept` and `left` are the finds, named here as the save holds them once the naming operation has run (final_name).
+        (f750) `died`: the ids of the hires this fight buried or killed, named from their registry rows."""
         from scenes import world_prompts as wp
         copies = copies or {}
+        died_refs = {f"hire:{i}" for i in died}                  # (f750) this fight's own dead: a clock window named an earlier fight's
         noticed = [self.final_name(i, copies) for i in kept] + (["a few coins"] if coins else [])
         noticed = [f"{x} (now theirs: show them taking it up)" for x in noticed]      # (f384) taken, not left lying for a 'pick up' to miss
         lying = [self.final_name(i, copies) for i in left]
@@ -1082,7 +1279,7 @@ class CombatScene:
                f"one named, never to the player): {'; '.join(lost)}\n"
                if (lost := [f"{e.name} ({e.pronoun}, {entities.people_word(self.ws.world, e.people)}"
                             + (f"; killed by {by}" if (by := self.killer_of(e)) else "") + ")"
-                            for e in self.ws.store.find_entities(kind="hire", state="dead") if e.since >= self.ws.minutes - 30]) else "")
+                            for e in self.ws.store.find_entities(kind="hire", state="dead") if e.ref in died_refs]) else "")
             + (f"DOWN BUT ALIVE (the player's companions, on the ground and carried from here: they do not stand, walk or talk at length): "
                f"{', '.join(carried)}\n" if (carried := self.down_but_alive()) else "")
             + (f"ON THEIR FEET (the player's companions still standing, and how hurt: a fact for when they come in, not a pose each): "
@@ -1100,6 +1297,7 @@ class CombatScene:
             Narration, self.ws.recent_narration, max_tokens=config.PROSE_MAX_TOKENS, worn=self.ws.worn_words("prose"))
         self.ws.__dict__.setdefault("_after_starts", []).append(" ".join(aftermath.text.split()[:5]))
         del self.ws._after_starts[:-4]
+        telling.noted(self.ws)                                       # (f761) kept in the save's telling row
         after_text = self.ws.unnamed(aftermath.text)                 # (f419) a name the player was never told stays hidden here too
         console.narrate(after_text)
         self.ws.remember_narration(after_text)
@@ -1115,6 +1313,7 @@ class CombatScene:
         pick = self.rng.choice(choices or AF["openings"])
         used.append(pick)
         del used[:-6]
+        telling.noted(self.ws)                                       # (f761) kept in the save's telling row
         starts = self.ws.__dict__.get("_after_starts") or []
         return (f"OPEN ON: {pick}\n"
                 + (f"DO NOT BEGIN LIKE THESE (how the last passages after a fight began): {' / '.join(starts[-3:])}\n" if starts else ""))
@@ -1143,8 +1342,10 @@ class CombatScene:
         (f503) Chosen and named by the service (captives: no more than walk bound at once, lifecycles.yaml captive.most_escorted; an arc's
         camp leader is taken by the camp's own way, arc_actions.camp_fight_over); made here (make_prisoner takes the record). Returns the
         fighters taken."""
-        leader = (getattr(self.ws, "camp_fight", None) or {}).get("leader")
-        taken = self.service.captives(self.fight, yielded, leader)
+        kind = kind_of(self.fight)
+        leader = self.fight.purpose.data.get(kind.takes) if kind and kind.takes else None
+        here = self.ws.player_of(self.ws.acting).location          # (f746) where the fight is, by id: its people name the captives
+        taken = self.service.captives(self.fight, yielded, here, leader)
         if not taken:
             return [e for e in yielded if e.name == leader]
         self.ws.surrender_took = True
@@ -1229,4 +1430,4 @@ class CombatScene:
         item.name, item.description = named.name.strip(), named.description.strip()
 
     def defeat(self) -> None:
-        self.ws.threshold(self.service.fall(self.fight))         # (f503) the death's price, PlayerFell published; (f623) then the Threshold
+        self.ws.threshold(self.service.fall(self.fight), self.ws.acting)   # (f503) the death's price, PlayerFell published; (f623) then the Threshold

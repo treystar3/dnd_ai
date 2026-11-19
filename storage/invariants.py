@@ -5,9 +5,11 @@ lists every such problem it can find and repairs nothing: detection is the point
 Used by the tests, the long-campaign fixture, after a migration, and the #check command.
 
 What counts as a place: the authored world plus the places the game makes itself and keeps in the save - discovered places
-(engine/discovery.py, x_*), the stop on the road (engine/roads.py, road_*; a stop left behind keeps its record), bought houses
-(engine/property.py, home_<town>) and dungeon entrances (engine/dungeons.py). What a place's roster holds: creatures of the bestiary
-(engine/encounters.py), never people - its residents are the people."""
+(engine/discovery.py, x_*), the stop on the road a character stands at (engine/roads.py, road_*), bought houses
+(engine/property.py, home_<town>) and dungeon entrances (engine/dungeons.py). A stop left behind keeps its saved row, which is no
+stray, but nobody stands there. What a place's roster holds: creatures of the bestiary (engine/encounters.py), never people - its
+residents are the people. (f734) Every way of a place on the map leads to a place on the map, and a stop's record names only places
+on the map or sights kept on a road."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -33,13 +35,30 @@ def known_places(store, world) -> set[str] | None:
         pass
     for d in store.load_dungeons() or []:
         known |= {x for x in (d.get("entrance"), d.get("id")) if x}
-    if store.player_exists():
-        p = store.load_player()
+    for p in store.characters():
         known |= {f"home_{t}" for t in p.homes}
         if p.road and p.road.get("id"):
             known.add(p.road["id"])
-    known |= {pid for pid in store.list_places() if pid.startswith("road_")}        # stops left behind on earlier journeys
     return known
+
+
+ROAD_NAMES = ("from", "to", "resume", "bound", "behind")      # (f734) what a stop's record names as a place
+
+
+def off_map(store, world, known: set[str]) -> list[Problem]:
+    """(f734) A way of a place on the map that leads off it (no walk from there could pass it), and a stop's record that names a place
+    neither known (known_places) nor a sight kept on a road (a walk taken up, a help paid or a way back from it would meet none)."""
+    places = world.places
+    out = [Problem(f"place {pid}", f"has a way to '{k}', which is not on the map") for pid, p in places.items() for k in p.connects
+           if k not in places]
+    known = known | {m.get("id") for m in (store.load_world_state() or {}).get("landmarks", [])}
+    for p in store.characters():
+        for field in ROAD_NAMES if p.road else ():
+            v = p.road.get(field)
+            if v and v not in known:
+                out.append(Problem("player.road", f"{p.character.name}'s stop names '{v}' as its {field}, which is not on the map nor a "
+                                                  "sight kept on a road"))
+    return out
 
 
 def validate_campaign(store, world=None) -> list[Problem]:
@@ -72,7 +91,7 @@ def validate_campaign(store, world=None) -> list[Problem]:
     # ---- places
     for pid in place_ids:
         ps = store.load_place(pid)
-        if places is not None and pid not in places:
+        if places is not None and pid not in places and not pid.startswith("road_"):     # a stop left behind keeps its row
             out.append(Problem(f"place {pid}", "a saved place that is not in the world"))
         for rid in ps.residents:
             if rid not in ids:
@@ -86,6 +105,8 @@ def validate_campaign(store, world=None) -> list[Problem]:
     from storage import playerstable, worldtables
     out += [Problem("world", p) for p in worldtables.problems(store)]      # (f637) the lists' tables against their json, where a save has them
     out += [Problem("players", p) for p in playerstable.problems(store)]  # (f638) the players table against its records, likewise
+    if world is not None:
+        out += off_map(store, world, places)
 
     # ---- the player
     if not store.player_exists():
@@ -126,12 +147,15 @@ def validate_campaign(store, world=None) -> list[Problem]:
     for nid in p.prisoners:
         if nid not in ids:
             out.append(Problem("player.prisoners", f"captive '{nid}' is not a person in the save"))
-    for cap in store.find_entities(kind="captive", state=("escorted", "held")):          # (f422) a ghost captive: bound, but no one
+    from engine import entities
+    bound = {e.ref: e for e in store.find_entities(kind="captive", state=("escorted", "held"))}   # (f422) a ghost captive: bound, but no one (held is not walking())
+    bound.update((e.ref, e) for e in entities.walking(store))           # (f755) nobody walking with a character, of any kind, is gone
+    for cap in bound.values():
         npc = cap.links.get("npc")
         if npc and npc not in ids:
-            out.append(Problem("entities.captive", f"captive '{cap.ref}' walks with the player but names '{npc}', who is not in the save"))
+            out.append(Problem(f"entities.{cap.kind}", f"{cap.kind} '{cap.ref}' walks with the player but names '{npc}', who is not in the save"))
         elif npc and getattr(by_id.get(npc), "gone", False):
-            out.append(Problem("entities.captive", f"captive '{cap.ref}' walks with the player, but '{npc}' is gone"))
+            out.append(Problem(f"entities.{cap.kind}", f"{cap.kind} '{cap.ref}' walks with the player, but '{npc}' is gone"))
 
     # ---- the world's own state
     st = store.load_world_state() or {}

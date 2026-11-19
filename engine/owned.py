@@ -122,6 +122,7 @@ STATE: dict[str, Row] = {
     "llm.gateway.TALLY": Row(PROCESS, TALLY + " (logs/sessions.jsonl): each task's calls, failures and attempts"),
     "llm.gateway.OUTCOMES": Row(PROCESS, TALLY + ": the last few hundred calls and how each ended"),
     "llm.gateway.FALLBACKS": Row(PROCESS, TALLY + ": the tasks that gave up, for the live check"),
+    "llm.gateway.CHECKED": Row(PROCESS, TALLY + ": passages and spoken replies checked, and those sent back once, for the live gate"),
     "llm.gateway._writes": Row(PROCESS, "nothing: rows written to the call log, to trim it every so often"),
     "engine.names.REPAIRS": Row(PROCESS, TALLY + ": names and pronouns mended, for a night's summary"),
     "engine.names.BY_TASK": Row(PROCESS, TALLY + ": names mended by task"),
@@ -133,6 +134,8 @@ STATE: dict[str, Row] = {
     "engine.streams.BEGUN": Row(PROCESS, "nothing: how many inputs this run has begun; only whether it moved is read"),
     "engine.recording.ORPHANS": Row(PROCESS, "each thread's own end: the threads closed sessions left running, so their calls are never the next save's"),
     "llm.audit._path": Row(PROCESS, "nothing: this run's audit file, named when the first call is audited"),
+    "engine.phantoms._names": Row(PROCESS, "nothing: the bestiary's names, read once (f701)"),
+    "engine.phantoms._source": rebound("engine.phantoms._source", CAMPAIGN, None),     # (f701) the scene's place's creatures
     "llm.audit._count": Row(PROCESS, "nothing: the audit file's entry numbers"),
     "llm.audit._turn_written": Row(PROCESS, "nothing: the last heading the audit file was given"),
     "llm.audit._system_seen": Row(PROCESS, "nothing: where the audit file last wrote each task's system prompt in full"),
@@ -155,6 +158,8 @@ STATE: dict[str, Row] = {
 
     # ---- this run's: read once, or worked out once and kept
     "engine.asked._TASKS": Row(PROCESS, READ_ONCE),
+    "engine.asked._MOST": Row(PROCESS, READ_ONCE),
+    "engine.asked._SEEN": Row(PROCESS, "nothing: the requests lately hashed, only for a drift's debug note, capped at twice asked_max (f675)"),
     "engine.brief._B": Row(PROCESS, READ_ONCE),
     "engine.clock._TW": Row(PROCESS, READ_ONCE),
     "engine.memory._CAPS": Row(PROCESS, READ_ONCE),

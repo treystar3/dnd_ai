@@ -3,7 +3,7 @@
 Written 2026-11-14 against `main` at 84fc7cd (f627, with the prose branch merged). Approved by the owner the same day ("Approve as
 recommended"), with the recommendations of section 7 taken.
 
-**Built so far:** f628, f630, f631, f632, f629, f633, f634, f635, f636, f637 and f638. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
+**Built so far:** all fourteen, f628 to f641. **Changed since approval:** f629 moved from section A to after f632 (the owner, 2026-11-14:
 "Yes, move it"), because three of its logs are written where there is no scene to ask who acted (see f629 below).
 
 This is not a new design. Two designs the owner has already taken stand behind it:
@@ -382,6 +382,49 @@ longer counts as an input for the dice (scenes/world.py:1121). This changes the 
 feature here that changes play. It is committed with f640, because the owner asked that it ride in the one re-record and the
 suite must pass at every commit.
 
+As built, committed with f640 (tools/sim/story_dice_639_test.py):
+- The campaign keeps two counts. `steps` is every input, as before: it says which input an operation belongs to, and a
+  pane's command starts its own dice from it. `story_steps` is new and counts the lines of the story: a line's dice start
+  from the seed, that count and the line. So the story's dice are the same whatever panes were looked at between its lines.
+- No two inputs taken by the game's loop share a key. Every line that begins with the command's mark takes the
+  command's path (scenes/world.py `run`), so a command's key has the mark after its count and a story line's never has.
+  (A tool that calls `turn` itself with such a line would get past this; tools/acceptance.py does not.)
+- **Found by the goals review and built with it:** what a turn leaves for a later one (a party's exchange, a hire's
+  details, an arc's dressing) was aged in inputs, so three panes looked at dropped it untried. Its age is now in lines of
+  the story (`defer` and `run_deferred`). The number is `deferred_turns`, and a turn is a line. A save from before keeps
+  its entries: its story's count starts where its one count stood.
+- A save from before has one count. When it is opened its story goes on from that count, so no key its dice have had is
+  met again. The count is filled in where the campaign's record is read (storage/campaign.py `CampaignMeta`); there is
+  nothing here for f640's migration to move.
+- A turn that fails gives both counts back with the rest, so the line said again meets the same dice.
+- The two picks seeded with a count of their own (a stand-in's gesture, a wordless line) take the story's count. Two
+  fences in the test: the count of every input is read at eight declared sites in the game's code (the scene's four,
+  the recorder's four) and a ninth fails the test; and only two calls for dice name it. A read through another name
+  than `meta` would get past both.
+- Proven by three plays of one seeded story, a process each: alone, with eight panes looked at between its lines, and
+  with a line that fails and is said again. The same keys, shown words, player, world, people and places, and the same
+  ids for the story's operations. Then on a scene's own inputs with no model asked: what waits is still tried after five
+  panes and dropped after four lines; a command that rolls dice and makes ids leaves the next line every die it would
+  have had; a save from before goes on from its count with no key met twice. Seventeen mutations, each caught.
+- Thin where the review said so: one seed, one kind of character, and every command in the plays is a view. A command
+  that changes the save changes the story by what it did, which is right, and is not played here.
+- **Not changed, for the owner:** the opening (`open_world`) still starts its dice from the count of every input, and
+  runs once for each such count. So a pane looked at before the game closes gives the next opening other dice, and makes
+  it run again. It rarely rolls anything, since the pulse is up to date by then. Moving it to the story's count would
+  also change when an opening is skipped, which is a choice, not a repair.
+- **An older fault the review met, not f639's, seen in a probe:** a player who types `#start` gets the key the opening
+  would have at that count, and the command's record takes the opening's id, so the next opening finds it and does not
+  run. The opening needs a key no input can have.
+- **Read apart, ahead of f640**, on the three recordings with the new count left out of the state's fingerprint:
+  stub_party has no command and replays whole. stub_short has one command, at input 4, and parts at input 5, the story
+  line after it. stub_fight has one command, at input 9, and parts at input 10. Each parts where the game asked the
+  model in other words, which is the dice having moved. A replay stops where it first parts, so the inputs after are
+  read from the re-record's changes, not from this.
+- With the count in the fingerprint, every recording parts at input 1: the campaign's row has a field it did not have.
+  Seven tests of the suite replay a recording and fail on f639 alone for that reason and no other: golden_replay,
+  budget_cached_538, imports_514, layers_517, load_and_slow_526, stand_in_518 and think_ab_533. They wait on the one
+  re-record, which is why this is not a commit of its own.
+
 **f640: the one migration (v17) and the one re-record.** The tables and the players table go live; `migrations.CURRENT` becomes
 17. With it: the scene's raw compare of the player row asks the store (scenes/world.py:652-654); the old migrations v6 and v8
 get frozen readers of the old row; the save list and the export read the new table.
@@ -394,9 +437,89 @@ get frozen readers of the old row; the save list and the export read the new tab
   request, outcome or shown word that f639 does not account for.
 - A save that fails the migration is refused in a clear line and offered a new game; the line is the owner's to word.
 
+As built (tools/sim/tables_live_640_test.py; tools/sim/rows_v16.py):
+- `migrations.CURRENT` is 17. The step is the two `adopt`s of f637 and f638. A new save is made with the five tables, and a
+  store reads and writes them. `statehash.TABLES` reads the five after the six, a list's rows by where they stand.
+- **Other than the plan said:** v6 and v8 did not get frozen readers. A save below 17 is read from its rows until its step
+  (`migrations.in_rows`), so the older steps go through the store as they always did. The reason is v7, which the designs
+  missed: it writes the world through the engine (`mentor.moved_on`), and a frozen copy of that would be a second copy of
+  engine code. Held by a save put back to before v6: Maren's voice (v6, the player), her leaving with the town told (v7, the
+  world) and the hires' pronouns (v8, the player), all ending in the tables.
+- **The indexes are the three f637 made.** A matter by its id has no reader on the seam, and the game's code asks the seam
+  only for the effects at a place (four calls in engine/pulse.py). M1 has a migration of its own, where a fourth costs
+  nothing more.
+- A save that cannot be migrated: the failed step's writes are taken back, the steps before it stand (the save is left at
+  the last of them, and opens from there once the step is mended), the file is closed, a copy from before the first step
+  is in its backups, and the player reads one line and is back at the home page (`SaveNotMigrated`; it and `SaveTooNew`
+  are both `SaveRefused`, which main.py catches). Why the step failed goes to the crash log (engine/session.py). A fault
+  that is no step's (the copy could not be taken) is not told as a refused save. **The line is a placeholder for the
+  owner to word** (storage/campaign.py `NOT_MIGRATED`). **For the owner:** each try at a save that fails takes a copy, and
+  a save keeps three, so the copy from before the first try is gone after three more tries.
+- The home page reads the players table and, for a save not opened since, the old row. The export writes the player and
+  the whole world from where the store keeps them, and a save from before the database comes in through the tables.
+- `tools/rerun.py --as-schema N` reads the state after each input as version N held it (`statehash.VIEWS`, one view, for
+  16). **The proof, run before anything was kept**, in a copy of the tree with f639 taken out: stub_short 41 of 41,
+  stub_party 15 of 15, stub_fight 27 of 27, with the state, outcomes, operations, presented entries and shown words equal.
+  Without the view each parted at input 1, on the state alone.
+- **f639 read on the new storage**, the story's count left out of the fingerprint: stub_party whole (it has no command);
+  stub_short matched 4 and parted at input 5, after the command at 4; stub_fight matched 9 and parted at input 10, after
+  the command at 9. Each parted where the game asked the model in other words.
+- **The one re-record, read over every input** against the old recordings:
+  - stub_party: no request, outcome, operation, presented entry or shown word changed, on any of its 15 inputs. What changed
+    is the data hash, the start, every input's fingerprint (of the old six tables only the small one: the player's row has
+    gone to its table, and the campaign's row has the story's count), and each input row names who acted.
+  - stub_short: inputs 1 to 4 the same in the same way. From input 5, the line after the command, the dice are other dice
+    and the stand-in bot plays another story from there (93 calls for 95; the first request that differs is call 10, at
+    input 5).
+  - **stub_fight is a new recording, on another seed.** Its script picks the seed on which the dice give what its census
+    asks (the captain beaten, a level gained, a hire dead, a legendary among the drops). With the dice after the draught
+    moved, seed 18 loses the fight and the census refused it. Of seeds 1 to 200 one gives all of it: 147 (20 inputs, 62
+    calls). So nothing in it can be read line against line; what could be compared was compared above, on the old one.
+  - The script's note said about half the seeds die to the captain. Measured now it is about four in five, with f639
+    (66 of 80) and without it (62 of 80): older drift in the fight's numbers, not this feature's doing. **For the owner.**
+- The tests that held the tables to the rows (f637, f638, the caps, the world script) still do: the tables' side is now the
+  store as it is, and the row's side is a save put back as version 16 kept it (tools/sim/rows_v16.py, for tests only).
+- **The prices.** The gate holds each input of a recording to the price kept for it, and two recordings now tell other
+  stories, so no kept price was the price of the same line.
+  `tools/latency.py --retold RECORDING --from N --note TEXT [--over I,J]` sets such a recording's kept prices to today's
+  from the input where its story parts, and says so in the file's header. The inputs before N are the same lines and
+  stay held to their kept prices (one grown dearer is refused). It refuses a recording that tells no other story, never
+  keeps a fight input over the minute, and keeps a plain one over it only when the command names it
+  (tools/sim/retold_prices_640_test.py, ten mutations caught). Run with `--from 5` for stub_short and `--from 0` for
+  stub_fight. stub_party kept every price, which is the proof that no prompt grew. stub_short's story is 857 seconds for
+  769, and **it has four plain inputs over the minute where it had two** (1 as before; 33, 35 and 37, each an arrival
+  at a place, for the old 36): the same debt Bundle D left, more of it met by this story. **The owner accepted the three as
+  that debt on 2026-11-15, after the fact:** the tool had written them in so that the suite could pass, the other way
+  round from `--rekeep`, where the owner accepts first. The gate being green is not proof that the minute holds on them. stub_fight is 355 seconds
+  for 413, none over. The fight measures were written again by their tool.
+- Tests that named a recording's inputs by number now find them by what they are (closing_510_test), and a test that
+  made an old save by lowering a new one's version now puts it back in its rows first (`rows_v16.lowered`).
+- Nineteen mutations of the build, each caught by the test.
+
 **f641: narrow reads read one table.** The readers f589 put on the seam (an effect at a place, the threads of a status, the deeds
 since a minute, the news) become one indexed query each. Writes stay load, change, save. A count of whole-world loads per golden
 input that only falls.
+
+As built (tools/sim/narrow_reads_641_test.py, written first; storage/worldtables.py `TableWorld`):
+- Each of the four is one statement on its own table, and then the filter every storage answers by (storage/worldrow.py)
+  over what the statement found. So the answer is the filter's, and the statement only finds less to filter.
+- The effects are found by kind, place and end; the matters by status; the deeds by minute: each by the index f637
+  made. The news is its table, whole. A column holds a minute or an end as a whole number, so those are asked by the
+  whole minute and the filter says which of the found are meant (an effect that ends half a minute on is held).
+- The rows are put in the list's order after they are found. Asked for in order, the deeds were read whole and the index
+  left unused.
+- A reader loads no whole world: with every way to the whole load shut, the four answer, and so do the game's four
+  askers (a price, a danger, a place shut and until when, engine/pulse.py). A reader sees what its own transaction wrote
+  and none of it once that is taken back. A save still on its rows is answered by the filter, as before.
+- **The count.** The three recordings replayed both ways, a process each: no input loads the whole world more often,
+  and over the three it is loaded 840 times for 1,448 (stub_short 409 for 713, stub_party 336 for 638, stub_fight 95 for
+  97). All three replay whole: nothing was re-recorded.
+- **The time**, on the kept world of the long script (300 deeds, 300 news, 32 matters, 9 effects), 2,000 asks each: the
+  effects at a place 0.007 ms for 0.64; the active matters 0.04 for 0.63; the deeds of the last day 0.003 for 0.64;
+  the news, which is all of its table, 0.41 for 0.64.
+- Fifteen mutations of the four readers, each caught.
+- Left as it is: the whole load still reads five things (f637 measured 1.5 ms against the row's 1.2). What is left of
+  the 840 are the callers that change the world or read a key that is no list.
 
 ## 4. How it lands
 
@@ -454,4 +577,4 @@ Questions 1 and 2 are settled as recommended (GOALS.md holds them). Question 3 s
 3. **data/runtime/server.yaml** is still unread: this session is refused that folder, as the earlier ones were. The plan treats
    it as untouched. Still the owner's to confirm that it holds nothing about saves, the turn, the dice or the screen.
 
-Needed later, not now: the wording of the line a player reads when a save cannot be migrated (f640).
+Needed now: the wording of the line a player reads when a save cannot be migrated (f640 built it with a placeholder, storage/campaign.py `NOT_MIGRATED`).

@@ -34,8 +34,10 @@ Rule with:
   why:      one short line, in the world's terms.
   uses:     the codes from TARGETS the act relies on, if any: the thing to hide behind, the rope to climb, the person spoken to.
   needs:    what the world must hold for it that is NOT in TARGETS: a part of the place (kind "feature"), a person (kind "person", with
-            a role from ROLES when one fits), a thing (kind "thing": a loose rock, a rope left behind), or a way (kind "way": a passage
-            onward). Only what it cannot happen without; at most two; never treasure, magic items or creatures to fight. Each: name
+            a role from ROLES when one fits), a thing (kind "thing": a loose rock, a fallen branch), or a way (kind "way": a passage
+            onward). A thing the act uses is named too, carried or not: one of the KIT (<KIT>) by its own name, and the game
+            looks in the pack; any other small thing (a stick of charcoal, a scrap of cloth) with where it comes from (from the cold
+            hearth). Only what it cannot happen without; at most two; never treasure, magic items or creatures to fight. Each: name
             (short), what (one sentence of what it is), where (where it is from the player).
   requires: the names from CAPABILITIES the attempt needs, whether or not the character has them. Most attempts need none.
   stakes:   check - one of CHECKS, or an attribute, when chance decides it; hard - easy, fair, hard, or beyond: past anything someone
@@ -52,6 +54,15 @@ Rule with:
   answer:   for a no only: what happens instead, in the world, second person, as it would be seen.
   instead:  for a no only: one or two things they could try that would make sense.
 Respond only with JSON matching the schema."""
+
+
+def _kit_names() -> str:
+    """(f706) The kit an act leans on that a character carries (act.yaml carried_goods), in the goods' own names."""
+    from engine import inventory as inv
+    return ", ".join(inv.GOODS[g].name for g in A.get("carried_goods") or () if g in inv.GOODS)
+
+
+SYSTEM = SYSTEM.replace("<KIT>", _kit_names())
 
 
 # ---------- the request
@@ -525,6 +536,8 @@ def problems() -> list[str]:
         v = A.get(k)
         if not (isinstance(v, int) and not isinstance(v, bool) and v > 0):
             bad.append(f"act.yaml {k}: needs a whole number above 0")
+    from engine import inventory as inv                                        # (f706) the carried kit, by goods.yaml id
+    bad += [f"act.yaml carried_goods: '{g}' is no good of goods.yaml" for g in A.get("carried_goods") or () if g not in inv.GOODS]
     from engine import situation_parts
     words = set(situation_parts.S["rulings"]["changes"])
     if not (isinstance(A.get("outside_situation"), list) and set(A["outside_situation"]) <= words):
@@ -602,8 +615,49 @@ def decide(ws, actor_id: str, T, r, fresh: bool, words: str, text: str, continui
         else:
             warn(ws, actor_id, v, words, text)
         return
+    good = good_lacking(ws, actor_id, v.ruling)
+    if good:                                         # (f706) a catalogued good is carried, never conjured (Q34)
+        from engine import told
+        ws.refuse(told.say("lacks_good", ws.store.meta.turn, thing=good))
+        return
     made = make_needs(ws, actor_id, v.ruling)
     resolve(ws, actor_id, T, v, words, text, made, own)
+
+
+def _good_of(name: str) -> str:
+    """(f706) The kit good (act.yaml carried_goods) a thing's own name is, the good's words and nothing but filler beside them ('a coil
+    of rope' is rope; 'the bell rope' and 'the torch in the wall bracket' are things of the place), or ''."""
+    from engine import inventory as inv
+    from engine.inventory import _stem
+    words = lambda s: {_stem(w) for w in re.findall(r"[a-z]+", (s or "").lower())}
+    said, filler = words(name), words(" ".join(A.get("good_filler") or ()))
+    for gid in A.get("carried_goods") or ():
+        own = words(inv.GOODS[gid].name) if gid in inv.GOODS else set()
+        if own and own <= said and said - own <= filler:
+            return gid
+    return ""
+
+
+def kit_held(ws, actor_id: str) -> set[str]:
+    """(f706) The kit goods the character has to hand: in the pack or worn, or a thing of that name carried or lying here."""
+    from engine import inventory as inv, objects
+    me = ws.player_of(actor_id)
+    c = me.character
+    held = {i.good for i in list(c.inventory) + [i for i in (c.equipment or {}).values() if i is not None] if i.good}
+    things = objects.here(ws.store, me.location, ws.minutes) + objects.carried(ws.store, actor_id)
+    return held | {_good_of(t.name) for t in things} - {""}            # a bell rope lying here is no rope to hand
+
+
+def good_lacking(ws, actor_id: str, r) -> str:
+    """(f706) A thing the ruling needs that is a kit good the character does not have to hand, and that is no part of the place; ''
+    when none. Trifles are the place's to supply (Q34)."""
+    from engine import features, inventory as inv
+    held = kit_held(ws, actor_id)
+    for n in r.needs:
+        gid = _good_of(n.name) if n.kind == "thing" else ""
+        if gid and gid not in held and features.find(ws, n.name) is None:
+            return inv.GOODS[gid].name
+    return ""
 
 
 # ---------- (f596) an act waiting for its ruling
@@ -691,8 +745,11 @@ def make_needs(ws, actor_id: str, r) -> list[str]:
     here, or someone of that kind already here, is what was called for."""
     from engine import objects, ruling
     fresh = []
+    carried = kit_held(ws, actor_id)
     for n in r.needs:
         if n.kind == "thing" and objects.find(objects.here(ws.store, ws.player_of(actor_id).location, ws.minutes), n.name) is not None:
+            continue
+        if n.kind == "thing" and _good_of(n.name) in carried:      # (f706) the good they carry is the one it uses: none is made
             continue
         if n.kind == "person" and any(getattr(p, "epithet", "") == objects.name_of(n.name) for p in ws.present):
             continue
@@ -739,10 +796,16 @@ def resolve(ws, actor_id: str, T, v: Checked, words: str, text: str, made: list[
     no = {ch.becomes for ch, _ in refused} | {ch.state for ch, _ in refused if ch.state}
     landed = world_improv.land(ws, own or words or text, degree, no)   # (f603) what the retired path made true besides, kept
     if rolled or changes or made or landed:
-        console.ledger(f"Attempt: {degree.replace('_', ' ')}")
+        if rolled:
+            console.ledger(f"Attempt: {degree.replace('_', ' ')}")
         ws.notice(Acted(minute=ws.minutes, place=ws.player_of(actor_id).location, what=world_improv.what_of(own or words or text), degree=degree, by=actor_id,
                         changes=tuple(ch.becomes for ch in changes), heat=0.0 if worked else float(F.get("heat", 0) or 0),
                         considered=tuple(t.ref for t in T.rows if t.kind == "situation")))
+    if worked and not rolled:                                                  # (f703) a plain yes: the player reads what it came to
+        from engine import told as told_
+        comes_to = (r.works or "").strip().rstrip(" .!?")                      # the ruling's own words (f609), never the line's claim
+        what_done = comes_to[:1].lower() + comes_to[1:] if comes_to else world_improv.what_of(own or words or text)
+        console.note(told_.say("act_done", ws.store.meta.turn, what=what_done))
     seq = int((ws.store.load_world_state() or {}).get("seq") or 0)
     told = apply(ws, actor_id, T, changes, degree, seq, r.stakes.check) if changes else []
     room = (" THE WORLD NOW HOLDS (made for this, and real from now on; show it): " + "; ".join(made) + ".") if made else ""

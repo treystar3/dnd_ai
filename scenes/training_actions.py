@@ -77,18 +77,18 @@ class TrainingActions:
         c = self.player.character
         d, t, a = T["drills"], T["tutoring"], T["abilities"]
         console.note("The instructor teaches:")
-        console.note(f"  drills - {money.words(self.fee(d['fee_per_level'] * c.level))}, {d['hours']} hours, once a day")
-        console.note(f"  tutoring in {', '.join(t['skills'])} - from {money.words(self.fee(t['base_fee']))}, "
+        console.note(f"  drills: {money.words(self.fee(d['fee_per_level'] * c.level))}, {d['hours']} hours, once a day")
+        console.note(f"  tutoring in {', '.join(t['skills'])}: from {money.words(self.fee(t['base_fee']))}, "
                      f"{t['hours']} hours, +{t['bonus']}% each time up to +{t['cap']}%")
-        console.note(f"  a new ability or passive trait - {money.words(self.fee(a['base_fee'] + a['fee_per_level'] * c.level))}, "
-                     f"{a['hours']} hours (you know {len(c.actives)} of {self.ability_slots()} abilities you can hold, "
-                     f"{len(c.passives)} of {self.passive_slots()} traits)")
+        console.note(f"  a new ability or passive trait: {money.words(self.fee(a['base_fee'] + a['fee_per_level'] * c.level))}, "
+                     f"{a['hours']} hours (you hold {len(c.actives)} of {self.ability_slots()} abilities "
+                     f"and {len(c.passives)} of {self.passive_slots()} traits)")
 
     def drill(self, teacher, text: str) -> None:
         c, d = self.player.character, T["drills"]
         day = clock.day(self.minutes)
         if c.level >= d["max_level"]:
-            self.refuse("The instructor has nothing left to teach you in drills - the world is your teacher now.")
+            self.refuse("You've learned everything the instructor's drills can teach.")
             return
         if c.last_drill_day == day:
             self.refuse("You've drilled today already. Come back tomorrow.")
@@ -103,7 +103,7 @@ class TrainingActions:
         self.store.save_player(self.player)
         console.note(f"Drilled for {d['hours']} hours with {teacher.label(self.acting)}. Paid {money.fmt(fee)}. +{xp} XP.")
         if levels:
-            console.note(f"LEVEL UP! You are now level {c.level}. {c.unspent_points} points to spend - #allocate")
+            console.note(f"LEVEL UP! You are now level {c.level}, with {c.unspent_points} points to spend. Type #allocate.")
         self.narrate(f"The player spends {d['hours']} hours sparring and drilling under {teacher.label(self.acting)}'s eye - "
                      "sweat, bruises, and a few hard-won lessons.", text)
 
@@ -141,7 +141,7 @@ class TrainingActions:
         can_a, can_p = spells.distinct(c.actives) < self.ability_slots(), len(c.passives) < self.passive_slots()   # (f397) a line counts once
         if not (can_a or can_p):
             nxt = min((spells.distinct(c.actives) - a["starting"] + 1) * a["levels_per_new"], (len(c.passives) - p["starting"] + 1) * p["levels_per_new"])
-            self.refuse(f"You can't take on another ability or trait yet - you'll have room for one more at level {nxt}.")
+            self.refuse(f"You can't take on another ability or trait yet. You'll have room for one more at level {nxt}.")
             return
         console.wait(f"{cap_first(teacher.label(self.acting))} considers what to teach you.")
         want = lesson_ask.read_request(c, request)

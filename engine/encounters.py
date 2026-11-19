@@ -13,15 +13,13 @@ CREATURE_RULES = yamlio.safe_load((Path(__file__).resolve().parent.parent / "dat
 E = combat.RULES["encounters"]
 
 
-def ensure_roster(store, world, place_id: str) -> list[str]:
+def roster_of(store, world, place_id: str) -> list[str]:
+    """(f698) The creatures a place holds, as ensure_roster would keep them, read and never written: drawn from the seed when none
+    is kept yet."""
     state = store.load_place(place_id)
     anchors = world.places[place_id].anchors
     if state.roster:
-        missing = [a for a in anchors if a not in state.roster]
-        if missing:
-            state.roster = missing + state.roster
-            store.save_place(state)
-        return state.roster
+        return [a for a in anchors if a not in state.roster] + state.roster
     if not world.places[place_id].danger:
         return state.roster
     found = world.creature_candidates(place_id, CREATURE_RULES["rarity_weight"], CREATURE_RULES.get("fit"))   # peers before stragglers
@@ -32,8 +30,15 @@ def ensure_roster(store, world, place_id: str) -> list[str]:
         pick = rng.choices(pool, weights=[w for _, w in pool])[0]
         roster.append(pick[0].id)
         pool.remove(pick)
-    state.roster = roster
-    store.save_place(state)
+    return roster
+
+
+def ensure_roster(store, world, place_id: str) -> list[str]:
+    state = store.load_place(place_id)
+    roster = roster_of(store, world, place_id)
+    if roster != state.roster:
+        state.roster = roster
+        store.save_place(state)
     return roster
 
 
@@ -70,8 +75,16 @@ def roll(store, world, place_id: str, chance: float, rng: random.Random, seek: s
         creature = world.bestiary[force]
     else:
         creature = world.bestiary[rng.choice(wanted) if wanted and rng.random() < 0.75 else rng.choice(roster)]
+        fits = lambda c: c.levels[0] <= place.danger[1] and c.levels[1] >= place.danger[0]
+        if not fits(creature):                           # (f705) never a foe past anything the place holds: one of the roster that fits
+            fitting = [r for r in roster if fits(world.bestiary[r])]
+            if fitting:
+                sought = [r for r in wanted if r in set(fitting)]
+                creature = world.bestiary[rng.choice(sought or fitting)]
     low = max(place.danger[0], creature.levels[0])
     high = min(place.danger[1], creature.levels[1])
+    if low > high:                                       # (f705) none fits: met at the place's top, never at its own
+        low = high = place.danger[1]
     posted = next((q["scale"] for q in contracts or [] if q.get("scale") and q["kind"] == "hunt" and q.get("place") == place_id
                    and q.get("creature") == creature.id and q["progress"] < q["count"]), None)
     if posted:
@@ -107,5 +120,7 @@ def add_member(world, place_id: str, creature_id: str, rng: random.Random, rank:
     c = world.bestiary[creature_id]
     p = world.places[place_id]
     lo, hi = max(p.danger[0], c.levels[0]), min(p.danger[1], c.levels[1])
-    level = rng.randint(min(lo, hi), max(lo, hi))
+    if lo > hi:                                          # (f705) never past anything the place holds
+        lo = hi = p.danger[1]
+    level = rng.randint(lo, hi)
     return combat.fighter_from_creature(c, level, rank, fid, name, start)

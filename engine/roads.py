@@ -13,6 +13,41 @@ R = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" 
 TIER_ORDER = ["normal", "uncommon", "rare"]
 
 
+def is_stop(world, place_id: str) -> bool:
+    """(f734) A stop on the road: a place of type road made for one journey, with no parent. The one rule every reader asks."""
+    p = world.places.get(place_id)
+    return p is not None and p.type == "road" and not p.parent
+
+
+def spot(world, place_id: str) -> tuple[str, str, float] | None:
+    """(a, b, how far from a) of a point on a road, or None off the map: a real place is its own end; a stop stands between the two
+    real places it is joined to (f426), as far along as its walks to them say. (f734) make_stop and keep_landmark share one reckoning."""
+    p = world.places.get(place_id)
+    if p is None:
+        return None
+    if is_stop(world, place_id):
+        ends = sorted((k, v) for k, v in p.connects.items() if k in world.places and not is_stop(world, k))
+        if len(ends) == 2:
+            (ea, da), (eb, db) = ends
+            return ea, eb, da / max(1, da + db)
+    return place_id, place_id, 0.0
+
+
+def stop_ends(world, stop: dict) -> tuple[str, str]:
+    """(f734) Behind and ahead of a stop (its record, as a character's state keeps it): the record's own when both are on the map, else
+    the place's own ways, the first behind (a record made before a stop named real ends only may name the stop walked on from)."""
+    places = world.places
+    a, b = stop.get("from", ""), stop.get("to", "")
+    if a in places and b in places and a != b:
+        return a, b
+    p = places.get(stop.get("id", ""))
+    ways = [k for k in ((stop.get("place") or {}).get("connects") or (p.connects if p is not None else {})) if k in places]
+    if not ways:
+        return "", ""
+    behind = a if a in ways else ways[0]
+    return behind, b if b in ways and b != behind else next((k for k in reversed(ways) if k != behind), behind)
+
+
 def edge_key(world, a: str, b: str) -> str:
     """A road's name for the pulse: the named road's id, or the two places joined."""
     r = world.road_between(a, b)
@@ -24,7 +59,7 @@ def way_key(world, a: str, b: str) -> str:
     journey) lies on the road between its two real ends, so a walk from or to it meets what is laid on that road."""
     for x, y in ((a, b), (b, a)):
         p = world.places.get(x)
-        if p is not None and p.type == "road" and not p.parent and y in (p.connects or {}) and len(p.connects) == 2:
+        if is_stop(world, x) and y in (p.connects or {}) and len(p.connects) == 2:
             r = world.road_between(*list(p.connects))
             if r is not None:
                 return r.id
@@ -34,7 +69,7 @@ def way_key(world, a: str, b: str) -> str:
 def on_road(world, place_id: str, road_id: str) -> bool:
     """(f541's review) Is this a stop on that road: a place of type road made for one journey, joined to the road's two ends?"""
     p, r = world.places.get(place_id), world.roads.get(road_id)
-    return bool(p is not None and r is not None and p.type == "road" and not p.parent and set(p.connects or {}) == {r.from_, r.to})
+    return bool(r is not None and is_stop(world, place_id) and set(p.connects or {}) == {r.from_, r.to})
 
 
 def far_side(world, place_id: str, road_id: str, at: float, came_from: str = "") -> str:
@@ -139,39 +174,47 @@ def nearby_wilds(world, a: str, b: str) -> list[str]:
     return found
 
 
+def anchor(world, pid: str) -> str:
+    """(f366) The real place a road stop stands nearest to: a journey begun from a stop names the towns, not 'the way between the way
+    between...'. (f702) Lifted out for the landmarks a sight leaves."""
+    p = world.places.get(pid)
+    if is_stop(world, pid) and p.connects:
+        return anchor(world, min(p.connects, key=lambda k: p.connects[k]))
+    return pid
+
+
+def real_ends(world, a: str, b: str, ta: int, tb: int) -> tuple[str, str, dict[str, int]]:
+    """(f734) For a point `ta` along a stretch from a to b (`tb` short of b): the road's real end behind it, the one ahead, and its
+    ways to them, by where a and b stand on the road (spot). A stretch between two real places is its own road, its ways ta and tb.
+    (f426) A stop is joined to real places only: one joined to an older stop broke every route once the older one was tidied away."""
+    sa, sb = spot(world, a), spot(world, b)
+    ends = sorted({sa[0], sa[1], sb[0], sb[1]})
+    if len(ends) != 2 or any(is_stop(world, e) for e in ends):       # a stop with no two real ways, from a save made before
+        ways = {e: t for e, t in ((a, ta), (b, tb)) if not is_stop(world, e)} or {a: ta, b: tb}
+        return next(iter(ways)), next(reversed(ways)), ways
+    pos = lambda s: (0.0 if s[0] == ends[0] else 1.0) if s[0] == s[1] else s[2]
+    behind, ahead = (ends[0], ends[1]) if pos(sa) <= pos(sb) else (ends[1], ends[0])
+    back = 0 if a == behind else world.places[a].connects.get(behind, 0)
+    on = 0 if b == ahead else world.places[b].connects.get(ahead, 0)
+    return behind, ahead, {behind: back + ta, ahead: on + tb}
+
+
 def make_stop(world, a: str, b: str, frac: float, minutes: int, scene: str, role: str, title: str, detail: str = "", name: str = "") -> dict:
-    """A place on the road between a and b where the player is left. Returned as the dict saved in the player's state."""
+    """A place on the road between a and b where the player is left. Returned as the dict saved in the player's state. (f734) Its ways
+    and its record's `from` and `to` are the road's two real ends (real_ends), so nothing of it names a stop tidied away."""
     from world.loader import Place
     near = a if frac < 0.5 else b
     ta = max(1, round(minutes * frac))
     tb = max(1, minutes - ta)
-
-    def anchor(pid: str) -> str:                      # (f366) a journey begun from a stop names the towns, not 'the way between the way between...'
-        p = world.places.get(pid)
-        if p is not None and p.type == "road" and not p.parent and p.connects:
-            return anchor(min(p.connects, key=lambda k: p.connects[k]))
-        return pid
-    aa, bb = anchor(a), anchor(b)
+    aa, bb = anchor(world, a), anchor(world, b)
     r = world.road_between(aa, bb)
     if aa == bb and not name:                         # (f423) a journey resumed from a stop near its end: never "between Hrimgard and Hrimgard"
-        old = next((world.places[x] for x in (a, b) if x in world.places and world.places[x].type == "road" and not world.places[x].parent), None)
+        old = next((world.places[x] for x in (a, b) if is_stop(world, x)), None)
         name = old.name if old else f"the way near {world.places[aa].name}"
     name = name or f"{r.name if r else 'the way'} between {world.places[aa].name} and {world.places[bb].name}"
     pid = f"road_{streams.new_id(8)}"
-
-    def real_end(pid_: str, other: str, minutes_: int) -> tuple[str, int]:
-        """(f426) A stop is joined to real places only: an end that is itself a stop (a journey resumed from one) is replaced by that
-        stop's own far end, the walk to it added. A stop joined to an older stop broke every route once the older one was tidied away."""
-        p = world.places.get(pid_)
-        if p is None or p.type != "road" or p.parent or not p.connects:
-            return pid_, minutes_
-        ends = {k: v for k, v in p.connects.items() if k != other} or dict(p.connects)
-        k = min(ends, key=ends.get)
-        return real_end(k, other, minutes_ + ends[k])
-    ra, ma = real_end(a, b, ta)
-    rb, mb = real_end(b, a, tb)
-    connects = {ra: ma, rb: mb} if ra != rb else {a: ta, b: tb}
+    behind, ahead, connects = real_ends(world, a, b, ta, tb)
     place = Place(id=pid, name=name, type="road", region=world.places[a].region, biome=world.places[near].biome,
                   connects=connects, peoples=dict(world.places[near].peoples), residents={role: 1} if role else {},
                   visible=[scene] if scene else [], origin=detail.strip() if role else "")
-    return {"id": pid, "from": a, "to": b, "title": title, "place": place.model_dump(mode="json")}
+    return {"id": pid, "from": behind, "to": ahead, "title": title, "place": place.model_dump(mode="json")}

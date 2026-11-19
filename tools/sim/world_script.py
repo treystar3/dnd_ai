@@ -16,8 +16,8 @@ past what is kept, deeds past their cap, the history at its cap, and an operatio
                                                          "rest": the digest of the small rows but the world's, "ops": the
                                                          operations that stood, "stale": the saves the detector noted, "shown":
                                                          the lines shown, "world": the storage the world was kept in
-    ... --world tables                                   (f637) the same play with the world's lists in their tables
-                                                         (storage/worldtables.py)
+    ... --world row, --players row                       (f640) the same play with the world, or the player, put back in the
+                                                         one row a save kept it in before (tools/sim/rows_v16.py)
     world_script.run_apart("name")                       the same from a test: the play's dict (the stand-in model numbers what it
                                                          invents by a count the process keeps, so two plays compared share none)
     play(name, stub, prepare=fn)                         in this process; fn(game) before anything is written: where a storage
@@ -71,7 +71,7 @@ def play(name: str, stub, seed: int = SEED, prepare=None) -> Run:
         prepare(g)
     run = Run(g)
     ws, store = g.scene, g.store
-    config.TURN_LOG_PATH = f"saves/{name}/turns.jsonl"     # its typed lines are logged in its own save, not the shared log
+    config.TURN_LOG_PATH = str(simlib.saves_path(name, "turns.jsonl"))     # its typed lines are logged in its own save, not the shared log
     ws.enter(PLACE)
     world = ws.world
     town = pulse.town_of(world, PLACE)
@@ -138,6 +138,7 @@ def play(name: str, stub, seed: int = SEED, prepare=None) -> Run:
         who = next(a["who"] for a in th["parts"] if a.get("kind") == "person")
         with ws.operation("action:give", "give a loaf"):
             ws.notice(Gift(minute=ws.minutes, place=PLACE, witnesses=(), npc=who, name=store.load_npc(who).name, item=item, count=1))
+        ws.take_up_rulings("give a loaf")                # (f684) ruled after the line, as the game does, not inside the give
 
     def acted() -> None:
         """(f605) An act on the act path (f595, f600): looters lay a danger on the square and harm a townsperson there; the act's one
@@ -321,7 +322,7 @@ def run_apart(name: str, seed: int = SEED, extra: tuple = ()) -> dict:
     import os
     import subprocess
     from pathlib import Path
-    out = Path("saves") / f"{name}.world_script.json"     # beside the play's save, written over by the next run
+    out = simlib.saves_path(f"{name}.world_script.json")     # beside the play's save, written over by the next run
     done = subprocess.run([sys.executable, __file__, name, "--seed", str(seed), "--out", str(out), *extra], capture_output=True, text=True,
                           encoding="utf-8", errors="replace", env={**os.environ, "PYTHONUTF8": "1"})
     if done.returncode != 0 or not out.exists():
@@ -336,15 +337,16 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("name")
     ap.add_argument("--seed", type=int, default=SEED)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--world", choices=("row", "tables"), default="row")
-    ap.add_argument("--players", choices=("row", "table"), default="row")
+    ap.add_argument("--world", choices=("row", "tables"), default="tables")
+    ap.add_argument("--players", choices=("row", "table"), default="table")
     a = ap.parse_args(argv)
     stub = simlib.Stub("warrior", 3)
     simlib.install(stub)
     shown = simlib.quiet_console()
-    from storage import playerstable, worldtables
-    adopted = [fn for on, fn in ((a.world == "tables", worldtables.adopt), (a.players == "table", playerstable.adopt)) if on]
-    prepare = lambda g: [fn(g.store) for fn in adopted]
+    sys.path.insert(0, "tools/sim")
+    import rows_v16
+    back = [fn for on, fn in ((a.world == "row", rows_v16.world_to_row), (a.players == "row", rows_v16.player_to_row)) if on]
+    prepare = lambda g: [fn(g.store) for fn in back]
     run = play(a.name, stub, seed=a.seed, prepare=prepare)
     kept, held = type(run.game.store._world).__name__, type(run.game.store._players).__name__
     run.game.session.close()

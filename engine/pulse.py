@@ -67,7 +67,7 @@ def home_town(world, place_id: str) -> str:
     nearer. A night run's player was on such roads at three ticks in a row, and each tick tried to start a situation at the road itself,
     which no template fits."""
     p = world.places.get(place_id)
-    if p is not None and p.type == "road" and not p.parent and p.connects:
+    if roads.is_stop(world, place_id) and p.connects:
         return town_of(world, min(p.connects, key=lambda k: p.connects[k]))
     return town_of(world, place_id)
 
@@ -78,6 +78,12 @@ def town_of(world, place_id: str) -> str:
     while p and p.parent and p.parent in world.places:
         p = world.places[p.parent]
     return p.id if p else place_id
+
+
+def settled(world, place_id: str) -> bool:
+    """(f735) A place that counts as settled (GOALS.md, review Q15): on the map, not a road stop, not a dungeon's mouth, not dangerous."""
+    p = world.places.get(place_id or "")
+    return p is not None and not roads.is_stop(world, place_id) and p.type != "dungeon" and not p.danger
 
 
 def price_factor(store, world, place_id: str, now: int, good: str = "") -> float:
@@ -143,7 +149,7 @@ def happenings_at(store, world, place_id: str, now: int) -> list[str]:
                 far = next((x for x in ends if town_of(world, x) != town), "")
                 out.append(f"The road{' to ' + world.places[far].name if far else ''} ({r.name}) is closed: {e['text']}")
     p = world.places.get(place_id)
-    if p is not None and p.type == "road" and not p.parent and len(p.connects or {}) == 2:     # (f541) a stop on a shut road: the barrier
+    if roads.is_stop(world, place_id) and len(p.connects or {}) == 2:                        # (f541) a stop on a shut road: the barrier
         r = world.road_between(*list(p.connects))
         hit = next((e for e in state.get("effects", []) if r is not None and e["kind"] == "closed" and e["place"] == r.id
                     and e["until"] > now and e.get("cause") != "improvised"), None)
@@ -838,7 +844,9 @@ def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: s
         met = npc.tier != "background"
         if npc.protected or npc.role in P["protected_roles"] or (met and tier not in P["may_remove_met"]):
             return "skipped: they are protected"
-        remove_npc(store, world, npc, e.get("text") or "gone away", t)
+        from engine import towns
+        how = e.get("text") or "gone away"
+        remove_npc(store, world, npc, how, t, dead=towns.reads_as_death(how))       # (f664) read once, where it is written
     elif kind == "arrive" and known(world, e.get("place")) and e.get("role") in world.roles:
         if world.places[e["place"]].danger or not world.peoples_at(e["place"]):
             return "skipped: a dangerous or empty place"
@@ -909,18 +917,23 @@ def move_npc(store, npc, place_id: str) -> None:
     store.save_npc(npc)
 
 
-def remove_npc(store, world, npc, how: str, t: int, dead: bool | None = None, mourned: bool | None = None) -> None:
+def journal_gone(store, npc, how: str, t: int, dead: bool, mourned: bool | None = None) -> None:
+    """(f664) The one writer of a person's leaving in the journal: whether it was a death is always said, by the one who knows."""
+    store.journal(t, "npc_gone", "", npc.id, f"{npc.name} is gone: {how}", {"how": how, "place": npc.location, "dead": bool(dead), "mourned": mourned})
+
+
+def remove_npc(store, world, npc, how: str, t: int, *, dead: bool, mourned: bool | None = None) -> None:
     """Take someone out of the story - and tie off everything the player had with them. (f430) `dead` says whether it was a death, so
     a town grieves only for its dead: the f425 night hung black cloth for three captives who had slipped their bonds, the meaning of
-    'got away' read as a death. `mourned` False: the town does not grieve them whatever became of them (an outlaw held captive). Left
-    None (a model's own words for it), the words are read for a death as before."""
+    'got away' read as a death. `mourned` False: the town does not grieve them whatever became of them (an outlaw held captive). (f664)
+    Every caller says whether it was a death; a model's own words for it are read once, where they are written (towns.reads_as_death)."""
     npc.gone = how
     from engine import obligations, quests                 # (f481) what they offered ends with them, for that reason
     for e in obligations.open_ones(store, holder=npc.id):
         fam = e.data.get("family")
         obligations.close(store, e, "withdrawn" if fam == "work" else "released", "gone" if fam != "contract" else "issuer_gone", t, npc=npc)
     store.save_npc(npc)
-    store.journal(t, "npc_gone", "", npc.id, f"{npc.name} is gone: {how}", {"how": how, "place": npc.location, "dead": dead, "mourned": mourned})
+    journal_gone(store, npc, how, t, dead, mourned)
     ps = store.load_place(npc.location)
     ps.residents = [r for r in ps.residents if r != npc.id]
     store.save_place(ps)

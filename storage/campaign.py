@@ -10,14 +10,15 @@ One SQLite file per campaign, saves/<campaign>/campaign.db:
 
 Every record body is JSON in a text column, so a save stays readable with any SQLite browser (or export_json() writes it out as
 files). Each save call is its own transaction; transaction() groups several. The schema has a version (PRAGMA user_version) and
-storage/migrations.py carries it forward; a save made by the older one-file-per-record layout is imported on first open and the
-old files moved aside to legacy_json/.
+storage/migrations.py carries it forward. A folder in the one-file-per-record layout from before the database is refused (OldLayout)
+and left as it was.
 
 The rest of the game only talks to CampaignStore."""
 
 from __future__ import annotations
 
 import json
+import os
 import random
 import sqlite3
 import threading
@@ -26,14 +27,15 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
-from storage.playerstable import FIRST, RowPlayers
+from storage.playerstable import FIRST, TablePlayers
 
 from core.models import Item, Character
 from npc.models import NPC, Memory
 
-SAVES_DIR = Path("saves")
+# (f741) The one name of the saves folder, read when it is used. MERAVIA_SAVES names a test's own (a player never sets it)
+SAVES_DIR = Path(os.environ.get("MERAVIA_SAVES") or "saves")
 DB_NAME = "campaign.db"
 
 
@@ -44,7 +46,14 @@ class CampaignMeta(BaseModel):
     turn: int = 0
     minutes: int = 0
     created: str
-    steps: int = 0          # (f439) inputs taken in this campaign: with the seed and the line typed, what every turn's dice start from
+    steps: int = 0          # (f439) inputs taken, a pane's command with the rest: which input an operation is of, and a command's own dice
+    story_steps: int = -1   # (f639) lines of the story taken: what a line's dice start from, so a pane looked at moves none of them
+
+    @model_validator(mode="after")
+    def _story_from_inputs(self):
+        if self.story_steps < 0:                # (f639) a save from before goes on from its one count: no key it has had is met again
+            self.story_steps = self.steps
+        return self
 
 
 class PlaceState(BaseModel):
@@ -110,7 +119,7 @@ class PlayerState(BaseModel):
     trial: dict = {}                     # the trial of rank (scenes/trial_actions.py): pending rank, examiner, tries, wait_until, told_day
     standing_seen: dict[str, dict] = {}  # deed news already felt in far towns: news id -> town -> {group: change}
     confronted: dict[str, int] = {}  # town id -> the last day guards stopped you there
-    road: dict | None = None       # stopped on the road: {"id", "from", "to", "place", "log", "text", "resume"}
+    road: dict | None = None       # stopped on the road: {"id", "from", "to", "place", "log", "text", "resume", "won"}
 
 
 @dataclass
@@ -155,8 +164,32 @@ def _npc_index(npc: NPC) -> dict:
             "protected": int(npc.protected)}
 
 
-class SaveTooNew(Exception):
+class SaveRefused(Exception):
+    """(f640) The save is not opened, and its message is the line the player reads; the home page comes back."""
+
+
+class SaveTooNew(SaveRefused):
     """The save was made by a newer build than this one: opening it here could misread or damage it."""
+
+
+class SaveNotMigrated(SaveRefused):
+    """(f640) A step that brings an older save forward failed: its writes were taken back, the steps before it stand, the file is
+    closed. A copy from before this try's first step is in the save's backups."""
+
+
+# (f640) what the player reads then
+NOT_MIGRATED = ("This save could not be brought up to this version of the game, so it was not opened. A copy of it from before the "
+                "attempt is in its backups folder. You can start a new game.")
+
+
+class OldLayout(Exception):
+    """(f744) A folder in the one-file-per-record layout from before the database: no step brings it forward, so it is not opened. Read
+    by a developer: the home page lists only folders with a database."""
+
+
+# (f744) what a save of that layout held, named as export_json names them: a folder with any of it and no database is refused
+OLD_LAYOUT = ("campaign.json", "player.json", "world_state.json", "dungeons.json", "arcs.json", "discoveries.json", "legendaries.json",
+              "combat.json", "story.json", "places", "npcs")
 
 
 BACKUPS_KEPT = 3
@@ -251,31 +284,35 @@ class CampaignStore:
         self._exempt = 0               # (f462) writes the fence lets through (mark_shown)
         self._writes = 0               # (f470) rows written since the store opened: an operation compares before and after
         self._later: list = []         # (f470) people a read filled in outside any operation, saved by the next (save_npc_later)
-        from storage.worldrow import RowWorld
-        self._world = RowWorld(self)   # (f589) the world's state behind one seam (engine/worldstate.py reads through it)
-        self._players = RowPlayers(self)   # (f638) where the characters' records are kept (storage/playerstable.py)
+        from storage.worldtables import TableWorld
+        self._world = TableWorld(self)   # (f589) the world's state behind one seam (engine/worldstate.py reads through it)
+        self._players = TablePlayers(self)   # (f638) where the characters' records are kept (storage/playerstable.py)
+        self.fight_watch = {"count": 0, "last": []}   # (f760) the suite's notes of a fight out of step with its row (scenes/world.py watch_fight)
 
     # ---------- opening ----------
 
     @classmethod
-    def open_or_create(cls, name: str, saves_dir: Path = SAVES_DIR) -> "CampaignStore":
-        root = saves_dir / name
-        root.mkdir(parents=True, exist_ok=True)
+    def open_or_create(cls, name: str, saves_dir: Path | None = None) -> "CampaignStore":
+        root = Path(saves_dir or SAVES_DIR) / name
         path = root / DB_NAME
+        old = [] if path.exists() else [n for n in OLD_LAYOUT if (root / n).exists()]
+        if old:                                           # (f744) before anything is made in it
+            raise OldLayout(f"{root} holds a save in the file layout from before the database ({', '.join(old)}) and no {DB_NAME}. "
+                            "This build does not read that layout, so the folder was left as it was.")
+        root.mkdir(parents=True, exist_ok=True)
         fresh = not path.exists()
         db = sqlite3.connect(path, check_same_thread=False, isolation_level=None)      # autocommit; transaction() groups writes
         db.execute("PRAGMA journal_mode=WAL")
         db.execute("PRAGMA synchronous=NORMAL")
         store = cls(root, CampaignMeta(name=name, seed=0, created=""), db)
-        from storage import migrations
+        from storage import migrations, playerstable, worldtables
         if fresh:                                         # a new database is created whole at the current schema and marked current;
             db.executescript(SCHEMA_V1)                   # an older one is brought forward step by step below (storage/migrations.py)
             db.executescript(SCHEMA_V2)
             db.executescript(SCHEMA_V3)
+            db.executescript(worldtables.DDL + playerstable.DDL)   # (f640) the world's lists and the players, as v17 makes them
             migrations.typed_memory(store)                # (f478) memories typed, as v10 makes them on an older save
             store.set_version(migrations.CURRENT)
-            if (root / "campaign.json").exists():
-                store._import_legacy()
         elif store.version > migrations.CURRENT:
             have = store.version
             db.close()
@@ -287,7 +324,14 @@ class CampaignStore:
             store.save_meta()
         else:
             store.meta = CampaignMeta.model_validate(row)
-        migrations.run(store)                             # an older database is brought forward here, and only here (a backup is taken first)
+        try:
+            migrations.run(store)                         # an older database is brought forward here, and only here (a backup is taken first)
+        except migrations.StepFailed as e:                # (f640) the player is told; a fault that is no step's stays a fault
+            db.close()
+            raise SaveNotMigrated(NOT_MIGRATED) from e
+        except Exception:
+            db.close()
+            raise
         return store
 
     def backup(self, label: str = "") -> Path:
@@ -462,6 +506,11 @@ class CampaignStore:
         """(f638) A character's record as it is stored, or None: for a caller that asks only whether it changed."""
         return self._players.text(who)
 
+    def characters(self) -> list[PlayerState]:
+        """(f733) Every character's record the save holds, in the order they were first saved (the one player's today), as written: for
+        what is read of them all at once, as the map an open puts back. The acting character's own is load_player's."""
+        return [PlayerState.model_validate_json(t) for t in map(self._players.text, self._players.ids()) if t]
+
     def load_player(self) -> PlayerState:
         player = PlayerState.model_validate_json(self._players.text() or "")
         if self._memory_typed():                     # (f479) each hire's window, from their rows
@@ -471,7 +520,8 @@ class CampaignStore:
                     m["memories"] = memory.hire_window(memory.records(self, f"hire:{m['id']}"))
         return player
 
-    def save_player(self, player: PlayerState) -> None:
+    def save_player(self, player: PlayerState, who: str = FIRST) -> None:
+        """The acting character's record, the first; (f736) another the save holds by its id (`who`), as characters() reads it."""
         with self.transaction():                     # the clock and turn count live beside the player; one without the other lost the time on reload
             body = json.loads(player.model_dump_json())
             if self._memory_typed():                 # (f479) a hire's memories are rows; the player's record carries none of them
@@ -480,7 +530,7 @@ class CampaignStore:
                         self._save_hire_memories(m, player.character.id)
                     out.pop("memories", None)
                     out.pop("memories_unsaved", None)
-            self._players.put(body)
+            self._players.put(body, who)
             self.save_meta()
 
     def _save_hire_memories(self, member: dict, owner: str) -> None:
@@ -522,6 +572,34 @@ class CampaignStore:
         with self.transaction():
             self._drop("talk")
 
+    # ---- (f759) who came looking and stands in the room until their hour (scenes/world.py visit): a kv row there only while someone does
+    def load_visitors(self) -> list:
+        return self._kv("visitors") or []
+
+    def save_visitors(self, rows: list) -> None:
+        with self.transaction():
+            if rows:
+                self._put("visitors", json.dumps(rows, ensure_ascii=False))
+            else:
+                self._drop("visitors")
+
+    # ---- (f761) what the checks and prompts remember of the telling (engine/telling.py): a kv row there only while something is,
+    # written with the operation that added to it; not state (storage/statehash.py NOT_STATE_ROWS)
+    def load_telling(self) -> dict | None:
+        try:
+            got = self._kv("telling")
+        except ValueError:
+            return None
+        return got if isinstance(got, dict) else None
+
+    def save_telling(self, rec: dict) -> None:
+        with self.transaction():
+            self._put("telling", json.dumps(rec, ensure_ascii=False))
+
+    def clear_telling(self) -> None:
+        with self.transaction():
+            self._drop("telling")
+
     def load_question(self) -> dict | None:
         return self._kv("question")
 
@@ -554,12 +632,12 @@ class CampaignStore:
         """The record's revision: what an operation reads when it opens, and must still find when it commits."""
         return int(self.load_operations().get("revision") or 0)
 
-    def commit_operation(self, op, first_of_line: bool = False, keep: int | None = None) -> dict:
+    def commit_operation(self, op, *, keep: int | None = None) -> dict:
         """Inside the caller's open transaction: the operation's record appended with the revision bumped, the record trimmed to `keep`
-        (engine/operation.py RETENTION["operations"]), the meta saved when this is the line's first commit (f463: the input's count is
-        saved with the first operation that stands, not before), and the presentation entry of its held lines, cleared when they are shown
+        (engine/operation.py RETENTION["operations"]), and the presentation entry of its held lines, cleared when they are shown
         (mark_shown). Raises StaleOperation, and writes nothing, when the record's revision is not the one the operation saw when it
-        opened: another writer committed meanwhile."""
+        opened: another writer committed meanwhile.
+        (f762) The meta is not written here: the operation's save_player writes it just before, at every commit."""
         from engine import operation as _op
         if self._depth == 0:
             raise RuntimeError("commit_operation: no transaction is open; an operation commits inside its own")
@@ -574,8 +652,6 @@ class CampaignStore:
         if len(rec["ops"]) > keep:
             del rec["ops"][:len(rec["ops"]) - keep]
         self._put("operations", json.dumps(rec, ensure_ascii=False))
-        if first_of_line:
-            self.save_meta()
         pres = self._kv("presentation") or {}
         pres[op.id] = {"lines": list(op.lines), "steps": op.steps, "kind": op.kind, "calls": op.presentation(),   # (f467) the calls, to make again
                        "actor": op.actor}                                                                          # (f629) and whose page they are for
@@ -665,16 +741,30 @@ class CampaignStore:
     def load_combat(self) -> str | None:
         return self._kv_text("combat")
 
-    def leave_notice(self, key: str) -> None:
-        """(f507) Something the next load tells the player once (a migration let a saved fight go): a row until it is taken."""
-        self._put(f"notice:{key}", "1")
+    def leave_notice(self, key: str, text: str = "1") -> None:
+        """(f507) Something the next load tells the player once (a migration let a saved fight go): a row until it is taken. (f765)
+        `text`: what the load reads of it besides."""
+        self._put(f"notice:{key}", text)
 
-    def take_notice(self, key: str) -> bool:
-        """(f507) Whether a notice of this kind was left; taking it drops it, so it is told once."""
-        if self._kv_text(f"notice:{key}") is None:
-            return False
-        self._drop(f"notice:{key}")
-        return True
+    def take_notice(self, key: str) -> str | None:
+        """(f507) The notice of this kind, when one was left (its text); taking it drops it, so it is told once."""
+        text = self._kv_text(f"notice:{key}")
+        if text is not None:
+            self._drop(f"notice:{key}")
+        return text
+
+    def let_fight_go(self) -> None:
+        """(f507) A migration lets the saved fight go: its row dropped and a notice left that the next load tells once. (f765) When the
+        row says what the fight was for, the notice keeps that alone, so the load hands it on (scenes/world.py let_go_purpose)."""
+        raw = self.load_combat()
+        if raw is None:
+            return
+        try:
+            said = (json.loads(raw).get("fight") or {}).get("purpose")
+        except (ValueError, AttributeError):
+            said = None
+        self.save_combat(None)
+        self.leave_notice("fight_let_go", json.dumps({"fight": {"purpose": said}}) if said else "1")
 
     def save_story(self, recent: list[str], shown: dict) -> None:
         self._put("story", json.dumps({"recent": recent, "shown": shown}))
@@ -944,41 +1034,16 @@ class CampaignStore:
             for i, j in self._db.execute("SELECT id, json FROM npcs").fetchall():
                 self.save_npc(NPC.model_validate_json(j))
 
-    # ---------- the old layout: one file per record ----------
-
-    def _import_legacy(self) -> None:
-        """A save from before the database: every JSON file becomes a row, and the files move to legacy_json/ untouched."""
-        root = self.root
-        with self.transaction():
-            meta = (root / "campaign.json").read_text(encoding="utf-8")
-            self._put("campaign", CampaignMeta.model_validate_json(meta).model_dump_json())
-            for key, fn in (("player", "player.json"), ("world_state", "world_state.json"), ("dungeons", "dungeons.json"), ("arcs", "arcs.json"),
-                            ("discoveries", "discoveries.json"), ("legendaries", "legendaries.json"), ("combat", "combat.json"), ("story", "story.json")):
-                p = root / fn
-                if p.exists():
-                    self._put(key, p.read_text(encoding="utf-8"))
-            for p in sorted((root / "places").glob("*.json")) if (root / "places").exists() else []:
-                self._db.execute("INSERT OR REPLACE INTO places (id, json) VALUES (?, ?)", (p.stem, p.read_text(encoding="utf-8")))
-            for p in sorted((root / "npcs").glob("*.json")) if (root / "npcs").exists() else []:
-                n = NPC.model_validate_json(p.read_text(encoding="utf-8"))
-                for m in n.memories:
-                    m.id = None                           # every memory of the old record becomes a row
-                self.save_npc(n)
-        legacy = root / "legacy_json"
-        legacy.mkdir(exist_ok=True)
-        for name in ("campaign.json", "player.json", "world_state.json", "dungeons.json", "arcs.json", "discoveries.json", "legendaries.json",
-                     "combat.json", "story.json", "places", "npcs"):
-            p = root / name
-            if p.exists():
-                p.replace(legacy / name)
-
     def export_json(self, folder: Path) -> None:
         """Write the whole campaign out as readable files (for a look, or a bug report). The database stays the save."""
         folder.mkdir(parents=True, exist_ok=True)
-        for key, fn in (("campaign", "campaign.json"), ("player", "player.json"), ("world_state", "world_state.json"), ("dungeons", "dungeons.json"),
+        texts = {"player.json": self.player_text(),       # (f640) the player and the whole world, from where the store keeps them
+                 "world_state.json": json.dumps(self.load_world_state()) if self._kv_text(self._world.KEY) is not None else None}
+        for key, fn in (("campaign", "campaign.json"), ("dungeons", "dungeons.json"),
                         ("arcs", "arcs.json"), ("discoveries", "discoveries.json"), ("legendaries", "legendaries.json"), ("combat", "combat.json"),
                         ("story", "story.json")):
-            t = self._kv_text(key)
+            texts[fn] = self._kv_text(key)
+        for fn, t in texts.items():
             if t is not None:
                 (folder / fn).write_text(json.dumps(json.loads(t), indent=2), encoding="utf-8")
         (folder / "places").mkdir(exist_ok=True)

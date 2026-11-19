@@ -75,21 +75,21 @@ def play(name, n, fail_at, record_to=None):
 mode, out, ANSWERED = sys.argv[1], {}, []
 if mode == "ab":
     out["residue_a"] = play("iso456_a", 8, 3)
-    out["residue_b"] = play("iso456_b1", 12, 5, record_to="saves/iso456_rec1")
+    out["residue_b"] = play("iso456_b1", 12, 5, record_to=str(simlib.saves_path("iso456_rec1")))
 else:
-    out["residue_b"] = play("iso456_b2", 12, 5, record_to="saves/iso456_rec2")
+    out["residue_b"] = play("iso456_b2", 12, 5, record_to=str(simlib.saves_path("iso456_rec2")))
 out["answered"] = ANSWERED
 print("RESULT " + json.dumps(out))
 '''
 
 SAVES = ("iso456_base", "iso456_a", "iso456_b1", "iso456_b2", "iso456_rec1", "iso456_rec2")
 for s in SAVES:
-    shutil.rmtree(f"saves/{s}", ignore_errors=True)
+    shutil.rmtree(simlib.saves_path(s), ignore_errors=True)
 simlib.campaign("iso456_base", seed=39, turn=1, minutes=480).close()
 check("the base campaign leaves nothing behind when it closes", simlib.residue() == {}, simlib.residue())
 for s in ("iso456_a", "iso456_b1", "iso456_b2"):
-    shutil.copytree("saves/iso456_base", f"saves/{s}")
-script = pathlib.Path("saves/iso456_child.py")
+    shutil.copytree(simlib.saves_path("iso456_base"), str(simlib.saves_path(s)))
+script = simlib.saves_path("iso456_child.py")
 script.write_text(CHILD, encoding="utf-8")
 runs = {}
 for mode, hseed in (("ab", "1"), ("b", "2")):
@@ -103,7 +103,7 @@ if "residue_b" in runs["ab"] and "residue_b" in runs["b"]:
     check("after each close, nothing the session owned remains, in either process", runs["ab"]["residue_a"] == {} and runs["ab"]["residue_b"] == {}
           and runs["b"]["residue_b"] == {}, runs)
     def rows(folder, name):
-        p = pathlib.Path(f"saves/{folder}/{name}")
+        p = simlib.saves_path(f"{folder}/{name}")
         return [json.loads(l) for l in p.read_text(encoding="utf-8").splitlines()] if p.exists() else []
     t1, t2 = rows("iso456_rec1", "turns.jsonl"), rows("iso456_rec2", "turns.jsonl")
     i1, i2 = [r["text"] for r in rows("iso456_rec1", "inputs.jsonl")], [r["text"] for r in rows("iso456_rec2", "inputs.jsonl")]
@@ -115,18 +115,19 @@ if "residue_b" in runs["ab"] and "residue_b" in runs["b"]:
     check("...and the same words shown", all(t["shown"] == u["shown"] and t["lines"] == u["lines"] for t, u in zip(t1, t2)),
           next((t["i"] for t, u in zip(t1, t2) if t["shown"] != u["shown"]), None))
     check("...with a turn rolled back among them", any(t["state"]["all"] == u["state"]["all"] for t, u in zip(t1, t1[1:])), [t["state"]["all"][:6] for t in t1])
-    rep = subprocess.run([sys.executable, "tools/rerun.py", "saves/iso456_rec1"], capture_output=True, text=True, timeout=900)
+    rep = subprocess.run([sys.executable, "tools/rerun.py", str(simlib.saves_path("iso456_rec1"))], capture_output=True, text=True, timeout=900)
     last = (rep.stdout.strip().splitlines() or [""])[-1]
     check("P1's recording of B replays in a third process through the real turn", rep.returncode == 0 and last.startswith("all ") and "inputs matched" in last,
           (rep.returncode, rep.stdout[-400:], rep.stderr[-400:]))
 
 # ---- the bundle stored nothing new and re-hashed nothing
-check("the state hash reads the same six tables", set(statehash.TABLES) == {"kv", "places", "npcs", "npc_memory", "event_log", "entities"}, sorted(statehash.TABLES))
+check("the state hash reads the six tables, and (f640) the players' and the world's four lists'", set(statehash.TABLES) == {"kv", "places", "npcs", "npc_memory", "event_log", "entities",
+                                                                                                       "players", "threads", "deeds", "news", "effects"}, sorted(statehash.TABLES))
 golden = json.loads(pathlib.Path("data/replay/sessions/stub_short/meta.json").read_text(encoding="utf-8"))
 check("...and the data hash is the golden's: no new data file, no number moved", statehash.data_hash() == golden["data"], (statehash.data_hash()[:12], golden["data"][:12]))
 
 for s in SAVES:
-    shutil.rmtree(f"saves/{s}", ignore_errors=True)
+    shutil.rmtree(simlib.saves_path(s), ignore_errors=True)
 script.unlink(missing_ok=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

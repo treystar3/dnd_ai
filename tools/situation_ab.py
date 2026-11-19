@@ -94,14 +94,15 @@ def _residents_stub(seed: int):
     return stub
 
 
-def build_world(seed: int, name: str = SCRATCH):
-    """A fresh scratch campaign on the seed: (session, store, world, catalog). Only a save named for this tool is ever made afresh."""
+def build_world(seed: int, name: str = SCRATCH, typed: bool = False):
+    """A fresh scratch campaign on the seed: (session, store, world, catalog). Only a save named for this tool is ever made afresh;
+    a name typed on the command line (`typed`) only when this tool made it."""
     from engine.session import CampaignSession
     from npc.traits import load_traits
-    from storage.campaign import SAVES_DIR
+    from storage import saves
     if not name.startswith(SCRATCH):
         raise SystemExit(f"the scratch save's name must begin with {SCRATCH!r} (it is removed and made afresh): {name!r}")
-    shutil.rmtree(SAVES_DIR / name, ignore_errors=True)
+    saves.scratch(name, typed=typed)                     # (f743) only a tool's own save is cleared, and a failure says so
     session = CampaignSession.open(name)
     store = session.store
     store.meta.seed = seed
@@ -110,11 +111,11 @@ def build_world(seed: int, name: str = SCRATCH):
 
 
 def drop_world(session, name: str) -> None:
-    from storage.campaign import SAVES_DIR
+    from storage import saves
     try:
         session.close()
     finally:
-        shutil.rmtree(SAVES_DIR / name, ignore_errors=True)
+        saves.drop(name)
 
 
 def cases(world, n: int, seed: int) -> list[dict]:
@@ -733,7 +734,8 @@ def main(argv=None) -> int:
     ap.add_argument("--out", default="situation_ab")
     ap.add_argument("--force", action="store_true", help="start again over the results already in --out")
     ap.add_argument("--resume", action="store_true", help="keep the results already in --out and measure only what they lack")
-    ap.add_argument("--scratch", default=SCRATCH, help=f"the scratch campaign's save name (begins {SCRATCH!r}; made afresh, removed after)")
+    ap.add_argument("--scratch", default="", help=f"the scratch campaign's save name (default {SCRATCH!r}; begins {SCRATCH!r}; made afresh, "
+                    "removed after; a folder no tool made is refused)")
     ap.add_argument("--keep-scratch", action="store_true", help="leave the scratch save after the run")
     ap.add_argument("--pack", default="", help="make the packs and the key again from an earlier run's results")
     ap.add_argument("--decide", default="", help="decide from an earlier run's folder (with --reads)")
@@ -741,6 +743,7 @@ def main(argv=None) -> int:
     ap.add_argument("--slot-seconds", type=float, default=None, help="the background slot's p90 limit (default: situations.yaml)")
     ap.add_argument("--measured", default="", help="write the decision here as well (data/measured/situation_thinking.yaml)")
     a = ap.parse_args(argv)
+    typed, a.scratch = bool(a.scratch), a.scratch or SCRATCH
     if a.pack:
         folder = Path(a.pack)
         rows = load_rows(folder)
@@ -776,7 +779,7 @@ def main(argv=None) -> int:
         have = []
     import simlib
     simlib.install(_residents_stub(a.seed))          # the town is peopled by the engine on the seed; the parts go to the server named
-    session, store, world, catalog = build_world(a.seed, a.scratch)
+    session, store, world, catalog = build_world(a.seed, a.scratch, typed=typed)
     signal.signal(signal.SIGTERM, _stop)
     rows = list(have)
     started = False                                  # the results file opened by this run (or resumed): only then are packs made

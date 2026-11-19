@@ -14,12 +14,17 @@ T = C.RULES["talk"]
 APPROACHES = ("intimidate", "persuade", "deceive")
 
 
+def speaks(target) -> bool:
+    """(f668) Whether this kind of foe can be reasoned with at all: its family and its category, as the rules hold them."""
+    fam = behaviors.FAMILIES.get(target.family, {})
+    return fam.get("talk") is not False and target.category in T["categories"]
+
+
 def why_not(target) -> str | None:
     """Why this enemy cannot be spoken to, or None."""
     if target.boss:
         return f"{cap_first(target.name)} is past parley - it will fight."
-    fam = behaviors.FAMILIES.get(target.family, {})
-    if fam.get("talk") is False or target.category not in T["categories"]:
+    if not speaks(target):
         return f"{cap_first(target.name)} cannot be reasoned with - it only understands the fight."
     if target.talked:
         return f"You have already spoken to {target.name}. Words will not work again this fight."
@@ -84,11 +89,11 @@ def attempt(combat, target, approach: str, character, rng: random.Random) -> str
         return None
     if approach == "intimidate":
         yields = behaviors.can_surrender(target) or target.category in ("hostile people", "person template", "monstrous race")
-        behaviors._break(combat, target, yields)
-        if degree == "strong success" or target.level >= max([e.level for e in combat.enemies()] + [0]):
+        if behaviors._break(combat, target, yields) and \
+                (degree == "strong success" or target.level >= max([e.level for e in combat.enemies()] + [0])):
             behaviors.morale(combat, target, rng)
     elif approach == "persuade":
-        target.fled = True
+        C.leave(combat, target, "fled")
         combat.log.append(f"{target.name} stands down")
         C.tell(combat, f"{C.who(target)} lowers {C.whose(target)} guard, thinks it over, and stands down - it leaves the fight")
     else:

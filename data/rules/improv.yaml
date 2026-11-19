@@ -33,7 +33,14 @@ effects:
             attr: [strength], odds: -5, mark: "broken: {what}", stands_for: [broken, destroyed],
             changes: [{kind: news, text: "Someone broke something at {place}: {what}.", groups: [locals]}]}
   climb:   {about: "climbing, getting up onto or over something, reaching a high place or a ledge, dropping down from one",
-            attr: [dexterity, strength], odds: 0, mark: ""}
+            attr: [dexterity, strength], odds: 0, mark: "",
+            # (f704) a climb made for the view makes out the nearest places within this walk, this many of them
+            changes: [{kind: vantage, minutes: 480, most: 3,
+                       view_words: "\\b(view|views|look out|looking out|lookout|survey|surveying|horizon|overlook|vantage|lay of the land|see the land|see across|see over)\\b",
+                       from: [wasteland, mountains, coast, ruins, hills, forest, tundra, jungle, wetland, fields, desert, badlands, river,
+                              village, town, city, square, yard, guardpost, road],
+                       seen: [wasteland, mountains, coast, ruins, hills, forest, tundra, jungle, wetland, fields, desert, badlands, river,
+                              village, town, city, palace, guardpost]}]}
   rig:     {about: "rigging, tying, knotting, building or setting something up: a rope, a trap, a snare, a shelter, a lever",
             attr: [intelligence, dexterity], odds: -5, mark: "rigged: {what}",
             changes: [{kind: danger, value: -10, days: 1}]}
@@ -55,9 +62,21 @@ effects:
   pose:    {about: "a gesture or a pose that changes nothing: leaning, sitting, standing, watching, waiting, nodding, shrugging, stretching, sighing, wiping one's hands, pulling a cloak tight, tightening a grip, settling in", roll: false}
 
 pose_words: "\\b(lean|leans|leaning|sit|sits|sitting|stand|stands|standing|watch|watching|wait|waiting|nod|nodding|shrug|shrugging|stretch|stretching|sigh|sighing|wipe|wiping|pull my cloak|pulling my cloak|tighten|tightening|grip|settle|settling|cross my arms|crossing my arms|gaze|gazing|stare|staring|smile|smiling|frown|frowning|yawn|yawning|crack my knuckles|spit|spitting|scratch|scratching|rub|rubbing|adjust|adjusting|straighten|straightening|keep (?:my|an) eye|look around|looking around|scan|scanning|ready|readying|brace|bracing)\\b"
+# (f697) A line that opens with one of the character's own abilities is that ability ("Twin Flare at the wisps"), after one of these
+# words or none ("I cast Twin Flare"); a one-word ability counts only when aimed by one of the aiming words ("Guard on Pae").
+ability_opening: [cast, use, unleash, loose, throw, fire, call]
+ability_aiming: ["at", "on", "upon", "against", "toward", "towards", "into"]
+# (f695) A sleep that asks to take a room: where rooms are let and none is held, the room is taken first. A taking word must govern
+# the room or bed ("take a room", "get a bed for the night"); one named and not asked for ("the common room", "a bed of straw", "make
+# room") or said with a no ("I don't want a room") buys none.
+room_words: "\\b(?:take|takes|taking|took|get|gets|getting|rent|rents|renting|book|books|booking|hire|pay\\s+for|paying\\s+for|ask\\s+for|asking\\s+for|want|need)\\s+(?:(?:us|me|them)\\s+)?(?:(?:a|an|the|our|my|two|three|some|their)\\s+)?(?:\\w+\\s+)?(?:rooms?|beds?|lodgings?)\\b"
+camp_words: "\\b(?:make|makes|making|set|sets|setting|pitch|pitches|pitching|build|builds|building)\\s+(?:up\\s+)?(?:a\\s+|our\\s+|my\\s+|the\\s+|some\\s+)?(?:small\\s+|rough\\s+|quick\\s+)?(?:camp|tents?|shelter)\\b|\\b(?:we|i|let's|let\\s+us)(?:\\s+will|'ll|\\s+can|\\s+should|\\s+shall)?\\s+camp\\b|^\\s*camp\\b|\\b(?:rest|sleep|stop|stay)\\s+in\\s+camp\\b"     # (f716) a line that asks to make camp
+camp_refused: "\\b(?:not|no|never|without|cannot|can't|don't|won't|didn't|instead\\s+of)\\s+(?:[\\w']+\\s+){0,2}?(?:make|making|set|setting|pitch|pitching|build|building|camp|camping|tents?)\\b|\\?\\s*$"     # (f716) ...and does not say no to one, or ask
+room_refused: "\\b(?:not|no|never|without|cannot|can't|don't|won't|didn't)\\b[^.;,]*\\b(?:rooms?|beds?|lodgings?)\\b"
 rest_words: "\\b(go to sleep|fall asleep|sleep|sleeping|nap|lie down|lay down|bed down|get some rest|get some sleep|turn in for the night|rest my eyes)\\b"
 
 told:
   closed: "the way through here is barred for a while"
   danger: "this place is a little safer for a while"
   news:   "word of it will go round"
+  vantage: "from up there you can make out {names}"

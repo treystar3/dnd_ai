@@ -43,6 +43,12 @@ fails:
   exposed:       {minutes: 10, text: "it goes wrong and leaves them in plain view, caught out where they stand"}
 partial: {minutes: 10, text: "it works, roughly, and not for long or not well"}
 success_minutes: 5          # the time a done act takes
+# (f706) The goods an act leans on that a character carries or does not have (the owner's Q34: catalogued goods are carried, trifles
+# the place supplies): a ruling's need for one of these, carried by none and lying nowhere here, is refused, never conjured.
+carried_goods: [rope, torch, candles, bandage, lamp_oil]
+# (f706) The words that may stand beside a kit good's own name and leave it that good ("a coil of rope", "some spare candles"); any
+# other word makes it a thing of the place ("the bell rope", "the torch in the wall bracket").
+good_filler: [a, an, the, some, my, your, own, spare, coil, length, bundle, roll, stick, few, pair, piece, bit, of, little, short, long, good, new, old, fresh]
 
 # (f596) An act whose ruling could not be made (the model down, a timeout, the turn's budget) waits for it (the owner, 2026-11-11, and
 # 2026-11-08: "every consequential act persists as an event, including those awaiting interpretation"). The attempt is told beginning,

@@ -9,7 +9,7 @@ import random
 import config
 from engine import regard                                   # (f480)
 from engine import entities
-from engine import actor, banter, clock, money, mentor, pulse, quirks, weather
+from engine import actor, banter, clock, money, mentor, pulse, quirks, voice_profile, weather
 from engine import party as rules
 from llm.contracts import Exchange, PairDynamic
 from llm.gateway import generate, LLMError
@@ -101,9 +101,11 @@ class BanterActions:
                                              "contradict anything given as true of them." if members else "") if x]
         if for_this:
             P_.instruction("\n".join(f"- {x}" for x in for_this), "FOR THIS EXCHANGE")
+        P_.instruction(self.exemplars("speech", "small_talk"))         # (f714) how people talk, as every single reply is shown
         P_.instruction(f"WRITE {lines[0]} TO {lines[1]} LINES, speakers from: {', '.join(people)}.")
         ctx = {"speakers": list(people), "lines": lines, "all_speak": all_speak, "silent_ok": tuple(silent_ok), "first_speaker": first_speaker, "material": material + [hook or ""], "recent": recent or {},
                "members": members or {}, "player": self.player.character.name, "known": view.scene.known_words(), "must_name": must_name,
+               "uncontracted_ok": [n for n, m in (members or {}).items() if not voice_profile.contracts(m)],          # (f714)
                "gesture_states": {n: quirks.gesture_state(h, [dict(o, name=on) for on, o in holders.items() if o is not h] + self.gesturers(h))
                                   for n, h in holders.items()}}
         try:
@@ -175,7 +177,7 @@ class BanterActions:
             frame = fresh("dialogue_frame", wp.EXCHANGE_SYSTEM,
                           wp.exchange_request(self.time_label(), self.place, speakers, others, spoken[0], spoken[-1], self.recent_narration,
                                               P["frame"]["exchange_fight" if in_fight else "exchange"], self.player.character.name,
-                                              reach=reach.within("", self.place.type), moment=reach.moment(fight=in_fight),
+                                              reach=reach.within("", self.place.type), moment=reach.moment(fight=in_fight), in_view=self.in_view(),   # (f700)
                                               who=entities.who_is_who(self),                          # (f392) she, elf: never guessed at
                                               exemplars=self.exemplars("fight" if in_fight else "narration")),
                           DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS)
@@ -490,7 +492,7 @@ class BanterActions:
         g = quirks.growth(m)
         from engine import voices
         kit = [f"{k[0].upper()}{k[1:]}." for k in voices.lines(voices.kit_of(m))]            # (f350) their kit: always, it is the voice
-        kit += [voice_profile.accent(m)] if voice_profile.accent(m) else []              # (f410) and their accent: always, the same
+        kit += [l for l in (voice_profile.manner(m), voice_profile.slip(m) if query is not None else "") if l]   # (f727) their manner always; the slip as rolled, for a reply
         mine = kit + ([f"In speech, {v}."] if v else []) + ([entities.gendered(f"With the player, they have changed: {g}; let it show, never say it.", own)] if g else [])
         room = int(brief.rules("hire").get("voice_habits", 6)) - len(speak) - len(mine) + len(kit)   # (f488) at most voice_habits lines on how they speak besides the kit, in any one reply
         profile = voice_profile.compile(m, rng_v, emotion, relation, toward, budget=room, feature=self.culture_now(m)) if query is not None else []

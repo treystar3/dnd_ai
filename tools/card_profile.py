@@ -20,7 +20,6 @@ they would fit on the target at all; a model that spills off the card runs many 
 from __future__ import annotations
 
 import argparse
-import gzip
 import json
 import statistics
 import sys
@@ -47,8 +46,8 @@ def calls_of(folder: Path) -> list[dict]:
     timed = folder / "timed.jsonl"
     if timed.exists():
         return [json.loads(l) for l in timed.read_text(encoding="utf-8").splitlines() if l.strip()]
-    with gzip.open(folder / "calls.jsonl.gz", "rt", encoding="utf-8") as f:
-        return [json.loads(l) for l in f if l.strip()]
+    from engine import recording
+    return recording.read_calls(folder)                     # (f732) a kept recording's log is plain, a played one's gzipped
 
 
 def cards() -> dict:
@@ -104,11 +103,10 @@ def system_share(c: dict) -> float | None:
 def requests_of(folder: Path) -> dict:
     """(f535) The recording's own request per call index: a re-timed row (timed.jsonl) carries the card's counts and no messages, so the
     system message's share is read from the row the recorder kept."""
-    gz = folder / "calls.jsonl.gz"
-    if not gz.exists():
+    from engine import recording
+    if recording.calls_file(folder) is None:
         return {}
-    with gzip.open(gz, "rt", encoding="utf-8") as f:
-        return {r.get("i"): r.get("request") for r in (json.loads(l) for l in f if l.strip()) if r.get("request")}
+    return {r.get("i"): r.get("request") for r in recording.read_calls(folder) if r.get("request")}
 
 
 def measure(folder: Path, read: float = 1.0, write: float = 1.0) -> dict:
@@ -164,7 +162,7 @@ def measure(folder: Path, read: float = 1.0, write: float = 1.0) -> dict:
     }
 
 
-REQUIRED_TITLES = {"ActionPlan": "interpret_action", "Narration": "narrate", "CombatIntent": "combat_interpret", "NPCReply": "npc_conversation", "NPCReplyMany": "npc_conversation",
+REQUIRED_TITLES = {"ActionPlan": "interpret_action", "Narration": "narrate", "CombatIntent": "combat_interpret", "NPCReply": "npc_conversation", "NPCReplyMany": "npc_conversation", "NPCDecision": "npc_decide", "NPCSpeech": "npc_conversation",
                    "NPCProfile": "npc_profile", "ResidentSet": "populate_place", "Ruling": "ruling", "CanonCheck": "canon_check",
                    "Extracted": "canon_extract", "MentorReply": "mentor_chat", "MentorSpeech": "mentor_speech", "MentorLines": "mentor_voice",
                    "RoadEvent": "road_event", "LessonWant": "lesson_want", "LessonNames": "generate_lessons", "DiscoveryProposal": "discovery",

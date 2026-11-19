@@ -124,9 +124,9 @@ start_fight()
 real_victory = cs.CombatScene.victory
 
 
-def victory(self):                                               # the crash armed from inside the win: the winning line's commit, and nothing after
+def victory(self, *a, **k):                                      # the crash armed from inside the win: the winning line's commit, and nothing after
     self.ws.crash_after_commit = "line"
-    return real_victory(self)
+    return real_victory(self, *a, **k)
 
 
 cs.CombatScene.victory = victory

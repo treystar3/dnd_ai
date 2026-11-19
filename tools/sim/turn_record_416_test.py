@@ -110,7 +110,8 @@ check("a turn that took a contract and showed nothing tells it, in the world", a
 ledger.begin()
 asked.clear(); NOTES.clear()
 ws.said_nothing("I do the thing")
-check("...and one that did nothing still says so", not asked and any("Nothing comes of that" in n for n in NOTES), NOTES)
+check("...and one that did nothing is marked so, for its close to say (f721)", not asked and ws.silent is True
+      and "Nothing comes of that" in (ws.closing_line("I do the thing") or ""), (asked, NOTES))
 
 # ---- taking a contract writes its row
 hall = "guild_house"                                           # Parth's

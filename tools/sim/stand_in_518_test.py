@@ -16,7 +16,6 @@ touches the embedder's state or the interface's lists.
 
 Run: python tools/sim/stand_in_518_test.py"""
 
-import gzip
 import json
 import os
 import subprocess
@@ -99,8 +98,7 @@ for err in OLD[:-1] + [Failure("server", "down"), Failure("deadline")]:
 check("an error written to a recording replays as the kind it was read as (written, then read back)", all(a == b for _, a, b in trip), trip)
 rows = []
 for name in ("stub_short", "stub_party", "stub_fight"):
-    with gzip.open(ROOT / "data/replay/sessions" / name / "calls.jsonl.gz", "rt", encoding="utf-8") as fh:
-        rows += [json.loads(l) for l in fh if l.strip() and '"error"' in l]
+    rows += [r for r in recording.read_calls(ROOT / "data/replay/sessions" / name) if "error" in r]
 errs = [r["error"] for r in rows if r.get("error")]
 check(f"(f527) every error row in the three kept recordings ({len(errs)}) is the server's failure, in the interface's own form",
       len(errs) == ERROR_ROWS and all(isinstance(e, dict) and e.get("kind") == "server" and e.get("detail") for e in errs), errs[:4])

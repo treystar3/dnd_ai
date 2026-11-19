@@ -148,7 +148,8 @@ function tickerDraw() {
   const box = $("ticker"); if (!box) return;
   box.textContent = "";
   for (const t of ticker.lines.slice(-8)) box.appendChild(el("span", "tk" + (/^\+/.test(t) ? " gain" : ""), t));
-  box.hidden = !ticker.lines.length;
+  box.hidden = false;                                         // (f672) the strip keeps its one row's height, filled or not: notices coming
+  box.classList.toggle("empty", !ticker.lines.length);         // or going never move the tabs or a pane's buttons under the pointer
 }
 function addText(text, kind) {
   if (kind === "ledger") { tickerAdd(text); return; }
@@ -505,7 +506,7 @@ function renderBoard(d) {
 
 // ---------- places pane: where you can go from here, with walking times and Go buttons (same travel code as typing it) ----------
 function renderPlaces(d) {
-  if (!d.here) { side.appendChild(el("div", "dimrow", "You are not anywhere you know the way from.")); return; }
+  if (!d.here) { side.appendChild(el("div", "dimrow", "You don't know your way anywhere from here.")); return; }
   side.appendChild(el("div", "purse", `${d.here_name} · ${d.town}`));
   const block = (title, rows) => {
     side.appendChild(el("div", "h2", title));
@@ -521,6 +522,7 @@ function renderPlaces(d) {
   };
   block("IN " + d.town.toUpperCase(), d.local);
   block("FURTHER AFIELD", d.far);
+  if (d.sights && d.sights.length) block("ON THE ROADS", d.sights);          // (f702) what was seen on a road, kept where it was
   if (d.roads && d.roads.length) {
     side.appendChild(el("div", "h2", "ROADS OUT"));
     for (const r of d.roads) {
@@ -565,6 +567,7 @@ function renderParty(d) {
     info.appendChild(el("div", "nm", a.name));
     info.appendChild(el("div", "dt", `${a.role} · rank ${a.rank} · level ${a.level}`));
     if (a.kit) info.appendChild(el("div", "dt", `Can use: ${a.kit}`));               // (f396) what they can do in a fight
+    if (a.doing) info.appendChild(el("div", "dt", a.doing));                          // (f651) one held back alone
     if (a.bond) {
       info.appendChild(el("div", "dt", `${a.bond} · ${a.health}% health`));
       info.appendChild(el("div", "dt", a.temper));
@@ -922,6 +925,9 @@ function renderButtons() {
   pin.title = state.current && state.prefs.pinned === state.current ? "Pinned: this view refreshes after every turn (click to unpin)" : "Pin this view: it refreshes after every turn";
   pin.disabled = !state.current || !PINNABLE.has(state.current);
 }
+// (f672) a view's command, typed or clicked: the panes' own (COMMANDS) and the ones they name another way
+const isViewCmd = (t) => /^#\S+$/.test((t || "").trim()) && [...COMMANDS.map((c) => c[1]), "#places", "#pulse", "#book", "#map", "#quests", "#inventory", "#i", "#inv", "#j"]
+  .includes((t || "").trim().toLowerCase());
 async function runView(cmd) {
   if (!canRun(cmd)) return;
   if (cmd === "#settings") { showSettings(); return; }           // the window's own view: nothing for the game to do
@@ -1096,6 +1102,7 @@ $("form").onsubmit = async (e) => {
     return;
   }
   if (text) { history.push(text); hpos = history.length; }
+  if (isViewCmd(text)) combat.mode = "view";                    // (f672) a view typed is a view, as one clicked: the pane leaves the fight
   state.prompt = false; updateInput();
   const r = await api("/input", { text });
   if (!r.ok) { state.prompt = true; updateInput(); }

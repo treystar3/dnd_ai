@@ -14,11 +14,11 @@ game makes in its place: a call that asks for something else (another kind of an
 sign the code now plays differently. After every input the save's fingerprint (storage/statehash.py), the turn's outcomes and the
 words shown are compared with the recording's. Recorded failures are raised again, so retries and rolled-back turns repeat.
 
-Run it from the repository root. Exit status 0 when every input matched."""
+Run it from the repository root. Exit status 0 when every input matched and the session ended where the recording's did: every
+recorded line asked, every recorded call made, every line played compared with its turn row."""
 from __future__ import annotations
 
 import argparse
-import gzip
 import hashlib
 import json
 import os
@@ -75,9 +75,9 @@ def refusal(meta: dict, calls: list, replaying: bool = True) -> str:
 def load(folder: Path, replaying: bool = True) -> dict:
     """A recording's four files, read. (f517) Refused (Unreplayable) when its calls cannot be served one after another as recorded;
     (f527) replaying=False reads a recording only to compare against, whatever form its rows have."""
+    from engine import recording
     rows = lambda name: [json.loads(l) for l in (folder / name).read_text(encoding="utf-8").splitlines() if l.strip()]
-    with gzip.open(folder / "calls.jsonl.gz", "rt", encoding="utf-8") as f:
-        calls = [json.loads(l) for l in f if l.strip()]
+    calls = recording.read_calls(folder)                                # (f732) plain when kept, gzipped when played
     meta = json.loads((folder / "meta.json").read_text(encoding="utf-8"))
     why = refusal(meta, calls, replaying)
     if why:
@@ -327,15 +327,20 @@ class _NoServer:
             os.environ["MERAVIA_NO_SERVER"] = self.before
 
 
-def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) -> dict:
+def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None, as_schema: int | None = None) -> dict:
     """Replay one recording. Returns {"matched": n inputs, "of": n, "parted": None | {...where and how}}. on_call(row, k, request) is told
     of every call the game makes, with the recorded row it was served, the neutral request and the request itself (the real-card timing,
-    f443, sends the same request to a model)."""
+    f443, sends the same request to a model). (f640) as_schema: the state after each input is read as that version of the save held
+    it (storage/statehash.py VIEWS), for a recording made before a migration that moved rows and changed no play."""
     rec = load(folder)
     from engine import recording, streams
     from llm import embed
     from storage import statehash
-    if rec["meta"].get("data") != statehash.data_hash():
+    if as_schema is not None and as_schema not in statehash.VIEWS:
+        raise ValueError(f"no view of the state as version {as_schema} held it (there is one for: {', '.join(str(v) for v in sorted(statehash.VIEWS))})")
+    now = statehash.data_hashes()                                  # (f718) held to the rules; other wording only shows in what parts
+    made_on = {k: "same" if rec["meta"].get(k) == now[k] else "other" for k in now}
+    if made_on["data"] == "other":
         print("warning: this recording was made on other rules or content (its data hash differs); differences may be that", file=sys.stderr)
     streams.STRICT = True
     from engine import budget
@@ -362,7 +367,7 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
     life.FIRST_BATCH = rec["meta"].get("backfill", life.FIRST_BATCH)
 
     calls, inputs, turns = list(rec["calls"]), list(rec["inputs"]), list(rec["turns"])
-    state = {"call": 0, "input": 0, "shown": [], "parted": None}
+    state = {"call": 0, "input": 0, "shown": [], "parted": None, "compared": set()}
     source = Replay(calls, rec["meta"], loose=loose, on_call=on_call)
     crashes0 = len(crashlog.SESSION)
     no_server = _NoServer()
@@ -380,10 +385,10 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
                 console.put(name, lambda *a, **k: None)
 
     # the save as the session opened, under a scratch name
+    from storage import saves
     name = f"rerun_{folder.name}_{os.getpid()}"             # (f529) this process's own: two replays of one recording at once (the suite
-    shutil.rmtree(ROOT / "saves" / name, ignore_errors=True)   # runs tests in parallel) never share a save
-    (ROOT / "saves" / name).mkdir(parents=True)
-    shutil.copy(folder / "start.db", ROOT / "saves" / name / "campaign.db")
+                                                            # runs tests in parallel) never share a save
+    shutil.copy(folder / "start.db", saves.scratch(name) / "campaign.db")   # (f743) a tool's own save, and a failure to clear it says so
     from npc.traits import load_traits
     from engine.session import CampaignSession
     from engine import ledger
@@ -397,7 +402,7 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
         want = next((t for t in turns if t["i"] == i), None)
         if want is None:
             return
-        got = statehash.digest(store)
+        got = statehash.digest(store) if as_schema is None else statehash.digest(dumped=statehash.view(statehash.dump(store), as_schema))
         shown = hashlib.sha256("\n".join(state["shown"]).encode("utf-8")).hexdigest()
         if got["all"] != want["state"]["all"]:
             tables = [t for t in got if t != "all" and got[t] != want["state"].get(t)]
@@ -418,6 +423,7 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
             raise Parted(f"after input {i} ({inputs_main[i - 1]['text']!r}) the player was shown other words "
                          f"({len(state['shown'])} lines against {want['lines']})")
         state["shown"] = []
+        state["compared"].add(i)                    # (f731) an input counts as matched only when its turn row was compared
 
     inputs_main = [r for r in inputs if r["main"]]
     queue = list(inputs)
@@ -438,11 +444,36 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
             state["input"] += 1
         return row["text"]
 
+    def short_of() -> dict | None:
+        """(f731) Where the session ended short of the recording, or None: a line played with no turn row to compare, recorded lines
+        the game never asked, recorded calls it never made. The end of a session is compared as every input before it is."""
+        said, at, lines = [], [], []
+        unrowed = [i for i in range(1, state["input"] + 1) if i not in state["compared"]]
+        if unrowed:
+            i = unrowed[0]
+            said.append(f"input {i} ({inputs_main[i - 1]['text']!r}) was played, but the recording has no turn row for it"
+                        + (" (its session ended before that line closed)" if i == len(inputs_main) else ""))
+            at.append(i)
+        if queue:
+            r = queue[0]
+            lines.append(f"{len(queue)} recorded line(s) never asked, the first "
+                         + (f"input {r['i']} ({r['text']!r})" if r["main"] else f"is the answer to a question in input {r['i']} ({r['text']!r})"))
+            at.append(r["i"])
+        if source.at < len(calls):
+            c = calls[source.at]
+            lines.append(f"{len(calls) - source.at} recorded call(s) never made, the first call {c['i']} "
+                         f"(input {c['input']}, a {c['kind']} '{c.get('title', '')}')")
+            at.append(c["input"])
+        if lines:
+            said.append("the game stopped short of the recording, with " + ", and ".join(lines))
+        return {"input": min(at), "why": "; ".join(said)} if said else None
+
     console.put("ask", ask)
     try:
         ws.run()
         if state["input"]:
             check_input()
+        state["parted"] = short_of()
     except Parted as e:
         state["parted"] = {"input": state["input"], "why": str(e)}
     finally:
@@ -450,7 +481,6 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
         undo_source()
         no_server.__exit__()
         embed.reset()
-        shutil.rmtree(ROOT / "saves" / name, ignore_errors=True)
         streams.STRICT = False
         budget.PROFILE.clear()
         budget.PROFILE.update(profile_before)
@@ -458,9 +488,10 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
         budget.CACHED = cached_before
         config.THINK_TASKS, config.THINK_ROOM = think_before
         config.SAMPLING_ARM = arm_before
-    matched = state["input"] - (1 if state["parted"] else 0)
+        saves.drop(name)                                    # (f743) last: a save that could not be cleared stops the run, all else put back
+    matched = sum(1 for i in state["compared"] if not state["parted"] or i < state["parted"]["input"])   # (f731) compared, before any part
     return {"matched": max(0, matched), "of": len(inputs_main), "parted": state["parted"], "calls": source.at, "recorded_calls": len(calls),
-            "crashed": len(crashlog.SESSION) - crashes0, "logs": str(scratch)}   # (f518) faults the replay hit (its own crash.log)
+            "crashed": len(crashlog.SESSION) - crashes0, "logs": str(scratch), **made_on}   # (f518) faults the replay hit (its own crash.log)
 
 
 TIME_DEADLINE = 900.0       # the seconds one re-timed call may take: a slow card's longest passage is the measure, never cut (the hang guard is 120 s)
@@ -544,7 +575,8 @@ def make_stub_recording(folder: Path, n: int = 40, seed: int = 39, persona: str 
     from world.loader import authored
     import nightbot
     save = "rerun_make_" + folder.name
-    shutil.rmtree(ROOT / "saves" / save, ignore_errors=True)
+    from storage import saves
+    saves.scratch(save)                                     # (f743) a tool's own save, and a failure to clear it says so
     session = CampaignSession.open(save)                     # (f453)
     store = session.store
     store.meta.seed, store.meta.turn, store.meta.minutes = seed, 1, 480
@@ -596,7 +628,7 @@ def make_stub_recording(folder: Path, n: int = 40, seed: int = 39, persona: str 
             session.close()
             planted()
             held()
-            shutil.rmtree(ROOT / "saves" / save, ignore_errors=True)
+            saves.drop(save)
     return folder
 
 
@@ -626,6 +658,8 @@ def main() -> int:
     ap.add_argument("--rebless", action="store_true", help="with --golden: record it again, and say what changed")
     ap.add_argument("--translate", action="store_true", help="(f527) with --rebless: every kept row's request in the neutral form against the new rows' fingerprints")
     ap.add_argument("--make", metavar="FOLDER", help="record a stub session into FOLDER (used by the tests)")
+    ap.add_argument("--as-schema", type=int, default=None, metavar="N", help="(f640) read the state after each input as version N of the save "
+                    "held it: a recording made before a migration that moved rows is replayed whole before it is made again")
     ap.add_argument("--inputs", type=int, default=40)
     ap.add_argument("--time", metavar="URL", help="(f443) send every recorded request to the llama-server at URL beside the replay, and keep "
                     "how long each took in the recording's timed.jsonl (tools/card_profile.py reads it)")
@@ -666,6 +700,10 @@ def main() -> int:
                       + ("every request the same, written anew" if not unmatched else f"{len(unmatched)} without a match:"))
                 for line in unmatched[:40]:
                     print("  " + line)
+            from engine import recording
+            kept = recording.keep_unchanged(target, tmp)               # (f732) what moved only in its time keeps its bytes
+            print(f"call rows written anew: {kept['calls']} of {kept['of']}; the start save "
+                  f"{'kept as it was' if kept['start'] == 'kept' else 'written anew'} (the rest as they were, their time included)")
         else:
             print(f"{a.golden}: kept for the first time ({len(new['inputs'])} inputs, {len(new['calls'])} calls)")
             for t, w in sorted(placement(new).items()):
@@ -677,22 +715,31 @@ def main() -> int:
     folder = golden(a.golden) if a.golden else Path(a.recording or "")
     if not (folder / "meta.json").exists():
         ap.error(f"no recording at {folder}")
+    from storage import statehash
+    if a.as_schema is not None and a.as_schema not in statehash.VIEWS:
+        print(f"refused: there is no view of the state as version {a.as_schema} held it (there is one for: {', '.join(str(v) for v in sorted(statehash.VIEWS))})")
+        return 2
     try:
         load(folder)                                                   # (f517) refused before anything is opened for writing:
-        out = replay(folder, loose=a.loose, on_call=timer(folder, a.time, a.time_key, a.time_embed) if a.time else None)   # --time's timed.jsonl is kept
+        out = replay(folder, loose=a.loose, on_call=timer(folder, a.time, a.time_key, a.time_embed) if a.time else None, as_schema=a.as_schema)   # --time's timed.jsonl is kept
     except Unreplayable as e:
         print(f"refused: {e}")
         return 2
     except Failure as e:                                                # --time's server is not answering: a line, not a traceback
         print(f"the server at {a.time} is not answering: {e}")
         return 2
+    if out.get("words") == "other" and out.get("data") == "same":    # (f718)
+        print("the wording has changed since this recording was made; the rules have not")
     if out["parted"]:
         print(f"parted at input {out['parted']['input']} of {out['of']}: {out['parted']['why']}")
         return 1
     if out.get("crashed"):                                             # (f518) a turn that faulted is no match, whatever the state
         print(f"{out['crashed']} turn(s) faulted while it replayed (see {out['logs']}/crash.log), though the state matched")
         return 1
-    print(f"all {out['of']} inputs matched ({out['calls']} model calls served)")
+    if out["matched"] != out["of"]:                                    # (f731) never "all matched" short of the whole recording
+        print(f"{out['matched']} of {out['of']} inputs matched ({out['calls']} of {out['recorded_calls']} model calls served)")
+        return 1
+    print(f"all {out['matched']} inputs matched ({out['calls']} model calls served)")
     return 0
 
 

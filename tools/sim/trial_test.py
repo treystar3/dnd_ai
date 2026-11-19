@@ -72,6 +72,7 @@ check("winning promotes you and gives the badge", ws.player.guild_rank == "E" an
 check("nothing was looted and no one died", c.deaths == deaths0 and ws.combat is None)
 
 ws.player.trial = {}
+b.session.close()                                # (f743) each bot clears the save the last one played: it is let go first
 b2 = simbot.Bot(); w2 = b2.ws; c2 = w2.player.character
 c2.level = 10; w2.player.guild_rank = "F"; w2.player.guild_done = {"F": 5}
 w2.store.meta.minutes = 1440 * 30 + 600
@@ -85,6 +86,7 @@ for _ in range(3):
     combat.start_turn(f2.player, f2)
 check("poison cannot kill you in a duel; it decides it", f2.player.hp == 1 and f2.over == "defeat", (f2.player.hp, f2.over))
 
+b2.session.close()
 b3 = simbot.Bot(); w3 = b3.ws; c3 = w3.player.character
 w3.enter("guild_house")
 inventory.add(c3.inventory, inventory.make_good("healing_draught", 2), 40)

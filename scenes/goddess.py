@@ -100,7 +100,7 @@ class ThresholdScene:
             from llm import audit
             audit.note_turn(-1, f"(creation) {text}")      # the Threshold's calls, filed under what the player answered (f314)
             if text.lower() in {"quit", "exit", "/quit", "/exit"}:
-                console.out("\nYou leave the Threshold. No character was saved - run main.py to begin again.")
+                console.out("\nYou leave the Threshold. No character was saved. Start the game again to begin.")
                 raise SystemExit(0)
             if text.lower() in {"#menu", "#mainmenu", "#saves"}:
                 console.note("No character was made. Back to the main menu.")
@@ -118,7 +118,7 @@ class ThresholdScene:
             except LLMError as e:
                 console.debug(str(e))
                 from engine import failures
-                self.tell(failures.creation_line("interpret") or "The model couldn't make sense of that. Try saying it another way.")
+                self.tell(failures.creation_line("interpret") or "She doesn't follow. Try saying it another way.")
                 continue
             if turn.kind == "question":
                 self.answer_question(turn.question or text)
@@ -136,11 +136,11 @@ class ThresholdScene:
             page = look.page()
             console.narrate(page["intro"])
             console.note("Who were you? Your people: " + ", ".join(p["name"] for p in page["peoples"]) + ". Say which, whether others say "
-                         "he, she or they, and how you look (build, age, hair, anything else) - or press Enter to be surprised.")
+                         "he, she or they, and how you look (build, age, hair, anything else). Or press Enter to be surprised.")
         while True:
             text = console.ask(menu=True)
             if text.lower() in {"quit", "exit", "/quit", "/exit"}:
-                console.out("\nYou leave the Threshold. No character was saved - run main.py to begin again.")
+                console.out("\nYou leave the Threshold. No character was saved. Start the game again to begin.")
                 raise SystemExit(0)
             if text.lower() in {"#menu", "#mainmenu", "#saves"}:
                 console.note("No character was made. Back to the main menu.")
@@ -453,10 +453,13 @@ class ThresholdScene:
         except LLMError as e:
             console.debug(str(e))
             from engine import failures
-            self.tell(failures.creation_line("concept") or "The model couldn't read that concept this time. Nothing is lost - describe it again.")
+            self.tell(failures.creation_line("concept") or "She can't yet see who you mean to be. Describe it again.")
             self.step = Step.CONCEPT
             return
-        console.show_class(self.interp)
+        if console.windowed():                              # (f671) the page's own card shows it; the bracketed card is the terminal's
+            console.debug(f"class: {self.interp.custom_class} | {self.interp.archetype.value} | focus: {self.interp.focus}")
+        else:
+            console.show_class(self.interp)
         self.step = Step.CONFIRM_CLASS
         self.speak(
             f"You perceive the player's nature as: {self.interp.custom_class}. {self.interp.summary} "
@@ -477,7 +480,7 @@ class ThresholdScene:
                 console.debug(str(e))
                 console.wait("The threads slip through her fingers and scatter.")
                 from engine import failures
-                self.tell(failures.creation_line("gifts") or "The model couldn't shape your gifts this time. Nothing is lost - say yes again to retry.")
+                self.tell(failures.creation_line("gifts") or "Your gifts haven't taken shape. Say yes again to try once more.")
                 return
             self.step = Step.ACTIVES
             console.show_actives(self.active_options)
@@ -511,7 +514,7 @@ class ThresholdScene:
             console.debug(str(e))
             from engine import failures
             self.tell(failures.creation_line("traits")
-                      or "The model couldn't shape your innate traits this time. Nothing is lost - choose your three techniques again to retry.")
+                      or "Your traits haven't taken shape. Choose your three techniques again to try once more.")
             self.passives_job = None
             return
         self.passives_job = None
@@ -581,5 +584,5 @@ class ThresholdScene:
         path = creation.save_character(self.character)
         self.step = Step.DONE
         console.creation_done()                             # (f388) the pages close; the send-off is told in the story
-        console.note(f"Character saved to {path}")
+        console.debug(f"Character saved to {path}")         # (f671) machinery: the debug view's, never the story's
         self.play(SEND_OFF_PATH, name=self.name)

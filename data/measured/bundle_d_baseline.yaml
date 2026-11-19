@@ -16,6 +16,32 @@
 #                 (2026-11-10, tools/latency.py --rekeep 0.2) f571: ground told to the narrator; owner accepts up to 0.2 s per fight
 #                 input. Set again at today's price: stub_short inputs 11, 13, 15, 17, 23, 30, 34; stub_fight inputs 3, 7, 8, 11, 12,
 #                 14, 15, 23, 24, 25
+#                 (2026-11-15, tools/latency.py --retold stub_short --from 5) f640: recorded again once f639 gave the story its own dice
+#                 after a command; from input 5 the stand-in bot plays another story (the prompts are priced as before: stub_party,
+#                 which has no command, kept every price). Its 35 inputs from 5 on set to today's prices: kept over the limit, plain
+#                 inputs 33 (67.4 s), 35 (69.7 s), 37 (67.1 s)
+#                 (2026-11-15, tools/latency.py --retold stub_fight --from 0) f640: a new recording on seed 147; on seed 18 the fight is
+#                 lost once f639 moves the dice after the draught, and the script's census refuses it. Its 19 inputs from 0 on set to
+#                 today's prices, none over the limit
+#                 (2026-11-16, tools/latency.py --retold stub_short --from 34) f695: input 34 'I take a room and sleep until morning.'
+#                 now takes the room it asks for (50 copper), so the night and the purse from there are another story; 35 and 37 were
+#                 kept over the limit before and are unchanged. Its 7 inputs from 34 on set to today's prices: kept over the limit,
+#                 plain inputs 35 (69.7 s), 37 (67.1 s)
+#                 (2026-11-16, tools/latency.py --rekeep 0.1) f700: a creature in view is told to every passage while it stays (one IN
+#                 VIEW line, placed late in the request so the cached head stays whole); accepted by the owner with the feature on
+#                 2026-11-16. Set again at today's price: stub_short inputs 20; stub_fight inputs 16
+#                 (2026-11-16, tools/latency.py --rekeep 0.1) f706: the act ruling is asked to name the kit goods and trifles an act
+#                 uses (the owner's Q34), a longer needs line in its prompt; the owner accepted the cost on 2026-11-16 ("Yes accept
+#                 it"). Set again at today's price: stub_short inputs 36
+#                 (2026-11-16, tools/latency.py --rekeep 9) f714: the owner accepted the cost on 2026-11-16 ('Accept the cost'): stiff
+#                 speech is sent back once for a reply in a person's own words, about 6 to 8.5 s a send-back on the measured card. Set
+#                 again at today's price: stub_short inputs 2, 3, 39, 40
+#                 (2026-11-16, tools/latency.py --retold stub_short --from 2) f714: the test stub's canned speech made ordinary ("Quiet
+#                 enough, most days." for "It is as it is.") so tests not about stiff speech see no send-back; the farmer's words change
+#                 from input 2 on, and the requests carrying them. Its 37 inputs from 2 on set to today's prices: kept over the limit,
+#                 plain inputs 33 (67.4 s), 35 (69.7 s), 37 (67.1 s)
+#                 (2026-11-19, tools/latency.py --retold stub_fight --from 15) f746: the captives are renamed from input 15, a first and
+#                 a family name in the requests. Its 5 inputs from 15 on set to today's prices, none over the limit
 #   priced_at:    (f527) the speeds every estimate above was priced at, read tps, write tps and the embedder's seconds a text: the gate
 #                 (tools/latency.py gate, over_limit) prices today's goldens at these, whatever card_profile.yaml says now
 night: 'pod night 20261103_0520 at ed8fdf4, partial: four runs of 10 hours planned; the summoner (89 turns) and priest (204) stopped on two game
@@ -228,42 +254,43 @@ estimates:
   stub_short:
     0: 10.4
     1: 67.8
-    2: 33.1
-    3: 19.7
+    2: 30.9
+    3: 17.5
     6: 28.1
-    7: 20.8
+    7: 20.7
     8: 8.9
-    9: 18.8
+    9: 18.7
     10: 18.1
-    11: 18.1
-    12: 12.9
-    13: 12.9
-    14: 12.9
-    15: 12.9
-    16: 18.1
-    17: 18.1
-    18: 12.9
-    19: 12.8
-    20: 12.9
-    21: 3.1
-    22: 12.8
-    23: 12.9
-    24: 12.9
-    25: 12.9
-    26: 17.9
-    27: 18.7
-    28: 19.1
-    29: 19.4
-    30: 31.6
-    31: 12.9
-    32: 13.0
-    33: 12.9
-    34: 29.8
-    35: 18.8
-    36: 69.3
-    37: 39.6
-    38: 33.6
-    39: 20.2
+    11: 18.0
+    12: 12.6
+    13: 12.6
+    14: 12.7
+    15: 12.6
+    16: 12.6
+    17: 12.6
+    18: 3.1
+    19: 12.7
+    20: 18.1
+    21: 18.0
+    22: 12.6
+    23: 12.6
+    24: 12.7
+    25: 12.6
+    26: 12.6
+    27: 12.6
+    28: 12.7
+    29: 12.6
+    30: 18.7
+    31: 18.6
+    32: 19.0
+    33: 67.4
+    34: 20.2
+    35: 69.7
+    36: 42.2
+    37: 67.1
+    38: 19.7
+    39: 30.3
+    40: 16.9
   stub_party:
     0: 11.2
     1: 43.1
@@ -281,29 +308,22 @@ estimates:
     13: 67.0
     14: 20.9
   stub_fight:
-    0: 10.5
+    0: 10.4
     1: 18.3
-    2: 18.3
-    3: 18.5
-    4: 9.3
-    5: 13.3
-    6: 9.2
-    7: 13.4
-    8: 34.3
-    10: 13.4
+    2: 18.4
+    3: 9.2
+    4: 39.4
+    5: 9.2
+    6: 13.1
+    7: 33.7
+    9: 13.3
+    10: 13.6
     11: 13.5
-    12: 13.4
-    13: 13.2
-    14: 13.3
-    15: 13.3
-    16: 13.4
-    17: 13.2
-    18: 13.3
-    19: 13.2
-    20: 34.5
-    21: 19.1
-    22: 18.2
-    23: 18.3
-    24: 13.0
-    25: 17.7
-    26: 19.0
+    12: 13.5
+    13: 13.5
+    14: 13.2
+    15: 48.9
+    16: 18.4
+    17: 18.5
+    18: 17.4
+    19: 19.2

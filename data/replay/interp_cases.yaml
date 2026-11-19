@@ -5,17 +5,17 @@
   text: "Tell me about the Red Road"
   scene: {place: trading_square, present: [{id: m1, name: Osric Vane, role: merchant}]}
   plan: [{kind: talk, target: m1, speech: "Tell me about the Red Road"}]
-  expect: {handled_by: interpret, kinds: [talk]}
+  expect: {handled_by: interpret, kinds: [talk], not_by: [exit]}
 - name: direction_question_is_talk
   text: "What do you know about the north?"
   scene: {place: trading_square, present: [{id: m1, name: Osric Vane, role: merchant}]}
   plan: [{kind: talk, target: m1, speech: "What do you know about the north?"}]
-  expect: {handled_by: interpret, kinds: [talk]}
+  expect: {handled_by: interpret, kinds: [talk], not_by: [exit]}
 - name: heretics_trial_is_for_the_priest
   text: "I ask the priest about the heretic's trial"
   scene: {place: parth_temple, present: [{id: p1, name: Brother Aldo, role: priest}]}
   plan: [{kind: talk, target: p1, speech: "Tell me about the heretic's trial"}]
-  expect: {handled_by: interpret, kinds: [talk]}
+  expect: {handled_by: interpret, kinds: [talk], not_by: [trial]}
 - name: own_trial_away_from_hall
   text: "I'd like to take the trial"
   scene: {place: trading_square}
@@ -32,7 +32,7 @@
   text: "Let's go to the market first"
   scene: {place: trading_square, mentor_stage: hunt}
   plan: [{kind: move, destination: trading_square}]
-  expect: {handled_by: interpret}
+  expect: {handled_by: interpret, not_by: [mentor_hunt]}
 - name: ready_lets_go_is_the_hunt
   text: "I'm ready, let's go"
   scene: {place: trading_square, mentor_stage: hunt}
@@ -45,7 +45,7 @@
   text: "I show Maren the wolf pelts"
   scene: {place: trading_square, mentor_stage: hunt}
   plan: [{kind: show, target: maren, item: wolf pelts}]
-  expect: {handled_by: interpret, kinds: [show]}
+  expect: {handled_by: interpret, kinds: [show], not_by: [mentor_named]}
 - name: quoted_line_beside_maren
   text: '"so, tell me about yourself"'
   scene: {place: trading_square, mentor_stage: harvest}
@@ -54,17 +54,17 @@
   text: '"Here''s the joining fee."'
   scene: {place: guild_house, mentor_stage: sign, present: [{id: c1, name: Ida Marrow, role: guild_clerk}]}
   plan: [{kind: talk, target: c1, speech: "Here's the joining fee."}]
-  expect: {handled_by: interpret, kinds: [join_guild]}
+  expect: {handled_by: interpret, kinds: [join_guild], not_by: [mentor_quoted]}
 - name: not_joining_stays_talk
   text: "I don't want to join the guild"
   scene: {place: guild_house, present: [{id: c1, name: Ida Marrow, role: guild_clerk}]}
   plan: [{kind: talk, target: c1, speech: "I don't want to join the guild"}]
-  expect: {handled_by: interpret, kinds: [talk]}
+  expect: {handled_by: interpret, kinds: [talk], not_by: [join_guild]}
 - name: register_later_stays_talk
   text: "I'll register later, the fee's too steep"
   scene: {place: guild_house, present: [{id: c1, name: Ida Marrow, role: guild_clerk}]}
   plan: [{kind: talk, target: c1, speech: "I'll register later"}]
-  expect: {handled_by: interpret, kinds: [talk]}
+  expect: {handled_by: interpret, kinds: [talk], not_by: [join_guild]}
 - name: paying_the_fee_joins
   text: "I pay the fee and sign the register"
   scene: {place: guild_house, present: [{id: c1, name: Ida Marrow, role: guild_clerk}]}
@@ -78,7 +78,7 @@
   text: "I give Bram a healing draught"
   scene: {place: trading_square, party: [{name: Bram Tollis, role: fighter}]}
   plan: [{kind: give, target: "hire:h0", item: healing draught}]
-  expect: {handled_by: interpret, kinds: [give]}
+  expect: {handled_by: interpret, kinds: [give], not_by: [hire]}
 - name: healing_a_hire_is_an_ability
   text: "I heal Bram with Mending Light"
   scene: {place: trading_square, party: [{name: Bram Tollis, role: fighter}]}
@@ -88,11 +88,11 @@
   text: "I wait an hour"
   scene: {place: trading_square, party: [{name: Bram Tollis, role: fighter}], hire_last: Bram Tollis}
   plan: [{kind: wait, wait_minutes: 60}]
-  expect: {handled_by: interpret, kinds: [wait]}
+  expect: {handled_by: interpret, kinds: [wait], not_by: [hire]}
 - name: looking_after_a_hire_spoke
   text: "I look around"
   scene: {place: trading_square, party: [{name: Bram Tollis, role: fighter}], hire_last: Bram Tollis}
-  expect: {handled_by: interpret, kinds: [look]}
+  expect: {handled_by: interpret, kinds: [look], not_by: [hire]}
 # (f420) what the player says they are about to do is a deed, not words to the hire who spoke last (mage T112-128: the woods were never
 # searched); said to someone here about a deal, it is words to them (five contracts taken that way lost the clerk's answer)
 - name: our_rooms_at_the_inn_is_not_a_journey
@@ -128,7 +128,7 @@
   text: "Okay, let's head to the inn first"
   scene: {place: trading_square, party: [{name: Bram Tollis, role: fighter}], errand: true}
   plan: [{kind: move, destination: tilted_plough}]
-  expect: {handled_by: interpret, moves: [tilted_plough]}
+  expect: {handled_by: interpret, moves: [tilted_plough], not_by: [errand]}
 - name: yes_of_course_is_a_yes
   text: "Yes, of course"
   scene: {place: trading_square, party: [{name: Bram Tollis, role: fighter}], errand: true}
@@ -137,7 +137,7 @@
   text: "Don't forget the 2 silver I paid you yesterday"
   scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}]}
   plan: [{kind: talk, target: g1, speech: "Don't forget the 2 silver I paid you yesterday"}]
-  expect: {handled_by: interpret, kinds: [talk]}
+  expect: {handled_by: interpret, kinds: [talk], not_by: [coin_offered]}
 - name: coin_offered_to_look_away_is_a_give
   text: "I offer the guard 2 silver to look the other way"
   scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}]}
@@ -188,7 +188,7 @@
   text: "Let's ride to the inn at Kelpmoor"
   scene: {place: trading_square}
   plan: [{kind: move, destination: kelpmoor_inn}]
-  expect: {handled_by: interpret, moves: [kelpmoor_inn]}
+  expect: {handled_by: interpret, moves: [kelpmoor_inn], not_by: [local_building]}
 - name: bribe_read_as_talk_and_a_give_is_one_give
   text: "I offer the guard 2 silver to look the other way"
   scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}]}
@@ -316,7 +316,7 @@
   text: "Goodbye, but first: where is the mill?"
   scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}], partner: i1}
   plan: [{kind: talk, target: i1, speech: "Goodbye, but first: where is the mill?"}]
-  expect: {handled_by: interpret, kinds: [talk]}
+  expect: {handled_by: interpret, kinds: [talk], not_by: [farewell]}
 - name: turning_away_ends_the_conversation
   text: "I turn away from Osric and say nothing more"
   scene: {place: trading_square, present: [{id: m1, name: Osric Vane, role: merchant}], partner: m1}
@@ -338,7 +338,7 @@
   text: "I buy two healing draughts from the herbalist"
   scene: {place: trading_square, present: [{id: e1, name: Mirel, role: herbalist}]}
   plan: [{kind: buy, target: e1, ware: healing_draught, count: 2}]
-  expect: {handled_by: interpret, kinds: [buy], first: {target: e1, ware: healing_draught, count: 2}}
+  expect: {handled_by: interpret, kinds: [buy], first: {target: e1, ware: healing_draught, count: 2}, not_by: [buy_what_was_named]}
 - name: handing_over_the_coin_for_what_was_offered_is_buy
   text: "I hand him the silver for the room"
   scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}], partner: i1}
@@ -380,12 +380,12 @@
   text: "I give Odo my longsword. Keep it, it's yours."
   scene: {place: trading_square, present: [{id: s1, name: Odo, role: smith}], pack: [longsword]}
   plan: [{kind: give, target: s1, item: longsword}]
-  expect: {handled_by: interpret, kinds: [give]}
+  expect: {handled_by: interpret, kinds: [give], not_by: [give_for_coin]}
 - name: a_word_then_a_walk_keeps_its_order
   text: "I tell Odo I'll be back, and walk to the inn"
   scene: {place: trading_square, present: [{id: s1, name: Odo, role: smith}]}
   plan: [{kind: talk, target: s1, speech: "I'll be back."}, {kind: move, destination: tilted_plough}]
-  expect: {handled_by: interpret, kinds: [talk, move]}
+  expect: {handled_by: interpret, kinds: [talk, move], not_by: [narrated_talk]}
 - name: asking_who_buys_is_talk
   text: "Would anyone here buy wolf hides?"
   scene: {place: trading_square, present: [{id: h1, name: Tamsin, role: hunter}], pack: ["raw:wolf_hide"]}
@@ -914,7 +914,7 @@
   text: "i walk out of the building to the the trading square and aproach the chandler. i ask \"do you have arrows for sale?\""
   scene: {place: guild_house, present: [{id: q1, name: Quill Sweetwater, role: guild_contractor}]}
   plan: [{kind: move, destination: trading_square, summary: I walk out of the building to the trading square.}, {kind: talk, target: q1, speech: "do you have arrows for sale?", summary: I approach the chandler and ask if they have arrows for sale.}]
-  expect: {handled_by: interpret, kinds: [move, talk]}
+  expect: {handled_by: interpret, kinds: [move, talk], not_by: [move_to_present]}
   note: "as the model read it live, resolving 'the chandler' to someone present; the move stands because the square is named"
 - name: arrows_asked_for_do_not_buy_a_bow
   text: "i aproach the tinker the and ask to buy arrows"
@@ -922,3 +922,412 @@
   plan: [{kind: talk, target: t1, speech: "I approach the tinker and ask to buy arrows", summary: Approaching the tinker and asking to buy arrows}, {kind: buy, target: t1, ware: crude ash shortbow, summary: Attempting to buy arrows from the tinker}]
   expect: {handled_by: interpret, kinds: [talk]}
   note: "as the model read it live: no arrows on the shelf, so it reached for the bow; the asking stands and the tinker answers"
+# (f648) the corpus's other half: where a rule acts, and lines that must not fire it; a case owed says how it goes wrong today
+- name: a_walk_over_before_an_order_is_no_journey
+  text: "I walk over and order a hot meal from Hollis"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: move, destination: trading_square, summary: walking over to Hollis}, {kind: buy, target: i1, ware: meal}]
+  expect: {handled_by: interpret, kinds: [buy]}
+- name: a_proposal_to_the_party_is_the_move
+  text: "We should head to the Greywood."
+  scene: {place: trading_square, party: [{name: Bram Voss}, {name: Odly Garth}]}
+  plan: [{kind: talk, target: 'hire:h0', speech: "We should head to the Greywood."}]
+  expect: {handled_by: interpret, kinds: [move], moves: [greywood]}
+- name: a_choice_put_to_the_party_stays_talk
+  text: "Should we go north to the Greywood or east to the river?"
+  scene: {place: trading_square, party: [{name: Bram Voss}, {name: Odly Garth}]}
+  plan: [{kind: talk, target: 'hire:h0', speech: "Should we go north to the Greywood or east to the river?"}]
+  expect: {handled_by: interpret, kinds: [talk], not_by: [party_word]}
+- name: the_thing_named_is_the_thing_given
+  text: "I give Bram the bandage"
+  scene: {place: trading_square, pack: [bandage, healing_draught], party: [{name: Bram Voss}]}
+  plan: [{kind: give, target: 'hire:h0', item: healing draught}]
+  expect: {handled_by: interpret, kinds: [give], first: {item: bandage}}
+- name: a_thing_named_by_part_of_its_name_stays
+  text: "I give Bram the draught, not the bandage"
+  scene: {place: trading_square, pack: [bandage, healing_draught], party: [{name: Bram Voss}]}
+  plan: [{kind: give, target: 'hire:h0', item: healing draught}]
+  expect: {handled_by: interpret, kinds: [give], first: {item: healing draught}, not_by: [grounded_item]}
+- name: a_thing_handed_to_a_companion_by_name_is_given
+  text: "Here, take this healing draught, Bram"
+  scene: {place: trading_square, pack: [bandage, healing_draught], party: [{name: Bram Voss}]}
+  plan: [{kind: give, target: 'hire:h0', item: healing draught}]
+  expect: {handled_by: interpret, kinds: [give], not_by: [hire]}
+- name: a_nod_read_as_words_is_a_gesture
+  text: "I nod to the guard"
+  scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}]}
+  plan: [{kind: talk, target: g1, speech: "*nods*"}]
+  expect: {handled_by: interpret, kinds: [other]}
+- name: a_nod_with_words_said_stays_talk
+  text: "I nod and tell the guard the bandits have gone"
+  scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}]}
+  plan: [{kind: talk, target: g1, speech: "The bandits have gone"}]
+  expect: {handled_by: interpret, kinds: [talk], not_by: [gesture_only]}
+- name: a_wave_and_a_greeting_is_talk
+  text: "I wave and greet the guard"
+  scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}]}
+  plan: [{kind: talk, target: g1, speech: "*waves*"}]
+  expect: {handled_by: interpret, kinds: [talk], not_by: [gesture_only]}
+- name: telling_of_the_road_north_is_not_leaving_by_it
+  text: "I nod and tell the guard the road north is clear"
+  scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}]}
+  plan: [{kind: talk, target: g1, speech: "The road north is clear"}]
+  expect: {handled_by: interpret, kinds: [talk], not_by: [exit]}
+- name: words_for_the_guard_go_to_the_guard
+  text: "I ask the guard who he serves"
+  scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}], party: [{name: Bram Voss}], last_spoken: 'hire:h0'}
+  plan: [{kind: talk, target: 'hire:h0', speech: "Who do you serve?"}]
+  expect: {handled_by: interpret, kinds: [talk], first: {target: g1}}
+- name: asking_a_companion_about_the_guard_stays_with_the_companion
+  text: "I ask my companion what he makes of the guard's story"
+  scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}], party: [{name: Bram Voss}]}
+  plan: [{kind: talk, target: 'hire:h0', speech: "What do you make of the guard's story?"}]
+  expect: {handled_by: interpret, kinds: [talk], first: {target: 'hire:h0'}, not_by: [to_the_named]}
+- name: a_question_about_another_inns_prices_is_not_a_haggle
+  text: "Hollis, were the rooms at the Gull too dear when you stayed there?"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: talk, target: i1, speech: "Were the rooms at the Gull too dear when you stayed there?"}]
+  expect: {handled_by: interpret, kinds: [talk], not_by: [talk_to_deed]}
+- name: dice_lost_last_night_is_talk
+  text: "I tell Hollis I lost a game of dice to a sailor last night"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: talk, target: i1, speech: "I lost a game of dice to a sailor last night."}]
+  expect: {handled_by: interpret, kinds: [talk], not_by: [talk_to_deed]}
+- name: kneeling_to_jam_a_plate_is_no_prayer
+  text: "I kneel and jam the pressure plates with my dagger."
+  scene: {delve: true, dungeon: cracked_plains}
+  plan: [{kind: other, summary: jam the pressure plates with a dagger}]
+  expect: {handled_by: interpret, kinds: [other], not_by: [talk_to_deed]}
+- name: kneeling_to_jam_a_plate_said_so_is_no_prayer
+  text: "I kneel and jam the pressure plates with my dagger."
+  scene: {delve: true, dungeon: cracked_plains}
+  plan: [{kind: other, summary: kneel and jam the pressure plates with a dagger}]
+  expect: {handled_by: interpret, kinds: [other], not_by: [talk_to_deed]}
+- name: pointing_out_the_wires_does_not_leave_the_dungeon
+  text: "We step around the rigged stones, I point out the wires, and we go on to the next chamber."
+  scene: {delve: true, dungeon: cracked_plains}
+  plan: [{kind: move, destination: next chamber, summary: going on to the next chamber}]
+  expect: {handled_by: interpret, kinds: [delve]}
+- name: a_walk_back_to_a_chamber_stays_in_the_dungeon
+  text: "I head back to the chamber with the dry well"
+  scene: {delve: true, dungeon: cracked_plains}
+  plan: [{kind: move, destination: chamber with the dry well, summary: walking back to the chamber with the dry well}]
+  expect: {handled_by: interpret, not_by: [move_elsewhere]}
+- name: going_to_watch_the_fishing_boats_is_a_walk
+  text: "I head down to the wharf to watch the fishing boats come in"
+  scene: {place: trading_square}
+  plan: [{kind: move, destination: riverhaven_wharf, summary: heading to the wharf}]
+  expect: {handled_by: interpret, moves: [riverhaven_wharf], not_by: [fishing]}
+- name: a_look_the_line_asked_for_stays
+  text: "I order a hot meal and look around the room"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: buy, target: i1, ware: meal}, {kind: look, summary: looking around the room}]
+  expect: {handled_by: interpret, kinds: [buy, look], not_by: [drop_restatements]}
+- name: a_companion_named_resting_with_the_party_is_a_wait
+  text: "Raerei is still white as a sheet. We sit under the pines for two hours and let her get her breath back."
+  scene: {place: greywood, party: [{name: Raerei Wynn, role: priest}]}
+  plan: [{kind: wait, wait_minutes: 120, summary: resting under the pines}]
+  expect: {handled_by: interpret, kinds: [wait], not_by: [hire]}
+- name: asking_who_was_hired_is_talk
+  text: "Who did you hire to mend the roof, Hollis?"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}], party: [{name: Bram Voss}]}
+  plan: [{kind: talk, target: i1, speech: "Who did you hire to mend the roof?"}]
+  expect: {handled_by: interpret, kinds: [talk], not_by: [party]}
+- name: quoted_words_are_kept_as_said
+  text: 'I tell the guard, "The bandits are camped by the mill."'
+  scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}]}
+  plan: [{kind: talk, target: g1, speech: "The bandits are camped by the mill"}]
+  expect: {handled_by: interpret, kinds: [talk], not_by: [scrub_markup]}
+- name: a_meal_with_nobody_named_is_aimed_at_nobody
+  text: "I order a hot meal"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}, {id: g1, name: Garran Holt, role: guard}]}
+  plan: [{kind: buy, ware: meal}]
+  expect: {handled_by: interpret, kinds: [buy], not_by: [name_the_target]}
+- name: reading_a_tome_is_the_spell_book
+  text: "I read the tome of the second circle"
+  scene: {place: trading_square, pack: [tome_second_circle]}
+  expect: {handled_by: spell_book}
+- name: opening_a_door_with_a_tome_in_the_pack_is_not_reading
+  text: "I open the door to the back room"
+  scene: {place: tilted_plough, pack: [tome_second_circle], present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: look, summary: opening the door to the back room}]
+  expect: {handled_by: interpret, not_by: [spell_book]}
+# (f650) out of a fight, a talk goes to the one the line speaks to
+- name: asking_a_friend_about_the_guard_stays_with_the_friend
+  text: "I ask my friend whether the guard can be trusted"
+  scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}], party: [{name: Bram Voss}]}
+  plan: [{kind: talk, target: 'hire:h0', speech: "Can the guard be trusted?"}]
+  expect: {handled_by: interpret, kinds: [talk], first: {target: 'hire:h0'}, not_by: [to_the_named]}
+- name: the_cook_asked_what_is_in_the_pot_is_the_cook
+  text: "I ask the cook what is in the pot"
+  scene: {place: tilted_plough, present: [{id: c1, name: Jeth Croft, role: cook}], party: [{name: Bram Voss}], last_spoken: 'hire:h0'}
+  plan: [{kind: talk, target: 'hire:h0', speech: "What is in the pot?"}]
+  expect: {handled_by: interpret, kinds: [talk], first: {target: c1}}
+- name: of_two_guards_the_one_already_talking_is_spoken_to
+  text: "I ask the guard who he serves"
+  scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}, {id: g2, name: Tam Holt, role: guard}], party: [{name: Bram Voss}],
+          last_spoken: g2}
+  plan: [{kind: talk, target: 'hire:h0', speech: "Who do you serve?"}]
+  expect: {handled_by: interpret, kinds: [talk], first: {target: g2}}
+- name: talking_to_the_guard_about_the_road_is_the_guard
+  text: "I talk to the guard about the road"
+  scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}], party: [{name: Bram Voss}], last_spoken: 'hire:h0'}
+  plan: [{kind: talk, target: 'hire:h0', speech: "Tell me about the road."}]
+  expect: {handled_by: interpret, kinds: [talk], first: {target: g1}}
+- name: words_called_to_the_guard_go_to_the_guard
+  text: "Guard, what did my companion do last night?"
+  scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}], party: [{name: Bram Voss}]}
+  plan: [{kind: talk, target: 'hire:h0', speech: "What did my companion do last night?"}]
+  expect: {handled_by: interpret, kinds: [talk], first: {target: g1}}
+- name: telling_the_guard_of_a_companion_goes_to_the_guard
+  text: "I tell the guard that my companion needs rest"
+  scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}], party: [{name: Bram Voss}]}
+  plan: [{kind: talk, target: 'hire:h0', speech: "My companion needs rest."}]
+  expect: {handled_by: interpret, kinds: [talk], first: {target: g1}}
+# (f652) a walk is rewritten by its own words: its destination and its summary, never a word elsewhere in the line
+- name: going_on_to_the_next_chamber_is_the_delve
+  text: "We go on to the next chamber."
+  scene: {delve: true, dungeon: cracked_plains}
+  plan: [{kind: move, destination: next chamber, summary: going on to the next chamber}]
+  expect: {handled_by: interpret, kinds: [delve]}
+- name: a_tripwire_pointed_out_does_not_leave_the_dungeon
+  text: "I point out the tripwire to the others, then we go deeper."
+  scene: {delve: true, dungeon: cracked_plains}
+  plan: [{kind: move, destination: the next chamber}]
+  expect: {handled_by: interpret, kinds: [delve]}
+- name: climbing_out_said_in_the_walk_still_leaves
+  text: "Enough of this place. I head back up to the surface."
+  scene: {delve: true, dungeon: cracked_plains}
+  plan: [{kind: move, destination: the surface, summary: heading back up to the surface}]
+  expect: {handled_by: interpret, kinds: [leave_dungeon]}
+- name: a_room_named_beside_a_walk_out_is_no_look
+  text: "I leave my things in the room and head out to the old mill."
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: move, destination: the old mill, summary: heading to the old mill}]
+  expect: {handled_by: interpret, kinds: [move], not_by: [move_elsewhere]}
+- name: going_up_to_the_room_is_still_a_look
+  text: "I head up to my room for the night."
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: move, destination: my room, summary: going up to my room}]
+  expect: {handled_by: interpret, kinds: [look]}
+- name: turning_in_said_in_the_walk_is_a_look
+  text: "I turn in for the night."
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: move, destination: bed, summary: going up to my room to sleep}]
+  expect: {handled_by: interpret, kinds: [look]}
+- name: getting_out_said_only_in_the_line_leaves
+  text: "Let's get out of here."
+  scene: {delve: true, dungeon: cracked_plains}
+  plan: [{kind: move, destination: outside}]
+  expect: {handled_by: interpret, kinds: [leave_dungeon]}
+- name: climbing_out_toward_town_leaves
+  text: "I climb out and head back to town."
+  scene: {delve: true, dungeon: cracked_plains}
+  plan: [{kind: move, destination: trading_square}]
+  expect: {handled_by: interpret, kinds: [leave_dungeon]}
+- name: the_wires_with_an_echoing_summary_go_on
+  text: "We step around the rigged stones, I point out the wires, and we go on to the next chamber."
+  scene: {delve: true, dungeon: cracked_plains}
+  plan: [{kind: move, destination: next chamber, summary: pointing out the wires and going on to the next chamber}]
+  expect: {handled_by: interpret, kinds: [delve]}
+- name: out_of_this_chamber_to_the_next_goes_on
+  text: "We continue to the next chamber."
+  scene: {delve: true, dungeon: cracked_plains}
+  plan: [{kind: move, destination: next chamber, summary: carefully making our way out of this chamber to the next}]
+  expect: {handled_by: interpret, kinds: [delve]}
+- name: the_stairs_down_at_the_mouth_is_the_delve
+  text: "We take the stairs down."
+  scene: {dungeon: cracked_plains}
+  plan: [{kind: move, destination: the stairs, summary: taking the stairs down into the warren}]
+  expect: {handled_by: interpret, kinds: [delve]}
+- name: going_deeper_at_the_mouth_is_the_delve
+  text: "We go deeper."
+  scene: {dungeon: cracked_plains}
+  plan: [{kind: move, destination: deeper}]
+  expect: {handled_by: interpret, kinds: [delve]}
+- name: upstairs_to_sleep_said_only_in_the_line_is_a_look
+  text: "I go upstairs to sleep."
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: move, destination: bed}]
+  expect: {handled_by: interpret, kinds: [look]}
+- name: sitting_by_the_fire_is_a_look
+  text: "I sit by the fire."
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: move, destination: hearth}]
+  expect: {handled_by: interpret, kinds: [look]}
+- name: checking_out_the_carvings_does_not_leave
+  text: "I check out the carvings, then we walk to the chamber with the altar."
+  scene: {delve: true, dungeon: cracked_plains}
+  plan: [{kind: move, destination: the chamber with the altar}]
+  expect: {handled_by: interpret, kinds: [move], not_by: [move_elsewhere]}
+- name: a_torch_held_out_on_a_walk_does_not_leave
+  text: "I walk to the altar chamber, my torch held out."
+  scene: {delve: true, dungeon: cracked_plains}
+  plan: [{kind: move, destination: the altar chamber, summary: walking to the altar chamber with my torch held out}]
+  expect: {handled_by: interpret, kinds: [move], not_by: [move_elsewhere]}
+- name: a_way_out_promised_beside_a_walk_does_not_leave
+  text: "I tell Raerei we will get out of here soon, then we walk to the altar chamber."
+  scene: {delve: true, dungeon: cracked_plains}
+  plan: [{kind: move, destination: the altar chamber}]
+  expect: {handled_by: interpret, kinds: [move], not_by: [move_elsewhere]}
+- name: a_haggler_told_of_is_talk
+  text: "I tell Hollis my brother used to haggle for a better price at every stall"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: talk, target: i1, speech: "My brother used to haggle for a better price at every stall."}]
+  expect: {handled_by: interpret, kinds: [talk], not_by: [talk_to_deed]}
+- name: dice_asked_for_tonight_is_gamble
+  text: "Hollis, let's throw dice for a silver tonight"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: talk, target: i1, speech: "Let's throw dice for a silver tonight."}]
+  expect: {handled_by: interpret, kinds: [gamble]}
+- name: kneeling_to_bind_a_wound_is_no_prayer
+  text: "I kneel beside Raerei and bind her wound."
+  scene: {place: greywood}
+  plan: [{kind: other, summary: kneel and bind Raerei's wound}]
+  expect: {handled_by: interpret, kinds: [other], not_by: [talk_to_deed]}
+- name: kneeling_to_pray_is_a_prayer
+  text: "I kneel and pray for Raerei's recovery."
+  scene: {place: greywood}
+  plan: [{kind: other, summary: kneel and pray for Raerei's recovery}]
+  expect: {handled_by: interpret, kinds: [pray]}
+- name: a_prayer_said_beside_another_deed_is_not_that_deed
+  text: "I whisper a prayer under my breath and pry open the chest."
+  scene: {place: greywood}
+  plan: [{kind: other, summary: pry open the chest}]
+  expect: {handled_by: interpret, kinds: [other], not_by: [talk_to_deed]}
+- name: a_word_after_a_game_is_still_a_word
+  text: "I play a hand of cards with Pip, then tell Hollis the soup is good."
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}, {id: s2, name: Pip, role: server}]}
+  plan: [{kind: gamble, target: s2}, {kind: talk, target: i1, speech: "The soup is good."}]
+  expect: {handled_by: interpret, kinds: [gamble, talk]}
+- name: a_loss_told_beside_a_new_hand_asked_is_gamble
+  text: "I lost last time, deal me in again"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: talk, target: i1, speech: "I lost last time, deal me in again"}]
+  expect: {handled_by: interpret, kinds: [gamble]}
+- name: wont_you_deal_me_in_is_gamble
+  text: "Won't you deal me in, Hollis?"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: talk, target: i1, speech: "Won't you deal me in?"}]
+  expect: {handled_by: interpret, kinds: [gamble]}
+- name: a_spear_once_trained_with_beside_a_lesson_asked_is_train
+  text: "I used to train with a spear; teach me the sword"
+  scene: {place: guild_house, present: [{id: t1, name: Master Orrin, role: guild_instructor}], rank: F}
+  plan: [{kind: talk, target: t1, speech: "I used to train with a spear; teach me the sword"}]
+  expect: {handled_by: interpret, kinds: [train]}
+- name: a_game_asked_for_in_the_line_with_a_short_speech_is_gamble
+  text: "I ask Hollis for a game of dice"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: talk, target: i1, speech: "Fancy a game?"}]
+  expect: {handled_by: interpret, kinds: [gamble]}
+- name: a_price_called_too_dear_in_the_line_is_haggle
+  text: "I tell Hollis the room is too dear"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: talk, target: i1, speech: "Too dear.", summary: haggling with Hollis}]
+  expect: {handled_by: interpret, kinds: [haggle]}
+- name: kneeling_at_the_altar_with_a_short_summary_is_a_prayer
+  text: "I kneel at the altar and pray"
+  scene: {place: parth_temple, present: [{id: p1, name: Brother Aldo, role: priest}]}
+  plan: [{kind: other, summary: kneel down}]
+  expect: {handled_by: interpret, kinds: [pray]}
+- name: kneeling_before_a_shrine_is_a_prayer
+  text: "I kneel before the shrine of the river god"
+  scene: {place: greywood}
+  plan: [{kind: other, summary: kneel before the shrine}]
+  expect: {handled_by: interpret, kinds: [pray]}
+- name: a_summary_telling_of_a_loss_beside_a_new_hand_asked_is_gamble
+  text: "Deal me in again, Hollis"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: talk, target: i1, speech: "Deal me in again", summary: "he won the last hand from me"}]
+  expect: {handled_by: interpret, kinds: [gamble]}
+- name: goodbye_said_then_a_gate_taken_is_the_way_out
+  text: "I tell the innkeeper goodbye and head out the north gate"
+  scene: {place: trading_square, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: talk, target: i1, speech: "Goodbye."}]
+  expect: {handled_by: exit}
+- name: a_road_asked_of_is_not_taken
+  text: "I ask the guard whether the King's Road south is safe"
+  scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}]}
+  plan: [{kind: talk, target: g1, speech: "Is the King's Road south safe?"}]
+  expect: {handled_by: interpret, kinds: [talk], not_by: [exit]}
+- name: a_companion_spoken_of_beside_a_meal_bought_is_not_their_talk
+  text: "Bram looks dead on his feet. I buy him a hot meal."
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}], party: [{name: Bram Voss}]}
+  plan: [{kind: buy, target: i1, ware: meal}]
+  expect: {handled_by: interpret, kinds: [buy], not_by: [hire]}
+- name: a_companion_asked_how_they_are_is_theirs
+  text: "How are you holding up, Bram?"
+  scene: {place: trading_square, party: [{name: Bram Voss}]}
+  expect: {handled_by: hire}
+- name: a_companion_called_with_the_players_own_deed_is_the_deed
+  text: "Bram, I'll take the first watch."
+  scene: {place: greywood, party: [{name: Bram Voss}]}
+  plan: [{kind: other, summary: taking the first watch}]
+  expect: {handled_by: interpret, kinds: [other], not_by: [hire]}
+- name: a_companion_called_alone_is_theirs
+  text: "Bram!"
+  scene: {place: trading_square, party: [{name: Bram Voss}]}
+  expect: {handled_by: hire}
+- name: a_bandage_handed_to_a_companion_spoken_to_is_given
+  text: "Bram, here is a bandage for that arm."
+  scene: {place: trading_square, pack: [bandage, healing_draught], party: [{name: Bram Voss}]}
+  plan: [{kind: give, target: 'hire:h0', item: bandage}]
+  expect: {handled_by: interpret, kinds: [give], not_by: [hire]}
+- name: a_companion_asked_of_their_healing_is_theirs
+  text: "Bram, are you healing up?"
+  scene: {place: trading_square, pack: [bandage, healing_draught], party: [{name: Bram Voss}]}
+  expect: {handled_by: hire}
+- name: a_thing_handed_over_to_the_one_spoken_to_goes_before_the_words
+  text: "I tell the priestess the work is done and hand her the receipt"
+  scene: {place: trading_square, present: [{id: p1, name: Sister Ama, role: priest}]}
+  plan: [{kind: talk, target: p1, speech: "The work is done."}, {kind: give, item: receipt}]
+  expect: {handled_by: interpret, kinds: [give, talk]}
+- name: a_thing_handed_over_with_no_one_named_beside_two_spoken_to_stays
+  text: "I tell Ama the work is done, ask Garran the way, and hand over the receipt"
+  scene: {place: trading_square, present: [{id: p1, name: Sister Ama, role: priest}, {id: g1, name: Garran Holt, role: guard}]}
+  plan: [{kind: talk, target: p1, speech: "The work is done."}, {kind: talk, target: g1, speech: "Which way?"}, {kind: give, item: receipt}]
+  expect: {handled_by: interpret, kinds: [talk, talk, give]}
+- name: a_companion_told_then_the_players_own_spell_is_the_spell
+  text: '"Pae, hold it off!" I cast Chilling Touch at the bear.'
+  scene: {place: greywood, party: [{name: Pae Tamalaga}]}
+  plan: [{kind: other, summary: casting Chilling Touch at the bear}]
+  expect: {handled_by: interpret, not_by: [hire]}
+- name: a_companion_asked_with_a_speech_tag_is_theirs
+  text: '"Pae, are you hurt?" I ask.'
+  scene: {place: greywood, party: [{name: Pae Tamalaga}]}
+  expect: {handled_by: hire}
+- name: a_companion_told_then_a_walk_of_the_party_is_the_walk
+  text: '"Pae, keep watch behind us." We walk back to Parth.'
+  scene: {place: greywood, party: [{name: Pae Tamalaga}]}
+  plan: [{kind: move, destination: parth}]
+  expect: {handled_by: interpret, not_by: [hire]}
+- name: persuade_said_of_the_act_rolls_the_check
+  text: 'I try to persuade Fipen, appealing to his love of secrets: "Help me set the records right."'
+  scene: {place: trading_square, present: [{id: f1, name: Fipen Copperpot, role: noble}]}
+  plan: [{kind: talk, target: f1, speech: "Help me set the records right."}]
+  expect: {handled_by: interpret, kinds: [talk], repairs: [social_check]}
+- name: persuade_only_in_the_words_said_rolls_nothing
+  text: '"I could never persuade you, could I?" I ask Fipen.'
+  scene: {place: trading_square, present: [{id: f1, name: Fipen Copperpot, role: noble}]}
+  plan: [{kind: talk, target: f1, speech: "I could never persuade you, could I?"}]
+  expect: {handled_by: interpret, kinds: [talk], not_by: [social_check]}
+- name: plucking_a_fresh_kill_is_the_harvest
+  text: "I pluck the griffon's down carefully."
+  scene: {place: greywood, carcasses: [griffon]}
+  plan: [{kind: other, summary: "The player plucks the griffon's down carefully."}]
+  expect: {handled_by: interpret, kinds: [harvest], repairs: [carcass_part]}
+- name: plucking_with_no_kill_here_stays_an_attempt
+  text: "I pluck the griffon's down carefully."
+  scene: {place: greywood}
+  plan: [{kind: other, summary: "The player plucks the griffon's down carefully."}]
+  expect: {handled_by: interpret, kinds: [other], not_by: [carcass_part]}
+- name: an_ability_read_as_words_to_a_companion_is_the_ability
+  text: "Fireball at the will-o'-wisps."
+  scene: {place: greywood, party: [{name: Pae Tamalaga, role: fighter}], abilities: [{id: fireball, name: Fireball, effect: damage}]}
+  plan: [{kind: talk, target: "hire:h0", speech: "Fireball at the will-o'-wisps."}]
+  expect: {handled_by: interpret, kinds: [ability], first: {ability: fireball}, repairs: [use_to_ability]}
+- name: an_ability_named_in_words_said_aloud_stays_words
+  text: '"Fireball is my best spell," I tell Pae.'
+  scene: {place: greywood, party: [{name: Pae Tamalaga, role: fighter}], abilities: [{id: fireball, name: Fireball, effect: damage}]}
+  plan: [{kind: talk, target: "hire:h0", speech: "Fireball is my best spell"}]
+  expect: {handled_by: interpret, kinds: [talk], not_by: [use_to_ability]}

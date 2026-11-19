@@ -40,7 +40,7 @@ from scenes.inventory_actions import InventoryActions
 from scenes.shop_actions import ShopActions
 from scenes.gear_actions import GearActions
 from scenes.check_actions import CheckActions
-from scenes.work_actions import WorkActions, offer_open
+from scenes.work_actions import WorkActions, offer_open, settled as fair_offer
 from scenes.guild_actions import GuildActions
 from scenes.training_actions import TrainingActions
 from scenes.dungeon_actions import DungeonActions
@@ -65,6 +65,7 @@ from scenes.listening import Listening
 from scenes.spell_actions import SpellActions
 from scenes import markup
 from engine import entities, failures, features, hygiene, ledger, mapview, mentor, needs, pulse, pulselog, questions, quests, roads, turnlog
+from engine import telling
 from engine import inventory as inv
 from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 from engine import crafting
@@ -105,7 +106,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.partner: NPC | None = None
         self.last_spoken: str | None = None
         self.convo: list[tuple[str, str]] = []
-        self._talk_saved = store.load_talk()  # (f485) a save opened mid-talk: put back once the one spoken with is here (restore_talk)
+        self.moves: list[str] = []    # (f724) the moves of this talk's last replies (engine/reply.py), no more than the table's run
+        self.decision = None          # ...and what the engine decided for this line's reply (the turn's: a new line has none)
+        saved = store.load_talk()             # (f485) a save opened mid-talk: put back once the one spoken with is here (restore_talk)
+        self._talk_saved = {**saved, "at": self.player_of(self.acting).location} if saved else None   # (f759) where it was, not after a walk
+        self.visitors = [tuple(v) for v in store.load_visitors()]   # (f759) who came looking is still in the room after a close
+        telling.restore(self)         # (f761) the telling's row, back before any operation can commit over the saved one
         self.to_menu = False          # (f345) #menu: the run loop ends and main.py shows the home page
         self.last_crash = False       # (f449) the last turn rolled back on the game's own fault (logs/crash.log), not the model's
         self.broken: dict[str, int] = {}     # (f449) lines that failed that way, and how often: the second time, the player is told to leave it
@@ -117,17 +123,24 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.line_ops: list = []      # (f463) the operations of the line being played that committed, in order
         self.line_failed: list = []   # (f463) ...and the one that did not, if any
         self.line_world_failed: list = []   # (f466) the world's own operations of the line that did not stand: rolled back alone, the player told nothing
-        self.line_done: list[str] = []   # (f463) what the committed actions did, for the part_stood line
         self.passages: list = []      # (f464) the passages the line's operations queued: [kind, fn, standin, the lines held after their marker, the operation's id]
         self.line_untold: list = []   # (f464) the passage operations of the line that did not stand and were told by a stand-in
         self.unshown_ops: dict = {}   # (f464) operations whose later lines wait on a passage: id -> segments still to release
+        self.waiting: list = []       # (f722) what waits behind the line's one passage, in the order said: entries shaped as a passage's
         self.collecting = False       # (f464) the line's actions are running: a narration is a passage operation of its own, after them
+        self.line_plan: list = []     # (f715) every step the line was read as, begun or not
+        self.own_steps = False        # (f715) a passage asked for now is the line's own, not the world's
+        self.silent = False           # (f721) the line showed the player nothing: its close says so
+        self.stood = None             # (f721) how the input stood, once settled: True, "part" or False
+        self.input_count = None       # (f753) the count new_input gave the input open now: a failed operation does not take it back
         self.crash_after_commit = ""  # (f467) the suite's injection (simlib.Game.crash_after_commit): the game stops right after this kind's commit
         self.last_budget: dict = {}   # (f468) the last input's budget, closed: what it estimated, deferred, dropped, stood in for (the turn log's)
         self.recovered_at_load = 0    # (f471) outcomes told at this load (recover_unshown): the first row after it says so, the night tool too
         self.combat: CombatScene | None = None
-        self.resume_pending = None
         self.wildlife = None
+        self.wildlife_at = None                # (f700) the minute it was seen
+        from engine import phantoms
+        phantoms.use(self.creatures_here)      # (f701) what a passage may show of the place's creatures
         self.sneaking, self.queued_buffs, self.fight_text = False, [], ""     # a fight the player starts this turn (f248)
         self.recently_fled = False
         self.rng = streams.get("scene")  # (f439) reseeded at every input
@@ -214,6 +227,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def time_label(self) -> str:
         light = " (dark)" if clock.is_dark(self.minutes) else ""
+        from engine import battlefield_builder
+        if self.place.type in battlefield_builder.UNDER:
+            return f"{clock.period(self.minutes)}{light}, under the ground"   # (f665) no weather with no open sky (Q14)
         _, sky = weather.describe(self.store.meta.seed, self.minutes)
         return f"{clock.period(self.minutes)}{light}, weather: {sky.lower()}"           # (f423) no "day N": a passage wrote "on day 42"
 
@@ -253,18 +269,19 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         fallen = self.player_of(actor_id)
         summary = death.die(fallen.character)
         self.notice(PlayerFell(minute=self.minutes, place=fallen.location, deaths=summary["deaths"]))
-        self.threshold(summary)
+        self.threshold(summary, actor_id)
 
-    def threshold(self, summary: dict) -> None:
+    def threshold(self, summary: dict, actor_id: str) -> None:
         """(f623) What follows any death of the character, in a fight or out of one: the goddess, the days, waking at the last rest."""
         ws = self
-        c = ws.player.character
+        fallen = self.player_of(actor_id)                    # (f736) the character who fell
+        c = fallen.character
         lost = [f"half their gold ({summary['coins']} gone, {summary['kept']} kept)" if summary['coins_raw'] else "nothing - their purse was spared"]
         if ws.captives_lost("got away while their captor lay dead"):                 # (f392) nobody waits bound beside a corpse
             lost.append("the captives they held, who got away")
         console.note("You have died.")
         console.wait("Darkness. Then the sourceless light of the Threshold, dimmer than you remember.")
-        said = list(getattr(ws.player, "goddess_said", []))                        # (f349) she remembers what she said on earlier returns
+        said = list(getattr(fallen, "goddess_said", []))                           # (f349) she remembers what she said on earlier returns
         event = cp.THRESHOLD_EVENT.format(deaths=c.deaths, losses="; ".join(lost))
         if said:
             event += (" She remembers every earlier return and what she said then (below, as RECENT CONVERSATION): this time she begins"
@@ -274,14 +291,22 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         days = COMBAT_RULES["death"]["days_pass"]
         ws.advance_quiet(days * clock.MINUTES_PER_DAY)
         pools.fill_missing(c)
-        ws.player.delve = None           # waking at the Threshold, never inside a dungeon
+        fallen.delve = None              # waking at the Threshold, never inside a dungeon
         ws.party_disband(None, "you fell")
-        wake = c.last_rest if c.last_rest in ws.world.places else ws.world.start_location
-        ws.enter(wake)
+        ws.enter(self.waking_place(actor_id))
         ws.narrate(f"{days} days have passed in the world. The player wakes here, alive again, a lighter purse and nothing else lost. "
                    "They are thrown back by the goddess's failing light and wake with a sharp breath. Describe waking, stark: the first "
                    "breath, said only once in the whole passage, then what they see.")
         ws.show_exits()
+
+    def waking_place(self, actor_id: str, record=None) -> str:
+        """(f736) Where this character wakes after a death: where the world starts if they have never rested, their last rest while it
+        is on the map and no road stop (a stop leaves the map when the walk goes on), else the town behind them, else the start."""
+        rec = self.player_of(actor_id) if record is None else record     # (f736) a saved character's record: the open reads every one
+        rest = rec.character.last_rest
+        if rest in self.world.places and not roads.is_stop(self.world, rest):
+            return rest
+        return (self.town_behind(actor_id, rec) if rest else "") or self.world.start_location
 
     def goddess_now(self, said: list, event: str) -> None:
         """(f464) The goddess at a death: her words from the model, remembered against her next return; a passage operation of its own,
@@ -333,6 +358,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             w["prose"].add(" ".join(x for x in (shown.get("before", ""), shown.get("after", "")) if x))
         else:
             w["prose"].add(text)
+        telling.noted(self)                                      # (f761) the watches are kept in the save's telling row
 
     def narration_pool(self) -> str:
         """(f583) Which pool a passage's exemplars are drawn from, by what the engine knows: a death this line, a place newly reached,
@@ -368,8 +394,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """(f583) Which pool a person's exemplars are drawn from: refusal when they are wary or busy or trust the one speaking little,
         gossip when their brief carries news, else small talk. Never by what the model will say."""
         from engine import regard, voice_rules as vr
-        moods = tuple(vr.V["stances"][k]["text"].split(":")[0] for k in ("wary", "busy"))      # the stance's own words, as voice.yaml has them
-        if stance.startswith(moods) or regard.of(npc, self.acting).trust < int(vr.V["exemplars"]["refusal_trust"]):
+        if vr.stance_kind(stance) in ("wary", "busy") or regard.of(npc, self.acting).trust < int(vr.V["exemplars"]["refusal_trust"]):
             return "refusal"
         return "gossip" if news else "small_talk"
 
@@ -384,6 +409,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         n = held.get(f"n:{key}", 0)
         picked = vr.draw(vr.pool(kind, name), streams.keyed("exemplars", kind, name, n), held.get(f"last:{key}", ()))
         held[f"n:{key}"], held[f"last:{key}"] = n + 1, picked
+        telling.noted(self)                                      # (f761) the draws are kept in the save's telling row
         return vr.exemplar_block(kind, picked)
 
     def worn_words(self, kind: str = "prose") -> list[str]:
@@ -402,7 +428,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                             self.recent_narration, self.gear_line(),
                                             self.store.load_place(self.player.location).marks, ground=self.lying_here(),
                                             told=ledger.told(),   # (f416) what the turn did: a fight's opening, a sighting
-                                            exemplars=self.exemplars("narration")),
+                                            exemplars=self.exemplars("narration"), in_view=self.in_view()),
                        Narration, self.recent_narration)
         console.narrate(result.text)
         self.remember_narration(result.text)
@@ -464,7 +490,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             return False                      # her lesson comes first: the wolves are found by searching, as she teaches
         if self.shadow_active() and not self.dungeon_here() and self.place.danger and not self.player.delve:
             self.use_shadow()
-            console.note("Something stirs nearby, but you are not noticed and it passes you by.")
+            console.note("Something stirs nearby, but it doesn't see you and moves on.")
             return False
         chance = min(0.95, chance * pulse.danger_factor(self.store, self.player.location, self.minutes)
                      * self.danger_multiplier(self.player.location, not getattr(self, "first_arrival", True)))
@@ -474,11 +500,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         creature, enemies = hit
         console.debug(f"encounter: {len(enemies)} x {creature.id} (levels {[e.level for e in enemies]})")
         if self.beasts_calm(creature):
-            console.note(f"A {creature.name.lower()} stirs nearby, but the animals have spoken for you and it passes by.")
+            console.note(f"A {creature.name.lower()} comes close, takes you for a friend, and wanders off.")
             return False
         if self.temperament(creature) == "passive":
-            self.wildlife = (creature, enemies)
-            names = ", ".join(e.name for e in enemies)
+            self.wildlife, self.wildlife_at = (creature, enemies), self.minutes
+            from engine.combat import plain_name
+            names = ", ".join(plain_name(e.name) for e in enemies)          # (f696) never the game's tag
             self.narrate_with(cp.START_SYSTEM, f"{how} the player spots {names}, keeping its distance. It is not hostile.")
             return False
         if creature.temperament == "territorial" or self.sees_far():
@@ -494,7 +521,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def advance(self, minutes: int, exert: bool = False, wait: str = "") -> None:
         """Time passes. exert: travelling, working or fighting. wait: 'rest' or 'sleep' - health comes back, and a sleep clears fatigue."""
         before = clock.period(self.minutes)
+        if self.wildlife and getattr(self, "wildlife_at", None) is None:
+            self.wildlife_at = self.minutes
         self.actor.clock.advance(minutes)                  # (f632) the minute and the day: the clock is their one writer
+        if self.wildlife and self.minutes - self.wildlife_at > encounters.E["in_view_minutes"]:
+            self.wildlife, self.wildlife_at = None, None   # (f700) a creature keeping its distance moves on
         c = self.player.character
         was = needs.marks(c)
         needs.tick(c, minutes, exertion=exert, sleeping=wait == "sleep", resting=wait == "rest")
@@ -522,11 +553,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         for line in self.__dict__.pop("_time_notes", []):
             console.note(line)
 
-    def assault_fight_over(self, outcome: str) -> None:
-        """(f324) A fight at the gate of a town a cataclysm reached: the outcome decides whether the town holds."""
-        from engine import events
-        events.assault_over(self, outcome)
-
     def visit(self, npc, until: int) -> None:
         """(f317) Someone from elsewhere in town is here for a while - they came looking for the player."""
         self.visitors = [v for v in getattr(self, "visitors", []) if v[0] != npc.id] + [(npc.id, until, self.player.location)]
@@ -551,12 +577,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         seed = self.store.meta.seed
         street, cast = self.streets_now()                                                               # (f357)
         on_stop = (self.player.road or {}).get("id") == self.player.location         # (f427) whoever the road stopped the player beside is
+        contact = self.open_contact()                                                 # (f679) an arc's contact, while their step is open
         self.present = [n for n in self.residents                                     # there, whatever the hour: no shift or routine on a road
                         if not n.gone                                                                     # (f422) the dead and departed are not here
-                        and (on_stop or clock.in_hours(self.minutes, self.world.roles[n.role].hours) and n.away_until <= self.minutes
-                             and court.visible(self, n) and not routines.away(self.world, seed, n, self.minutes, cast))]   # (f352)
-        if self.__dict__.get("_talk_saved") and self.present:
-            self.restore_talk()
+                        and (on_stop or (n.id == contact or clock.in_hours(self.minutes, self.world.roles[n.role].hours)
+                                         and not routines.away(self.world, seed, n, self.minutes, cast))       # (f352) (f680) a contact: not hours
+                             and n.away_until <= self.minutes and court.visible(self, n))]                      # or routine, but away and court hold
         bound = self.escorted()                                             # (f392) the registry says who walks bound at the player's side
         for n in self.residents:                                            # a prisoner bound at the player's side is here whatever the hour or the door
             if n.id in bound and not n.gone and all(p.id != n.id for p in self.present):
@@ -587,6 +613,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 if not v.gone and v.away_until <= self.minutes and court.visible(self, v):
                     self.present.append(v)
                     self._routine_here.add(v.id)
+        if self.__dict__.get("_talk_saved"):
+            self.restore_talk()                       # (f759) once everyone here is: the routine's, a captive, who came looking
         if self._routine_here and self.__dict__.get("_routine_marked") != key:
             self.__dict__["_routine_marked"] = key
             pulselog.mark("routine", f"{len(self._routine_here)} here on their routine", self.minutes, place=self.player.location)   # (f355)
@@ -762,10 +790,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             d = next((x for x in self.store.load_dungeons() if x["id"] == self.player.delve.get("dungeon")), None)
             if d is None or place_id != d["entrance"]:
                 self.player.delve = None
-        if self.player.party_mode == "hold" and place_id != self.player.party_hold_at:
-            self.party_service.set_mode("with")
-            if self.player.party:
-                console.note("Your party falls in beside you again.")
+        self.party_falls_in(place_id)
 
     def enter(self, place_id: str) -> None:
         self.wildlife = None
@@ -774,6 +799,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.__dict__.setdefault("_happenings_seen", set()).clear()           # (f323) a new town: its happenings are new to the eye
             self.__dict__.pop("_crowd_told", None)                                # (f385) ...and its crowd
             self._framed_hires = set()                                            # (f347) a hire's first words in a new town earn a frame; each shop in it does not
+            telling.noted(self)
             from engine import ambient
             if self.world.peoples_at(old_town) and old_town in self.world.places and not self.world.places[old_town].danger:
                 self.player.last_in[old_town] = self.minutes                       # (f331) when the player last left a town
@@ -798,16 +824,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.weight_hint = "major" if p.type == "city" else "rich"
         elif self.revisit:
             self.weight_hint = "brief"                                   # (f347) seen before: what has changed
-        try:
-            self.residents = populate_place(self.store, self.world, place_id, self.catalog, first_batch=life.FIRST_BATCH)
-        except LLMError:
-            from engine import operation as _op
-            if _op.current() is not None:
-                raise                                    # inside a line: the operation rolls back, as before
-            self.residents = [n for n in self.store.load_npcs(list(self.store.load_place(place_id).residents or [])) if not n.gone]
-            self._people_missing = place_id              # (f525's review) asked again at the next input's edge while the player is here
-            console.debug(f"(f525) the people of {place_id} could not be written; the next input asks again")
-        self.refresh_present()
+        self.people_of(place_id)
         if self.revisit:                                                                      # (f348) who has moved on to something else since: true change for the narrator
             from engine import doings
             self.__dict__.setdefault("_arrival_lines", []).extend(doings.changed_lines(getattr(self, "_doing_changes", []), who=self.acting))
@@ -821,6 +838,35 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.trial_notice(on_arrival=True)
         from engine import stay
         stay.reset(self)                                                                      # (f351) the stay starts here
+
+    def people_of(self, place_id: str) -> None:
+        """The place's people from their rows, written first if it was never peopled, and who of them is here now. Outside a line a
+        place whose people cannot be written keeps whom it has, and is asked again at the next input's edge (f525's review)."""
+        try:
+            self.residents = populate_place(self.store, self.world, place_id, self.catalog, first_batch=life.FIRST_BATCH)
+        except LLMError:
+            from engine import operation as _op
+            if _op.current() is not None:
+                raise                                    # inside a line: the operation rolls back, as before
+            self.residents = [n for n in self.store.load_npcs(list(self.store.load_place(place_id).residents or [])) if not n.gone]
+            self._people_missing = place_id              # (f525's review) asked again at the next input's edge while the player is here
+            console.debug(f"(f525) the people of {place_id} could not be written; the next input asks again")
+        self.refresh_present()
+
+    def restore(self, place_id: str) -> None:
+        """(f764) The scene put back over the save where the character already stands, as the game opens: an opening is no arrival.
+        The people and who is here, a moment still on carried on and one that ended closed, the place's parts and the spot they stand
+        at, and the visit's marks fresh; the door reads no arrival on the next line. Nothing of enter() that only an arrival does: no
+        period's moment rolled, no garden or hearth, no tales landing, no contact's or hall's notice, no stay begun."""
+        self.__dict__.pop("_streets_cache", None)
+        self.revisit = self.store.load_place(place_id).populated
+        self.first_arrival = False
+        self._framed_here, self._shown_here = set(), {}
+        self.people_of(place_id)
+        from engine import moments
+        moments.carry_on(self)
+        self.arrive_parts(place_id, True)
+        self._door_loc = place_id                                            # (f764) matters.on_arrival: they did not just walk in
 
     def repopulate(self) -> None:
         """(f525's review) A place whose people could not be written at an entry made outside a line is asked again at each input's edge
@@ -915,30 +961,89 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 for p in sorted(s.get("paused", ()))]
         return out
 
+    def restore_map(self) -> None:
+        """(f733) The campaign's own places put back on the map from the save, at every open whatever its count of inputs (world:open
+        runs once for each count), wherever the scene is made over the save (engine/session.py scene): every character's homes and
+        the road's stop they stand at, then what was found (a place found from inside a house hangs from the house), then each
+        dungeon's entrance and its way (a dungeon may lie beneath a found place). It reads the save and writes nothing to it.
+        (f734) Last, each stop keeps only its ways to places now on the map."""
+        records = self.store.characters()
+        for record in records:
+            self.ensure_homes(record)
+        for record in records:
+            self.ensure_road_place(record)
+        self.ensure_discoveries()
+        self.place_dungeons(self.store.load_dungeons())
+        for record in records:
+            self.mend_road_place(record)
+
+    def off_map(self) -> list[tuple]:
+        """(f736) Every character the save holds (store.characters()) whom it stands at a place no longer on the map, with where they
+        would wake, read from their saved record: (id, the place gone, where they go, the record). Reads; writes nothing."""
+        return [(r.character.id, r.location, self.waking_place(r.character.id, r), r) for r in self.store.characters()
+                if r.location not in self.world.places]
+
+    def stand_read(self) -> None:
+        """(f736) The reading half, where every scene is built (engine/session.py scene, after restore_map): the scene's own character,
+        whom the save stands off the map, stands where they would wake, in memory, never inside a dungeon, so nothing that reads where
+        they stand meets a place off the map. It writes nothing: the opening writes it (stand_on_map)."""
+        for cid, lost, at, _ in self.off_map():
+            rec = self.player_of(cid) if cid == self.acting else None
+            if rec is not None and rec.location not in self.world.places:
+                rec.location, rec.delve = at, None
+
+    def stand_on_map(self) -> None:
+        """(f736) The writing half, inside the opening's operation: each character the save stands off the map (off_map) is saved where
+        they would wake, the scene's own as the scene stands them. What the crash log and the scene's own character are told is kept
+        for open_world, which writes and returns it once the operation stands: a failed opening gives all of it back."""
+        from engine import told
+        stood = []
+        for cid, lost, at, rec in self.off_map():
+            own = cid == self.acting
+            rec = self.player_of(cid) if own else rec
+            if rec.location not in self.world.places:
+                rec.location, rec.delve = at, None                          # (f736) stood where they would wake, never inside a dungeon
+            if own:
+                self.store.save_player(rec)
+            else:
+                self.store.save_player(rec, cid)                             # (f736) another character the save holds, under their own id
+            stood.append((cid, lost, rec.location, told.say("place_gone", self.store.meta.turn, place=self.world.places[rec.location].name)
+                          if own else ""))
+        if stood:
+            self._stood = stood                                              # (f736) a `_` name: the operation's rollback takes it back
+
     @actor.bound
-    def open_world(self) -> None:
-        """(f466) What the world owes the save as the game opens (the discoveries, homes, the road's place, the dungeons and the field's
-        uses kept whole, and the pulse up to now), as one world operation, world:open, under the "#start" dice (f439). Its id is drawn
-        before it opens and repeats at the same count of inputs: an open stopped in the middle of it finds nothing committed and runs it
-        again; an open after a stood one finds its record and runs nothing, so the load-time pulse never runs twice (survey 12.1). Its
-        failure is the world's: rolled back alone, written to logs/crash.log, the player told nothing."""
-        from engine import operation as _op
+    def open_world(self) -> list[str]:
+        """(f466) What the world owes the save as the game opens (the dungeons made or remade, the field's uses kept whole, and the
+        pulse up to now), as one world operation, world:open, under the "#start" dice (f439). Its id is drawn before it opens and
+        repeats at the same count of inputs: an open stopped in the middle of it finds nothing committed and runs it again; an open
+        after a stood one finds its record and runs nothing, so the load-time pulse never runs twice (survey 12.1). Its failure is the
+        world's: rolled back alone, written to logs/crash.log, the player told nothing. (f733) The map it opens on is the save's
+        already (restore_map), so a skipped opening loses nothing of it. (f736) First it writes who the save stands off the map
+        (stand_on_map); an opening that did not (it stood at an open before, or did not stand now) leaves them to an operation of the
+        opening's own, and if that fails too they stand where they would wake for this sitting alone. Returns the lines that tell the
+        scene's own character, for run() to show after the passage read last."""
+        from engine import crashlog, operation as _op
         streams.begin(self.store.meta.seed, self.store.meta.steps, "#start")    # (f439) what happens as the game opens is decided too
         op_id = streams.new_id(_op.ID_DIGITS, stream="ops")
         if self.store.find_operation(op_id) is not None:
             console.debug("the world's opening stands from the last open: not run again")
-            return
-        self.begin_line()
-        try:
-            with questions.fence(), self.operation("world:open", "#start", world=True, op_id=op_id):
-                self.ensure_discoveries()
-                self.ensure_homes()
-                self.ensure_road_place()
+        else:
+            with self.input("#start", "opening"), self.operation("world:open", "#start", world=True, op_id=op_id):
+                self.stand_on_map()                                          # (f736) first: the pulse may read the record again
                 self.ensure_dungeons()
                 self.ensure_field_uses()
                 self.run_pulse()
-        finally:
-            self.store.arm(False)
+        if self.off_map():
+            with self.input("#start", "opening"), self.operation("world:open", "#start", world=True):
+                self.stand_on_map()                                          # (f736) the moves alone, the opening's work not run twice
+        self.stand_read()                                                    # (f736) a failed operation gave the record back from the save
+        lines = []
+        for cid, lost, at, line in self.__dict__.pop("_stood", ()):
+            crashlog.record(RuntimeError(f"stood at '{lost}', which is not on the map: stood at '{at}' instead"), "a save opened",
+                            place=lost, character=cid)
+            lines += [line] if line else []
+        return lines
 
     def recover_unshown(self) -> bool:
         """(f467) What stood before the game last closed and was never shown (the operations whose presentation entries are still in the
@@ -958,15 +1063,16 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         def mended(x):
             return names.mend_pronouns(x) if isinstance(x, str) else x
 
+        told = {i for e in pending.values() for c in (e.get("calls") or []) if c[0] == "waited" for i in c[1]}   # (f722) told by a telling that stood
         console.narrate(failures.shown_later(self.rng))
         for op_id in ids:
             entry = pending[op_id]
             calls = entry.get("calls")
             if calls is None:                                          # an entry from before the calls were kept: its lines, as narration
                 calls = [["narrate", [line], {}] for line in entry.get("lines", [])]
-            untold = not calls or any(c[0] == "marker" for c in calls)
+            untold = not calls or any(c[0] == "marker" and not (c[1] and op_id in told) for c in calls)
             for name, a, k in calls:
-                fn = getattr(console, name, None) if name != "marker" else None
+                fn = getattr(console, name, None) if name not in ("marker", "waited") else None
                 if fn is not None:
                     fn(*[mended(x) for x in a], **{kk: mended(v) for kk, v in k.items()})
             if untold:
@@ -982,16 +1088,41 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     @actor.bound
     def run(self) -> None:
-        self.open_world()
+        self.opening()
+        while True:
+            telling.save(self)                                              # (f761) what was noted outside any operation, before a close can come
+            self.start_backfill()
+            text = console.ask(main=True)
+            self.apply_backfill()
+            self.repopulate()                                               # (f525's review) people an entry could not write, asked again
+            if not text:
+                continue
+            if text.lower() in QUIT_WORDS:
+                self.store.save_player(self.player)
+                console.note("Saved. Run main.py again to continue.")
+                return
+            if not self.play(text):                                         # (f721) one path for a typed line and a pane's command
+                telling.save(self)                                          # (f761) the menu closes the sitting too: nothing noted is lost
+                return
+
+    @actor.bound
+    def opening(self) -> None:
+        """(f751) All an open does before its first prompt, one path for the game, simlib's reopen and the acceptance tool."""
+        moved = self.open_world()                                           # (f736) and the lines that tell who it stood elsewhere
         recovered = self.recover_unshown()                                  # (f467) first: what stood before the game last closed, never shown
         first_time = self.store.meta.turn == 0
-        self.enter(self.player.location)
+        me = self.player_of(self.acting)
+        if me.location in me.visited:
+            self.restore(me.location)                                       # (f764) stood here before: put back, never arrived at again
+        else:
+            self.enter(me.location)                                         # a new game's first waking, or a save set down where never entered
+        self.store.save_player(self.player_of(self.acting))                 # (f720) where the opening stands them is the save's, for a first operation that fails
         self.weight_hint = "major" if first_time else None                 # a reload narrates nothing on entering; the next passage is weighed on its own
         kit_text = ""
         c = self.player.character
         if not c.kit_given:
-            kit_text = give_starting_kit(c, f"{c.custom_class} ({c.archetype.value}): {c.class_summary}",
-                                         c.uses_companions, self.world)
+            kit_text = give_starting_kit(c, f"{c.custom_class} ({c.archetype.value}): {c.class_summary}", c.uses_companions, self.world,
+                                         streams.fixed(self.store.meta.seed, "kit", self.acting))    # (f745) outside any input: the campaign's die
             self.store.save_player(self.player)
             console.debug(f"starting kit: {kit_text}")
         if not self.present and self.residents:
@@ -1022,8 +1153,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 c = self.player.character
                 held = [i.name for i in c.equipment.values()] + [f"{m.name} ({m.description})" for m in c.companions]
                 console.note(f"Checking your belongings, you find: {', '.join(held + [money.fmt(c.coins)])}.")
+        for line in moved:
+            console.note(line)                                              # (f736) after what was read last, which was of before
         self.show_exits()
+        from services.fight import FightService
         let_go = self.store.take_notice("fight_let_go")                     # (f507) a migration let a saved fight go: told once, here
+        lost = FightService.purpose_of(let_go)                             # (f765) ...with what it was for, when its row said it
         saved_fight = self.store.load_combat()
         if saved_fight:
             self.combat = CombatScene.resume(self, saved_fight)     # (f503) None for a row that cannot be read: the fight is let go, not the game
@@ -1031,8 +1166,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 console.note("You are still in the middle of a fight!")
                 self.combat.show()
             else:
+                lost = FightService.purpose_of(saved_fight)
                 self.store.save_combat(None)                        # (f507) the row goes with the fight, and the player hears of it once
                 let_go = True
+        self.let_go_purpose(lost)
         if let_go:
             console.narrate(failures.fight_let_go(self.rng))
         self.show_header()
@@ -1043,71 +1180,122 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             else:
                 console.note(asked["question"])
 
-        while True:
-            self.start_backfill()
-            text = console.ask(main=True)
-            self.apply_backfill()
-            self.repopulate()                                               # (f525's review) people an entry could not write, asked again
-            if not text:
-                continue
-            if text.lower() in QUIT_WORDS:
-                self.store.save_player(self.player)
-                console.note("Saved. Run main.py again to continue.")
-                return
-            if text.startswith("#"):
-                before = self.player.location
-                bar = self.header_key()                                     # (f372) what the top bar shows, to redraw it when a button changed it
-                turnlog.begin(taps=True)                                      # (f385) a button that does something is a row too
-                name = (text[1:].strip().lower().split() or ["command"])[0]
-                self.begin_line()
-                op = None
-                try:
-                    with console.scope(text), questions.fence():             # a pane button is a whole operation too: all of it, or none of it (f463)
-                        self.new_input(text)                                # (f439) the dice of this input
-                        self.collecting = True                              # (f498) a telling it asks for (a fight begun from the pack's button,
-                        op, _ = self.asked_operation(f"command:{name}", text, lambda op: self.command(text), where="command")   # a draught's
-                        self.run_passages()                                 # passage) is a passage operation after it, told once it stands
-                except Interrupt:
-                    raise                                                   # (f449) stopped on purpose, never a rolled-back fault
-                finally:
-                    self.collecting = False
-                    self.store.arm(False)
-                    from engine import budget
-                    self.last_budget = budget.close(stand_ins=[o.kind for o in self.line_untold])   # (f468)
-                rolled = op is None or op.state != "committed"
-                crashed = rolled and self.last_crash
-                if rolled:
-                    console.note(self.failed_line(text) if crashed else failures.not_taken(self.rng))    # (f437) in the narrator's words, never the machinery
-                failed = self.last_failure if rolled and not crashed else ""
-                crash = self.last_failure if crashed else ""
-                if self.to_menu:
-                    turnlog.end(rolled, command=self.command_row(text, before, bar), failure=failed, crash=crash)
-                    self.store.save_player(self.player)
-                    return
+    def let_go_purpose(self, purpose) -> None:
+        """(f765) A saved fight let go of at load hands what it was for to its kind's let-go entry (scenes/combat_scene.py PURPOSES: the
+        gate's town is rolled for as if no fight had begun), as an operation of the opening's own; a kind with no entry, or a fight for
+        nothing beyond itself, hands on nothing."""
+        from scenes.combat_scene import PURPOSES
+        kind = PURPOSES.get(purpose.kind) if purpose is not None else None
+        if kind is None or kind.let_go is None:
+            return
+        with self.input("#start", "opening"), self.operation("world:open", "#start", world=True):
+            kind.let_go(self, dict(purpose.data))
+
+    @contextmanager
+    def input(self, text: str, kind: str):
+        """(f721) An input is opened and closed here and nowhere else: a typed line ("line"), a pane's command ("command"), and what
+        the world owes the save as the game opens ("opening"). Opened: the line's fields start fresh and the write fence is armed
+        for its life (begin_line), and no question is read inside it (f461). A line and a command are typed, so each is counted and
+        its dice and its budget begin (new_input, f439, f468), and (f464, f498) a telling asked for inside an operation is a passage
+        operation after it; the opening is not typed: its dice are its caller's ("#start"), and it has no count and no budget.
+        Closed whatever happens: nothing collecting, the fence down, a typed input's count given back when nothing of it stood, and
+        its budget closed with the stand-ins it showed.
+        Then, for a typed input that ran to its end, its one closing line (closing_line), so whoever played it reads it."""
+        from contextlib import nullcontext
+        typed, ended = kind != "opening", False
+        self.begin_line()
+        try:
+            with (console.scope(text) if kind == "command" else nullcontext()), questions.fence():
+                if typed:
+                    self.new_input(text, story=(kind == "line"))
+                    self.collecting = True
+                yield
+                ended = True
+        finally:
+            self.collecting = False
+            self.store.arm(False)
+            if typed:
+                if not self.line_ops:
+                    self.store.reload_meta()            # (f753) nothing of it stood: its count is given back, so typed again it meets the same dice
+                self.input_count = None
+                from engine import budget
+                self.last_budget = budget.close(stand_ins=[o.kind for o in self.line_untold])
+        if typed and ended:
+            self.show_waiting()                                 # (f722) nothing said is lost: what still waited is read before the close
+        line = self.closing_line(text) if typed and ended else None
+        if line:
+            console.note(line)
+        self.watch_fight(text)                                  # (f760) the suite's check: the fight is its row as an input ends
+
+    @actor.bound
+    def play(self, text: str) -> bool:
+        """(f721) One input of the game's loop by one path: the log's row is opened (f385: a button that does something is a row
+        too), the input is played (a typed line: turn; a pane's command: command_input), and its row and the header are written
+        once (close_input). False when the loop ends (the menu was asked for)."""
+        command = text.startswith("#")
+        before = self.player_of(self.acting).location if command else ""
+        bar = self.header_key() if command else None                      # (f372) what the top bar shows, to redraw it when a button changed it
+        turnlog.begin(taps=True)
+        (self.command_input if command else self.turn)(text)
+        return self.close_input(text, command, before, bar)
+
+    def command_input(self, text: str) -> bool:
+        """(f463) A pane's command is a whole operation too: all of it, or none of it. (f498) A telling it asks for (a fight begun
+        from the pack's button, a draught's passage) is a passage operation after it, told once it stands. True when it stood."""
+        name = (text[1:].strip().lower().split() or ["command"])[0]
+        op = None
+        with self.input(text, "command"):
+            op, _ = self.asked_operation(f"command:{name}", text, lambda op: self.command(text), where="command")
+            self.run_passages()
+            self.stood = op is not None and op.state == "committed"
+        return self.stood
+
+    SILENT = "Nothing comes of that here. Try it another way, or say plainly what you want to happen."   # (f391) in the world's words
+
+    def closing_line(self, text: str) -> str | None:
+        """(f721) The one line that closes an input, chosen here and nowhere else, by how it stood: it was not taken (f437, f449:
+        in the narrator's words, never the machinery); it stood in part (f463: which part, and that the rest did not); it showed
+        the player nothing at all (f385, marked by the tail); or there is none."""
+        if self.stood is False:
+            return self.failed_line(text)
+        if self.stood == "part":
+            return self.part_line()
+        return self.SILENT if self.silent else None
+
+    def close_input(self, text: str, command: bool, before: str = "", bar=None) -> bool:
+        """(f721) The loop's one close of an input: the log's row and the header. `before` and `bar` are a pane command's: where
+        its character stood and what the top bar showed. False when the loop ends."""
+        stood = self.stood
+        rolled = stood is False
+        if not command:
+            row = {"failure": "" if stood is True or self.last_crash else self.last_failure,
+                   "crash": self.last_failure if stood is not True and self.last_crash else "",
+                   "stood": {True: "all", False: "none"}.get(stood, "part"), "stand_in": bool(self.line_untold)}
+            leaving = False
+        else:
+            leaving = self.to_menu
+            if not leaving:
                 self.pane_arrival(before)
-                turnlog.end(rolled, command=self.command_row(text, before, bar), failure=failed, crash=crash, world_failed=self.world_failures(),
-                            budget=self.last_budget, ops=self.line_record(), recovered=self.take_recovered())
-                if self.header_key() != bar:
-                    self.show_header()                                      # (f372) a hire, a sale or a walk from a pane moves the coin, the clock or the place
-                continue
-            turnlog.begin(taps=True)                                          # (f385) the row waits for what the turn shows
-            stood = self.turn(text)
-            if stood is False:
-                console.note(self.failed_line(text))                     # (f437, f449) in the narrator's words, never the machinery
-            elif stood == "part":                                           # (f463) what stood stands; the player reads which part, and that the rest did not
-                console.note(failures.part_stood("; ".join(self.line_done) or "the first of it", self.rng))
-            turnlog.end(stood is False, failure="" if stood is True or self.last_crash else self.last_failure,
-                        crash=self.last_failure if stood is not True and self.last_crash else "",
-                        stood={True: "all", False: "none"}.get(stood, "part"), stand_in=bool(self.line_untold), world_failed=self.world_failures(),
-                        budget=self.last_budget, ops=self.line_record(), recovered=self.take_recovered())
+            crashed = rolled and self.last_crash
+            row = {"command": self.command_row(text, before, bar), "failure": self.last_failure if rolled and not crashed else "",
+                   "crash": self.last_failure if crashed else ""}
+        if not leaving:
+            row.update(world_failed=self.world_failures(), budget=self.last_budget, ops=self.line_record(), recovered=self.take_recovered())
+        turnlog.end(rolled, **row)
+        if leaving:
+            self.store.save_player(self.player_of(self.acting))
+            return False
+        if not command or self.header_key() != bar:                      # (f372) a hire, a sale or a walk from a pane moves the coin, the clock or the place
             self.show_header()
+        return True
 
     def failed_line(self, text: str) -> str:
         """(f437) What the player reads when the turn could not be taken. (f449) A line that has now failed twice running on the game's own
         fault (logs/crash.log has it) is told to be left: saying it a third time will not help. The count is by the line's words, kept
-        small."""
+        small. (f644) A deed taken back because the spoken reply to it could not be written is told as that."""
         if not self.last_crash:
-            return failures.not_taken(self.rng)
+            unsaid = bool(self.line_failed) and self.line_failed[-1].speech
+            return (failures.reply_not_come(self.rng) if unsaid else None) or failures.not_taken(self.rng)
         key = " ".join(text.lower().split())[:120]
         n = self.broken.get(key, 0) + 1
         self.broken[key] = n
@@ -1131,13 +1319,19 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         from engine import names, party as rules                # (f412) each companion's pronoun, for what reaches the screen
         names.set_cast({m["name"].split()[0]: rules.pronoun_of(m) for m in self.player.party if m.get("name") and m.get("permanent")})
 
-    def new_input(self, text: str) -> None:
+    def new_input(self, text: str, story: bool) -> None:
         """(f439) A new input, a typed line or a pane's command: the campaign counts it, inside the turn's transaction (a turn rolled back
         takes its count back with it, so the line tried again meets the same dice), and every stream of dice starts again from the seed,
-        that count and the line (engine/streams.py). (A session that must replay exactly, streams.STRICT, takes in the residents made in
-        the background at the input's edge before this, outside the transaction: apply_backfill in run().)"""
-        self.store.meta.steps += 1                                  # (f463) saved by the first operation that stands (commit_operation first_of_line)
-        streams.begin(self.store.meta.seed, self.store.meta.steps, text)
+        a count and the line (engine/streams.py). (f639) A line of the story starts from the count of story inputs, so a pane looked at
+        between two lines moves none of the story's dice; a command starts from the count of every input, which no line's key can be.
+        (A session that must replay exactly, streams.STRICT, takes in the residents made in the background at the input's edge before
+        this, outside the transaction: apply_backfill in run().)"""
+        meta = self.store.meta
+        meta.steps += 1                                             # (f753) saved with the player at every commit: the first that stands saves it
+        if story:
+            meta.story_steps += 1
+        self.input_count = (meta.steps, meta.story_steps)
+        streams.begin(meta.seed, meta.story_steps if story else meta.steps, text)
         from engine import budget
         budget.open()                                               # (f468) the input's minute of model time begins; closed when the line is done
 
@@ -1145,23 +1339,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             "combat_state", "combat_panel")     # (f497) the fight's pane and its text panel: pushed at the commit, not for an attempt that stood down
     PANE = ("combat_state", "combat_panel")     # (f497) held, but no lines of the page: load re-shows the pane from the row (enter), so they are
     #                                             kept off the record's presentation entry and the turn log's lines
-    ROLLED = ("recent_narration", "convo", "last_spoken", "wildlife", "recently_fled", "resume_pending", "held_yield", "orenna_fight", "camp_fight",
-              "last_social", "weight_hint", "exits_due", "last_plan", "journey_event_factor", "haggle_factor", "craft_boost", "camp_bonus",
-              "dungeon_fight", "rank_options", "learn_options", "step", "interpret_calls", "ran",
-              "partner", "stance", "pending_check", "pending_beats", "buffering", "line_done",
-              "last_hits",                            # (f489) how a beat hit each of the party goes back with the banter that measured it
-              "sneaking", "queued_buffs", "fight_text", "surrender_took",
-              "line_losses")   # (f496) what a fight the player starts this turn opens with (f248:
-    # the creeping up, the buffs readied by name, the line's words), and whether a survivor was taken captive: set by one operation's
-    # attempt and consumed by it, they go back to what the attempt found, so an attempt run again for its answer creeps up again
-    # (f485) the conversation goes back whole: who is being spoken with and how they are this talk, with its lines (convo, last_spoken
-    # above), so a first talk that did not stand opens a new conversation when it is tried again, with the stance it had; and the step's
-    # own state, so an operation run again to be given its answer (engine/asked.py) starts where the first attempt did.
-    # (f583) line_losses: a death this line, for the grief pool, taken back with the operation that made it.
-    # (f465) The scene's own state a line writes outside the save: snapshotted by the session at every operation's start and put back by a
-    # rollback beside the `_` caches (engine/session.py begin_turn, rollback), so a rolled-back operation leaves no trace of itself in what
-    # the narrator remembers, who was last spoken to, what was in view, the plan, the road, the fight that is coming. Declared, not guessed:
-    # an attribute a turn writes and a rollback should take back is added here, or the next failing operation shows it.
+    ROLLED = tuple(actor.HOMES)     # (f720) what a failed operation puts back: declared in engine/actor.py (FIELDS, ATTRS), read by the session
 
     def begin_line(self) -> None:
         """(f463) A line begins: nothing of the last one's operations is kept, and the write fence is armed for its life."""
@@ -1188,6 +1366,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         index = len(self.line_ops) + len(self.line_failed) + len(self.line_world_failed)
         pending0 = list(self.pending)                # (f493) the line's held narration as this operation found it, to put back whole
         fight0 = self.fight_memory()                 # (f496) what the player has read of the fight, and who was tamed, as it found them
+        mover = self.acting
+        place0 = self.player_of(mover).location
         if world and where == "turn":
             where = "world"
         op = None
@@ -1207,9 +1387,15 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     self.unhold(real)                          # symmetric: the real bindings are back before anything is shown or dropped
                 if op.void and self.store._writes == writes0:
                     raise _Void()                              # (f470) nothing took the line and nothing was written: no record, nothing kept
+                here = self.player_of(mover).location
+                if not op.did and not world and here != place0:           # (f644) it moved its character and said nothing else: the walk
+                    op.did.append(failures.walked(self.world.places[here].name if here in self.world.places else here.replace("_", " ")))
                 self.save_talk()                               # (f485) the conversation, with the operation that moved it
+                self.save_visitors()                           # (f759) who came looking, with the operation that changed them
+                self.save_fight()                              # (f760) and the fight: memory and row never part at a commit
+                telling.save(self)                             # (f761) what the checks and prompts remember of the telling, likewise
                 self.store.save_player(self.player)            # (f464) what the operation changed of the player is its to keep: a later
-                self.store.commit_operation(op, first_of_line=(index == 0))   # operation's rollback reloads the player from the save
+                self.store.commit_operation(op)                # operation's rollback reloads the player from the save
             _op.end("committed")
             if self.crash_after_commit == kind:                   # (f467) the game dies between the commit and its telling: the next load tells it
                 self.crash_after_commit = ""
@@ -1235,7 +1421,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             console.debug(f"operation {kind} rolled back: {e}")
             self.last_failure = str(e) or type(e).__name__       # (f437) the turn log keeps why, as a model failure
             if op is not None:
-                op.failure = self.last_failure
+                op.failure, op.speech = self.last_failure, bool(getattr(e, "speech", False))
         except (Exception, _asked.Drift) as e:
             # (f449) The game's own fault, not the model's: the operation is rolled back, the fault goes to logs/crash.log with the line and
             # the place, and the player reads a line in the narrator's words (run()). What stood before it stands. (f466) A world
@@ -1265,7 +1451,21 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     return ch.windowed if _name == "combat_state" else None             # same branch held as live (a window's page
                 op.lines.append(turnlog._shown_text(_name, a, k) if _name in turnlog.SHOWN_KINDS else " ".join(str(x) for x in a))   # says True)
             ch.set(name, held)
+        if self.collecting and self.pending:
+            self.owe_place(op)                                     # (f722) an earlier step's passage is still to tell: this one's lines follow it
         return ch, real
+
+    @staticmethod
+    def line_mark(op) -> int | None:
+        """(f722) Where, in what `op` holds, the line's one passage is to be told; None when it owes it no place."""
+        return next((i for i, (name, a, k) in enumerate(op.held) if name == "marker" and a[0][0] == "line"), None)
+
+    def owe_place(self, op) -> None:
+        """(f722) The one passage of a line of several actions has a place on the page, as a single action's passage has (f464): here,
+        in what `op` holds, the first time an event is held back for it (narrate) or, for a later operation, before anything it says
+        (hold). What the operation says after this place waits behind the passage (release, flush)."""
+        if op is not None and self.line_mark(op) is None:
+            op.held.append(("marker", (["line", None, None, [], op.id],), {}))
 
     @staticmethod
     def unhold(held: tuple) -> None:
@@ -1282,12 +1482,45 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if name == "marker":
                 current = a[0][3]
                 segments += 1
+                if a[0][0] == "line":
+                    self.waiting.append(a[0])              # (f722) behind the line's one passage, shown once it is told (flush, show_waiting)
             elif current is not None:
                 current.append((name, a, k))
             else:
-                getattr(console, name)(*a, **k)
+                self.show([(name, a, k)])
         op.held = []
         return segments
+
+    def show(self, calls) -> None:
+        """(f722) Held calls reach the page through the real bindings, in the order they were said; what waited behind the line's
+        passage and was taken up by the operation that told it (flush) among them."""
+        for name, a, k in calls:
+            if name == "waited":
+                for entry in a[0]:
+                    self.show_after(entry)
+            else:
+                getattr(console, name)(*a, **k)
+
+    def show_after(self, entry) -> None:
+        """(f464) The lines that waited behind a passage, now that it is told or stood in for; (f467) the operation whose lines they
+        were is marked shown once the last of them has reached the page."""
+        self.show(entry[3])
+        owner = entry[4]
+        if owner in self.unshown_ops:
+            self.unshown_ops[owner] -= 1
+            if self.unshown_ops[owner] <= 0:
+                del self.unshown_ops[owner]
+                self.store.mark_shown(owner)
+
+    def show_waiting(self, op=None) -> None:
+        """(f722) The line's passage is told, or stood in for: what waited behind it follows. Told inside an operation (`op`), it is
+        that operation's to show when it commits and goes with it when it does not stand (the wait is put back by the rollback)."""
+        entries, self.waiting = self.waiting, []
+        if entries and op is not None:
+            op.held.append(("waited", (entries,), {}))
+        else:
+            for entry in entries:
+                self.show_after(entry)
 
     def mark_passage(self, kind: str, fn, standin=None) -> None:
         """(f464) Here goes a passage: a narration, a fight round's telling, the aftermath of a win, the goddess's words. Inside an
@@ -1309,42 +1542,29 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         telling could not be written; then the lines that waited behind it; and the operation whose lines they were is marked shown once
         the last of them has reached the page."""
         from engine import operation as _op
-        while self.passages:
-            kind, fn, standin, after, owner = self.passages.pop(0)
+        while self.passages and not (self.buffering and self.pending):     # (f722) behind the line's one passage while it is still to tell
+            entry = self.passages.pop(0)
+            kind, fn, standin, after, owner = entry
             halted = self.halted
-            told_before = {id(r) for r in ledger.this_turn() if r.get("told")}
             op, _ = self.asked_operation(kind, self.last_text, lambda op: fn())    # (f498) restartable: the telling's own call is asked
             self.halted = halted                                   # outside it; a telling that did not stand halts nothing: the facts stand
             if op.state != "committed":
                 if op in self.line_failed:
                     self.line_failed.remove(op)
-                self.line_untold.append(op)
-                self.untell(told_before)                           # it told nothing: the rows it took to tell are untold again
+                self.line_untold.append(op)                        # (f720) the rows it took to tell are untold again: the rollback's
                 lines = standin(self.rng) if standin else []
                 for line in ([lines] if isinstance(lines, str) else lines):
                     if line:
                         console.narrate(line)
                 _op.present(op.id, "stand_in")                     # (f467) told by a stand-in
-            for name, a, k in after:
-                getattr(console, name)(*a, **k)
-            if owner in self.unshown_ops:
-                self.unshown_ops[owner] -= 1
-                if self.unshown_ops[owner] <= 0:
-                    del self.unshown_ops[owner]
-                    self.store.mark_shown(owner)
-
-    @staticmethod
-    def untell(told_before: set) -> None:
-        """(f464) A passage that did not stand told nothing: the rows it marked told (ledger.told, when its request was built) are untold
-        again, so the stand-in and the next passage can tell them."""
-        for r in ledger.this_turn():
-            if r.get("told") and id(r) not in told_before:
-                r.pop("told", None)
+            self.show_after(entry)
 
     def stood_standin(self, rng) -> list[str]:
         """(f464) What the player reads when the line's passage could not be written: one plain line for each row of the line not yet
         told that has facts to fill it from (engine/failures.py stood_lines); with none, one line that the deed stands."""
         rows = [r for r in ledger.this_turn() if r.get("facts") and not r.get("told")]
+        for r in rows:
+            r["told"] = True                                       # (f711) read plainly now: no later passage tells it again
         return failures.stood_lines(rows, rng) if rows else [failures.stood_any(rng)]
 
     def abandon(self, op, pending0: list, world: bool = False, fight0=None) -> None:
@@ -1379,7 +1599,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             states = {k: x.model_copy(deep=True) for k, x in held.items()}       # who is here and who acts, as found: put back in place,
             lists = (list(self.residents), list(self.present), self.partner, self.player)   # the same objects, so a holder sees the re-run
             meta = self.store.meta.model_copy()          # the clock and the input's count as they stand in memory (a give-back reloads the save's)
-            told0 = {id(r) for r in ledger.this_turn() if r.get("told")}        # (f498) what was told before this attempt
             asked.begin(serve)
             result = None
             try:
@@ -1391,7 +1610,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if need is None:
                 return op, result
             streams.restore(snap)                        # the attempt that stood down drew nothing that counts
-            self.untell(told0)                           # (f498) ...and told nothing: the rows it took to tell wait for the attempt that stands
             for k, x in held.items():
                 x.__dict__.update(states[k].__dict__)
             self.residents, self.present, self.partner, self.player = list(lists[0]), list(lists[1]), lists[2], lists[3]
@@ -1437,6 +1655,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         target_id = intent.target if intent.target not in ("", "none", "null") else ""
         if target_id and not any(n.id == target_id for n in self.present) and not self.store.npc_exists(target_id):
             target_id = ""
+        payer = self.payer_for_handin(intent, text)
+        if payer:
+            intent.target = target_id = payer                            # (f691) work handed in goes to the one here who pays for it
         target_id = target_id or (self.partner.id if self.partner else "") or (self.last_spoken or "")
         if not target_id:
             return
@@ -1467,31 +1688,104 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def talk_record(self) -> dict:
         """(f485) The conversation as the save keeps it (kv talk): who is spoken with, how they are this talk, its lines, who spoke last.
-        Written with each operation's commit, so it rolls back with the operation and is there when the save is opened again."""
+        Written with each operation's commit, so it rolls back with the operation and is there when the save is opened again. (f759)
+        And the hire who spoke last, by id, while a line could still go on with them (hire_followup: their turn is this one or the last)."""
         from engine import presence
         lines = [list(x) for x in (self.convo or [])][-presence.lines_cap():]
-        return {"speaker": self.partner.id if self.partner else "", "stance": getattr(self, "stance", "") or "", "lines": lines,
-                "last_spoken": self.last_spoken or ""}
+        rec = {"speaker": self.partner.id if self.partner else "", "stance": getattr(self, "stance", "") or "", "lines": lines,
+               "last_spoken": self.last_spoken or "", **({"moves": list(self.moves)} if self.moves else {})}     # (f724)
+        last = self.__dict__.get("_hire_last")
+        if last and last[1] >= self.store.meta.turn - 1:
+            m = next((m for m in self.player_of(self.acting).party if m.get("permanent") and m.get("name") == last[0] and m.get("id")), None)
+            if m is not None:
+                rec["hire"] = {"id": str(m["id"]), "turn": int(last[1])}
+        return rec
 
     def save_talk(self) -> None:
         rec = self.talk_record()
-        if not rec["speaker"] and not rec["lines"] and not rec["last_spoken"]:
+        pending = self.__dict__.get("_talk_saved")
+        if pending:
+            if not rec["speaker"] and not rec["lines"]:    # (f759) a talk still to be put back stays in the save as it was,
+                kept = self.store.load_talk()              # but for the hire who spoke last since it was first tried
+                row = {k: v for k, v in (kept or {}).items() if k != "hire"} | ({"hire": rec["hire"]} if "hire" in rec else {})
+                if kept and "last_spoken" not in pending and row != kept:
+                    self.store.save_talk(row)
+                return
+            self.__dict__.pop("_talk_saved")               # ...until another is begun
+        if not rec["speaker"] and not rec["lines"] and not rec["last_spoken"] and "hire" not in rec:
             if self.store.load_talk() is not None:
                 self.store.clear_talk()
             return
         if self.store.load_talk() != rec:
             self.store.save_talk(rec)
 
-    def restore_talk(self) -> None:
-        """(f485) A save opened mid-talk: the conversation as it was, once the one spoken with is here."""
-        rec = self.__dict__.pop("_talk_saved", None)
-        if not rec:
+    def save_visitors(self) -> None:
+        """(f759) Who came looking (visit), until when and where, written with each operation's commit when it changed, so it rolls back
+        with the operation and they are still in the room when the save is opened again. refresh_present prunes the list and never writes."""
+        rows = [list(v) for v in getattr(self, "visitors", [])]
+        if self.store.load_visitors() != rows:
+            self.store.save_visitors(rows)
+
+    def save_fight(self) -> None:
+        """(f760) The fight's row, written with the operation that moved the fight, as the conversation is: the next line (give_back
+        resumes the fight from its row) and a reopen find the fight as the operation left it. Compared with the row stored now, never a
+        copy kept from the last write, which a rollback would make untrue. A fight that ended in the operation dropped its row there."""
+        if self.combat is None:
             return
-        self.last_spoken = rec.get("last_spoken") or None
-        who = next((n for n in self.present if n.id == rec.get("speaker")), None)
-        if who is not None:
+        row = self.combat.to_json()
+        if self.store.load_combat() != row:
+            self.store.save_combat(row)
+
+    def fight_out_of_step(self) -> list[str]:
+        """(f760) Where the fight in memory and its row differ, as a few paths into the row; [] when they agree or no fight is on (as
+        the game opens, the row waits for the entry to resume it). The one comparison: the watch at an input's end reads it, and so
+        may a test."""
+        from services.fight import FightService
+        if self.combat is None:
+            return []
+        return FightService.apart(self.combat.to_json(), self.store.load_combat())
+
+    FIGHT_WATCH_KEPT = 5            # (f760) the watch keeps the last few notes, never a growing log
+
+    def watch_fight(self, text: str) -> None:
+        """(f760) Under the suite's and the night's watch (storage/worldrow.py WATCH_STALE): a fight out of step with its row as an
+        input ends is counted on the store, the last few kept with where it differs. Shipped play reads nothing here."""
+        from storage import worldrow
+        if not worldrow.WATCH_STALE:
+            return
+        apart = self.fight_out_of_step()
+        if apart:
+            w = self.store.fight_watch
+            w["count"] += 1
+            w["last"] = (w["last"] + [{"input": text[:80], "who": self.acting, "apart": apart}])[-self.FIGHT_WATCH_KEPT:]
+
+    def restore_talk(self) -> None:
+        """(f485) A save opened mid-talk: the conversation as it was, once the one spoken with is here. (f759) Who spoke last, and the
+        hire who did, are put back at the first try; the talk waits (and stays in the save, save_talk) until its speaker is here, their
+        record says they are gone, the character stands somewhere else, or a talk is begun with someone else."""
+        rec = self.__dict__.get("_talk_saved")
+        if not rec:
+            self.__dict__.pop("_talk_saved", None)
+            return
+        if "last_spoken" in rec:                           # the first try: what needs no one here
+            self.last_spoken = rec.get("last_spoken") or None
+            hire = rec.get("hire") or {}
+            m = next((m for m in self.player_of(self.acting).party if hire and m.get("permanent") and str(m.get("id")) == hire.get("id")), None)
+            if m is not None:
+                self._hire_last = (m.get("name"), int(hire.get("turn", 0)))
+            rec = self.__dict__["_talk_saved"] = {k: v for k, v in rec.items() if k not in ("last_spoken", "hire")}
+        speaker, here = rec.get("speaker") or "", self.player_of(self.acting).location
+        who = next((n for n in self.present if n.id == speaker), None)
+        begun = self.partner is not None or bool(self.convo)
+        if who is not None and not begun:
             self.partner, self.stance = who, rec.get("stance", "")
             self.convo = [tuple(x) for x in rec.get("lines") or []]
+            from engine import reply as reply_rules
+            self.moves = [str(m) for m in rec.get("moves") or []][-int(reply_rules.R["moves"]["running"]):]
+        elif (who is None and not begun and speaker and rec.get("at", here) == here and self.store.npc_exists(speaker)
+              and not self.store.load_npc(speaker).gone):
+            return                                         # not here yet: still waiting
+        self.__dict__.pop("_talk_saved", None)
 
     def fight_memory(self):
         """(f496) What the fight's scene keeps outside the save (what the player has read of this fight, who was tamed) and which fight it is
@@ -1512,6 +1806,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.passages = [p for p in self.passages if p[4] != op.id]      # (f464) the passages it queued go with it
         self.session.rollback(self, op.id if op is not None else "")
         self.store.reload_meta()                           # the clock the operation advanced goes back with it
+        if self.input_count is not None:                   # (f753) the clock goes back but the open input's count stays: the line may go on, and its dice were drawn at that count
+            self.store.meta.steps, self.store.meta.story_steps = self.input_count
         self.player = self.store.load_player()
         pools.fill_missing(self.player.character)
         saved_fight = self.store.load_combat()
@@ -1533,10 +1829,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def defer(self, kind: str, data: dict) -> None:
         """(f469) An optional call the budget deferred (engine/budget.py Deferred, the table's `later: deferred`): queued in the save,
-        with the input it came from, for a later turn's tail (run_deferred). Called inside the operation whose call it was, so a rollback
-        takes the entry with it; one deferred again from the queue keeps its first input's age."""
+        with the line of the story it came from, for a later turn's tail (run_deferred). Called inside the operation whose call it was, so
+        a rollback takes the entry with it; one deferred again from the queue keeps its first age. (f639) Its age is in lines of the
+        story: a pane looked at ages nothing."""
         rows = self.store.load_deferred()
-        rows.append({"kind": kind, "data": data, "from_steps": int(self.__dict__.get("_deferred_from", self.store.meta.steps))})
+        rows.append({"kind": kind, "data": data, "from_steps": int(self.__dict__.get("_deferred_from", self.store.meta.story_steps))})
         self.store.save_deferred(rows)
 
     def run_deferred(self) -> None:
@@ -1549,7 +1846,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             return
         from engine import operation as _op
         keep = int(_op.RETENTION.get("deferred_turns") or 3)
-        steps = self.store.meta.steps
+        steps = self.store.meta.story_steps
         live = [r for r in rows if steps - int(r.get("from_steps", steps)) <= keep]
         if self.combat:
             if live != rows:
@@ -1596,8 +1893,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.last_failure = f"{type(e).__name__}: {e}"[:200]
             self.last_crash = True
             plan = False
-        if not plan and not self.line_ops:
-            self.store.reload_meta()                           # nothing of the line committed: the input's count is given back (f463)
         return plan
 
     def line_record(self) -> list:
@@ -1608,6 +1903,89 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         rows += [{"id": o.id, "kind": o.kind, "index": o.index, "state": "rolled_back"} for o in self.line_failed + self.line_world_failed]
         rows += [{"id": o.id, "kind": o.kind, "index": o.index, "state": "stand_in"} for o in self.line_untold]
         return sorted(rows, key=lambda r: (r["index"], r["state"] != "stood"))
+
+    def line_standin(self, rng) -> list[str]:
+        """(f715) The line's own passage lost: when a step of the line also failed, the part line says what stood and what did not, and
+        is the one line; else as any passage."""
+        if self.line_failed and not [r for r in ledger.this_turn() if r.get("facts") and not r.get("told")]:
+            return []
+        return self.stood_standin(rng)
+
+    def aim_of(self, intent) -> str:
+        """(f715) What a step set out to do, as a clause after "you never got to": its kind's words (failures.yaml missed) with who, where
+        and what as the player knows them."""
+        return failures.missed_clause(intent.kind, self.step_facts(intent))
+
+    def done_of(self, intent) -> str:
+        """(f715) What a step did, as a clause after "you" (failures.yaml done)."""
+        return failures.done_clause(intent.kind, self.step_facts(intent))
+
+    def step_facts(self, intent) -> dict:
+        from engine import truth
+        who = next((n.label(self.acting) for n in self.present if n.id == getattr(intent, "target", "")), "") or \
+            next((p.label for p in truth.scene_of(self).present_people() if p.id == getattr(intent, "target", "")), "")
+        dest = getattr(intent, "destination", "") or ""
+        where = self.world.places[dest].name if dest in self.world.places else (self.place.name if intent.kind == "search" else "")
+        ability = getattr(intent, "ability", "") or ""
+        if ability:
+            ability = next((a.name for a in getattr(self.player_of(self.acting).character, "actives", []) or [] if a.id == ability), ability.replace("_", " "))
+        what = self.thing_named(intent) or ability or getattr(intent, "seek", "") or ""
+        return {"who": who, "where": where, "what": what, "act": self.act_words(intent)}
+
+    def thing_named(self, intent) -> str:
+        """(f715) The ware or the carried thing a step names, by its name, never its id."""
+        ware, item = getattr(intent, "ware", "") or "", getattr(intent, "item", "") or ""
+        if ware:
+            seller = next((n for n in self.present if n.id == getattr(intent, "target", "")), None)
+            found = self.ware_asked(self.wares_of(seller), ware) if seller is not None else None
+            return found.name if found is not None else inv.good_name(ware)
+        if item:
+            found = inv.find(self.player_of(self.acting).character.inventory, item)
+            return items.display_name(found) if found is not None else item.replace("_", " ")
+        return ""
+
+    def act_words(self, intent) -> str:
+        """(f715) An improvised act's own words as a clause after "to" ("scramble up the crag"), or "" when its summary is no such clause
+        (it opens on someone, by a word of interpret.yaml not_act_openers or a name of the party or the people present, or on a third
+        person verb)."""
+        if intent.kind != "other":
+            return ""
+        from engine import candidates
+        I = candidates.I
+        words = " ".join((getattr(intent, "summary", "") or "").split()).strip().rstrip(".!").split()
+        if words and words[0].lower() in ("i", "we", "you"):
+            words = words[1:]
+        lead = next((n for n in (len(l.split()) for l in I["act_lead_ins"]) if " ".join(words[:n]).lower() in I["act_lead_ins"]), 0)
+        words = [I["act_person_swap"].get(w.lower(), w) for w in words[lead:]]
+        me = self.player_of(self.acting)
+        names = [me.character.name] + [m.get("name", "") for m in me.party] + [getattr(p, "name", "") for p in self.present]
+        openers = {w.lower() for w in I["not_act_openers"]} | {w.lower() for n in names for w in (n or "").split()}
+        first = (words or [""])[0].lower()
+        if not words or first in openers or re.match(I["not_act_first"], first):
+            return ""
+        return " ".join([first] + words[1:])
+
+    def part_line(self) -> str:
+        """(f715) The one line for a line that stood in part: what did not happen, by what its failed steps set out to do."""
+        begun = {o.aim for o in list(self.line_ops) + list(self.line_failed) if getattr(o, "aim", "")}
+        aims = [o.aim for o in self.line_failed if getattr(o, "aim", "")]
+        aims += [a for a in (self.aim_of(s) for s in self.line_plan) if a and a not in begun]   # never begun
+        aims = list(dict.fromkeys(aims)) or [str(((failures.F.get("missed") or {}).get("default") or [""])[0])]
+        missed = (", ".join(aims[:-1]) + " or " + aims[-1]) if len(aims) > 1 else aims[0]
+        did = list(dict.fromkeys(self.line_stood()))
+        return failures.part_stood(", then ".join(did), missed, self.rng)
+
+    def line_stood(self) -> list[str]:
+        """(f644) What the line's operations that stood did, in order, each as the operation said of itself (engine/operation.py
+        `did`): read from what was committed, never from a list of steps."""
+        return [d for o in self.line_ops for d in o.did]
+
+    def line_outcome(self, taken: bool = True):
+        """(f644) How the line stood, by its operations: True, every one of the player's; "part", one did not and another had done
+        something; False, nothing of it was done. `taken`: False for a line that was never understood or whose first deed did not
+        stand."""
+        self.stood = True if taken and not self.line_failed else "part" if self.line_stood() else False   # (f721) read by its close
+        return self.stood
 
     def take_recovered(self) -> int:
         """(f471) The outcomes told at the last load, reported once, on the first row after it."""
@@ -1630,105 +2008,98 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.name_ids()
         turnlog.tap()
         shown = turnlog.shown_count()
-        self.begin_line()
-        try:
-            with questions.fence():
-                self.new_input(text)                       # (f439) the dice of this input
-                ledger.begin()                             # (f394) the turn's record
-                self.ran = []
-                plan = None
-                self.collecting = True                     # (f464) a narration asked for by an action is a passage operation after it
-                self.take_up_acts(text)                    # (f596) an act left waiting for its ruling, before this line is read
-                def _line(op):                             # (f470) the line taken whole (an answer, a fight's round, an intercept), or void
-                    self._wrote_turn = False               # (f351) the narrator's mark is a flag, not a turn number; set inside the operation, so a rollback takes it back
-                    got = self.take_line(text)
-                    if got is None:
-                        op.void = True
-                    return got
-                op, taken = self.asked_operation("line", text, _line)
-                if op.state == "rolled_back":
-                    return False
-                if not taken:                              # (f470) the understanding outside any transaction: the interpreter and the audit read
-                    plan = self.understood(text)           # committed state; a question asked, or a board refresh due, is an operation of its own
-                    if plan is False:
-                        return False
-                    if plan is not None:
-                        def _first(op):
-                            self._wrote_turn = False
-                            self.pending_clarify = None    # (f470) a question this line answered is spent inside the first action's commit
-                            self.run_step(0, plan, text)
-                        before = len(self.line_ops)
-                        stood = self.prepare_step(0, plan, text) and self.asked_operation(f"action:{plan[0].kind}", text, _first,
-                                                                                            keep=plan)[0].state == "committed"
-                        prepared = any(o.kind in ("action:go", "action:handin") for o in self.line_ops[before:])
-                        if not stood and not prepared:
-                            return False                   # the first action did not stand: the line is not taken (a board refresh aside)
-                        if not stood:                      # (f485) its prepare's own operation stood (the walk, the hand-in): what stood stands
-                            plan = plan[:1]
-                self.run_passages()
+        with self.input(text, "line"):                 # (f721) the line's fields, the fence, its dice and its budget
+            ledger.begin()                             # (f394) the turn's record
+            self.ran = []
+            plan = None
+            self.own_steps = True                      # (f715) a passage asked for now is the line's own
+            self.take_up_acts(text)                    # (f596) an act left waiting for its ruling, before this line is read
+            def _line(op):                             # (f470) the line taken whole (an answer, a fight's round, an intercept), or void
+                self._wrote_turn = False               # (f351) the narrator's mark is a flag, not a turn number; set inside the operation, so a rollback takes it back
+                got = self.take_line(text)
+                if got is None:
+                    op.void = True
+                return got
+            op, taken = self.asked_operation("line", text, _line)
+            if op.state == "rolled_back":
+                return self.line_outcome(False)
+            if not taken:                              # (f470) the understanding outside any transaction: the interpreter and the audit read
+                plan = self.understood(text)           # committed state; a question asked, or a board refresh due, is an operation of its own
+                if plan is False:
+                    return self.line_outcome(False)
                 if plan is not None:
-                    for i in range(1, len(plan)):
-                        if self.combat or self.halted:
-                            console.debug(f"stopping after {i} of {len(plan)} actions")
-                            break
-                        if not self.prepare_step(i, plan, text):     # (f485) the step's own prepare (a walk, a hand-in) did not stand
-                            self.run_passages()
-                            break
-                        op, _ = self.asked_operation(f"action:{plan[i].kind}", text, lambda op, i=i: self.run_step(i, plan, text), keep=plan)
+                    self.line_plan = list(plan)        # (f715) every step it was read as, begun or not
+                    def _first(op):
+                        self._wrote_turn = False
+                        self.pending_clarify = None    # (f470) a question this line answered is spent inside the first action's commit
+                        self.run_step(0, plan, text)
+                    before = len(self.line_ops)
+                    stood = self.prepare_step(0, plan, text) and self.asked_operation(f"action:{plan[0].kind}", text, _first,
+                                                                                        keep=plan)[0].state == "committed"
+                    prepared = any(o.kind in ("action:go", "action:handin") for o in self.line_ops[before:])
+                    if not stood and not prepared:
+                        return self.line_outcome(False)     # the first action did not stand: the line is not taken (a board refresh aside)
+                    if not stood:                      # (f485) its prepare's own operation stood (the walk, the hand-in): what stood stands
+                        plan = plan[:1]
+            self.run_passages()
+            if plan is not None:
+                for i in range(1, len(plan)):
+                    if self.combat or self.halted:
+                        console.debug(f"stopping after {i} of {len(plan)} actions")
+                        break
+                    if not self.prepare_step(i, plan, text):     # (f485) the step's own prepare (a walk, a hand-in) did not stand
                         self.run_passages()
-                        if op.state != "committed":
-                            break                              # what stood stands; the rest of the line is not done
-                    if self.pending:                           # (f464) several actions: their one passage, an operation after them all and before the pulse
-                        told_before = {id(r) for r in ledger.this_turn() if r.get("told")}
-                        with self.operation("passage", text) as op:
-                            self.passage(text)
-                        if op.state != "committed":
-                            self.line_failed.remove(op)
-                            self.line_untold.append(op)
-                            self.untell(told_before)
-                            for line in self.stood_standin(self.rng):
-                                console.narrate(line)
-                            self.pending = []
-                            from engine import operation as _op
-                            _op.present(op.id, "stand_in")         # (f467)
-                    from engine import budget
-                    budget.passage_shown()                     # (f468) the required path is told: the optional calls after it keep no reserve
-                    self.after_steps(text)                     # (f466) outside any operation: the step is over, and what the line did not do is said
-                    with self.operation("world", text, world=True):      # (f466) the world's own operations, apart: each stands or falls alone
-                        self.world_tick()
+                        break
+                    op, _ = self.asked_operation(f"action:{plan[i].kind}", text, lambda op, i=i: self.run_step(i, plan, text), keep=plan)
                     self.run_passages()
-                    with self.operation("arrival", text, world=True):
-                        self.arrival()
-                    self.run_passages()
-                    with self.operation("law", text, world=True):
-                        self.law_check()
-                    self.run_passages()
+                    if op.state != "committed":
+                        break                              # what stood stands; the rest of the line is not done
+                if self.pending:                           # (f464) several actions: their one passage, an operation after them all and before the pulse
+                    with self.operation("passage", text) as op:
+                        self.passage(text)
+                    if op.state != "committed":
+                        self.line_failed.remove(op)
+                        self.line_untold.append(op)
+                        for line in self.line_standin(self.rng):
+                            console.narrate(line)
+                        self.pending = []
+                        from engine import operation as _op
+                        _op.present(op.id, "stand_in")         # (f467)
+                self.show_waiting()                        # (f722) behind a stand-in as behind the passage: what waited for it
+                self.run_passages()                        # (f722) ...then a later step's own passage, which waited for the line's
                 from engine import budget
-                budget.passage_shown()                         # (f468) a fight's round or an answer: told; the tail's calls keep no reserve
-                def _tail(op):                             # (f489) restartable: the party's talk it asks for is asked outside it
-                    if plan is not None:
-                        self.store.meta.turn += 1              # (f466) the line counted, with its tail
-                    self.turn_ticks(text, shown)
-                self.asked_operation("tail", text, _tail, world=True)
-                self.run_passages()                            # (f498) the tail collects too: a road fight walked into as it resumes the
-                if not self.combat:
-                    self.take_up_rulings(text)                 # (f597) a deed left waiting on a situation, after the line, as births are
-                    self.situation_births(text)                # (f546) a situation born given its parts, each in operations of its own
-                self.collecting = False                        # road (resume_road) begins committed, its opening a passage told after it
-                ledger.end()                                   # (f633) its rows are the last turn's now
-                return True if not self.line_failed else "part"
-        except Interrupt:
-            raise
-        finally:
-            self.store.arm(False)
+                self.own_steps = False                     # (f715) from here, the world's passages
+                budget.passage_shown()                     # (f468) the required path is told: the optional calls after it keep no reserve
+                self.after_steps(text)                     # (f466) outside any operation: the step is over, and what the line did not do is said
+                with self.operation("world", text, world=True):      # (f466) the world's own operations, apart: each stands or falls alone
+                    self.world_tick()
+                self.run_passages()
+                with self.operation("arrival", text, world=True):
+                    self.arrival()
+                self.run_passages()
+                with self.operation("law", text, world=True):
+                    self.law_check()
+                self.run_passages()
             from engine import budget
-            self.last_budget = budget.close(stand_ins=[o.kind for o in self.line_untold])   # (f468) the input's budget closes with the line
+            budget.passage_shown()                         # (f468) a fight's round or an answer: told; the tail's calls keep no reserve
+            def _tail(op):                             # (f489) restartable: the party's talk it asks for is asked outside it
+                if plan is not None:
+                    self.store.meta.turn += 1              # (f466) the line counted, with its tail
+                self.turn_ticks(text, shown)
+            self.asked_operation("tail", text, _tail, world=True)
+            self.run_passages()                            # (f498) the tail collects too: a road fight walked into as it resumes the
+            if not self.combat:
+                self.take_up_rulings(text)                 # (f597) a deed left waiting on a situation, after the line, as births are
+                self.situation_births(text)                # (f546) a situation born given its parts, each in operations of its own
+            self.collecting = False                        # road (resume_road) begins committed, its opening a passage told after it
+            ledger.end()                                   # (f633) its rows are the last turn's now
+            return self.line_outcome()                     # (f644) by what its operations committed
 
     def turn_ticks(self, text: str, shown: int) -> None:
         """(f463) What follows every line, however it was read: the road walked on, the hires' words marked, the quest and the mentor and
         the companions given their turn, the day's wear, what was heard of, and the save."""
         self.release_time_notes()                  # (f418) whatever way the line ended
-        if self.resume_pending and not self.combat and not getattr(self, "held_yield", None):
+        if self.walk_due():
             self.resume_road()                     # (f417) a won road fight walks on once the player has said what becomes of who yielded
         heard = self.hire_said_marks()
         self.sync_heard()
@@ -1740,12 +2111,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.note_hire_spoke(heard)
         self.collapse_check()
         self.stay_tick()                           # (f351) one change in the room since last turn, if the narrator did not write
-        self.heard_flush()                         # the places first heard of this turn, in one quiet line
         from engine import operation as _op
-        held_now = (len(_op.current().lines) + sum(1 for h in _op.current().held if h[0] == "marker")
+        held_now = (len(_op.current().lines) + sum(1 for h in _op.current().held if h[0] == "marker" and h[1][0][0] != "line")
                     if _op.current() is not None else 0)     # (f463) what this operation holds, not yet released; (f498) a passage it queued
-        if turnlog.shown_count() + held_now == shown and not self.to_menu:
-            self.said_nothing(text)
+        if not self.to_menu and (turnlog.shown_count() + held_now == shown or ledger.untold_deeds()):
+            self.said_nothing(text)                # (f692) a quiet line in the tail is no answer to a deed only a passage tells
+        self.heard_flush()                         # the places first heard of this turn, in one quiet line
         self.store.save_player(self.player)
 
     def said_nothing(self, text: str) -> None:
@@ -1758,8 +2129,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self._narrate_now("Tell what the game did this turn, as the player would see it, and nothing more.", text)
             return
         ran = ", ".join(getattr(self, "ran", []) or []) or "nothing"
-        console.note("Nothing comes of that here. Try it another way, or say plainly what you want to happen.")   # (f391) in the world's words
+        self.silent = True                         # (f721) said by the close, when the line has no other closing line
         refusals.note("silent", text, f"the turn showed nothing; actions run: {ran}", self.player.location, self.store.meta.turn)
+
+    WALKS = ("move", "delve", "leave_dungeon", "explore", "look", "wait")      # (f662) the steps that go on, needing nothing picked up
 
     def refuse(self, say: str, needed_by_rest: bool | None = None) -> None:
         """(f416) The game says no to a step. The player reads why; the turn's record keeps what did not happen, so the passage that tells
@@ -1777,6 +2150,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         refusals.note("refused", self.last_text or "", f"{kind or 'outside a plan'}: {reason}", self.player.location, self.store.meta.turn)
         if needed_by_rest is None:
             needed_by_rest = actions.BY_KIND[kind].needed_by_rest if kind in actions.BY_KIND else True
+        plan = list(self.plan_now or ())
+        after = plan[plan.index(st) + 1:] if st is not None and any(p is st for p in plan) else []
+        if needed_by_rest and kind == "pick_up" and after and all(a.kind in self.WALKS for a in after):
+            needed_by_rest = False                      # (f662) a walk on never needs a thing not picked up
         if needed_by_rest:
             self.halted = True
 
@@ -1831,7 +2208,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         enchanter = next((n for n in self.present if n.role == "enchanter"), None)
         own_hands = self.owns("enchanter") and bool(self.place.stations)
         if not enchanter and not own_hands and not actor.prefs().debug:
-            console.note("There's no enchanter here. You'll need to find one - perhaps somewhere magic is welcome."
+            console.note("There's no enchanter here. Look for one somewhere magic is welcome."
                          + (" Or a workshop: you can do the work yourself." if self.owns("enchanter") else ""))
             return
         if not enchanter and own_hands:
@@ -1970,7 +2347,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def journal_data(self) -> dict:
         """People you know by name, by town (this town first, then the last one you stood in), what you have learned, what you have let go."""
         here = pulse.town_of(self.world, self.player.location)
-        last = next((t for t in reversed(self.fld.get("towns", [])) if t != here), "")
+        last = self.town_behind(self.acting)
         groups: dict[str, list] = {}
         for n in self.store.load_npcs([r.id for r in self.store.npc_rows(met_player=True) if r.name_known_to_player]):
             if not (regard.of(n, self.acting).met and regard.of(n, self.acting).name_known):
@@ -2191,7 +2568,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.combat.turn(text)
             self.seal_ask()                                 # (f460) the High Keeper bloodied this round: the seal's question ends the turn
             self.took(text, "combat")
-            if not self.combat and self.resume_pending and not getattr(self, "held_yield", None):
+            if self.walk_due():
                 self.resume_road()
             return True
         for ic in self.INTERCEPT_TABLE:                     # the intercepts, in their declared order (scenes/intercepts.py)
@@ -2209,6 +2586,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         operation of its own, ask_back); a board refresh the interpreter's read brings due is a `board` operation of its own
         (scenes/guild_actions.py ensure_board)."""
         asked = getattr(self, "pending_clarify", None)
+        from engine import actions as _actions, candidates as _cand
+        self._question_let_go = bool(asked and _actions.first_person_action(text) and not _cand.points_back(text))
+        if self._question_let_go:                                     # (f713) a deed of the player's own, pointing at nothing asked: a new line
+            console.debug("clarify: the line is a deed of its own; read alone, the question let go")
+            asked = None
         if asked:                                                     # (f321) they were asked a question: this line answers it
             hint = (f"The game asked the player a question about their earlier line \"{asked['text']}\": \"{asked['question']}\". "
                     f"What they have typed now answers it. Read the earlier line and this answer together as one intention, and plan that.")
@@ -2236,8 +2618,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         intent = plan[i]
         text = getattr(self, "line_text", text) or text
         console.debug(f"intent {i + 1}/{len(plan)}: {intent.model_dump(exclude_defaults=True)}")
+        from engine import operation as _op0
+        if _op0.current() is not None:
+            _op0.current().aim = self.aim_of(intent)                 # (f715) named if this step does not stand
         self.pending_check, self.pending_beats = "", []
         self.step = intent                                 # (f416) what a refusal says did not happen
+        self.plan_now = plan
         if not self.run_checks(intent, text):
             from engine import actions
             if intent.kind not in actions.BY_KIND:
@@ -2262,7 +2648,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.turn_in(intent.target)
         if intent.kind in TIME_COST:
             self.advance(TIME_COST[intent.kind])
-        self.line_done.append((getattr(intent, "summary", "") or "").strip() or intent.kind)   # (f463) for the part_stood line
+        from engine import operation as _op
+        op = _op.current()
+        if op is not None and not any(r.get("kind") == "refused" for r in op.rows):     # (f644) a step the game said no to did not do it
+            _op.did(self.done_of(intent))                                          # (f715) a finished clause, never the summary
 
     def after_steps(self, text: str) -> None:
         """(f463) After the plan's steps, (f466) outside any operation: the step is over and the line's buffering with it, the notes time
@@ -2273,7 +2662,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         undone = self.__dict__.pop("dropped_steps", [])
         if undone:                                             # (f332) the game does at most three things a line: say what it did not do
             from engine import refusals
-            console.note("Three things at a time: not done - " + "; ".join(undone) + ". Say it again when you are ready.")
+            console.note("Three things at a time. Left undone: " + "; ".join(undone) + ". Say them again when you're ready.")
             refusals.note("undone", text, "more than three actions in one line: " + "; ".join(undone), self.player.location, self.store.meta.turn)
             ledger.add("not_done", steps=undone, say="NOT DONE this turn, never show them done: " + "; ".join(undone) + ".")   # (f416)
         self.release_time_notes()                               # (f418) after the passage
@@ -2504,16 +2893,28 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def named_here(self, text: str) -> str:
         """The id of the one person here the line names, by name or by trade ("the guard", "Bram"); '' when none or several. A hire in
         the party counts as here."""
+        hits = self.those_named(text)
+        return hits[0] if len(hits) == 1 else ""
+
+    def rest_of_plan(self) -> list:
+        """(f645) The line's other steps, while one is being done: a handler that reads the whole line's words for a name asks here
+        whether that name is there for another step."""
+        plan = self.plan_now or ()
+        return [p for p in plan if p is not self.step] if any(p is self.step for p in plan) else []
+
+    def those_named(self, text: str) -> list[str]:
+        """(f645) The ids of everyone here the line names, by name or by trade, the party's hires among them."""
         low = text.lower()
         hits = []
         for n in self.present:
-            words = {n.role.replace("_", " ")} | ({n.name.split()[0].lower()} if regard.of(n, self.acting).name_known and n.name else set())
-            if any(re.search(rf"\b{re.escape(w.lower())}\b", low) for w in words if w):
+            role = n.role.replace("_", " ")
+            words = {role, f"the {role.split()[-1]}"} | ({n.name.split()[0].lower()} if regard.of(n, self.acting).name_known and n.name else set())
+            if any(re.search(rf"\b{re.escape(w.lower())}\b", low) for w in words if w):          # (f658) "the clerk" is the guild clerk
                 hits.append(n.id)
         for m in self.player.party:
             if m.get("permanent") and m.get("name") and re.search(rf"\b{re.escape(m['name'].split()[0].lower())}\b", low):
                 hits.append(f"hire:{m['id']}")
-        return hits[0] if len(hits) == 1 else ""
+        return hits
 
     def local_building(self, text: str, plan: list) -> None:
         """(f333) "Let's head to the inn": a building named by its kind, with no town named, is this town's when it has one; the model is
@@ -2542,6 +2943,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """Narrate everything held back so far, as one passage."""
         if not self.pending:
             return
+        from engine import operation as _op
+        op = _op.current()
+        place = self.line_mark(op) if op is not None else None
+        after = []
+        if place is not None:                                    # (f722) told at its place: what this operation said after it follows it
+            after = op.held[place + 1:]
+            del op.held[place:]
         events, self.pending = self.pending, []
         if len(events) == 1:
             event = events[0]
@@ -2549,6 +2957,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             event = ("The player does several things in order. Narrate them as one flowing passage, in that order, "
                      "giving each its due but no more: " + " THEN: ".join(f"({n}) {e}" for n, e in enumerate(events, 1)))
         self._narrate_now(event, player_text)
+        self.show_waiting(op)                                    # (f722) then what earlier operations said after it, then this one's
+        if op is not None:
+            op.held.extend(after)
 
     def add_mark(self, mark: str) -> None:
         state = self.store.load_place(self.player.location)
@@ -2734,6 +3145,17 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.store.save_player(self.player)
         self.store.save_meta()
 
+    def creatures_here(self) -> list[str]:
+        """(f701) The creatures the acting character's place can hold (its roster, read and never written)."""
+        place = self.player_of(self.acting).location
+        return encounters.roster_of(self.store, self.world, place) if place in self.world.places else []
+
+    def in_view(self) -> list[str]:
+        """(f700) The creature the game holds in view here, as the scene's one list of who is present names it, for every passage while
+        it stays: told once, it was lost."""
+        from engine import truth
+        return [p.label for p in truth.scene_of(self).present_people() if p.kind == "wildlife"]
+
     def people_view(self) -> list[tuple[str, str, str]]:
         """Who is here, as the player knows them, for the narrator (engine/truth.py, f313). The hires travelling with the player are not
         scenery (f349): they are left out, and the narrator hears of one only when the GAME EVENT has them act (companions_in)."""
@@ -2801,17 +3223,19 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         operation). (f464) Inside an operation of a line: a passage operation of its own, run once this one has committed, shown at this
         place in what the player reads (mark_passage); its failure shows what stood in the narrator's plain words and undoes nothing.
         Outside a line (the game opening, a test's handle()): now."""
+        from engine import operation as _op
         if self.buffering:
             self.pending.append(event)
+            if self.collecting:
+                self.owe_place(_op.current())                    # (f722) the passage's place on the page: what is said from here waits behind it
             return
-        from engine import operation as _op
         if self.collecting and _op.current() is not None:
-            self.mark_passage("passage", lambda: self._narrate_now(event, player_text), self.stood_standin)
+            self.mark_passage("passage", lambda: self._narrate_now(event, player_text),
+                              self.line_standin if self.own_steps else self.stood_standin)
             return
         self._narrate_now(event, player_text)
 
     weight_hint = None
-    camp_fight = None
     last_social = None
 
     def _narrate_now(self, event: str, player_text: str = "") -> None:
@@ -2851,6 +3275,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                        fallen=here.lines("fallen"),                                 # ...and who fell, never seen alive again
                                        parts=features.lines(self),                                  # (f394) the parts of this place, real
                                        told=ledger.told(),                                          # ...and what the engine did this turn
+                                       in_view=self.in_view(),                                      # (f700) ...and the creature still in view
                                        habits=self.arrival_habits() + self.habits_due("rest"),      # (f412) ...and the companions' habits, to fold in
                                        exemplars=self.exemplars("narration"))                        # (f583) how this kind of moment sounds
         result = fresh("narrate", wp.NARRATOR_SYSTEM, request, Narration, self.recent_narration, max_tokens=config.PROSE_MAX_TOKENS,
@@ -2915,15 +3340,21 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         been, heard = mapview.known(w, self.player.visited, here, self.player.heard)
         far = [r for pid in (been | heard) if pid != top for r in [row(pid, "visited" if pid in been else "heard")] if r]
         key = lambda r: (r["minutes"], r["name"])
+        sights = []                                                             # (f702) what was seen on the roads, kept where it was
+        for m in reversed(self.landmarks()):
+            way = self.landmark_way(m)
+            if way:
+                sights.append({"id": m["id"], "name": f"{m['title']}, on {m['road'] or 'the road'}", "type": "sight", "minutes": way[1],
+                               "away": clock.describe_duration(way[1]), "state": "visited"})
         return {"here": here, "town": w.places[top].name, "here_name": w.places[here].name,
-                "local": sorted(local, key=key), "far": sorted(far, key=key), "roads": self.road_rows()}
+                "local": sorted(local, key=key), "far": sorted(far, key=key), "roads": self.road_rows(), "sights": sights}
 
     def show_places(self) -> None:
         data = self.places_data()
         if console.panel("places", data):                  # the window draws this one with Go buttons
             return
         if not data["here"]:
-            console.note("You are not anywhere you know the way from.")
+            console.note("You don't know your way anywhere from here.")
             return
         console.note(f"From {data['here_name']} in {data['town']}:")
         for r in data["local"]:
@@ -2934,17 +3365,16 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             console.note(f"  Road {r['dir']}: {r['name'].lower()} - leads somewhere you have not been")
 
     def places_click(self, text: str, back_to: str = "places") -> None:
-        """The pane's hidden command:  #goto <place id>  (#mapgo from the map pane, which redraws the map instead of the places list)."""
-        from llm.contracts import ActionIntent
+        """The pane's hidden command:  #goto <place id>  (#mapgo from the map pane, which redraws the map instead of the places list).
+        (f734) Walked by walk_to, as a walk taken up after a road fight is: a sight kept on a road (f702) as one, a place as any walk."""
         parts = text.split()
         dest = parts[1] if len(parts) > 1 else ""
-        if dest not in self.world.places:
-            console.note("You don't know a way there.")
-        elif not any(r["id"] == dest for r in self.places_data()["local"] + self.places_data()["far"]):
+        if dest in self.world.places and not any(r["id"] == dest for r in self.places_data()["local"] + self.places_data()["far"]):
             console.note("You don't know a way there from here.")
-        else:
-            self.on_move(ActionIntent(kind="move", destination=dest, summary=f"I go to {self.world.places[dest].name}."), "")
+        elif self.walk_to(dest, "", f"I go to {self.world.places[dest].name}." if dest in self.world.places else ""):
             self.halted = False
+        else:
+            console.note("You don't know a way there.")
         if not self.combat:
             if back_to == "map":
                 with console.scope("#map"):
@@ -2994,6 +3424,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                       if n.location == self.player.location and n.away_until > self.minutes else self.where_name(n.location))
                      for n in shown_away]
         last = self.last_spoken if left or any(n.id == self.last_spoken for n in self.present) else None
+        hl = getattr(self, "_hire_last", None)
+        if last is None and hl and hl[1] == self.store.meta.turn - 1:     # (f708) a reply that falls through still finds the hire who spoke
+            last = next((p.id for p in _sc.present_people() if p.kind == "hire" and p.name == hl[0]), None)
         people = people + [(p.id, f"{p.label} ({p.note})", f"{p.desc} {p.doing}.") for p in _sc.present_people() if p.kind in ("maren", "hire", "companion")]
         people = people + [(p.id, p.label, p.desc) for p in _sc.present_people() if p.kind == "wildlife"]
         short = cand.I["always_if_short"]
@@ -3053,6 +3486,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.partner = None
         self.convo = []
         self.stance = ""
+        self.moves = []                 # (f724) the talk's; the decision is the line's
 
     @staticmethod
     def looks_like_exploring(dest: str, text: str) -> bool:
@@ -3080,6 +3514,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 if n.role == role:
                     return n
         return None
+
+    def ask_landmark(self, m: dict) -> None:
+        """(f428) A sight kept on a road, half named: asked about before a long walk, by its name, its road and how far."""
+        way = self.landmark_way(m)
+        self.refuse(f"Do you mean {m['title'][:1].lower() + m['title'][1:]}, on {m['road'] or 'the road'} "
+                    f"({clock.walk_words(way[1]) if way else 'a way off'})? Name it, or pick it under Places.")
 
     def no_such_place(self, dest: str) -> str:
         """(f418) The answer to a walk somewhere the game does not know, in the world's words and with the ways that are real: 'There's
@@ -3221,6 +3661,14 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     intent.seek = ""
                     self.on_search(intent, text)
                     return
+                named = self.landmark_named(f"{dest} {text}")                           # (f702, f709) back to a sight kept on a road, by what was seen
+                if named is not None and named[1]:
+                    self.go_landmark(named[0], text)
+                    return
+                titled = self.landmark_named(f"{dest} {text}", seen=False)
+                if titled is not None:                                                  # half named by its title: a long walk is asked first (f428)
+                    self.ask_landmark(titled[0])
+                    return
                 if self.part_move(dest, text, adopt=True):                              # (f394) a part a place like this would have
                     return
                 if self.part_of_here(dest):                                             # (f381) a spot inside this place
@@ -3230,6 +3678,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                                             "ruin", "hollow", "overlook") or self.looks_like_exploring(dest, text):
                     intent.seek = intent.seek or dest
                     self.on_explore(intent, text)
+                    return
+                if named is not None:                                                   # (f709) half named by what was seen: asked, once nothing here fits
+                    self.ask_landmark(named[0])
                     return
                 console.debug(f"'{dest}' is not a place - stopping the action chain")
                 self.refuse(self.no_such_place(dest))
@@ -3252,7 +3703,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 found = self.world.path(self.player.location, dest)
                 away = f", {clock.describe_duration(found[1])} away" if found else ""
                 self.refuse(f"There is no {tgt.type} in {here_town}. The nearest is {tgt.name} in "
-                             f"{self.world.places[mapview.top_of(self.world, dest)].name}{away}. Say where you want to go to head there.")
+                             f"{self.world.places[mapview.top_of(self.world, dest)].name}{away}. Name it if you want to head there.")
                 return
             if self.far_unnamed(dest, text):
                 return
@@ -3298,8 +3749,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             own = {t for n in names for t in re.findall(r"[a-z]+", n.lower()) if len(t) > 3}
         return bool(own & said)
 
-    def travel_route(self, dest: str, text: str, already: int = 0, events: int = 0) -> None:
-        """Walk the quickest way to dest. `already` is time already spent on the way (a fork's shared stretch), taken off the walk."""
+    def travel_route(self, dest: str, text: str, already: int = 0, events: int = 0, goal: str = "") -> None:
+        """Walk the quickest way to dest. `already` is time already spent on the way (a fork's shared stretch), taken off the walk.
+        `goal` (f734): where the walk is bound when dest is a stop made for it (a kept sight's), named by a stop made on the way."""
         found = self.world.path(self.player.location, dest) if dest in self.world.places else None
         if not found:
             self.refuse("You don't know a way there from here.")
@@ -3370,7 +3822,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.end_conversation()
         self.last_spoken = None
         console.debug(f"walking {walk} minutes: {' -> '.join(route)}" + (f" (to the barrier on {barrier[1]})" if barrier else ""))
-        self.run_journey(route, walk, text, events, barrier=barrier)
+        self.run_journey(route, walk, text, events, barrier=barrier, goal=goal)
 
     def on_look(self, intent: ActionIntent, text: str) -> None:
         from engine import matters
@@ -3484,25 +3936,40 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if handed:
             check_note = (check_note + " [THE GAME HAS DECIDED: the stranger has handed in " + "; ".join(handed)
                           + ". It is done, recorded and paid; you may say so in your own way, without the figures.]").strip()
+        untaken = self.handin_untaken(intent, npc.id)                       # (f694) work handed in that this listener does not take
+        from engine import told
+        for who, here in dict.fromkeys((w, h) for _, w, h in untaken):
+            titles = " and ".join(f'"{t}"' for t, w, h in untaken if (w, h) == (who, here))
+            console.note(told.say("handin_other" if here else "handin_away", self.store.meta.turn, titles=titles, who=who))
+            check_note = (check_note + f" [THE GAME HAS DECIDED: nothing is handed in to you or paid by you for {titles}: the one who pays"
+                          f" for that is {who}{'' if here else ', who is not here'}. You cannot take the work or pay for it.]").strip()
         from engine import matters, court, stakes
         matters.bind_for(self.store, self.world, npc)                    # (f317) a clue written for their role settles on them
         from engine import situation_parts
         situation_parts.ask(self, npc)                                   # (f545) what they need of their situation, asked of this character
-        ctx = (self.npc_context(npc) + self.local_knowledge(npc) + matters.talk_lines(self, npc)
-               + court.keeper_lines(self, npc, speech) + court.gated_lines(self, npc)    # (f320) the door, and what is behind it
-               + stakes.talk_lines(self, npc))                                          # (f322) the job they put on the board
+        core, bears = self.npc_context_parts(npc)
+        places = self.local_knowledge(npc)
+        asks = (matters.talk_lines(self, npc)
+                + court.keeper_lines(self, npc, speech) + court.gated_lines(self, npc)   # (f320) the door, and what is behind it
+                + stakes.talk_lines(self, npc))                                         # (f322) the job they put on the board
+        ctx = core + places + asks
         note_due = self.note_due(npc)
+        note = []
         if note_due:
             old_note = regard.of(npc, self.acting).journal_note
-            ctx = ctx + [("JOURNAL NOTE DUE: write journal_note now: one plain sentence, under 28 words, that the STRANGER writes in THEIR journal "
+            note = [("JOURNAL NOTE DUE: write journal_note now: one plain sentence, under 28 words, that the STRANGER writes in THEIR journal "
                           "about YOU: your role, where you are found, and what they have learned of you, with you in the third person by name "
                           '("Fenella Reeve, the guild clerk in Parth; fussy about her ledgers and anxious about mistakes"). Never your own '
                           'thought about the stranger, never in your voice, never "I" or "my".'      # (f486) the rule where it is used
                           + (f" The old note was: {old_note} - bring it up to date with what has happened since." if old_note else ""))]
+            ctx = ctx + note
         secret_lines, pending_secret = self.secret_lines(npc, speech)
         ctx = ([back] if back else []) + ctx + secret_lines
+        bearing = ([back] if back else []) + bears + asks + secret_lines   # (f725) the lines that bear on what they do: the reading's
+        knows = ([back] if back else []) + core + places + asks + secret_lines   # (f726) the speaker's, the decision made: the note is the reading's
         if decided := ledger.decided():                                  # (f416) what the turn has settled so far: never answered against
             ctx = ctx + ["WHAT THE GAME HAS DECIDED THIS TURN (true; say nothing against it): " + " ".join(decided)]
+            bearing, knows = bearing + ctx[-1:], knows + ctx[-1:]
         if npc.id in self.player.prisoners:
             self.player.prisoners[npc.id]["asked"] = self.player.prisoners[npc.id].get("asked", 0) + 1
         from engine import voices
@@ -3513,14 +3980,32 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         town_lines = view.lines("town")                                 # about them, or the role's work is them; the checks read the list always
         view.drop |= {f for f in ("town", "board") if not brief.asked(f, speech, npc.role)}
         console.debug(f"truth view for {npc.name}: " + ", ".join(f"{h.split(' (')[0].lower()} {len(l)}" for h, l in view.sections()))
+        from engine import reply as reply_rules
+        decision = None
+        if reply_rules.on():                                            # (f724) what the engine settles before they are asked to speak
+            opened = bool((pending_secret or {}).get("open"))
+            decision = reply_rules.Decision(npc.id, self.acting, stance=voice_rules.stance_kind(getattr(self, "stance", "") or ""),
+                                            last=tuple(self.moves), forced=reply_rules.must_say([check_note, *ctx]), around=reply_rules.pieces(view, speech),
+                                            candidates=reply_rules.secret(pending_secret, self.secret_text(pending_secret["secret"]) if opened else ""),
+                                            given=tuple(bearing), note=note[0] if note else "")
+            view.hide |= {str(f.id) for part in decision.around for f in part       # (f726) a piece of the town's is told only as decided;
+                          if reply_rules.kind_of(f) != "board"}                     # a posting hangs where anyone reads it
+        drawn = lambda d: self.exemplars("speech", self.speech_pool(npc, getattr(self, "stance", "") or "",      # (f726) drawn once decided:
+                                                                    [c.text for c in d.candidates if c.kind == "news" and c.id in d.shares]))   # the sound of news only when it is told
         reply, revealed = converse(npc, self.store, self.world, self.catalog, self.convo,
-                                   f"{speech} {check_note}".strip(), ctx, truth_text=view.text(), known=view.scene.known_words(),
+                                   f"{speech} {check_note}".strip(), ctx if decision is None else knows, truth_text=view.text(), known=view.scene.known_words(),
                                    stance=getattr(self, "stance", ""), rng=streams.keyed("voice", npc.id, f"{npc.id}", len(self.convo)),   # (f486)
                                    worn=self.worn_words("speech"), pronoun=brief.pronoun(self, self.acting), given_also=town_lines,
                                    house=voices.house_phrases(self, town, npc.id),          # (f350) what everyone else here has been saying
                                    wares=self.wares_said(npc), who=self.acting,             # (f418) at the prices the game charges; (f480) to whom
-                                   exemplars=self.exemplars("speech", self.speech_pool(npc, getattr(self, "stance", "") or "",
-                                                                                         view.lines("news") if "news" in view.facets() else [])))
+                                   exemplars=drawn if decision is not None else
+                                   self.exemplars("speech", self.speech_pool(npc, getattr(self, "stance", "") or "",
+                                                                             view.lines("news") if "news" in view.facets() else [])),
+                                   decision=decision, story=self.story_object, fair=fair_offer)
+        if decision is not None:
+            self.decision = decision
+            self.moves = (self.moves + [decision.move])[-int(reply_rules.R["moves"]["running"]):]
+            console.debug(f"{npc.name} decided: {decision.line()}")
         voices.heard(self, town, npc.id, reply.speech)
         from engine import presence                                            # (f485) what was said aloud reaches those standing by
         claimed = (getattr(reply, "learned_player_name", "") or "").strip()
@@ -3545,7 +4030,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         elif not offer_open(self.store, npc, self.acting) and not (reply.offers_quest and reply.offers_quest.what.strip()) and self.promises_pay(reply.speech):
             if (offer := self.inferred_offer(npc, reply.speech)) is not None:       # pay was promised in words: make it a real, payable offer
                 self.record_work_offer(offer, npc)
-        if reply.gives and reply.gives.name.strip() and reply.intent != "bargain" and self.story_object(reply.gives.name):
+        if reply_rules.gift(reply.gives, reply.intent, self.story_object) is not None:           # (f725) the one rule of what may be given
             self.receive_key_item(reply.gives, npc)
         elif reply.gives:
             console.debug(f"ignored gift '{reply.gives.name}' - not a story object, or offered for sale")
@@ -3651,11 +4136,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         from engine import quirks
         gesture = voice_rules.short_gesture(quirks.bare_gesture(self.unnamed(getattr(reply, "gesture", "") or "", npc), npc.name))   # no 'Rossy gives...': the label is printed
         if stood_in and not gesture:
-            gesture = streams.keyed("frame_stand_in", npc.id, "", self.store.meta.steps).choice(voice_rules.V["frame_stand_in"])
+            gesture = streams.keyed("frame_stand_in", npc.id, "", self.store.meta.story_steps).choice(voice_rules.V["frame_stand_in"])
         from llm.contracts import NO_WORDS
         if NO_WORDS.fullmatch(reply.speech or ""):                     # (f422) no words: what they do, and no name over an empty line
             done = self.unnamed(getattr(reply, "gesture", "") or "", npc).strip()
-            silent = streams.keyed("no_words", npc.id, "", self.store.meta.steps).choice(voice_rules.V["no_words"]).format(speaker=speaker)
+            silent = streams.keyed("no_words", npc.id, "", self.store.meta.story_steps).choice(voice_rules.V["no_words"]).format(speaker=speaker)
             line = f"{speaker} {done}" if done and not done.lower().startswith(speaker.lower()) else (done or silent)
             console.narrate(cap_first(line.rstrip(".") + "."))
             self.remember_narration(line)
@@ -3685,6 +4170,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                     reach=within, moment=moment,
                                     why=reasons, already=self.shown_lines(), worn=self.worn_words("prose"),
                                     who_is=entities.who_is_who(self, also=[npc.id]),                  # (f392)
+                                    in_view=self.in_view(),                                            # (f700)
                                     exemplars=self.exemplars("narration")),
                 DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS,
                 context={"speaker": [npc.name, known_as, speaker], "others": self.other_names(npc), "speech": reply.speech}, worn=self.worn_words("prose"),
@@ -3756,11 +4242,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if self.property_buy(intent, text):
             return
         sellers = [n for n in self.present if self.wares_of(n)]
-        listed = any(w.id == intent.ware.lower().strip() or (intent.ware and intent.ware.lower() in w.name.lower())
-                     for n in sellers for w in self.wares_of(n))
+        wanted = intent.ware.lower().strip()
+        listed = any(self.ware_asked(self.wares_of(n), wanted) for n in sellers)     # (f655) as the ware is found below
         if not listed and self.buy_from_stock(intent, text):
             return
-        wanted = intent.ware.lower().strip()
         seller = next((n for n in sellers if n.id == intent.target), None) or \
             next((n for n in sellers if self.ware_asked(self.wares_of(n), wanted)), None) or (sellers[0] if sellers else None)   # (f545's review)
         if not seller:
@@ -3771,7 +4256,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if not ware:
             self.refuse(f"{seller.label(self.acting)} sells: " + ", ".join(f"{w.name} ({money.words(self.quote_ware(seller, w).price)})" for w in wares))
             return
-        self.buy_ware(seller, ware, text)
+        bought = self.buy_ware(seller, ware, text, count=self.count_asked(intent))
+        from engine import world_improv
+        if bought and ware.kind == "room" and world_improv.is_rest(text) and not any(a.kind == "wait" for a in (self.plan_now or ())):
+            self.on_wait(self.rest_asked(text), text)       # (f656) the buy claims the sleep: the room bought to sleep in is slept in
 
     def on_ability(self, intent: ActionIntent, text: str) -> None:
         c = self.player.character
@@ -3800,12 +4288,15 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if self.wildlife and ability.effect.value == "buff":       # it goes up as the fight they start this turn begins (f248)
                 if ability.id not in self.queued_buffs:
                     self.queued_buffs.append(ability.id)
-                console.note(f"You ready {ability.name} - it goes up the moment you strike.")
+                console.note(f"You ready {ability.name}. It takes effect the moment you strike.")
                 return
             if self.wildlife:                                        # a fighting ability turned on something hostile starts the fight with it
                 self.on_attack(intent, text, opener=ability.id)
                 return
-            self.refuse(f"{ability.name} is a fighting technique - save it for a fight"
+            if ability.effect.value in ("damage", "control") and self.hunt_named(intent, text):   # (f685) at a creature here: go looking,
+                self.open_with(ability.id, text)                                     # and the found fight begins with it
+                return
+            self.refuse(f"{ability.name} is a fighting technique, so save it for a fight"
                          + (" (name it as you start one, or set it with #prebuff)." if ability.effect.value == "buff" else "."))
             return
         self.ensure_field_uses()
@@ -3859,11 +4350,20 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def npc_context(self, npc) -> list[str]:
         """What a person should know right now beyond their own life - the guild, offers they've made."""
-        lines = []
+        return self.npc_context_parts(npc)[0]
+
+    def npc_context_parts(self, npc) -> tuple[list[str], list[str]]:
+        """(f725) (every line, those of them that bear on what they do with a reply): how they stand with this character, what
+        they want and have asked, how they have been. The rest is what they know, for the speech alone."""
+        lines, bears = [], []
+
+        def bear(line: str) -> None:
+            lines.append(line)
+            bears.append(line)
         if npc.role == "guild_clerk":
             status = f"a guild member of rank {self.rank}" if self.rank else \
                 f"not a guild member - joining costs {money.words(quests.G['joining_fee'])}, paid through the game"
-            lines.append(f"The person in front of you is {status}.")
+            bear(f"The person in front of you is {status}.")
             lines.append("Ranks run F (lowest) to S. Members take contracts of their letter and below; promotion needs "
                          "both a level and enough completed contracts.")
         if npc.role == "guild_contractor":
@@ -3872,34 +4372,34 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             lines.append(f"You are a rank-{letter} member of the adventurers' guild, between contracts. You know the "
                          "Greywood and its dangers from your own jobs, and you size up newcomers.")
         if (asked := self.request_of(npc)):                                     # (f481) from the registry
-            lines.append(f"You have asked them to: {asked['title']}, and are waiting for their answer.")
+            bear(f"You have asked them to: {asked['title']}, and are waiting for their answer.")
         if npc.mood and (npc.mood_until <= 0 or npc.mood_until > self.minutes):     # (f486) a mood past its time is no longer theirs
-            lines.append(f"How you've been lately: {npc.mood}")
+            bear(f"How you've been lately: {npc.mood}")
         if npc.motive:
-            lines.append(f"What you're working toward (private - share it only if it comes up naturally): {npc.motive}")
+            bear(f"What you're working toward (private - share it only if it comes up naturally): {npc.motive}")
         feelings = pulse.relations_text(self.store, npc)
         if feelings:
             lines.append(f"How you feel about people you know: {feelings}")
         if self.owns("gossips_ear"):                        # (f313) the news itself is in the truth view (NEWS THAT HAS REACHED HERE)
-            lines.append("You like passing on news to the stranger - tell them what you've heard without being asked.")
+            bear("You like passing on news to the stranger - tell them what you've heard without being asked.")
         own = [m.text for m in npc.memories if m.kind == "own_life"][-2:]          # (f478) their own life, by kind
         if own:
             lines.append("What has happened in your own life since you last saw the stranger: " + " ".join(own))
         town = pulse.town_of(self.world, npc.location)
         if not self.world.places[town].danger:
-            lines.append(f"How people around here regard the stranger: {self.reputation_words(town)}.")
+            bear(f"How people around here regard the stranger: {self.reputation_words(town)}.")
             group_line = self.standing_line(npc)
             if group_line:
-                lines.append(group_line)
+                bear(group_line)
         faith = faith_mod.line(self.world, npc)
         if faith:
             lines.append(faith)
         if "orenna_name" in self.player.character.knowledge and "orenna" in (self.last_text or "").lower():   # (f486) only when it is said
-            lines.append("No one living has ever heard the name Orenna. If the stranger says it, it means nothing to you; you do not "
-                         "recognise it, and you do not pretend to.")
+            bear("No one living has ever heard the name Orenna. If the stranger says it, it means nothing to you; you do not "
+                 "recognise it, and you do not pretend to.")
         lines += self.guild_knowledge(npc)
         lines.append(f"The season is {clock.season(self.minutes)}.")
-        return lines
+        return lines, bears
 
     def seek_person(self, seek: str, text: str) -> bool:
         """(f404) 'I look for Brokur Durdal': someone the player names is found, or said to be elsewhere. A night's play had the player
@@ -3999,7 +4499,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if pick:
             self._trail = {"place": self.player.location, "creature": pick, "minutes": self.minutes}     # (f381) signs to follow
         self.narrate(f"The player spends {clue and 'a while '}searching but finds no creature this time. They do find "
-                     f"fresh signs of {clue or 'nothing'}: tracks, droppings, or marks. Describe the search and the sign."
+                     f"fresh signs of {clue or 'nothing'}: tracks, droppings, or marks"
+                     f"{f'; the {clue} itself is not here and is not seen' if clue else ''}. Describe the search and the sign."   # (f700)
                      f"{' The creature they were looking for is not known to live here.' if intent.seek and not wanted else ''}",
                      text)
 
@@ -4045,7 +4546,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if self.hunt_named(intent, text):                         # (f449) a creature of this place, named but not in view: go looking for it
             return
         if self.present:
-            console.note("Attacking people isn't supported yet.")
+            console.note("You can't pick a fight with the people here.")
         else:
             console.note("There's nothing here to fight.")
 
@@ -4054,17 +4555,38 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         after Beast-Breaker's Eye had listed them among the things that live here (pillar 1: what is shown can be acted on). A creature of
         this place's roster that the player names is sought the way a search seeks it, the same roll and the same minutes, and the fight
         begins if it is found; the player is told first that none is at hand. Nothing named, or a place with nothing dangerous: False."""
-        words = (intent.target or intent.seek or "").strip() or text
-        if not words or not self.place.danger:
+        if not self.place.danger:
             return False
         roster = encounters.ensure_roster(self.store, self.world, self.player.location)
-        found = encounters.matching(self.world, roster, words) if roster else []
+        words = (intent.target or intent.seek or "").strip()
+        found = encounters.matching(self.world, roster, words) if roster and words else []
+        if not found and not any(n.id == intent.target for n in self.present):
+            found = self.creature_named(roster, text)                    # (f685) the line's own words, when the target is no one here
         if not found:
             return False
         name = self.world.bestiary[found[0]].name
         console.note(f"No {name.lower()} is within reach just now, though they are about these parts. You go looking.")
         self.on_search(ActionIntent(kind="search", seek=name, summary=f"hunting {name}"), text)
         return True
+
+    def creature_named(self, roster: list, text: str) -> list:
+        """(f685) The creature of the roster a line names by whole words: its whole name first ("awakened tree"), else the word it is
+        ("tree", "ogres"), each word as one of its kind. Never a part of a word ("the" is no panther)."""
+        from engine import inventory as inv
+        said = {inv._stem(w) for w in re.findall(r"[a-z]+", (text or "").lower())}
+        named = [(cid, [inv._stem(w) for w in re.findall(r"[a-z]+", self.world.bestiary[cid].name.lower()) if w not in ("of", "the")])
+                 for cid in roster if cid in self.world.bestiary]
+        whole = [cid for cid, ws_ in named if ws_ and all(w in said for w in ws_)]
+        return whole or [cid for cid, ws_ in named if ws_ and ws_[-1] in said][:1]
+
+    def open_with(self, ability_id: str, text: str) -> None:
+        """(f685) The fight a hunt just found begins with the ability the player named: in view and wary, it starts the fight; already on
+        them, it is the first blow."""
+        if self.wildlife:
+            self.on_attack(ActionIntent(kind="attack"), text, opener=ability_id)
+        elif self.combat is not None and not self.combat.fight.over:
+            from llm.contracts import CombatIntent
+            self.combat.turn(text, forced=CombatIntent(kind="ability", ability=ability_id))
 
     def on_wait(self, intent: ActionIntent, text: str) -> None:
         barrow = (self.dungeon_here() or {}).get("theme") == "barrow"
@@ -4073,12 +4595,26 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 and self.has("safe_camp") is None and not (barrow and self.owns("tomb_sleeper")):
             self.refuse("It's too dangerous to rest here. Find a quiet chamber, or climb back out.")
             return
-        if intent.wait_until:
+        from engine import world_improv
+        if self.camp_asked(text):
+            self.make_plain_camp()                                 # (f716) the camp the line asks for, anyone's to make; the wait is measured after it
+            camped = True
+        named = clock.hour_named(text)
+        if named:                                          # (f687) "until eight in the morning": the hour named, not the period's start
+            minutes = clock.minutes_until_hour(self.minutes, *named)
+        elif intent.wait_until:
             minutes = clock.minutes_until(self.minutes, intent.wait_until)
         else:
             minutes = intent.wait_minutes or clock.DEFAULT_WAIT_MINUTES
         minutes = max(1, min(minutes, clock.MAX_WAIT_MINUTES))
         sleeping = minutes >= 360
+        if sleeping and not self.has_room() and not camped and world_improv.asks_room(text):     # (f695) the room the sleep asks for
+            seller = next((n for n in self.present if any(w.kind == "room" for w in self.wares_of(n))), None)
+            if seller is not None:
+                self.__dict__.setdefault("repairs", []).append({"rule": "room_for_sleep", "before": "wait", "after": "buy room, wait"})
+                console.debug("room_for_sleep: the sleep asks for a room; one is taken first")
+                self.buy_ware(seller, next(w for w in self.wares_of(seller) if w.kind == "room"), text, quiet=True)   # no coin: told
+        plain = bool(camped and (self.fld.get("camp") or {}).get("plain"))
         if sleeping and self.owns("restless"):
             minutes = max(180, minutes // 2)
         self.end_conversation()
@@ -4090,16 +4626,20 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             step = min(60, minutes - waited)
             self.advance(step, wait="sleep" if sleeping else "rest")
             waited += step
-            if self.place.danger and not self.owns("night_watch") and not camped:
+            if self.place.danger and not self.owns("night_watch") and (not camped or plain):
+                share = float(self.plain_camp().get("share", 1.0)) if plain else 1.0       # (f716) a plain camp is found less often
                 hit = encounters.roll(self.store, self.world, self.player.location,
-                                      encounters.E["chance_per_hour"] * step / 60, self.rng)
+                                      encounters.E["chance_per_hour"] * step / 60 * share, self.rng)
                 if hit and self.temperament(hit[0]) != "passive":
                     break
                 hit = None
         minutes = waited
+        bed = ""                                                    # (f695) where they slept, for the passage
         if not hit and sleeping:
             c = self.player.character
-            c.last_rest = self.player.location
+            if not roads.is_stop(self.world, self.place.id):          # (f736) a stop leaves the map when the walk goes on: no last rest
+                c.last_rest = self.place.id
+            wake = self.world.places[self.waking_place(self.acting)].name
             rough = self.place.danger and self.owns("campaigner")
             temple = self.place.type == "temple" and (self.owns("sanctuary") or self.owns("pious_path"))
             if self.place.type == "temple" and self.owns("pious_path"):
@@ -4107,18 +4647,23 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if camped:
                 for pool in ("health", "stamina", "mana"):
                     setattr(c, pool, pools.maximum(c, pool))
-                console.note(f"You slept safely in your camp and woke fully rested. If you die, you will wake at {self.place.name}.")
+                console.note(f"You slept safely in your camp and woke fully rested. If you die, you will wake at {wake}.")
+                bed = " They sleep in their camp."
+            elif self.has_room():                              # (f695) a room held is slept in, wherever else they could sleep
+                for pool in ("health", "stamina", "mana"):
+                    setattr(c, pool, pools.maximum(c, pool))
+                console.note(f"You slept in your room and woke fully rested. If you die, you will wake at {wake}.")
+                bed = " They sleep in their own room, in a bed."
             elif rough or temple:
                 for pool in ("health", "stamina", "mana"):
                     setattr(c, pool, pools.maximum(c, pool))
                 console.note("You slept well and woke fully rested" + (" in the temple's quiet." if temple else
-                             ", as a soldier learns to on hard ground.") + f" If you die, you will wake at {self.place.name}.")
-            elif self.has_room():
-                for pool in ("health", "stamina", "mana"):
-                    setattr(c, pool, pools.maximum(c, pool))
-                console.note(f"You slept in your room and woke fully rested. If you die, you will wake at {self.place.name}.")
+                             ", as a soldier learns to on hard ground.") + f" If you die, you will wake at {wake}.")
+                bed = " They sleep in the temple's quiet." if temple else " They sleep on hard ground, as a soldier does."
             else:
-                console.note(f"You rested here. If you die, you will wake at {self.place.name}.")
+                console.note(f"You rested here. If you die, you will wake at {wake}.")
+                self.told("rest_no_bed")                       # (f661) why it was not a full night
+                bed = " They have no room and no bed here, and do not sleep in one."
         arrived = [n.label(self.acting) for n in self.present if n.id not in before]
         left = [n.label(self.acting) for n in self.residents if n.id in before and n not in self.present]
         changes = ""
@@ -4147,7 +4692,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if not hit:
             self.habits("rest")                                # (f412) told in the rest's passage, not after it
             self.mentor_rest_habit()                           # (f413) and Maren's with them
-        self.narrate(f"The player {how} at {self.place.name} for {clock.describe_duration(minutes)}. It is now {clock.period(self.minutes)}."
+        self.narrate(f"The player {how} at {self.place.name} for {clock.describe_duration(minutes)}.{bed} It is now {clock.period(self.minutes)}."
                      f"{changes}{interrupted}{feel} Describe the player resting and the passing of time, then the scene now, "
                      "mentioning at most two of the people present.", text)
         if not hit and sleeping:
@@ -4163,12 +4708,31 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     e.starts_far = True
             self.combat = CombatScene.begin(self, creature, enemies, "While you wait,")
 
+    def told(self, kind: str, **facts) -> None:
+        """(f661) A line for the player of what the engine decided beside what they asked (engine/told.py), drawn by the turn."""
+        from engine import told
+        console.note(told.say(kind, self.store.meta.turn, **facts))
+
+    def rest_asked(self, text: str) -> ActionIntent:
+        """(f656) The rest a line asks for: until the time of day it names, else at night until morning, else an hour."""
+        labels = sorted({label for _, label in clock.PERIODS}, key=len, reverse=True)
+        m = re.search(r"\b(?:until|till|til)\s+(?:the\s+)?(" + "|".join(map(re.escape, labels)) + r")\b", (text or "").lower())
+        if m:
+            return ActionIntent(kind="wait", wait_until=m.group(1))
+        late = clock.period(self.minutes) in ("evening", "night", "deep night")
+        return ActionIntent(kind="wait", wait_until="morning" if late else "", wait_minutes=0 if late else 60)
+
     def on_other(self, intent: ActionIntent, text: str) -> None:
         """(f321) What the interpreter could not name is an improvisation: read for what it is after, rolled, and made true either way."""
         from engine import world_improv
+        if self.camp_asked(text) and not world_improv.is_rest(text):
+            self.make_plain_camp()                         # (f716) "We make camp.": anyone's to make in the wilds, never a gamble
+            return
+        if self.camp_asked(text):
+            self.on_wait(self.rest_asked(text), text)      # (f716) "...and sleep": the sleep makes the camp first
+            return
         if world_improv.is_rest(text) and len(re.findall(r"[a-z']+", text.lower())) <= 12:
-            late = clock.period(self.minutes) in ("evening", "night", "deep night")
-            self.on_wait(ActionIntent(kind="wait", wait_until="morning" if late else "", wait_minutes=0 if late else 60), text)
+            self.on_wait(self.rest_asked(text), text)
             return                                          # (f386) a line that only goes to sleep is a rest, not a gamble rolled as hiding
         spot = features.spot_of(self)
         if spot is not None and spot.data.get("clue") and not spot.data.get("read") and \

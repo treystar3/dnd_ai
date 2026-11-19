@@ -9,7 +9,6 @@ import collections
 import io
 import json
 import random
-import shutil
 import sys
 import time
 import traceback
@@ -124,7 +123,8 @@ class Bot:
         self.rng = random.Random(SEED)
         save = os.environ.get("SIMBOT_SAVE") or f"sim_{CLS}_{_RUN}"   # a soak run names its own folder, so the tests' bots do not wipe it;
                                                                       # (f455) and each test's bot has its own: two at once wiped each other's
-        shutil.rmtree(f"saves/{save}", ignore_errors=True)
+        from storage import saves
+        saves.scratch(save, typed=bool(os.environ.get("SIMBOT_SAVE")))   # (f743) a name typed for a soak run is refused unless a tool made it
         self.session = CampaignSession.open(save)                      # (f457) the campaign's session, as main.py opens it
         self.store, self.world = self.session.store, self.session.world
         self.store.meta.seed = SEED
@@ -136,9 +136,9 @@ class Bot:
         self.store.save_player(PlayerState(character=char, location=start))
         self.ws = self.session.scene(load_traits(), self.store.load_player())
         _orig_after = self.ws.party_after_fight
-        def _count_fallen(fallen, *rest, _o=_orig_after, _bot=self):
+        def _count_fallen(fallen, *rest, _o=_orig_after, _bot=self, **kw):
             _bot.party_tally["fell"] += sum(1 for m in _bot.ws.player.party if f"ally_{m['id']}" in {a.id for a in fallen})
-            _o(fallen, *rest)
+            return _o(fallen, *rest, **kw)
         self.ws.party_after_fight = _count_fallen
         self.rarity_tally = collections.Counter()
         self.trials = []

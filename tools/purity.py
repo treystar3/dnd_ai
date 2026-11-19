@@ -72,6 +72,20 @@ HP_EXEMPT = {
     # a trap's cut, laid before the fight
     ("scenes/field_actions.py", "e.hp = max(1, round(e.hp * (1 - cut)))"),
 }
+# (f757) The cause-first rule: damage outside a blow's own path goes through engine/combat.py side_damage, which places its caller's line
+# before whatever the damage set off. Any other take_damage call stands here, (file, the line as written): a list that may only shrink
+# (tools/sim/cause_first_757_test.py pins it).
+TAKE_DAMAGE_ALLOWED_FUNCTIONS = {("engine/combat.py", "side_damage")}
+TAKE_DAMAGE_EXEMPT = {
+    ("engine/combat.py", "taken = take_damage(combat, dfn, taken, att, rng, att.damage_type, rec=rec)"),    # the blow, its line at its own mark
+}
+# (f766) The one way out of a fight: a fighter is set fled, or taken off a fight's fighter list, by engine/combat.py leave alone, which
+# releases every tie first. Any other such write stands here, (file, the line as written): a list that may only shrink
+# (tools/sim/leaves_fight_766_test.py pins it). A fighter arriving (append, +=) is no leaving.
+LEAVE_ALLOWED_FUNCTIONS = {("engine/combat.py", "leave")}
+LEAVE_EXEMPT = {
+    ("engine/combat.py", "t.hp, t.shield, t.fled = float(t.max_hp), 0.0, False"),      # a thrall raised: a new fighter made, not one leaving
+}
 
 
 def _imports(tree: ast.AST) -> list[tuple[int, str]]:
@@ -262,6 +276,98 @@ def hp_exempt_missing() -> list[str]:
         if not p.exists() or not any(l.strip() == text for l in p.read_text(encoding="utf-8").split("\n")):
             gone.append(f"{rel}: {text}")
     return gone
+
+
+def take_damage_calls_in(text: str, rel: str) -> list[str]:
+    """(f757) Every take_damage call in one module's source outside side_damage and the named exemptions, read from the syntax tree.
+    Returns 'file:line calls take_damage' for each."""
+    tree = ast.parse(text)
+    lines = text.split("\n")
+    spans = [(n.lineno, n.end_lineno) for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and (rel, n.name) in TAKE_DAMAGE_ALLOWED_FUNCTIONS]
+    out = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        f = node.func
+        if (f.id if isinstance(f, ast.Name) else getattr(f, "attr", "")) != "take_damage":
+            continue
+        if any(a <= node.lineno <= b for a, b in spans) or (rel, lines[node.lineno - 1].strip()) in TAKE_DAMAGE_EXEMPT:
+            continue
+        out.append(f"{rel}:{node.lineno} calls take_damage")
+    return sorted(set(out), key=lambda l: int(l.split(":")[1].split(" ")[0]))
+
+
+def take_damage_calls() -> list[str]:
+    """(f757) The cause-first rule over every game module (WRITE_SCAN_DIRS)."""
+    out = []
+    for d in WRITE_SCAN_DIRS:
+        for py in sorted((ROOT / d).glob("*.py")):
+            rel = py.relative_to(ROOT).as_posix()
+            out += take_damage_calls_in(py.read_text(encoding="utf-8"), rel)
+    return out
+
+
+def take_damage_exempt_missing() -> list[str]:
+    """(f757) Every exempt take_damage call whose line no longer exists in its file: the list may only shrink."""
+    return [f"{rel}: {text}" for rel, text in sorted(TAKE_DAMAGE_EXEMPT)
+            if not (ROOT / rel).exists() or not any(l.strip() == text for l in (ROOT / rel).read_text(encoding="utf-8").split("\n"))]
+
+
+def leave_writes_in(text: str, rel: str) -> list[str]:
+    """(f766) Every write in one module's source that takes a fighter out of a fight outside engine/combat.py leave and the named
+    exemptions, read from the syntax tree: an assignment to .fled (alone or in a tuple), and any write to a .fighters list but an
+    arrival (an assignment to it or to an item or slice of it, an augmented assignment other than +=, a del of an item, a call of
+    remove, pop or clear on it). Returns 'file:line writes .fled' or 'file:line takes a fighter off .fighters' for each."""
+    tree = ast.parse(text)
+    lines = text.split("\n")
+    spans = [(n.lineno, n.end_lineno) for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and (rel, n.name) in LEAVE_ALLOWED_FUNCTIONS]
+
+    def flat(t):
+        if isinstance(t, (ast.Tuple, ast.List)):
+            for e in t.elts:
+                yield from flat(e)
+        else:
+            yield t
+
+    def fighters(t) -> bool:
+        return isinstance(t, ast.Attribute) and t.attr == "fighters"
+
+    out = []
+    for node in ast.walk(tree):
+        found = ""
+        if isinstance(node, (ast.Assign, ast.AugAssign, ast.AnnAssign)):
+            ts = [x for t in node.targets for x in flat(t)] if isinstance(node, ast.Assign) else list(flat(node.target))
+            arrival = isinstance(node, ast.AugAssign) and isinstance(node.op, ast.Add)
+            for t in ts:
+                if isinstance(t, ast.Attribute) and t.attr == "fled":
+                    found = "writes .fled"
+                elif not arrival and (fighters(t) or (isinstance(t, ast.Subscript) and fighters(t.value))):
+                    found = "takes a fighter off .fighters"
+        elif isinstance(node, ast.Delete) and any(isinstance(t, ast.Subscript) and fighters(t.value) for t in node.targets):
+            found = "takes a fighter off .fighters"
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in ("remove", "pop", "clear") \
+                and fighters(node.func.value):
+            found = "takes a fighter off .fighters"
+        if not found or any(a <= node.lineno <= b for a, b in spans) or (rel, lines[node.lineno - 1].strip()) in LEAVE_EXEMPT:
+            continue
+        out.append(f"{rel}:{node.lineno} {found}")
+    return sorted(set(out), key=lambda l: int(l.split(":")[1].split(" ")[0]))
+
+
+def leave_writes() -> list[str]:
+    """(f766) The one-way-out rule over every game module (WRITE_SCAN_DIRS)."""
+    out = []
+    for d in WRITE_SCAN_DIRS:
+        for py in sorted((ROOT / d).glob("*.py")):
+            rel = py.relative_to(ROOT).as_posix()
+            out += leave_writes_in(py.read_text(encoding="utf-8"), rel)
+    return out
+
+
+def leave_exempt_missing() -> list[str]:
+    """(f766) Every exempt write whose line no longer exists in its file: the list may only shrink."""
+    return [f"{rel}: {text}" for rel, text in sorted(LEAVE_EXEMPT)
+            if not (ROOT / rel).exists() or not any(l.strip() == text for l in (ROOT / rel).read_text(encoding="utf-8").split("\n"))]
 
 
 def effect_writes_in(text: str, rel: str) -> list[str]:

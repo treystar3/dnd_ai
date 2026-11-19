@@ -1,6 +1,6 @@
 """(f637) The world's four lists in tables of their own (docs/design/05 step 6; docs/design/13; docs/design/20_phase3_plan.md).
 
-The world's state is one JSON row, read and written whole (storage/worldrow.py). TableWorld answers the same seam with the
+Until version 17 the world's state was one JSON row, read and written whole (storage/worldrow.py). TableWorld answers the same seam with the
 matters, the deeds, the news and the effects each kept as the rows of a table, in the order the list holds them. Every other key
 stays in the row, with a marker where each list stood, so the keys load in their order. A row's json is the list's item as the
 row would have written it, and the only thing read back; the columns beside it are read from it when it is written, for a query
@@ -10,12 +10,14 @@ to find rows by.
 reads what the tables hold, writes the rows that differ, and always writes the row of the other keys: a rollback takes all of it
 back, and an operation that saved the world has written.
 
-Not used yet: a save is version 16 and its store's world is the row's. `adopt` is what the migration will do.
+(f640) A save's world is the tables' from version 17. The row is what an older save is read from until its step, which is `adopt`.
+(f641) A narrow reader asks its own table, by its index, and loads no whole world.
 """
 from __future__ import annotations
 
 import difflib
 import json
+import math
 
 from core.models import Character
 from storage import worldrow
@@ -79,7 +81,7 @@ def ensure(store) -> None:
 
 def adopt(store) -> "TableWorld":
     """The store's world is kept in the tables from here on: they are made, and the lists the row held are moved into them. What
-    the migration will do to a save, and how a test puts the tables under a store. A save with no world row is left with none.
+    the migration does to a save (v17), and how a test puts the tables under a store. A save with no world row is left with none.
     For a store nothing holds a loaded world of: a copy the row loaded, saved after this, is noted as stale."""
     ensure(store)
     world = store._world if isinstance(store._world, TableWorld) else TableWorld(store)
@@ -244,15 +246,24 @@ class TableWorld:
                 insert(j)
             break
 
-    # ---- the narrow readers: each a filter over the whole state, as the row's are
+    # ---- the narrow readers (f641): one statement on one table, found by its index, then the filter every storage answers by
+    def _found(self, table: str, where: str = "", args: tuple = ()) -> dict:
+        """The items of one list that a statement finds, in their order, as the state the filters read. A column holds a minute
+        or an end as a whole number (derive), so those are asked by the whole minute and the filter says which are meant."""
+        with self._store._lock:
+            rows = self._store._db.execute(f'SELECT ord, json FROM "{table}"{where}', args).fetchall()
+        return {table: [json.loads(text) for _, text in sorted(rows)]}     # (f641) in order here: asked for in order, a table is read whole
+
     def effects_at(self, kind: str, place: str, now: int, good: str = "") -> list[dict]:
-        return effects_matching(self.load(), now, kind, place, good)
+        found = self._found("effects", ' WHERE kind = ? AND place = ? AND "until" >= ?', (kind, place, math.floor(now)))
+        return effects_matching(found, now, kind, place, good)
 
     def threads(self, status: str | None = None) -> list[dict]:
-        return threads_matching(self.load(), status)
+        by = isinstance(status, str)
+        return threads_matching(self._found("threads", " WHERE status = ?" if by else "", (status,) if by else ()), status)
 
     def deeds_since(self, minute: int, kinds=None) -> list[dict]:
-        return deeds_matching(self.load(), minute, kinds)
+        return deeds_matching(self._found("deeds", " WHERE minute >= ?", (math.floor(minute),)), minute, kinds)
 
     def news(self) -> list[dict]:
-        return news_matching(self.load())
+        return news_matching(self._found("news"))

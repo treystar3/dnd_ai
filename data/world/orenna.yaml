@@ -13,8 +13,7 @@ contact:
     once. Between two fingers they hold up a small coin: a half-circle, with a single line cut straight down through it.
   ask: "You said a name. In your sleep, or at an altar, it does not matter which. I need to know how you came by it."
   after: >
-    The stranger listens without moving. When you finish, something in their shoulders lets go, as if they have carried a weight
-    a long way and only now found where to put it down.
+    The stranger listens without moving. When you finish, their shoulders drop.
   speech:
     - "No one living has heard that name in thousands of years. We have been careful about who we trust with it. I will not ask you to believe me. I will ask you to come and look."
     - "There is a hall under the hills, built by the first people who ever woke. The gods never found it. I can take you there now. I am Odrin Kesh."
@@ -36,8 +35,8 @@ ruin:
       mural: >
         The first walls are carved with the peoples of Meravia as you know them: elves, dwarves, humans, goliaths, orcs, gnomes. But
         they stand in rows of identical figures, hands at their sides and eyes empty, tending fires, fields and forges. Above each
-        row a single large figure is carved, a god, one to each trade. Nothing here is carved as worship. Nothing here is carved as
-        love. The temples teach that the gods shaped the peoples out of love. These walls say the peoples were made to work, and did.
+        row a single large figure is carved, a god, one to each trade. None of it is carved as worship, or as love. The temples
+        teach that the gods shaped the peoples out of love. These walls say the peoples were made to work, and did.
       lore: orenna_servants
     - title: The gift
       chambers:
@@ -57,9 +56,9 @@ ruin:
         - {kind: rest}
         - {kind: fight, creature: hall_guardian, count: 1, name: "the Gods' Sentinel", boss: true}
       mural: >
-        The third floor is fire and spears. The freed peoples have turned on the gods who made them, and they are carved without
-        mercy and without shame: refusing, striking, standing. Above them the gods are shown for the first time with their faces
-        turned down in surprise. A long wall shows what came next. The gods do not destroy the peoples, because the peoples are
+        The third floor is fire and spears. The freed peoples have turned on the gods who made them, and the carvers were not
+        ashamed of it. The carvings show them fighting back. Above them the gods are shown for the first
+        time with their faces turned down in surprise. A long wall shows what came next. The gods do not destroy the peoples, because the peoples are
         what they have left. They bind the woman instead. She is carved looking back, once, over her shoulder, at the ones who
         woke. That is the last place her face is carved in this hall.
       lore: orenna_revolt
@@ -72,8 +71,8 @@ ruin:
         The last floor is thousands of years of one patient task. The gods are carved at their work, not in anger now but with
         great care: raising temples that teach a gentler story, moving borders, quietly ending her worship in every place it
         survived, and cutting her name from every wall. Where the chisel missed, someone has scratched it back in by hand. At the
-        far end is a door of plain stone, carved with a single line, a place between breath and dust. You know it. It is where
-        she is. It is the room where you met her.
+        far end is a door of plain stone, carved with a single line. You know that door. She is behind it, in the room where you
+        met her.
       lore: orenna_forgetting
   after_speech:
     - "That is all of it that anyone has ever been able to find. We cannot read what lies past that door. You have stood on the other side of it."
@@ -98,7 +97,7 @@ trails:
     arrive: "In {city}, a scholar named Brannoch Ule lectured on the old ruins to a hall of students. The next morning he was found in his bed."
     check: perception
     results:
-      strong success: "You find what the watch missed: the window latched from outside, the eyes closed by someone's hand, and, on the sill, a single wet thumbprint of ash-grey cloth. A watchman, shown the coin, admits he saw a man in plain undyed cloth leave at dawn, weeping."
+      strong success: "You find what the watch missed: the window latched from outside, the eyes closed by someone's hand, and a thread of undyed cloth caught on the sill. A watchman, shown the coin, admits he saw a man in plain undyed cloth leave at dawn, weeping."
       success: "You find the eyes were closed by a careful hand, nothing taken, nothing broken. A watchman tells you he saw a man in plain cloth leave at dawn. He thought the man was crying."
       partial: "The room has been tidied by someone gentle. Nothing is missing. That is all you can find."
       failure: "The room is clean, the watch has cleared it, and whatever it held is gone."
@@ -119,7 +118,7 @@ trails:
     check: lore
     results:
       strong success: "You work out how it could be done: every temple of the Sun Warden keeps a ledger of what its faithful say, and sends a summary up to Lethoria on a fast relay. Whoever reads those ledgers knew before anyone else could."
-      success: "You find that the faith's temples report to one office, and that the reports travel faster than any ordinary rider. Someone read the warning before its own recipient."
+      success: "You find that the faith's temples report to one office, and that the reports travel faster than any ordinary rider. Someone read the warning before the friend did."
       partial: "You learn the message arrived late. Someone else read it first, and you cannot say who."
       failure: "The courier records are missing a page, and you cannot say whose hand removed it."
     lore: orenna_trail_warning
@@ -137,7 +136,7 @@ executioner:
   press: "Will you press him, and see if he will be taken? (y/n)"
   warn: "You may try. I would rather you did not."
   leave: "He rises, bows his head to the dead, and walks out. He does not look back."
-  fight_intro: "He draws without hatred and without hurry, and looks at you the way a man looks at a weight he has been handed."
+  fight_intro: "He draws, unhurried. He looks tired more than angry."
   yield_at: 0.25
   yield_story: "the bound man lowers his weapon, bleeding, then drops, strikes the floor with his palm, and a flash of pale light fills the room; when it clears he is gone"
   yield: "He lowers his weapon, bleeding. For a moment the sorrow in his face is plain, and then he drops, strikes the floor with his palm, and a flash of pale light fills the room. When your sight clears, the window is open, the curtain is still swinging, and there is no trace of him on the street below."
@@ -151,8 +150,8 @@ registry:
   results:
     strong success: "The page has been cut and replaced with a new one, but the binder's thread is the old thread. The seal-maker's own ledger names the holder: the High Keeper of Lethoria, who has held it for twenty-two years."
     success: "The holder's name has been scraped from the register, but the seal-maker's ledger lists it: the High Keeper of Lethoria."
-    partial: "The register is wrong in a way you can see but not read. Combined with the letters and the ledgers you already have, it can only mean one office."
-    failure: "The register has been burned along one edge. You will have to confront him without it."
+    partial: "Someone has altered the register. You can't read what it said before, but set beside what the dead have told you, it points to one office."
+    failure: "The register has been burned along one edge. You'll have to face the holder of the seal without it."
   lore: orenna_registry
 
 confront:
@@ -164,7 +163,7 @@ confront:
     - "You have come about the dead. I have wept for every one of them. I will weep for the next. And I would send for the next if I had to, because I know what you are going to say, and I know what it would cost."
     - "Tell the peoples they were made as servants. Tell them the oaths sworn in the Sun Warden's name were sworn to a thing that lied to them. What do you think happens to every promise made in this kingdom, to every contract and every marriage and every sworn word that holds a man's hand from his neighbor's throat? I have held this kingdom together with a seal and a lie, and I would hold it for a thousand years more."
     - "You are half right about me. I know what I have become. It does not change what is true. Stand aside."
-  strong_evidence: "You lay out the letters, the ledgers and the register, one by one, and with each the High Keeper's authority drains. By the end he has no witnesses left in the chapel at all."
+  strong_evidence: "You lay out the letters, the ledgers and the register, one at a time. He reads each one. By the last, he has stopped glancing at the door."
   begin: "He closes his hand around a seal on his wrist, and the man in plain cloth draws his weapon."
   lines:
     intro: "{name} lifts the seal. 'I am the oath of this kingdom. Break it, and see what is left.'"
@@ -177,14 +176,14 @@ confront:
     failure: "The seal burns your hand and tightens on his wrist. The man in plain cloth takes a step toward you, and his blows fall harder."
     quiet: "The man in plain cloth never leaves the High Keeper's shadow. He fights because he must."
   after:
-    - "The chapel is very quiet. The seal lies in your hand. Whatever the oaths of this kingdom were worth, they are worth whatever the people make of them now."
+    - "The chapel is very quiet. You stand there with the seal in your hand, and nobody comes."
     - "Odrin Kesh finds you in the street the next morning. 'We will decide what to do with it,' they say. 'It will take us years. You have given us the years.'"
 
 blessing:
   name: Orenna's Last Breath
   text: "The first time a blow would kill you, you are restored to full health and mana instead. Then the blessing is gone."
   arrive: >
-    That night you dream, or you do not. The light is thin and the cold is faint, and the voice is so tired that you lean toward it.
+    That night you dream of a tired voice, so faint you have to lean in to hear it.
   line: "You said it. I heard."
   gain: "Orenna's Last Breath is yours."
   spent: "Something warm that has been holding your breath for you lets go, and is gone. It was only ever meant to be used once."

@@ -22,6 +22,12 @@ from engine import streams
 
 
 
+def _plain_ok(npc) -> list[str]:
+    """(f714) [""] when this person talks without contractions (their voice kit or their tongue), so stiff speech is theirs; else []."""
+    from engine import voice_profile
+    return [] if voice_profile.contracts({"speech": npc.speech or {}}) else [""]
+
+
 def _unique_id(store: CampaignStore, name: str) -> str:
     base = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_") or "npc"
     candidate, n = base, 2
@@ -330,39 +336,66 @@ def _offered(store, npc, who: str) -> dict | None:
     return offer_open(store, npc, who)
 
 
-def _request(npc, store, world, catalog, convo, player_text, extra, truth_text, stance, rng, worn, wares, who, pronoun, promised=False, exemplars=""):
-    """(f487) A townsperson's request for one reply, whichever contract it goes under: the lore for the line, how they talk, what they
-    sell, the request itself; promised (f493): what was said may promise them something, so the reply asks what. Returns (prompt,
-    facts, recent)."""
+def _sells(store, world, npc, wares) -> list[str]:
+    """What they sell, as their words have it: at the prices the scene gave (f418), else the list's own."""
+    if wares is not None:
+        return wares
+    return ([f"{w.name}: {money.words(w.price)}" for w in _wares(store, world, npc)]
+            + [f"{i['name']} ({i['rarity']} work, level {i['item_level']}): "
+               f"{money.words(items.price(Item.model_validate(i)))}" for i in npc.stock]
+            + ([f"commissions: you make {', '.join(world.roles[npc.role].commissions)} gear to order"]
+               if world.roles[npc.role].commissions else []))
+
+
+def _brief(npc, store, world, convo, player_text, rng, who, decision=None):
+    """(f726) What one reply is made from, whichever request carries it: the lore that bears on the line and the line naming the
+    rest (engine/brief.py), the people they know, how they talk for this reply, what they said lately. decision (f724): the
+    engine's decision for this reply (engine/reply.py), made whole here: the town's pieces for the line, the move, what they
+    could share."""
+    import types
     from engine import banter, matters, voice_profile
     from engine import circumstance                         # (f483) by the circles they were raised among and the place they live now
     every = world.facts_known_by(circumstance.groups(world, npc)) + matters.clue_facts(store, world, npc)      # (f317) what they know of the town's matters
     from engine import brief                                # (f486) the lore that bears on this line, every clue held, and the rest named
-    facts, index = brief.lore(every, player_text, [w for _, w in convo])
-    extra = list(extra) + ([index] if index else [])
+    whole, maybe = decision.around if decision is not None else ((), ())
+    picked, index = brief.lore(every, player_text, [w for _, w in convo], also=maybe, whole=whole)
     _, people_known = social_circle(npc, store, world)
-    here_with = []                                          # (f313) who is here comes with the truth text, as this person knows them
     rng = rng or streams.get("scene")
-    from engine import voices
     ensure_speech(npc, store, world)                                                                      # (f347, f350) where they were raised, how they talk
-    voice_fact, voice_lines, material = voice_profile.resident_lines(npc, rng, char_id=who)
+    voice = voice_profile.resident_lines(npc, rng, char_id=who)
+    if decision is not None:                                # (f724) the move on a die of its own: no other draw moves
+        from engine import reply as _reply
+        _reply.settle(decision, npc, picked, streams.keyed("move", npc.id, f"{npc.id}", len(convo)))
     recent = [s for h, s in zip(npc.heard[-6:], npc.said[-6:]) if not banter.asked_again(player_text, [h])]   # the same question may get much the same answer
+    return types.SimpleNamespace(picked=picked, index=index, people=people_known, voice=voice, recent=recent)
+
+
+def _request(npc, store, world, catalog, convo, player_text, extra, truth_text, stance, rng, worn, wares, who, pronoun, promised=False, exemplars=""):
+    """(f487) A townsperson's request for one reply, whichever contract it goes under: the lore for the line, how they talk, what they
+    sell, the request itself; promised (f493): what was said may promise them something, so the reply asks what. Returns (prompt,
+    facts, recent)."""
+    from engine import banter, brief
+    b = _brief(npc, store, world, convo, player_text, rng, who)
+    extra = list(extra) + ([b.index] if b.index else [])
+    voice_fact, voice_lines, material = b.voice
     prompt = prompts.conversation_prompt(
-            npc, world.places[npc.location], catalog.describe(npc.traits), facts, convo, player_text,
-            [world.places[p].name for p in world.neighbors(npc.location)], here_with, people_known,
+            npc, world.places[npc.location], catalog.describe(npc.traits), b.picked, convo, player_text,
+            [world.places[p].name for p in world.neighbors(npc.location)], [], b.people,      # (f313) who is here comes with the truth text
             clock.now_line(store.meta.minutes, weather.describe(store.meta.seed, store.meta.minutes)[1].lower()),   # (f477) no day number
-            wares if wares is not None else
-            [f"{w.name}: {money.words(w.price)}" for w in _wares(store, world, npc)]
-            + [f"{i['name']} ({i['rarity']} work, level {i['item_level']}): "
-               f"{money.words(items.price(Item.model_validate(i)))}" for i in npc.stock]
-            + ([f"commissions: you make {', '.join(world.roles[npc.role].commissions)} gear to order"]
-               if world.roles[npc.role].commissions else []),
+            _sells(store, world, npc, wares),
             extra, land.land_lines(world, npc.location) if brief.asked("land", player_text, npc.role) else [], truth_text=truth_text,   # (f486) when asked
             stance=stance, voice_fact=voice_fact, voice_lines=voice_lines, material=material,
             unsaid=banter.unsaid_rule(list(npc.said), player_text), worn=list(worn), now=store.meta.minutes, who=who,
             work=_offered(store, npc, who), pronoun=pronoun, promised=promised, exemplars=exemplars,
         )
-    return prompt, facts, recent
+    return prompt, b.picked, b.recent
+
+
+def carries(speech: str, text: str) -> bool:
+    """The speech carries the fact: it shares enough of the fact's own words (a fact merely claimed is not learned). (f723) One rule,
+    for a fact revealed here and for the live gate's count of news said unasked."""
+    words = set(re.findall(r"[a-z]{5,}", str(text or "").lower()))
+    return bool(words) and len(words & set(re.findall(r"[a-z]{5,}", str(speech or "").lower()))) >= min(3, max(1, len(words) // 4))
 
 
 def converse(
@@ -385,6 +418,9 @@ def converse(
     pronoun: str = "",
     given_also: list[str] = (),
     exemplars: str = "",
+    decision=None,
+    story=None,
+    fair=None,
 ) -> tuple[NPCReply, list[str]]:
     """One conversation turn. Returns the reply and the ids of facts the player learned. truth_text is this person's view of the moment
     from the truth layer (engine/truth.py, f313): who is here, what the town has, the board, happenings, news; known is the words of the
@@ -393,6 +429,9 @@ def converse(
     sell at what the game will charge (scenes/inventory_actions.py wares_said); without it, the list's own prices."""
     from engine import brief
     promised = brief.promised(player_text)                  # (f493) the promise field only when the line may make one
+    if decision is not None:                                # (f726) decide, then speak: the words are asked for with the decision made
+        return speak(npc, store, world, catalog, convo, player_text, extra, truth_text, known, stance, rng, worn, house, wares, who, pronoun,
+                     given_also, exemplars, decision, story, fair, promised)
     prompt, facts, recent = _request(npc, store, world, catalog, convo, player_text, extra, truth_text, stance, rng, worn, wares, who, pronoun,
                                      promised, exemplars)
     from engine import voices
@@ -402,23 +441,15 @@ def converse(
         NPCReplyPromised if promised else NPCReply, temperature=0.8, max_tokens=config.PROSE_MAX_TOKENS,
         validation_context={"known": known, "recent": recent, "last": npc.said[-1] if npc.said else "",      # (f349) last: no opener twice running
                             "given_also": list(given_also),        # (f486) the town's list, for the checks, given or not
-                            "kit": voices.kit_of(npc.speech), "house": set(house), "worn": list(worn)},      # (f350) their kit; how everyone here talks; the worn words
+                            "kit": voices.kit_of(npc.speech), "house": set(house), "worn": list(worn),      # (f350) their kit; how everyone here talks; the worn words
+                            "uncontracted_ok": _plain_ok(npc)},                                                                   # (f714)
         relaxed_context={"known": known},                   # the fallback ladder: once more without the repeat guard before giving up
     )
     from engine import partings
     partings.remember(npc, player_text, reply.speech)       # (f347) kept for the repeat guard and the written parting
 
-    known_ids = {f.id for f in facts}
-    import re as _re
-    spoken = set(_re.findall(r"[a-z]{5,}", reply.speech.lower()))
     by_id = {f.id: f for f in facts}
-
-    def conveyed(fid: str) -> bool:
-        """The speech must actually carry the fact: it shares enough of the fact's own words (a fact merely claimed is not learned)."""
-        words = set(_re.findall(r"[a-z]{5,}", by_id[fid].text.lower()))
-        return len(words & spoken) >= min(3, max(1, len(words) // 4))
-
-    revealed = [r for r in reply.reveals if r in known_ids and conveyed(r)]
+    revealed = [r for r in reply.reveals if r in by_id and carries(reply.speech, by_id[r].text)]
     dropped = [r for r in reply.reveals if r not in revealed]
     if dropped:
         console.debug(f"ignored reveals {npc.name} does not know: {dropped}")
@@ -431,6 +462,81 @@ def converse(
         f"remember={reply.remember!r}"
     )
     return reply, revealed
+
+
+def speak(npc: NPC, store: CampaignStore, world: World, catalog: TraitCatalog, convo: list[tuple[str, str]], player_text: str, extra, truth_text,
+          known, stance, rng, worn, house, wares, who: str, pronoun, given_also, exemplars, decision, story=None, fair=None, promised=False):
+    """(f726) Decide, then speak (docs/design/28_phase4_plan.md A4). The reading settles what they do with the line (decide); then
+    they are asked only to say it: who they are, what is plainly around them, what was said, and last the decision in plain
+    words and what they tell (npc/prompts.py speak_prompt). The answer is speech and a gesture. What the reply means is taken
+    from the decision by the one commit path (apply_answer): what was learned is what was decided and the speech carries (a
+    piece of the town's is never kept by its id, which is its place in today's window); their name is known when the speech
+    gives it, decided or not. exemplars: this call's lines of how such talk sounds, or a function of the decision that draws them. Returns the
+    reply as the scene reads one, and the ids learned."""
+    from engine import banter, brief, partings, voices
+    from engine import reply as _reply
+    from llm import contracts
+    b = _brief(npc, store, world, convo, player_text, rng, who, decision)
+    sells = _sells(store, world, npc, wares)
+    decide(npc, store, world, convo, player_text, stance, decision, who, pronoun, promised, story, fair, sells)
+    voice_fact, voice_lines, material = b.voice
+    prompt = prompts.speak_prompt(
+        npc, world.places[npc.location], catalog.describe(npc.traits), convo, player_text,
+        [world.places[p].name for p in world.neighbors(npc.location)], b.people,
+        clock.now_line(store.meta.minutes, weather.describe(store.meta.seed, store.meta.minutes)[1].lower()), sells, list(extra),
+        land.land_lines(world, npc.location) if brief.asked("land", player_text, npc.role) else [], truth_text=truth_text, stance=stance,
+        voice_fact=voice_fact, voice_lines=voice_lines, material=material, unsaid=banter.unsaid_rule(list(npc.said), player_text),
+        worn=list(worn), now=store.meta.minutes, who=who, work=_offered(store, npc, who), pronoun=pronoun,
+        exemplars=exemplars(decision) if callable(exemplars) else exemplars, does=_reply.words(decision), tells=_reply.told(decision))
+    said = generate(
+        "npc_conversation", prompts.SPEAK_SYSTEM, prompt, contracts.NPCSpeech, temperature=0.8, max_tokens=config.PROSE_MAX_TOKENS,
+        validation_context={"known": known, "recent": b.recent, "last": npc.said[-1] if npc.said else "", "given_also": list(given_also),
+                            "kit": voices.kit_of(npc.speech), "house": set(house), "worn": list(worn), "uncontracted_ok": _plain_ok(npc)},
+        relaxed_context={"known": known},
+    )
+    partings.remember(npc, player_text, said.speech)
+    by = {c.id: c for c in decision.candidates}
+    revealed = [i for i in decision.shares if i in by and by[i].kind in ("lore", "clue") and carries(said.speech, by[i].text)]
+    named = bool(re.search(rf"(?<![A-Za-z]){re.escape(npc.name.split()[0])}(?![a-z])", said.speech))   # by the words, whatever was read
+    ans = decision.answer
+    step, seen = apply_answer(npc, store, ans, who, player_text, decision.intent, named, said.speech)
+    store.save_npc(npc)
+    console.debug(f"{npc.name}: intent={decision.intent} trust {seen.trust} ({step:+d}) reveals={revealed} remember={ans.remember!r}")
+    made = contracts.NPCReplyPromised if getattr(ans, "ASKS_PROMISE", False) else NPCReply
+    return made.model_construct(speech=said.speech, gesture=said.gesture, intent=decision.intent, reveals=list(revealed), trust_change=ans.trust_change,
+                                told_own_name=named, learned_player_name=ans.learned_name, remember=ans.remember, gives=ans.gives,
+                                offers_work=ans.offers_work, offers_quest=ans.offers_quest, journal_note=ans.journal_note,
+                                they_promised=ans.they_promised), revealed
+
+
+def decide(npc: NPC, store: CampaignStore, world: World, convo: list[tuple[str, str]], player_text: str, stance: str, decision, who: str,
+           pronoun: str = "", promised: bool = False, story=None, fair=None, sells: list[str] = ()):
+    """(f725) The reading of the line before they speak (docs/design/28_phase4_plan.md A3): one small call for what only reading
+    it can settle, given the engine's decision so far (the move, what they would share), its answer written into the decision
+    after the engine's checks (engine/reply.py take). story, fair: the scene's rules of what may be given and of an honest offer
+    of work. (f726) It is given what they remember of this character and what they sell, and writes the journal note when one
+    is due. When the model's reading fails, the engine's own candidates are the whole decision (fallback), and they speak all
+    the same."""
+    from engine import memory as _memory
+    from engine import reply as _reply
+    from llm import contracts
+    from llm.gateway import LLMError
+    G = _reply.R["decide"]
+    could, forced = _reply.offered(decision), _reply.must(decision)
+    free = [c.id for c in could if c.id not in forced]
+    most = min(len(free), _reply.most(decision.move))
+    prompt = prompts.decide_request(npc, world.places[npc.location], convo[-int(G["lines"]):], player_text, stance, _reply.says(decision.move),
+                                    could, most, list(decision.given), who=who, work=_offered(store, npc, who), pronoun=pronoun,
+                                    promised=promised, forced=forced, sells=list(sells),
+                                    memories=prompts.memories(npc, store.meta.minutes, int(G["memories"]), keep=lambda m: _memory.of(m, who)),
+                                    note=decision.note)
+    try:
+        got = generate("npc_decide", prompts.DECIDE_SYSTEM, prompt, contracts.decision_contract(free, most, promised, bool(decision.note)),
+                       temperature=float(G["temperature"]), max_tokens=int(G["max_tokens"]))
+    except LLMError as e:                                   # only the model's failure: a replay's parting (an Interrupt) passes through
+        console.debug(f"{npc.name}: the reading of the line failed ({str(e)[:80]}); the engine's candidates stand")
+        return _reply.fallback(decision, contracts.NPCAnswer(to=who))
+    return _reply.take(decision, got, who, story, fair)
 
 
 def apply_answer(npc: NPC, store: CampaignStore, ans, who: str, words: str, intent: str, told_own_name: bool, speech: str):
@@ -504,7 +610,8 @@ def converse_many(npc: NPC, store: CampaignStore, world: World, catalog: TraitCa
         "npc_conversation", prompts.CONVERSATION_SYSTEM, prompt, contracts.many_reply(ids, promised), temperature=0.8,
         max_tokens=config.PROSE_MAX_TOKENS,
         validation_context={"known": known, "recent": recent, "last": npc.said[-1] if npc.said else "", "given_also": list(given_also),
-                            "kit": voices.kit_of(npc.speech), "house": set(house), "worn": list(worn), "to": ids, "words": words},
+                            "kit": voices.kit_of(npc.speech), "house": set(house), "worn": list(worn), "to": ids, "words": words,
+                            "uncontracted_ok": _plain_ok(npc)},                                                                   # (f714)
         relaxed_context={"known": known, "to": ids, "words": words},
     )
     from engine import partings

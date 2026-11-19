@@ -27,6 +27,7 @@ import config
 import llm.gateway as gw
 import ui.console as uc
 from llm import backend
+from storage import saves
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--runs", type=int, default=3)
@@ -59,7 +60,7 @@ def addressees(runs: int) -> None:
     sys.path.insert(0, str(ROOT))
     import simlib
     name = "live_check_addressees"
-    shutil.rmtree(ROOT / "saves" / name, ignore_errors=True)
+    saves.scratch(name)                               # (f743) only a tool's own save is cleared, and a failure says so
     session = CampaignSession.open(name)
     store, world = session.store, session.world
     char, _ = simlib.make_character("warrior", random.Random(1))
@@ -87,10 +88,10 @@ def addressees(runs: int) -> None:
                 print(f"{title} run {i + 1}: failed: {e}")
     unwrap()
     lines = [f"# Addressees ({config.MODEL})", "", f"runs: {runs}"] + [f"- {t}: first try taken {first[t]}/{runs}" for t in first]
-    (ROOT / "saves" / args.report).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (ROOT / saves.folder_of() / args.report).write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
     session.close()
-    shutil.rmtree(ROOT / "saves" / name, ignore_errors=True)
+    saves.drop(name)
 
 
 if args.mode == "addressees":
@@ -135,7 +136,7 @@ from scenes.banter_actions import BanterActions
 from storage.campaign import PlayerState
 
 NAME = "live_check"
-shutil.rmtree(ROOT / "saves" / NAME, ignore_errors=True)
+saves.scratch(NAME)                                   # (f743) only a tool's own save is cleared, and a failure says so
 session = CampaignSession.open(NAME)                 # (f457) the campaign's session, as main.py opens it
 store = session.store
 store.meta.seed = 11; store.meta.turn = 1; store.meta.minutes = 1800; store.save_meta()
@@ -145,7 +146,7 @@ unstub()                                              # (f518) the stub taken aw
 untime = backend.wrap(timed)                          # (f518) timed from here on, so the stub's calls while the character was made are not
 store.save_player(PlayerState(character=ch, location="parth"))
 w = session.scene(load_traits(), store.load_player())
-config.TURN_LOG_PATH = str(ROOT / "saves" / NAME / "turns.jsonl")
+config.TURN_LOG_PATH = str(ROOT / saves.folder_of() / NAME / "turns.jsonl")
 
 FALLBACKS = gw.FALLBACKS          # the gateway records every call that gave up and left its caller to written lines, for every speaker
 
@@ -231,7 +232,7 @@ def reset_state():
 
 # ---------- progress: how far along, and roughly how long is left (from the last run's timings when there was one) ----------
 import json as _json
-LAST = ROOT / "saves" / "live_check_last.json"
+LAST = ROOT / saves.folder_of() / "live_check_last.json"
 try:
     _last = _json.loads(LAST.read_text(encoding="utf-8"))
 except (OSError, ValueError):
@@ -708,7 +709,7 @@ out += ["", "## Silence (reactions with no words or no line at all, by how hard 
 out += ["", "## Flags", *(f"- {f}" for f in sorted(set(flags)) or ["none"])]
 out += ["", "## Fell back only because of the repetition guard (continuity runs ask the same thing again on purpose)", *(f"- {g}" for g in guarded or ["none"])]
 out += ["", "## Notes: the same phrase across separate runs (each run is a separate game, so a player would not see this)", *(f"- {n}" for n in sorted(set(notes)) or ["none"])]
-path = ROOT / "saves" / args.report
+path = ROOT / saves.folder_of() / args.report
 path.write_text("\n".join(out) + "\n", encoding="utf-8")
 progress("finished")
 sys.__stdout__.write("\n")
@@ -725,4 +726,4 @@ session.close()
 SERVER.close()                                        # (f529) this tool's own server (never the game's, under --attach)
 if JUDGE is not None:
     JUDGE.close()
-shutil.rmtree(ROOT / "saves" / NAME, ignore_errors=True)
+saves.drop(NAME)

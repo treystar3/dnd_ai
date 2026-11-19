@@ -1,7 +1,7 @@
 """Preview the world pulse without playing: force an event of any tier at any place and fast-forward it to the end.
 
 Uses the game's own model server (started as the game starts it, tools/runtime_cli.py; --attach the open game's) unless --stub is given.
-Writes a readable report to saves/pulse_preview/.
+Writes a readable report to logs/pulse_preview/preview.md (beside the call log; the scratch world --fresh clears holds no report).
 
   python tools/pulse_preview.py                          one campaign-tier event, wherever a random scenario puts it
   python tools/pulse_preview.py --tier rare --n 3        three rare events in a row (they see each other in "already going on")
@@ -12,7 +12,6 @@ Writes a readable report to saves/pulse_preview/.
 """
 import argparse
 import random
-import shutil
 import sys
 from pathlib import Path
 
@@ -23,7 +22,7 @@ from engine import clock, pulse  # noqa: E402
 from npc.life import populate_place  # noqa: E402
 from npc.traits import load_traits  # noqa: E402
 from engine.session import CampaignSession  # noqa: E402
-from storage.campaign import SAVES_DIR  # noqa: E402
+from storage import saves  # noqa: E402
 from world.loader import authored  # noqa: E402
 
 
@@ -63,9 +62,8 @@ def main() -> None:
         simlib.install(simlib.Stub("warrior", a.seed or 1))
     else:
         server = runtime_cli.load(a)                 # (f529) the game's own server, as the game starts it
-    scratch = SAVES_DIR / "pulse_preview"
-    if a.fresh and scratch.exists():
-        shutil.rmtree(scratch)
+    if a.fresh or not (saves.folder_of() / "pulse_preview").exists():
+        saves.scratch("pulse_preview")              # (f743) the scratch world is made, or started over, only as a tool's own save
     session = CampaignSession.open("pulse_preview")      # (f457) the scratch campaign's session; its world is the one the pulse writes into
     store, world = session.store, session.world
     catalog = load_traits()
@@ -129,9 +127,11 @@ def main() -> None:
         t += pulse.INTERVAL * 3
         state["last"] = t
     store.save_world_state(state)
+    session.close()                                  # (f743) the scratch world let go, so the next --fresh can clear it
     text = "\n".join(report)
-    store.root.mkdir(parents=True, exist_ok=True)
-    dest = store.root / "preview.md"
+    import config
+    dest = ROOT / Path(config.LOG_PATH).parent / "pulse_preview" / "preview.md"   # (f743) never inside the world --fresh clears
+    dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(text, encoding="utf-8")
     print(text)
     print(f"\n(saved to {dest})")
