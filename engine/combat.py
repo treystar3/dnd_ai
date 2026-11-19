@@ -1005,6 +1005,12 @@ def in_fight(f: Fighter) -> bool:
     return f.alive and not f.fled
 
 
+def takes_turn(combat: Combat | None, f: Fighter) -> bool:
+    """(f769) Whether this fighter has a turn: in the fight and on its field (not down, fled, yielded, tamed, bound or freed). Every
+    way into a turn asks it at the moment of the turn: start_turn, enemy_turn and ally_turn."""
+    return in_fight(f) and (combat is None or combat.get(f.id) is not None)
+
+
 LEAVINGS = ("fled", "yielded", "gone")       # (f766) how a fighter leaves: out of it alive, out of it a prisoner, off the field
 
 
@@ -2778,9 +2784,9 @@ def muster(combat: Combat) -> bool:
 # ---------- turn order and AI ----------
 
 def start_turn(f: Fighter, combat: Combat | None = None, rng: random.Random | None = None) -> bool:
-    """Tick statuses at the start of a fighter's turn. Returns False if they lose the turn."""
-    if not f.alive:
-        return False                                    # (f768) one already down has no turn: nothing ticks, nothing is told or paid again
+    """Tick statuses at the start of a fighter's turn. Returns False if they lose the turn, or have none (takes_turn)."""
+    if not takes_turn(combat, f):
+        return False                                    # (f768, f769) one down or gone has no turn: nothing ticks, is told or is paid again
     fm = mechanics(f, combat)
     f.attacked_since_turn = False
     f.defending = 0
@@ -2839,8 +2845,8 @@ def start_turn(f: Fighter, combat: Combat | None = None, rng: random.Random | No
             laid = combat.get(f.status_from.get(dot, "")) if combat is not None else None     # (f768) its death is the layer's kill
             damage.resolve("dot_tick", combat, f, amount, None, rng, dot=dot, cause=laid)     # (f505) the tick's path: the floor (the
             #                               first hunt cannot kill the player; a duel kills no one), the health, the fall, what rides on it
-    if not f.alive:
-        return False                                    # (f768) fallen at its turn's start: the fall step told and paid it; the turn is gone
+    if not takes_turn(combat, f):
+        return False                                    # (f768, f769) fallen or yielded at its turn's start (a curse): the turn is gone
     skip = "stunned" in f.statuses or "petrified" in f.statuses or bool(f.counters.get("cast_turn"))
     if "prone" in f.statuses and not skip:
         _fx.end_status(f, "prone")
@@ -2874,6 +2880,8 @@ def _pressed(combat: Combat, e: Fighter) -> str:
 
 
 def enemy_turn(combat: Combat, e: Fighter, rng: random.Random) -> None:
+    if not takes_turn(combat, e):
+        return                                         # (f769) down or gone since the round's order was made: no turn, and no line of one
     if e.counters.get("turned") and e.counters.get("turned_until") is not None and e.counters["turned_until"] < combat.round:
         e.counters.pop("turned", None)                 # Dominate (f268) wears off
         e.counters.pop("turned_until", None)
@@ -2899,7 +2907,7 @@ def enemy_turn(combat: Combat, e: Fighter, rng: random.Random) -> None:
         from engine import bosses
         bosses.refresh(e)
     if not start_turn(e, combat, rng):
-        if e.alive and not e.counters.pop("cast_turn", None):
+        if takes_turn(combat, e) and not e.counters.pop("cast_turn", None):
             combat.log.append(f"{e.name} loses its turn")
             tell(combat, f"{who(e)} reels, unable to act")
         return
@@ -3133,6 +3141,8 @@ def give_order(combat: Combat, ally: Fighter, kind: str, target_id: str = "", sa
 
 def ally_turn(combat: Combat, a: Fighter, rng: random.Random) -> None:
     from engine import combat_perks
+    if not takes_turn(combat, a):
+        return                                   # (f769) down or gone since the round's order was made: no turn
     if a.ally_role == "mentor" and combat.mentor_troll and not combat.mentor_struck:
         return                                   # she is in the scripted fight and acts only as the script says
     if not start_turn(a, combat, rng):
@@ -3221,22 +3231,33 @@ def _legendary(combat: Combat, rng: random.Random) -> None:
         bosses.legendary(combat, rng)
 
 
+def turn_in_round(combat: Combat, f: Fighter, rng: random.Random, had: set[str]) -> None:
+    """A fighter's place in the round's order: its turn, unless it has had it this round (`had`, the ids that have, filled here).
+    Whether it has a turn at all, enemy_turn and ally_turn ask (takes_turn)."""
+    if f.id in had:
+        return
+    had.add(f.id)
+    (ally_turn if f.side == "ally" else enemy_turn)(combat, f, rng)
+
+
 def finish_round(combat: Combat, rng: random.Random) -> None:
-    """Everyone except the player acts, then the round advances."""
+    """Everyone except the player acts, then the round advances: the allies, the foes by speed, then the foes turned against their
+    own side. One turn a fighter a round (turn_in_round), asked as each turn comes, so one turned in mid phase acts once."""
     if combat.duel and combat.over:
         combat.round += 1
         return
     mentor_strikes(combat, rng)
     _legendary(combat, rng)                    # a boss acts at the end of the player's turn
+    had: set[str] = set()                      # (f769) who has had a turn this round, kept for this round only
     for a in combat.allies():
-        ally_turn(combat, a, rng)
+        turn_in_round(combat, a, rng, had)
         _legendary(combat, rng)
     for e in sorted(combat.enemies(), key=lambda x: -x.attrs.get("dexterity", 10)):
         if combat.player.alive and not (combat.duel and combat.over):
-            enemy_turn(combat, e, rng)
+            turn_in_round(combat, e, rng, had)
             _legendary(combat, rng)
-    for e in [f for f in combat.fighters if f.side == "enemy" and f.alive and not f.fled and f.counters.get("turned")]:
-        enemy_turn(combat, e, rng)                     # Dread Regent: the turned fight their old side
+    for e in [f for f in combat.fighters if f.side == "enemy" and f.counters.get("turned")]:
+        turn_in_round(combat, e, rng, had)             # Dread Regent, Dominate: the turned fight their old side
     mentor_script(combat, rng)
     bring_allies(combat)
     p = combat.player

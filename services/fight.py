@@ -397,7 +397,7 @@ class FightService:
         again = p.counters.pop("acting_again", None)       # a movement used on its own: this is the same turn's action
         if not again and not combat.start_turn(p, f, self.dice):
             charged = p.counters.pop("cast_turn", None)     # a charged spell going off (or breaking) is the whole turn
-            if p.alive and not charged:                    # (f768) a fall is the fall step's to tell
+            if combat.takes_turn(f, p) and not charged:    # (f768, f769) a fall is the fall step's to tell; one gone has no turn to lose
                 f.log.append(f"{p.name} is unable to act")
                 combat.tell(f, "you try to act, but your body will not answer")
         elif self.alongside(f, p, intent, target, notes):
