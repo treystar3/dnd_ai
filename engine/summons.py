@@ -60,6 +60,12 @@ def spell_of(att: C.Fighter, move) -> float:
     return C.RULES["spell_base_damage"] * C.growth(att.level) + focus
 
 
+def next_cast(combat: C.Combat) -> int:
+    """A new casting's serial: higher than every serial a summon in the fight holds, so no casting still in the list shares it,
+    whoever has left; while nobody has left, it is the list's length."""
+    return max(len(combat.fighters), 1 + max((f.summon_cast for f in combat.fighters if is_summon(f)), default=-1))
+
+
 def make(combat: C.Combat, att: C.Fighter, move, form: str | None = None, tier: str | None = None, until: int | None = None,
          name: str = "") -> list[C.Fighter]:
     """Build a summon's body (or bodies) from its caster. `until` is the round it fades (0: never)."""
@@ -73,9 +79,9 @@ def make(combat: C.Combat, att: C.Fighter, move, form: str | None = None, tier: 
         until = 0 if form == "bound" else combat.round + S["rounds"].get(tier, 3)
     cast_attr = getattr(move, "attribute", "") or "intelligence"
     base = name or getattr(move, "summon_name", "") or move.name
-    out, serial = [], len(combat.fighters)
+    out, serial = [], next_cast(combat)                      # (f756) a foe tamed, bound or freed shortens the list
     for i in range(bodies):
-        f = C.Fighter(id=f"summon_{move.id}_{combat.round}_{i}_{len(combat.fighters)}", name=base if bodies == 1 else f"{base} ({i + 1})",
+        f = C.Fighter(id=f"summon_{move.id}_{combat.round}_{i}_{serial}", name=base if bodies == 1 else f"{base} ({i + 1})",
                       side="ally", level=att.level, attrs=dict(att.attrs), hp=max(1.0, hp), max_hp=max(1, round(hp)),
                       weapon_name="strike", weapon_damage=dmg, weapon_attrs=[cast_attr], damage_type="magical",
                       element=getattr(move, "element", "") or "", armor=att.armor * S["defense"], ward=att.ward * S["defense"],
