@@ -32,8 +32,9 @@ TABLES = {
     "effects": ('SELECT row_number() OVER (ORDER BY ord), kind, place, "until", thread, json FROM effects ORDER BY ord', 1, (5,)),
 }
 NOT_STATE = {("kv", "campaign"): ("name", "created")}    # the save's folder name and when it was made: a replay plays a copy under another
-NOT_STATE_ROWS = {("kv", "operations"), ("kv", "presentation")}   # (f462) the record of what committed and what of it is left to show: the
-                                                                 # state's history and its telling, not the state; a replay compares the record through the recording
+NOT_STATE_ROWS = {("kv", "operations"), ("kv", "presentation"),   # (f462) the record of what committed and what of it is left to show: the
+                  ("kv", "telling")}                              # state's history and its telling, not the state; a replay compares the record
+#                                                                   through the recording. (f761) And what the checks and prompts remember of it
 
 
 def _canon(text):

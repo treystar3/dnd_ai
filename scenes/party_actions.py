@@ -15,7 +15,7 @@ from engine.party import P
 from llm.contracts import ActionIntent, CompanionReply, PartyIntent
 from llm.gateway import LLMError, generate
 from scenes import party_prompts as ppr
-from engine import actions, actor, clock, ledger, money, pulse
+from engine import actions, actor, clock, ledger, money, pulse, telling
 from ui import console
 
 G = quests.G
@@ -673,7 +673,8 @@ class PartyActions:
         out = []
         if m["name"] not in framed:
             out.append(W["first"])
-        framed.add(m["name"])
+            framed.add(m["name"])
+            telling.noted(self)                                                 # (f761) kept in the save's telling row
         if in_fight:
             out.append(W["fight"])
         feeling = voice_profile.emotion_for(self.hire_feeling(m, text)) if text and not text.startswith("(") else ""

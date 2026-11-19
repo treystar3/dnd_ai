@@ -583,6 +583,23 @@ class CampaignStore:
             else:
                 self._drop("visitors")
 
+    # ---- (f761) what the checks and prompts remember of the telling (engine/telling.py): a kv row there only while something is,
+    # written with the operation that added to it; not state (storage/statehash.py NOT_STATE_ROWS)
+    def load_telling(self) -> dict | None:
+        try:
+            got = self._kv("telling")
+        except ValueError:
+            return None
+        return got if isinstance(got, dict) else None
+
+    def save_telling(self, rec: dict) -> None:
+        with self.transaction():
+            self._put("telling", json.dumps(rec, ensure_ascii=False))
+
+    def clear_telling(self) -> None:
+        with self.transaction():
+            self._drop("telling")
+
     def load_question(self) -> dict | None:
         return self._kv("question")
 

@@ -65,7 +65,7 @@ check("...and the table holds nothing else: no field of the turn, no property, n
       O and not [n for n in O if n in actor.FIELDS or view(n) or n not in names], sorted(n for n in O if n in actor.FIELDS or view(n) or n not in names))
 check("each is kept in a row of the save, made again from the save, forgotten or owed, and says which row, from what or why",
       O and all(r.fate in FATES and r.why.strip() for r in O.values()), sorted(n for n, r in O.items() if r.fate not in FATES or not r.why.strip()))
-OWED_NOW = 23                                            # (the ratchet) a name kept by a feature that lands is taken off the count
+OWED_NOW = 16                                            # (the ratchet) a name kept by a feature that lands is taken off the count
 WHO = re.compile(r"(RELOAD|STALE_COPIES)-\d+$|reported$")
 check("what is owed names who keeps it (a feature of the plan, or reported to the owner) and what a player meets",
       all(WHO.match(r.why.split(":")[0]) and r.why.split(":", 1)[1:] for n, r in O.items() if n in fate("OWED")),

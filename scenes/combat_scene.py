@@ -16,7 +16,7 @@ from llm.gateway import LLMError, generate
 from scenes import combat_prompts as cp
 from scenes.voice import fresh
 from ui import console
-from engine import actor, asked, streams
+from engine import actor, asked, streams, telling
 from services.fight import FightService, FightSpec, RoundIntent, ROLE_PROFILES, _Shape, whose_blow   # (f503) the fight's mechanics; the
 #                                                                             helpers kept importable from here (party_actions, tests)  # noqa
 
@@ -1259,6 +1259,7 @@ class CombatScene:
             Narration, self.ws.recent_narration, max_tokens=config.PROSE_MAX_TOKENS, worn=self.ws.worn_words("prose"))
         self.ws.__dict__.setdefault("_after_starts", []).append(" ".join(aftermath.text.split()[:5]))
         del self.ws._after_starts[:-4]
+        telling.noted(self.ws)                                       # (f761) kept in the save's telling row
         after_text = self.ws.unnamed(aftermath.text)                 # (f419) a name the player was never told stays hidden here too
         console.narrate(after_text)
         self.ws.remember_narration(after_text)
@@ -1274,6 +1275,7 @@ class CombatScene:
         pick = self.rng.choice(choices or AF["openings"])
         used.append(pick)
         del used[:-6]
+        telling.noted(self.ws)                                       # (f761) kept in the save's telling row
         starts = self.ws.__dict__.get("_after_starts") or []
         return (f"OPEN ON: {pick}\n"
                 + (f"DO NOT BEGIN LIKE THESE (how the last passages after a fight began): {' / '.join(starts[-3:])}\n" if starts else ""))

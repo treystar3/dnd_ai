@@ -25,6 +25,7 @@ from pathlib import Path
 
 import yaml
 from core import yamlio
+from engine import telling
 
 ROOT = Path(__file__).resolve().parent.parent
 V = yamlio.safe_load((ROOT / "data" / "rules" / "voices.yaml").read_text(encoding="utf-8"))
@@ -201,14 +202,19 @@ def _names(ws):
     return ws.__dict__["_house_names"]
 
 
+def window() -> int:
+    """How many lines said the guard keeps (voices.yaml house.window)."""
+    return int(V.get("house", {}).get("window", 60))
+
+
 def heard(ws, town: str, speaker: str, speech: str) -> None:
-    """A line said in this town, kept for the guard (the last `window` lines of the session)."""
-    H = V.get("house", {})
-    log = ws.__dict__.setdefault("_said_in_town", deque(maxlen=int(H.get("window", 60))))
+    """A line said in this town, kept for the guard (the last `window` lines, across a close: engine/telling.py)."""
+    log = ws.__dict__.setdefault("_said_in_town", deque(maxlen=window()))
     names = _names(ws)
     grams = {g for g in _grams(speech) if not (names and names.search(g))}
     if grams:
         log.append((town, speaker, grams))
+        telling.noted(ws)                                         # (f761) kept in the save's telling row
 
 
 def house_phrases(ws, town: str, speaker: str) -> set[str]:

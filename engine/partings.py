@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 import config
+from engine import telling
 from engine.voice_profile import contracts as _contracts      # (f714)
 
 _FILLER = (r"(?:ok(?:ay)?|alright|all right|right|well|then|thanks|thank you|many thanks|much obliged|cheers|good|very well|i see|"
@@ -107,6 +108,7 @@ def line(ws, npc, text: str) -> tuple[str, str]:
     except LLMError:
         speech, gesture = voice_rules.written_parting(npc, ws.rng, list(npc.said) + heard, who=ws.acting), ""
     ws._partings_heard = (heard + [speech])[-10:]                   # (f347) the town's partings lately: no chorus across people
+    telling.noted(ws)                                               # (f761) kept in the save's telling row
     return speech, gesture
 
 

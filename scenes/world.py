@@ -65,6 +65,7 @@ from scenes.listening import Listening
 from scenes.spell_actions import SpellActions
 from scenes import markup
 from engine import entities, failures, features, hygiene, ledger, mapview, mentor, needs, pulse, pulselog, questions, quests, roads, turnlog
+from engine import telling
 from engine import inventory as inv
 from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 from engine import crafting
@@ -110,6 +111,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         saved = store.load_talk()             # (f485) a save opened mid-talk: put back once the one spoken with is here (restore_talk)
         self._talk_saved = {**saved, "at": self.player_of(self.acting).location} if saved else None   # (f759) where it was, not after a walk
         self.visitors = [tuple(v) for v in store.load_visitors()]   # (f759) who came looking is still in the room after a close
+        telling.restore(self)         # (f761) the telling's row, back before any operation can commit over the saved one
         self.to_menu = False          # (f345) #menu: the run loop ends and main.py shows the home page
         self.last_crash = False       # (f449) the last turn rolled back on the game's own fault (logs/crash.log), not the model's
         self.broken: dict[str, int] = {}     # (f449) lines that failed that way, and how often: the second time, the player is told to leave it
@@ -356,6 +358,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             w["prose"].add(" ".join(x for x in (shown.get("before", ""), shown.get("after", "")) if x))
         else:
             w["prose"].add(text)
+        telling.noted(self)                                      # (f761) the watches are kept in the save's telling row
 
     def narration_pool(self) -> str:
         """(f583) Which pool a passage's exemplars are drawn from, by what the engine knows: a death this line, a place newly reached,
@@ -406,6 +409,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         n = held.get(f"n:{key}", 0)
         picked = vr.draw(vr.pool(kind, name), streams.keyed("exemplars", kind, name, n), held.get(f"last:{key}", ()))
         held[f"n:{key}"], held[f"last:{key}"] = n + 1, picked
+        telling.noted(self)                                      # (f761) the draws are kept in the save's telling row
         return vr.exemplar_block(kind, picked)
 
     def worn_words(self, kind: str = "prose") -> list[str]:
@@ -800,6 +804,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.__dict__.setdefault("_happenings_seen", set()).clear()           # (f323) a new town: its happenings are new to the eye
             self.__dict__.pop("_crowd_told", None)                                # (f385) ...and its crowd
             self._framed_hires = set()                                            # (f347) a hire's first words in a new town earn a frame; each shop in it does not
+            telling.noted(self)
             from engine import ambient
             if self.world.peoples_at(old_town) and old_town in self.world.places and not self.world.places[old_town].danger:
                 self.player.last_in[old_town] = self.minutes                       # (f331) when the player last left a town
@@ -1070,6 +1075,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def run(self) -> None:
         self.opening()
         while True:
+            telling.save(self)                                              # (f761) what was noted outside any operation, before a close can come
             self.start_backfill()
             text = console.ask(main=True)
             self.apply_backfill()
@@ -1081,6 +1087,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 console.note("Saved. Run main.py again to continue.")
                 return
             if not self.play(text):                                         # (f721) one path for a typed line and a pane's command
+                telling.save(self)                                          # (f761) the menu closes the sitting too: nothing noted is lost
                 return
 
     @actor.bound
@@ -1352,6 +1359,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.save_talk()                               # (f485) the conversation, with the operation that moved it
                 self.save_visitors()                           # (f759) who came looking, with the operation that changed them
                 self.save_fight()                              # (f760) and the fight: memory and row never part at a commit
+                telling.save(self)                             # (f761) what the checks and prompts remember of the telling, likewise
                 self.store.save_player(self.player)            # (f464) what the operation changed of the player is its to keep: a later
                 self.store.commit_operation(op, first_of_line=(index == 0))   # operation's rollback reloads the player from the save
             _op.end("committed")

@@ -66,8 +66,11 @@ check("the names a failed operation left changed are put back", set(LEAKED) <= b
 # ---- the census (f751) the walk is simlib's, one walk with reopen_declared's
 own, outside, computed = simlib.scene_names()
 stored = simlib.stored_names
-check("a name worked out at run time is set in two places only: the opening's private marks, and the session's own putting back",
-      computed == {"WorldScene.opening_passage"} and outside.pop("<computed>", set()) == {"engine/session.py"}, (sorted(computed), sorted(outside.get("<computed>", []))))
+# (f761) the telling's row is put back by names the opening's table gives (engine/telling.py names)
+check("a name worked out at run time is set in three places only: the opening's private marks, the session's own putting back, and "
+      "the telling's row put back",
+      computed == {"WorldScene.opening_passage"} and outside.pop("<computed>", set()) == {"engine/session.py", "engine/telling.py"},
+      (sorted(computed), sorted(outside.get("<computed>", []))))
 view = lambda n: isinstance(inspect.getattr_static(WorldScene, n, None), property)       # the scene's name for what another holds: the actor's record, the save's question
 declared = lambda n: n.startswith("_") or n in F or n in T or view(n)
 check("the census reads the scene's classes and the modules around it", len(own) > 90 and "recent_narration" in own and "weight_hint" in outside, (len(own), len(outside)))
