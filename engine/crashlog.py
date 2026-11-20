@@ -6,20 +6,30 @@ details; nothing wrote them down, so the logs the owner sent had no trace of it.
 the player reads a line in the narrator's words (engine/failures.py); the fault itself is written here, logs/crash.log, with its
 traceback and where it happened, so the next upload carries it. main.py writes here too for the faults that still end the game (before
 a campaign is open, on the home page, during creation). The file is plain text, newest last, trimmed to the last CRASH_KEEP entries so
-a long campaign never grows it without bound. SESSION holds this process's entries for the tests and the night tools."""
+a long campaign never grows it without bound. SESSION holds this process's entries for the tests and the night tools.
+
+carried() is for work the game goes on without when it fails (work no operation rolls back, or where a result already taken must not
+be lost): the fault is written here once per place and kind a session, and counted after that in CARRIED; as the session ends its
+count, settle() writes the faults met more than once with their counts. Inside an operation the rule is to let the fault roll the
+operation back instead (f449)."""
 from __future__ import annotations
 
+import contextlib
+import threading
 import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
 import config
 from core import paths
+from core.interrupts import Interrupt
 from engine import actor
 
 SEP = "\n" + "-" * 78 + "\n"
 KEEP = int(getattr(config, "CRASH_KEEP", 50))
 SESSION: list[dict] = []
+CARRIED: dict[tuple[str, str], tuple[int, bool]] = {}   # (where, error type): (times carried this session, quiet), oldest let go past KEEP
+_LOCK = threading.Lock()
 
 
 def path() -> Path:
@@ -40,6 +50,52 @@ def record(exc: BaseException, where: str, **context) -> dict:
             + "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)))
     _append(text, path())
     return entry
+
+
+@contextlib.contextmanager
+def carried(where: str, quiet: type[BaseException] | tuple[type[BaseException], ...] = (), **context):
+    """The work inside may fail and the game goes on. An Interrupt goes on up (a cancel, a replay that parted: never a fault); a type
+    in `quiet`, a failure already filed elsewhere (an LLMError the gateway logged, a log that refused a write), is only counted; any
+    other Exception is recorded here once per (where, error type) a session and counted after that. One `where` names one subject (a
+    place and what it was working on), so a second subject that fails the same way is written down too. Never raises a fault of its
+    own; a `quiet` that is not an exception type or a tuple of them is refused as the block is entered, before the work runs."""
+    quiet = (quiet,) if isinstance(quiet, type) else quiet
+    if not (isinstance(quiet, tuple) and all(isinstance(q, type) and issubclass(q, BaseException) for q in quiet)):
+        raise TypeError(f"carried({where!r}): quiet takes an exception type or a tuple of them, not {quiet!r}")
+    try:
+        yield
+    except Interrupt:
+        raise
+    except Exception as e:
+        if not _first(e, where, quiet):
+            return
+        try:
+            record(e, where, **context)
+        except Exception:                              # (f781) a fault in writing a fault down has nowhere to go: it was counted
+            pass
+
+
+def _first(e: Exception, where: str, quiet: tuple) -> bool:
+    """Count one carried fault; True when it is to be written down: the first of its (where, type) this session, and not quiet."""
+    key, hushed = (where, type(e).__name__), isinstance(e, quiet)
+    with _LOCK:
+        seen, _ = CARRIED.pop(key, (0, hushed))
+        CARRIED[key] = (seen + 1, hushed)              # the newest last, so the cap lets the oldest go
+        while len(CARRIED) > KEEP:
+            del CARRIED[next(iter(CARRIED))]
+    return not seen and not hushed
+
+
+def settle() -> None:
+    """The session ends its count (a campaign opening or closing; engine/owned.py): each fault written down and met again since is one
+    entry with its count, so a fault carried five hundred times is not read as one. A quiet one stays out, as it stayed out of the log.
+    Then the count starts again. Never raises."""
+    with _LOCK:
+        again = [(where, kind, n) for (where, kind), (n, hushed) in CARRIED.items() if n > 1 and not hushed]
+        CARRIED.clear()
+    if again:                                          # (f781) the count nobody would otherwise read
+        note("faults carried again after they were written down, this session",
+             "".join(f"\n  {where} ({kind}): {n} times" for where, kind, n in again))
 
 
 def note(where: str, text: str, to: Path | None = None) -> None:

@@ -163,24 +163,23 @@ class CampaignSession:
         writes, so a scene built before a tail's populate_place was read by the first attempt of the next talk and rebuilt for its re-run,
         with two more of the town's people in it: the post-D night's hire_chat Drift."""
         scene.__dict__.pop("_truth", None)
+        from engine import crashlog
         held = {}
         for k, v in scene.__dict__.items():
             if not k.startswith("_") or k == "_truth":
                 continue
-            try:
+            held[k] = v                                # a cache that cannot be copied is kept by reference: the turn may change it in place
+            with crashlog.carried(f"a scene cache copied for the rollback (kept by reference): {k}"):   # (f781) written down, each cache
                 held[k] = copy.deepcopy(v)
-            except Exception:                          # a cache that cannot be copied is kept by reference: the turn may change it in place
-                held[k] = v
         from engine import actor
         turn = actor.turn_of(scene)                    # (f631) the turn's own fields live on its context, the rest on the scene
         rolled = {}                                    # (f465) the scene's declared state (WorldScene.ROLLED), as it stands
         for k in getattr(scene, "ROLLED", ()):
             home = turn.values if k in actor.FIELDS else scene.__dict__
             if k in home:
-                try:
+                rolled[k] = home[k]                    # (f781) kept by reference when it cannot be copied, and written down, each state
+                with crashlog.carried(f"a scene's declared state copied for the rollback (kept by reference): {k}"):
                     rolled[k] = copy.deepcopy(home[k])
-                except Exception:
-                    rolled[k] = home[k]
         from engine import ledger                      # (f499) the fight's marks are its row's: the transaction takes them back
         turn.snapshot = (self.world.snapshot(), held, rolled, ledger.told_marks())   # (f720) ...and which of the turn's rows were told already
 

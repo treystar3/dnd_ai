@@ -315,12 +315,22 @@ class FightService:
     @staticmethod
     def purpose_of(raw: str | None) -> combat.Purpose | None:
         """(f765) What a saved fight was for, read from its row whatever the row's shape, so a fight let go of at load can hand it on;
-        None when the row says nothing of it or does not read (a damaged row loses it with the fight)."""
-        try:
-            given = (json.loads(raw or "").get("fight") or {}).get("purpose")
-            return combat.Purpose.model_validate(given) if given else None
-        except Exception:
+        None when there is no row, the row says nothing of it (the bare notice "1"), or it does not read (a damaged row loses it with
+        the fight). A row that is not JSON is CombatScene.resume's to write down; a purpose there that does not read is written here."""
+        if not isinstance(raw, (str, bytes)) or not raw:
             return None
+        try:
+            row = json.loads(raw)
+        except ValueError:
+            return None
+        fight = row.get("fight") if isinstance(row, dict) else None
+        given = fight.get("purpose") if isinstance(fight, dict) else None
+        if not given:
+            return None
+        from engine import crashlog
+        with crashlog.carried("what a let-go fight was for (it does not read, and goes with the fight)"):   # (f781) lost, never silently
+            return combat.Purpose.model_validate(given)
+        return None
 
     @staticmethod
     def apart(row: str, stored: str | None, most: int = 8) -> list[str]:

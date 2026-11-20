@@ -174,16 +174,14 @@ def needed_context() -> int:
     """The tokens one slot must hold: the largest prompt ceiling the game measures (data/measured/prompt_ceilings.yaml) at the budget's
     characters a token, plus twice the largest answer any call asks for (config's and the generate() sites' max_tokens)."""
     import math
+    from engine import crashlog
     root = Path(paths.BUNDLE)
-    try:
+    chars, cpt = 36500, 4.0                            # what the context is sized from when the files cannot be read
+    with crashlog.carried("the server's context: the measured prompt ceilings", sized_from=chars):   # (f781) and it is written down
         ceilings = yamlio.safe_load((root / "data" / "measured" / "prompt_ceilings.yaml").read_text(encoding="utf-8")) or {}
         chars = max(int((v or {}).get("chars") or 0) for v in (ceilings.get("ceilings") or {}).values())
-    except Exception:
-        chars = 36500
-    try:
+    with crashlog.carried("the server's context: budget.yaml's characters a token", sized_at=cpt):
         cpt = float((yamlio.safe_load((root / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8")) or {}).get("chars_per_token") or 4.0)
-    except Exception:
-        cpt = 4.0
     return math.ceil(chars / cpt) + 2 * largest_answer()
 
 
