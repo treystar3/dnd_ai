@@ -261,17 +261,17 @@ try:
         ("config.py", "logs/llm_calls.jsonl"): "llm_calls", ("config.py", "logs/pulse.jsonl"): "pulse",
         ("config.py", "logs/turns.jsonl"): "turns", ("config.py", "logs/sessions.jsonl"): "sessions",
         ("config.py", "logs/refusals.jsonl"): "refusals", ("config.py", "logs/crash.log"): "crash",
-        ("engine/turnlog.py", "logs/turns.jsonl"): "turns", ("engine/turnlog.py", "logs/sessions.jsonl"): "sessions",
+        ("config.py", "logs/reports"): "reports",                    # (f781) each log's path has one home, config.py
         ("engine/turnlog.py", "paths.written in path"): "turns", ("engine/turnlog.py", "paths.written in write_session_stats"): "sessions",
         ("llm/gateway.py", "paths.written in trim_log"): "llm_calls", ("llm/gateway.py", "paths.written in _log"): "llm_calls",
         ("engine/pulselog.py", "paths.written in _write"): "pulse",
-        ("engine/refusals.py", "logs/refusals.jsonl"): "refusals", ("engine/refusals.py", "paths.written in path"): "refusals",
-        ("engine/crashlog.py", "logs/crash.log"): "crash", ("engine/crashlog.py", "paths.written in path"): "crash",
+        ("engine/refusals.py", "paths.written in path"): "refusals",
+        ("engine/crashlog.py", "paths.written in path"): "crash",
         ("llm/audit.py", "logs/audit"): "audit", ("llm/audit.py", "paths.written in path"): "audit",
         ("engine/recording.py", "paths.written in where"): "recordings",
         ("llm/runtime.py", "paths.written in Runtime"): "the server's logs",       # llama-server.log, llama-embed.log, its crash notes
         ("core/selfcheck.py", "logs/selfcheck.log"): "selfcheck", ("core/selfcheck.py", "paths.written in log_path"): "selfcheck",
-        ("scenes/audit_actions.py", "logs/reports"): "reports", ("scenes/audit_actions.py", "paths.written in AuditActions"): "reports",
+        ("scenes/audit_actions.py", "paths.written in AuditActions"): "reports",
     }
 
     def log_sites(text: str) -> list[str]:

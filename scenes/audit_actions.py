@@ -151,7 +151,7 @@ class AuditActions:
         from pathlib import Path
         from core import paths
         from engine import refusals
-        folder = paths.written(getattr(config, "REPORTS_PATH", "logs/reports"))      # (f779) in the one logs folder
+        folder = paths.written(config.REPORTS_PATH)                                  # (f779) in the one logs folder
         folder.mkdir(parents=True, exist_ok=True)
         turn = self.store.meta.turn
         calls = []

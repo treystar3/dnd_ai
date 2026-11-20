@@ -100,7 +100,7 @@ def _mended(task: str, result: T, what: str, mend) -> T:
     """One mend of an answer already taken, whole or not at all: made on a copy, and the copy given back only when the mend ran through.
     A fault leaves the answer as it stood, written down once (crashlog.carried), and never costs it; a cancel goes on up."""
     from engine import crashlog
-    with crashlog.carried(f"the gateway's mend of a taken answer: {what}", task=task):
+    with crashlog.carried(f"the gateway's mend of the {what} in a taken answer: {task}"):
         copy = result.model_copy(deep=True)
         mend(copy)
         return copy
@@ -157,7 +157,7 @@ def _count(name: str, once: set) -> None:
     """(f719) One more passage or spoken reply checked, or sent back: each counted once a call, when it happens, so a call that
     fails after its send-back is still counted."""
     from engine import crashlog
-    with crashlog.carried("the gateway's count of answers checked", what=name):     # (f782) a count never costs the answer it counts
+    with crashlog.carried(f"the gateway's count of answers checked: {name}"):     # (f782) a count never costs the answer it counts
         if name not in once:
             once.add(name)
             CHECKED[name] += 1
@@ -166,7 +166,7 @@ def _count(name: str, once: set) -> None:
 def _tally(task: str, ok: bool, attempts: int) -> None:
     """Each task's calls, failures and tries, and the last few hundred calls' outcomes. (f782) Never costs the call it tallies."""
     from engine import crashlog
-    with crashlog.carried("the gateway's tally of calls", task=task):
+    with crashlog.carried(f"the gateway's tally of calls: {task}"):
         OUTCOMES.append((task, ok, attempts))
         del OUTCOMES[:-500]
         t = TALLY.setdefault(task, {"calls": 0, "failed": 0, "attempts": 0})
@@ -439,7 +439,7 @@ def _summarize(e: ValidationError) -> str:
 
 def _compact(messages: list[dict]) -> list[dict]:
     """Shorten system prompts for the log; they are the same on every call and make up most of its size."""
-    if getattr(config, "LOG_FULL_PROMPTS", False):
+    if config.LOG_FULL_PROMPTS:
         return messages
     out = []
     for m in messages:
@@ -458,11 +458,11 @@ def trim_log(path: Path | None = None) -> None:
     path = path or paths.written(config.LOG_PATH)                     # (f779) in the one logs folder
     tmp = path.with_name(f"{path.stem}.{os.getpid()}.{threading.get_ident()}.tmp")   # (f566) its own temp, never another trim's
     try:
-        limit = getattr(config, "LOG_MAX_MB", 5) * 1024 * 1024
+        limit = config.LOG_MAX_MB * 1024 * 1024
         if not path.is_file() or path.stat().st_size <= limit:
             return
         lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-        keep = lines[-getattr(config, "LOG_KEEP_ENTRIES", 300):]
+        keep = lines[-config.LOG_KEEP_ENTRIES:]
         tmp.write_text("\n".join(keep) + "\n", encoding="utf-8", newline="\n")
         tmp.replace(path)
     except OSError:
@@ -509,7 +509,7 @@ def _log(task, attempt, elapsed, messages, raw, error, usage=None, shape=None):
     is written as its escape."""
     global _writes
     from engine import crashlog
-    with crashlog.carried("the model's call log: a try's row", quiet=(OSError,), task=task):
+    with crashlog.carried(f"the model's call log, a try's row: {task}", quiet=(OSError,)):
         path = paths.written(config.LOG_PATH)                         # (f779) in the one logs folder
         from engine import actor
         from llm import audit

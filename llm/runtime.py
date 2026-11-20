@@ -658,9 +658,7 @@ class Runtime:
         self.embed: Child | None = None                 # (f524) the embedder's own server, and whether it is on for this session
         self.embed_state = "not_started"
         self.embed_why = ""
-        self.embed_on: bool | None = None               # (f524's review) the session's decision, apart from the child's state: None
-                                                        # until a load makes it; a restart of the embedder keeps it; (f784) None again
-                                                        # when a failed load stopped a live one, for the next load to make
+        self.embed_on: bool | None = None               # (f784) the session's decision on embeddings: None until a load makes it
         self.embed_restarts_left = int((self.cfg.get("server") or {}).get("restarts", 1))
         self._lock = threading.RLock()
         self._closed = False
@@ -943,12 +941,7 @@ class Runtime:
             self._write_run_files()
             tell(0.97)
             if self.embed_on is None:
-                self._start_embed()                        # (f524) embeddings decided here, by the first load that gets this far, and
-                                                           # (f784) again by the next after a failed load stopped a live one with the
-                                                           # chat server; (f524's review)
-                                                           # a chat server's restart keeps the decision: the live embedder is the
-                                                           # new source's from its first moment, a dead one is started again by the
-                                                           # next embed (once), and an embedder that was off stays off
+                self._start_embed()                        # (f784) a load that gets this far decides; a restart keeps the decision
             if self._stopping.is_set():
                 raise Failure("unreachable", _CLOSING)
             from llm import launch

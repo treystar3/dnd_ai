@@ -29,7 +29,8 @@ So nothing here reaches the owner's files, whatever the tree:
   names a folder of its own, so its compare writes nothing under logs/; the runner refuses an --outdir under logs/;
 - the rule itself, with and without a folder named, and in a built game, which reads no test's folder; and a source check: every
   function of the game that reads a log setting of config places it through written(), each setting names a path under logs/, and
-  the audit reads no folder from its table;
+  the audit reads no folder from its table; (f781) and every setting of the logs (a path, a switch, a cap) is read off config
+  itself, never with a fallback of its own, so config.py is its one home;
 - the runner reads what a tree's own logs/ and recordings/ hold, for the line a run ends with (yes or no, nothing printed of it).
 Run: python tools/sim/own_logs_779b_test.py"""
 import ast
@@ -450,6 +451,42 @@ try:
     check("...and every log setting of config names a path under logs/, so the one logs folder decides each",
           len(settings) >= 6 and all(getattr(config, n).startswith("logs/") for n in settings),
           {n: getattr(config, n) for n in settings if not getattr(config, n).startswith("logs/")})
+
+    # ---- (f781) each setting of the logs has one home, config.py: the game reads it off config, never with a fallback of its own
+    import re
+    LOG_SETTING = re.compile(r"^LOG_|_LOG$|_PATH$|_KEEP$")            # where a log lies, whether it is written, how much it keeps
+
+    def two_homes(text: str) -> list[str]:
+        """Each read of a log setting with a fallback (getattr(config, NAME, default): the default is a second home, free to drift from
+        config.py's), and each read of one config.py does not define: the line and the name."""
+        out = []
+        for n in ast.walk(ast.parse(text)):
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "getattr" and len(n.args) >= 3 \
+                    and isinstance(n.args[0], ast.Name) and n.args[0].id == "config" and isinstance(n.args[1], ast.Constant) \
+                    and LOG_SETTING.search(str(n.args[1].value)):
+                out.append(f"{n.lineno} ({n.args[1].value}, with a fallback)")
+            elif isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and n.value.id == "config" \
+                    and isinstance(n.ctx, ast.Load) and LOG_SETTING.search(n.attr) and not hasattr(config, n.attr):
+                out.append(f"{n.lineno} ({n.attr}, which config.py does not define)")
+        return out
+
+    planted = {
+        "import config\nKEEP = int(getattr(config, 'CRASH_KEEP', 50))\n": True,
+        "import config\nfrom core import paths\ndef path():\n    return paths.written(getattr(config, 'CRASH_LOG_PATH', 'logs/c.log'))\n": True,
+        "import config\ndef note():\n    if not getattr(config, 'REFUSALS_LOG', True):\n        return\n": True,
+        "import config\ndef trim():\n    return getattr(config, 'LOG_MAX_MB', None) or 5\n": True,
+        "import config\nfrom core import paths\ndef path():\n    return paths.written(config.X_NEVER_SET_PATH)\n": True,
+        "import config\nKEEP = int(config.CRASH_KEEP)\n": False,
+        "import config\nfrom core import paths\ndef path():\n    return paths.written(config.CRASH_LOG_PATH)\n": False,
+        "import config\nx = getattr(config, 'VOICED_MENTOR', True)\n": False,
+    }
+    caught = {src: bool(two_homes(src)) == want for src, want in planted.items()}
+    check("(f781) the source check catches a log setting read with a fallback of its own, planted (a cap, a path, a switch, a fallback "
+          "after `or`) and one config.py does not define, and passes one read off config and a setting that is not a log's",
+          all(caught.values()), [s for s, ok in caught.items() if not ok])
+    twice = [f"{p.relative_to(ROOT).as_posix()}:{x}" for p in files_ for x in two_homes(p.read_text(encoding="utf-8"))]
+    check("...and every log setting the game reads has one home, config.py: read off config itself, so a value changed there is the "
+          "value every reader meets", not twice, twice)
 
     # ---- the runner says, by counts alone, whether a tree's own logs/ and recordings/ changed while it ran
     owners = getattr(run_suite, "owners", None)

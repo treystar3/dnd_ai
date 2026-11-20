@@ -24,6 +24,8 @@ fault, left no record anywhere. Held here:
   stands_out and ranked), or one that writes down, must let an Interrupt through (an earlier handler of the same try catching
   Interrupt and raising it, or the broad one re-raising). The lists may only shrink: a handler found and not listed fails, and so
   does a listed one no longer found.
+- one where names one subject: a carried() in the game's own code that hands on a parameter of its function as it is in its context
+  (task=task) names it in its where, so a tally failing for four tasks is an entry each and the settled count names them.
 What the fence does not read: a handler outside the game's own code (tools/, simbot.py and the other root harnesses); a handler of a
 named type, however wide (OSError, ValueError, RuntimeError); a broad catch spelled through a name (`E = Exception`, a tuple held in a
 name, a suppress handed a name); except* (a TryStar is not walked); a handler that writes down in one branch only (any such call
@@ -486,6 +488,7 @@ TWO_LEAVE = {
     ("character/creation.py", "PassivesInBackground._run"): (1, "the error kept for result(), which reports it and retries"),
     ("core/selfcheck.py", "run"): (1, "the self-check: a part that raises is that part's problem, written to selfcheck.log with its trace"),
     ("core/updates.py", "install"): (1, "the error's text returned to the update card"),
+    ("engine/crashlog.py", "_said"): (1, "crash.log's own writer: a value whose __str__ raises is written as its type; it has nowhere to go"),
     ("engine/asked.py", "call"): (1, "kept and raised again by kind, by design"),
     ("engine/data_check.py", "_why"): (1, "a better message for a file that already failed: the loader's own words are the problem reported"),
     ("engine/data_check.py", "check"): (3, "reported as a startup problem"),
@@ -624,6 +627,70 @@ mended = [("engine/session.py", "CampaignSession.begin_turn"), ("llm/embed.py", 
 check("(f781) the five sorted 'record it once', and purpose_of, are written down now and stand in no list",
       not [k for k in mended if any(k in t for t in (ONE_LEAVE, ONE_TO_MEND, TWO_LEAVE, TWO_TO_MEND))]
       and not [x for x in found if (x[0], x[2]) in mended], [x for x in found if (x[0], x[2]) in mended])
+
+
+def unnamed(text) -> list[tuple[str, str]]:
+    """(f781) Each crashlog.carried(...) that hands on a parameter of the function it stands in, as it is (task=task), in its context
+    while its where does not name it: (function, parameter). The where named is the f-string's names; a where built elsewhere is not
+    read. A value made in the function (a count, a number used) is context, no subject."""
+    tree = ast.parse(text)
+    mods, fns = {"engine.crashlog"}, set()
+    for n in ast.walk(tree):
+        if isinstance(n, ast.ImportFrom) and n.module == "engine.crashlog":
+            fns |= {a.asname or a.name for a in n.names if a.name == "carried"}
+        elif isinstance(n, ast.ImportFrom) and n.module == "engine":
+            mods |= {a.asname or a.name for a in n.names if a.name == "crashlog"}
+        elif isinstance(n, ast.Import):
+            mods |= {a.asname for a in n.names if a.name == "engine.crashlog" and a.asname}
+    out = []
+
+    def visit(node, stack, params) -> None:
+        for ch in ast.iter_child_nodes(node):
+            if isinstance(ch, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                a = ch.args
+                visit(ch, stack + [ch.name], {x.arg for x in a.posonlyargs + a.args + a.kwonlyargs})
+                continue
+            if isinstance(ch, ast.ClassDef):
+                visit(ch, stack + [ch.name], set())
+                continue
+            d = dotted(ch.func) if isinstance(ch, ast.Call) else None
+            if d and (d in fns or d.rpartition(".")[0] in mods and d.endswith(".carried")):
+                where = ch.args[0] if ch.args else next((k.value for k in ch.keywords if k.arg == "where"), None)
+                if isinstance(where, (ast.Constant, ast.JoinedStr)):
+                    named = {x.id for x in ast.walk(where) if isinstance(x, ast.Name)}
+                    out.extend((".".join(stack) or "<module>", k.value.id) for k in ch.keywords
+                               if k.arg not in (None, "where", "quiet") and isinstance(k.value, ast.Name) and k.value.id in params
+                               and k.value.id not in named)
+            visit(ch, stack, params)
+    visit(tree, [], set())
+    return out
+
+
+SUBJECTS = {                                           # source: the (function, parameter) pairs unnamed() must find, no more
+    "from engine import crashlog\ndef _tally(task, ok):\n    with crashlog.carried('the tally of calls', task=task):\n        g()\n":
+        [("_tally", "task")],
+    "from engine.crashlog import carried as kept\ndef _count(name, once):\n    with kept('the count', what=name):\n        g()\n":
+        [("_count", "name")],
+    "import engine.crashlog as cl\nclass A:\n    def m(self, key):\n        with cl.carried('a cache', key=key, quiet=(OSError,)):\n"
+    "            g()\n": [("A.m", "key")],
+    "from engine import crashlog\ndef f(task):\n    def inner(task):\n        with crashlog.carried('inner', task=task):\n            g()\n"
+    "    return inner\n": [("f.inner", "task")],
+    # what passes
+    "from engine import crashlog\ndef _tally(task):\n    with crashlog.carried(f'the tally of calls: {task}'):\n        g()\n": [],
+    "from engine import crashlog\ndef f(task, what):\n    with crashlog.carried(f'the mend of the {what}: {task}', what=what):\n"
+    "        g()\n": [],
+    "from engine import crashlog\ndef f():\n    chars = 36500\n    with crashlog.carried('sized', sized_from=chars):\n        g()\n": [],
+    "from engine import crashlog\ndef f(task, xs):\n    with crashlog.carried(f'embed: {task}', texts=len(xs)):\n        g()\n": [],
+    "def f(task):\n    with carried('not crashlog', task=task):\n        g()\n": [],
+}
+wrong = {src: unnamed(src) for src, want in SUBJECTS.items() if unnamed(src) != want}
+check("(f781) one where names one subject: the rule catches a carried() whose context hands on a parameter of its function that its "
+      "where leaves out (by the module, a name imported from it, an alias, in a method and a nested function), and passes one the where "
+      "names, a value made in the function, an expression, and a carried that is not crashlog's", not wrong, wrong)
+loose = [f"{f} ({fn}): {p}" for f in files for fn, p in unnamed(Path(f).read_text(encoding="utf-8"))]
+check("...and in the game's own code every carried() names in its where the subject it hands on, so a second subject failing the same "
+      "way is an entry of its own and the settled count names it", not loose, loose)
+
 one, two = sum(counts(found, "one").values()), sum(counts(found, "two").values())
 print(f"     the game's own code: {len(files)} files; ring one {one} ({sum(n for n, _ in ONE_LEAVE.values())} left as they are, "
       f"{sum(n for n, _ in ONE_TO_MEND.values())} still to mend); ring two {two} ({sum(n for n, _ in TWO_LEAVE.values())} left, "

@@ -117,7 +117,7 @@ def record(task: str, attempt: int, elapsed: float, messages: list[dict], raw: s
     the gateway files here right after the answer is accepted, outside the tries' own error handling. (f782) A write the system refuses
     is only counted; any other fault is written down once (crashlog.carried)."""
     from engine import crashlog
-    with crashlog.carried("the audit log: a try's entry", quiet=(OSError,), task=task):
+    with crashlog.carried(f"the audit log, a try's entry: {task}", quiet=(OSError,)):
         _record(task, attempt, elapsed, messages, raw, error, typed, model)
 
 

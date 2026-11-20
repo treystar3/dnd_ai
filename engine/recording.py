@@ -435,7 +435,7 @@ class Recorder:
 
 def prune(keep: int | None = None) -> None:
     """Only the newest recordings are kept (config.RECORD_KEEP); a recording kept on purpose lives under data/replay instead."""
-    keep = getattr(config, "RECORD_KEEP", 5) if keep is None else keep
+    keep = config.RECORD_KEEP if keep is None else keep
     folder = where()
     if not folder.exists():
         return

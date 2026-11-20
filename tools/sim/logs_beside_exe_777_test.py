@@ -278,7 +278,7 @@ out = {"cwd": os.getcwd(), "app": str(paths.APP), "bundle": str(paths.BUNDLE),
                    "the server's crash notes": ask(lambda: runtime.Runtime(cfg={}).logs / "crash.log")},
        "working": {"turns": ask(lambda: turnlog.path().resolve()), "llm_calls": ask(lambda: Path(config.LOG_PATH).resolve()),
                    "sessions": ask(lambda: Path(config.SESSION_STATS_PATH).resolve()), "pulse": ask(lambda: Path(config.PULSE_LOG_PATH).resolve()),
-                   "reports": ask(lambda: Path(getattr(config, "REPORTS_PATH", "logs/reports")).resolve()),
+                   "reports": ask(lambda: Path(config.REPORTS_PATH).resolve()),
                    "the saves folder": ask(lambda: campaign.SAVES_DIR.resolve())},
        "refused": REFUSED}
 print("F777 " + json.dumps(out))

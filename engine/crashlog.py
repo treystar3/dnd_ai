@@ -28,30 +28,44 @@ from core.interrupts import Interrupt
 from engine import actor
 
 SEP = "\n" + "-" * 78 + "\n"
-KEEP = int(getattr(config, "CRASH_KEEP", 50))
+KEEP = int(config.CRASH_KEEP)
 SESSION: list[dict] = []
 CARRIED: dict[tuple[str, str], tuple[int, bool]] = {}   # (where, error type): (times carried this session, quiet), oldest let go past KEEP
-_LOCK = threading.Lock()
+_LOCK = threading.RLock()                                # (f781) CARRIED, and crash.log's read and write back as one
 
 
 def path() -> Path:
     """crash.log: config.CRASH_LOG_PATH placed by core.paths, beside the exe in a built game (f777)."""
-    return paths.written(getattr(config, "CRASH_LOG_PATH", "logs/crash.log"))
+    return paths.written(config.CRASH_LOG_PATH)
 
 
 def record(exc: BaseException, where: str, **context) -> dict:
     """Write one fault: when, where in the game, what the player had typed and where they stood, the exception and its traceback.
     Returns the entry (also kept in SESSION). Never raises: a log that cannot be written must not become a second fault."""
-    context = {"actor": actor.who(), **context}            # (f629) who acted, when someone did: the bound actor
-    entry = {"time": datetime.now(timezone.utc).isoformat(timespec="seconds"), "where": where,
-             "error": f"{type(exc).__name__}: {exc}"[:300], **{k: v for k, v in context.items() if v not in (None, "")}}
+    context = {k: v for k, v in {"actor": actor.who(), **context}.items() if _kept(v)}   # (f629) who acted, when someone did
+    said = _said(exc)
+    error = type(exc).__name__ if said is None else f"{type(exc).__name__}: {said}"
+    entry = {"time": datetime.now(timezone.utc).isoformat(timespec="seconds"), "where": where, "error": error[:300], **context}
     SESSION.append(entry)
     del SESSION[:-KEEP]
     text = (f"{entry['time']}  {where}: {entry['error']}\n"
-            + "".join(f"  {k}: {v}\n" for k, v in context.items() if v not in (None, ""))
+            + "".join(f"  {k}: {_said(v, type(v).__name__)}\n" for k, v in context.items())
             + "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)))
     _append(text, path())
     return entry
+
+
+def _said(value, otherwise: str | None = None) -> str | None:
+    """A value's words, or `otherwise` when saying them raises (an exception's own __str__ can)."""
+    try:
+        return str(value)
+    except Exception:                                  # (f781) a fault's words that cannot be read never become a second fault
+        return otherwise
+
+
+def _kept(value) -> bool:
+    """A context value worth writing: anything but None and the empty string, asked without the value's own == (which can raise)."""
+    return value is not None and not (isinstance(value, str) and not value)
 
 
 @contextlib.contextmanager
@@ -134,13 +148,14 @@ def note(where: str, text: str, to: Path | None = None) -> None:
 
 
 def _append(text: str, p: Path) -> None:
-    try:
-        p.parent.mkdir(parents=True, exist_ok=True)
-        old = p.read_text(encoding="utf-8", errors="replace") if p.exists() else ""
-        entries = [e for e in old.split(SEP) if e.strip()] + [text.rstrip("\n")]
-        p.write_text(SEP.join(entries[-KEEP:]) + "\n", encoding="utf-8")
-    except OSError:
-        pass
+    with _LOCK:                                        # (f781) two writers at once would each write back the file without the other's
+        try:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            old = p.read_text(encoding="utf-8", errors="replace") if p.exists() else ""
+            entries = [e for e in old.split(SEP) if e.strip()] + [text.rstrip("\n")]
+            p.write_text(SEP.join(entries[-KEEP:]) + "\n", encoding="utf-8", errors="backslashreplace")   # (f781) half a pair as its escape
+        except OSError:
+            pass
 
 
 def last() -> dict | None:

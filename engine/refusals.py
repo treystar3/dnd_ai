@@ -28,7 +28,7 @@ SESSION: list[dict] = []
 
 def path() -> Path:
     """refusals.jsonl: config.REFUSALS_LOG_PATH placed by core.paths, beside the exe in a built game (f777)."""
-    return paths.written(getattr(config, "REFUSALS_LOG_PATH", "logs/refusals.jsonl"))
+    return paths.written(config.REFUSALS_LOG_PATH)
 
 
 def note(kind: str, text: str, why: str = "", place: str = "", turn: int = -1, asked: str = "") -> None:
@@ -36,7 +36,7 @@ def note(kind: str, text: str, why: str = "", place: str = "", turn: int = -1, a
            "why": why, "place": place, "asked": asked}       # (f629) who acted: the bound actor (the gateway's refusals have no scene to ask)
     SESSION.append(row)
     console.debug(f"refusal ({kind}): {text[:80]!r} - {why[:120]}")
-    if not getattr(config, "REFUSALS_LOG", True):
+    if not config.REFUSALS_LOG:
         return
     try:
         p = path()

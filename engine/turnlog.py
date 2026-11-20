@@ -42,11 +42,11 @@ SHOWN_KINDS = {"narrate": "narration", "say": "speech", "npc_says": "speech", "d
 
 
 def enabled() -> bool:
-    return bool(getattr(config, "TURN_LOG", True))
+    return bool(config.TURN_LOG)
 
 
 def path() -> Path:
-    return paths.written(getattr(config, "TURN_LOG_PATH", "logs/turns.jsonl"))      # (f779) in the one logs folder
+    return paths.written(config.TURN_LOG_PATH)                                       # (f779) in the one logs folder
 
 
 def _head() -> dict:
@@ -238,7 +238,7 @@ def write_session_stats() -> None:
     if not COUNTS:
         return
     try:
-        p = paths.written(getattr(config, "SESSION_STATS_PATH", "logs/sessions.jsonl"))   # (f779) in the one logs folder
+        p = paths.written(config.SESSION_STATS_PATH)                                     # (f779) in the one logs folder
         p.parent.mkdir(parents=True, exist_ok=True)
         with p.open("a", encoding="utf-8") as f:
             f.write(json.dumps(session_stats(), ensure_ascii=False) + "\n")

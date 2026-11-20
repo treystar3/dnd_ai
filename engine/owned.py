@@ -103,8 +103,7 @@ STATE: dict[str, Row] = {
     "engine.domain_events.RECENT": Row(CAMPAIGN, "the session, with the bus it is the recent events of (domain_events.use)"),
     "npc.backfill._jobs": Row(CAMPAIGN, "the session's close, which forgets the save's jobs (backfill.drop); keyed by save, so one save never reads another's"),
     "engine.streams.STRICT": Row(CAMPAIGN, "the recorder: set as it is installed and cleared as it closes, which the session does first"),
-    # (f781) the faults carried this session, so each place and kind is written down once a campaign; capped at crashlog.KEEP, and its
-    # counts above one written to crash.log before it is emptied (crashlog.settle)
+    # (f781) each place and kind written down once a campaign; its counts above one go to crash.log before it is emptied
     "engine.crashlog.CARRIED": Row(CAMPAIGN, SESSION, lambda: _call("engine.crashlog.settle"), lambda: not _at("engine.crashlog.CARRIED"),
                                    lambda: f"{len(_at('engine.crashlog.CARRIED'))} faults carried"),
 
