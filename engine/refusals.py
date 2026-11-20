@@ -19,11 +19,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import config
+from core import paths
 from engine import actor
 from ui import console
 
-ROOT = Path(__file__).resolve().parent.parent
 SESSION: list[dict] = []
+
+
+def path() -> Path:
+    """refusals.jsonl: config.REFUSALS_LOG_PATH placed by core.paths, beside the exe in a built game (f777)."""
+    return paths.written(getattr(config, "REFUSALS_LOG_PATH", "logs/refusals.jsonl"))
 
 
 def note(kind: str, text: str, why: str = "", place: str = "", turn: int = -1, asked: str = "") -> None:
@@ -34,12 +39,12 @@ def note(kind: str, text: str, why: str = "", place: str = "", turn: int = -1, a
     if not getattr(config, "REFUSALS_LOG", True):
         return
     try:
-        path = ROOT / getattr(config, "REFUSALS_LOG_PATH", "logs/refusals.jsonl")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as f:
+        p = path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with p.open("a", encoding="utf-8") as f:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
         from llm.gateway import trim_log
-        trim_log(path)
+        trim_log(p)
     except OSError:
         pass
 

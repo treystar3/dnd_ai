@@ -14,16 +14,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import config
+from core import paths
 from engine import actor
 
-ROOT = Path(__file__).resolve().parent.parent
 SEP = "\n" + "-" * 78 + "\n"
 KEEP = int(getattr(config, "CRASH_KEEP", 50))
 SESSION: list[dict] = []
 
 
 def path() -> Path:
-    return ROOT / getattr(config, "CRASH_LOG_PATH", "logs/crash.log")
+    """crash.log: config.CRASH_LOG_PATH placed by core.paths, beside the exe in a built game (f777)."""
+    return paths.written(getattr(config, "CRASH_LOG_PATH", "logs/crash.log"))
 
 
 def record(exc: BaseException, where: str, **context) -> dict:

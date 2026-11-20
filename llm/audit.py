@@ -16,10 +16,9 @@ from datetime import datetime
 from pathlib import Path
 
 import yaml
-from core import yamlio
+from core import paths, yamlio
 
-ROOT = Path(__file__).resolve().parent.parent
-A = yamlio.safe_load((ROOT / "data" / "rules" / "audit_log.yaml").read_text(encoding="utf-8"))
+A = yamlio.safe_load((Path(paths.BUNDLE) / "data" / "rules" / "audit_log.yaml").read_text(encoding="utf-8"))   # (f777) a built game's data is in the bundle
 
 _lock = threading.Lock()
 _path: Path | None = None
@@ -42,7 +41,7 @@ def enabled() -> bool:
 def path() -> Path:
     global _path
     if _path is None:
-        folder = ROOT / A.get("folder", "logs/audit")
+        folder = paths.written(A.get("folder", "logs/audit"))      # (f777) beside the exe, with the other logs
         folder.mkdir(parents=True, exist_ok=True)
         _path = folder / f"{datetime.now().strftime('%Y-%m-%d_%H%M%S')}.md"
         _path.write_text(f"# Audit log - session started {datetime.now().isoformat(timespec='seconds')}\n\n"

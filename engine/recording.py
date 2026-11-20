@@ -42,16 +42,22 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import config
+from core import paths
 from engine import actor
 from llm.errors import Failure                  # (f527) the interface's own failure kinds, no model client
 
 ROOT = Path(__file__).resolve().parent.parent
-FOLDER = ROOT / "recordings"
+FOLDER = Path("recordings")             # (f777) placed by core.paths when used (where()): beside the exe in a built game
 KEPT = ROOT / "data" / "replay"         # (f732) a recording kept in git: its call log is written plain, so a re-bless is stored as a delta
 CALLS = ("calls.jsonl", "calls.jsonl.gz")   # a recording's call log: plain (kept), gzipped (played); read in this order
 STORY = ("narrate", "say", "npc_says", "dialogue", "note", "wait", "ledger")   # what the player reads (engine/turnlog.py), and the engine's facts
 ORPHANS: set = set()     # (f453) threads a closed session left running (a creation call, people being written): the Thread objects, never
                          # their idents, which the OS hands out again; their calls pass through the recorder unrecorded (_layer)
+
+
+def where() -> Path:
+    """The folder recordings are made in: FOLDER under core.paths.APP, asked now, or FOLDER itself when it is absolute (a test's)."""
+    return paths.written(FOLDER)
 
 
 def orphan(threads) -> None:
@@ -209,7 +215,7 @@ class Recorder:
         from engine import streams
         from storage import statehash
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        self.dir = Path(folder) if folder else FOLDER / (name or f"{store.meta.name}_{stamp}")
+        self.dir = Path(folder) if folder else where() / (name or f"{store.meta.name}_{stamp}")
         if self.dir.exists():
             shutil.rmtree(self.dir)
         self.dir.mkdir(parents=True)
@@ -415,8 +421,9 @@ class Recorder:
 def prune(keep: int | None = None) -> None:
     """Only the newest recordings are kept (config.RECORD_KEEP); a recording kept on purpose lives under data/replay instead."""
     keep = getattr(config, "RECORD_KEEP", 5) if keep is None else keep
-    if not FOLDER.exists():
+    folder = where()
+    if not folder.exists():
         return
-    made = sorted((d for d in FOLDER.iterdir() if (d / "meta.json").exists()), key=lambda d: (d / "meta.json").stat().st_mtime)
+    made = sorted((d for d in folder.iterdir() if (d / "meta.json").exists()), key=lambda d: (d / "meta.json").stat().st_mtime)
     for d in made[:-keep] if keep > 0 else made:
         shutil.rmtree(d, ignore_errors=True)

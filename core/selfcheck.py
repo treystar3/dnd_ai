@@ -13,8 +13,8 @@ from core import paths
 
 
 def log_path() -> Path:
-    """logs/selfcheck.log beside the exe (the project folder from source), asked at the call."""
-    return Path(paths.APP) / "logs" / "selfcheck.log"
+    """logs/selfcheck.log beside the exe (the project folder from source), placed by core.paths at the call."""
+    return paths.written("logs/selfcheck.log")
 
 
 def _data() -> list[str]:

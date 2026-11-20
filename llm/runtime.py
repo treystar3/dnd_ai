@@ -649,7 +649,7 @@ class Runtime:
         self.runtime = Path(runtime or paths.RUNTIME)
         self.models = Path(models or paths.MODELS)
         self.run_dir = Path(run_dir or paths.RUN)
-        self.logs = Path(logs or (Path(paths.APP) / "logs"))
+        self.logs = Path(logs or paths.written("logs"))         # (f777) placed by core.paths, with crash.log and the refusals
         self.build = build
         self.state = "not_started"
         self.chat: Child | None = None
