@@ -1,5 +1,8 @@
 """Is a newer release out? Reads the newest GitHub release of config.UPDATE_REPO (public repositories only; nothing is sent but the request).
 
+enabled() is the one place the switch is asked (UPDATE_REPO set and UPDATE_CHECK on): off, the game looks for no release, offers none
+and installs none, on every path (the window's check, the terminal's, the Update button's route).
+
 Releases carry the installer as an attached file whose name ends in _setup.exe. The game shows an Update button; installing downloads that file,
 runs it quietly and closes the game so the installer can replace it. Saves live beside the exe and are left alone by the installer.
 
@@ -34,11 +37,17 @@ def newer(latest: str, current: str = VERSION) -> bool:
     return a + (0,) * (n - len(a)) > b + (0,) * (n - len(b))
 
 
-def latest_release(repo: str = "", timeout: float = 4.0) -> dict | None:
-    """{'version', 'notes', 'url' (the installer file or '' ), 'page'} for the newest release, or None."""
-    repo = repo or config.UPDATE_REPO
-    if not repo:
+def enabled() -> bool:
+    """Whether this game looks for, offers and installs releases: a repository named and the switch on. The switch is read here alone."""
+    return bool(config.UPDATE_REPO) and bool(config.UPDATE_CHECK)
+
+
+def latest_release(timeout: float = 4.0) -> dict | None:
+    """{'version', 'notes', 'url' (the installer file or '' ), 'page'} for the newest release of config.UPDATE_REPO, or None; None,
+    unasked, while enabled() is off."""
+    if not enabled():                          # (f780) every read obeys the switch: there is no other repository to ask
         return None
+    repo = config.UPDATE_REPO
     req = urllib.request.Request(f"https://api.github.com/repos/{repo}/releases/latest",
                                  headers={"Accept": "application/vnd.github+json", "User-Agent": "meravia-update-check"})
     try:
@@ -76,10 +85,10 @@ def attempted() -> dict | None:
         return None
 
 
-def available(repo: str = "", timeout: float = 4.0) -> dict | None:
+def available(timeout: float = 4.0) -> dict | None:
     """The newest release when it is newer than this game, with `current` (this game's version) and, when this very release was already
     installed and the game still reports the version it was installed over, `again`: {from, time} - the update did not take."""
-    info = latest_release(repo, timeout)
+    info = latest_release(timeout)
     if not info or not newer(info["version"]):
         return None
     info["current"] = VERSION
@@ -90,12 +99,12 @@ def available(repo: str = "", timeout: float = 4.0) -> dict | None:
 
 
 def check_in_background(on_found) -> None:
-    """Look once, off the game's thread; on_found(info) runs only if there is something newer."""
+    """Look once, off the game's thread; on_found(info) runs only if there is something newer. No thread while enabled() is off."""
     def work():
         info = available()
         if info:
             on_found(info)
-    if config.UPDATE_REPO:
+    if enabled():
         threading.Thread(target=work, daemon=True, name="update-check").start()
 
 
@@ -111,8 +120,10 @@ def _leave() -> None:
 
 def install(info: dict, progress, quit_game) -> str | None:
     """Download the installer and hand over to it. Returns a problem text, or None once the installer has started.
-    Not in a built Windows app (or no installer attached): open the release page instead."""
+    Not in a built Windows app (or no installer attached): open the release page instead. Refused while enabled() is off."""
     from core import paths
+    if not enabled():                          # (f780) whoever calls it: an offer kept from before the switch went off installs nothing
+        return "Updates are turned off in this copy of the game."
     if sys.platform != "win32" or not paths.FROZEN or not info.get("url"):
         webbrowser.open(info.get("page", ""))
         return None

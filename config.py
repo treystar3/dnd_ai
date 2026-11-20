@@ -62,7 +62,8 @@ AUDIT_LOG = True           # a readable record of every model call, one file per
 GAME_TITLE = "Meravia"                      # (f345) the name the home page, the window, the exe and the installer carry
 GAME_SUBTITLE = "A tale of gifts unforgiven"
 UPDATE_REPO = "treystar3/dnd_ai"            # "owner/repo" of the public GitHub repository whose releases carry the installer; empty turns the update check off
-UPDATE_CHECK = True                          # (f364) False for a build whose updates come another way (a store): no release is looked for
+UPDATE_CHECK = True                          # (f364) False for a build whose updates come another way (a store): no release is looked for,
+#                                              offered or installed; (f780) asked only through core/updates.py enabled()
 
 VOICED_MENTOR = True        # Maren says her written lines in her own words (False: exactly as written)
 FREE_MENTOR = True                           # her speeches are written freely from facts (False: her written lines, one-to-one in her words)

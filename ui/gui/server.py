@@ -219,6 +219,8 @@ def make_server(bridge, token: str | None = None):
                 return self._json(200, {"ok": True}) if bridge.submit(text[:2000]) else self._json(409, {"error": "not waiting"})
             if u.path == "/update":
                 from core import updates
+                if not updates.enabled():                  # (f780) an offer already on the bridge installs nothing once the switch is off
+                    return self._json(409, {"error": "updates are off"})
                 info = bridge.update_info
                 if not info:
                     return self._json(409, {"error": "no update"})
