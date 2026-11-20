@@ -1,5 +1,5 @@
 """(f504) One damage calculation, declared stage by stage. data/rules/stages.yaml names the stages of each damage path in order (the
-blow, a poison's or a burn's tick, a wound torn, a force turned back); STAGES here names the function behind each id, and
+blow, a poison's or a burn's tick, a wound torn, a force turned back, a kill outright); STAGES here names the function behind each id, and
 engine/data_check.py holds the two to each other: a stage the data names must have a function, and a function here must be named by a
 path. Each stage reads and writes one Blow (the shared locals of engine/combat.py take_damage, so nothing is stale), keeps take_damage's
 labels and its 0.5 threshold for the record (step), and returns False to end the path (a floor that held, a petrified target, nothing
@@ -14,11 +14,12 @@ path, reading what is about to land through one accessor (Blow.landing). A floor
 
 (f505) take_damage is resolve("blow"), the tick in start_turn resolve("dot_tick"), afflictions.tear resolve("tear") and the rebound
 stage resolve("rebound"): one calculation, its value and its explanation from the declared recipe; the fight fixtures (93 cases, none
-moved) are the proof that no number moved.
+moved) are the proof that no number moved. (f773) engine/combat.py kill_outright is resolve("outright").
 The health bar is written here and in engine/combat.py restore, and in the named exemptions tools/purity.py HP_EXEMPT lists (construction,
 unmaking, floors outside a blow, heals outside restore, costs and drains); nowhere else (hp_writes, tools/sim/hp_writes_505_test.py)."""
 from __future__ import annotations
 
+import math
 import random
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -273,7 +274,9 @@ def rounded(b: Blow) -> bool:
 
 # ---------- the floors: a harm that would end someone, pulled short (stages.yaml floors: every path meets the same ones)
 
-PATH_HARM = {"blow": "blow", "tear": "blow", "rebound": "rebound"}   # (f772) a torn wound is its blow's; a tick's harm is its status
+PATH_HARM = {"blow": "blow", "tear": "blow", "rebound": "rebound",   # (f772) a torn wound is its blow's; a tick's harm is its status
+             "outright": "outright"}
+CARRIED = {"blow": "unnamed", "outright": "outright"}   # (f773) paths a blow may carry, and the word when no carrier is named
 
 
 def harm(b: Blow) -> str:
@@ -291,8 +294,7 @@ def _held(b: Blow) -> bool:
 
 def duel_holds(combat: C.Combat | None, d: C.Fighter) -> bool:
     """(f771) A trial of rank holds this fighter above death: one of its duellists (engine/combat.py duellist). Anyone else in it falls
-    as in any fight, and decides nothing. The duel's floor asks it on every path (stages.yaml floors), and Death's Door's own floor
-    (engine/spellcraft.py)."""
+    as in any fight, and decides nothing. The duel's floor asks it on every path (stages.yaml floors)."""
     return combat is not None and combat.duel and C.duellist(combat, d)
 
 
@@ -497,6 +499,15 @@ def rebound_health(b: Blow) -> bool:
     return True
 
 
+def whole_health(b: Blow) -> bool:
+    """(f773) A kill outright: what is about to land is all the health the fighter has, whole, past any armour, ward or barrier
+    (none stands before the floors on its path), so it ends them unless a floor holds. The health stage takes it."""
+    b.amount = b.dfn.hp
+    b.dealt = math.ceil(b.dfn.hp)
+    b.whole = True
+    return True
+
+
 def tear_health(b: Blow) -> bool:
     """A physical hit lands on an open wound (engine/afflictions.py tear): it bleeds its size times deep, through armour and shields.
     What it took is dealt."""
@@ -585,20 +596,22 @@ STAGES: dict[str, Callable[[Blow], bool]] = {
     "healing_after_damage": healing_after_damage, "yields_break": yields_break,
     "boss_after_damage": boss_after_damage, "second_wind": second_wind, "rebound": rebound,
     "tick_health": tick_health, "tick_on_tick": tick_on_tick, "tear_health": tear_health, "rebound_health": rebound_health,
+    "whole_health": whole_health,
 }
 
 
 def _harm_key(combat, path: str, dfn, source, dot: str, harm: str | None) -> str:
-    """(f772) What this harm is called: a tick by its status, a torn wound and a rebound by their path; on the blow's path the blow's
-    own (its striker on its target), else what the caller named, else unnamed."""
+    """(f772) What this harm is called: a tick by its status, a torn wound and a rebound by their path; on a path a blow may carry (the
+    blow's, a kill outright's) the blow's own when its striker's blow on its target is in progress, else what the caller named (its
+    carrier: a curse), else the path's own word (CARRIED)."""
     if path == "dot_tick":
         return dot
-    if path != "blow":
+    if path not in CARRIED:
         return PATH_HARM[path]
     blow = C.blow_now(combat)
     if blow is not None and blow.att is source and blow.dfn is dfn:
         return "blow"
-    return harm or "unnamed"
+    return harm or CARRIED[path]
 
 
 def resolve(path: str, combat: C.Combat, dfn: C.Fighter, amount: float, source: C.Fighter | None, rng: random.Random,

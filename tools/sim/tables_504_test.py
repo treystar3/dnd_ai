@@ -43,13 +43,14 @@ RECIPES = {"base_damage": ["flat", "percent"], "mitigate": ["percent", "flat"], 
 check("stages.yaml's blow path is take_damage's order, as recorded", ST["damage"]["blow"] == BLOW, ST["damage"]["blow"])
 check("...its status eligibility is add_status's order", ST["status_eligibility"] == ELIGIBILITY, ST["status_eligibility"])
 check("...its stacking recipes are today's, each part in its order", ST["stacking"] == RECIPES, ST["stacking"])
-check("...the bypasses are declared: a tick, a torn wound and a rebound, each meeting the blow's floors (f772)",
-      set(ST["damage"]) == {"blow", "dot_tick", "tear", "rebound"}
+check("...the bypasses are declared: a tick, a torn wound, a rebound and a kill outright, each meeting the blow's floors (f772, f773)",
+      set(ST["damage"]) == {"blow", "dot_tick", "tear", "rebound", "outright"}
       and ST["damage"]["dot_tick"] == FLOORS + ["tick_health", "fall", "tick_on_tick", "yields_break"]
       and ST["damage"]["tear"] == FLOORS + ["tear_health", "fall", "yields_break"]
-      and ST["damage"]["rebound"] == FLOORS + ["rebound_health", "fall", "yields_break"], ST["damage"])
-check("...and the floors table beside them, every floor holding every path (f772)", list(ST["floors"]) == FLOORS
-      and all(v == ["blow", "dot_tick", "tear", "rebound"] for v in ST["floors"].values()), ST.get("floors"))
+      and ST["damage"]["rebound"] == FLOORS + ["rebound_health", "fall", "yields_break"]
+      and ST["damage"]["outright"] == ["whole_health"] + FLOORS + ["health", "fall", "yields_break"], ST["damage"])
+check("...and the floors table beside them, every floor holding every path (f772, f773)", list(ST["floors"]) == FLOORS
+      and all(v == ["blow", "dot_tick", "tear", "rebound", "outright"] for v in ST["floors"].values()), ST.get("floors"))
 
 # the hit steps, read from _apply_damage's source in order: every hit_step call's label, and the two delegations between them
 src = pathlib.Path("engine/combat.py").read_text(encoding="utf-8")

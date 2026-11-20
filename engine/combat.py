@@ -1473,6 +1473,24 @@ def side_damage(combat: Combat, dfn: Fighter, amount: float, source: Fighter | N
     return dealt
 
 
+def kill_outright(combat: Combat, dfn: Fighter, source: Fighter | None, rng: random.Random, told: str,
+                  harm: str | None = None) -> bool:
+    """(f773) A harm that ends a fighter with no blow's arithmetic (Death's Door): the kill outright's declared path (stages.yaml
+    outright), all the health it has, past any armour, ward or barrier, meeting every floor the table gives it, then the fall step.
+    The caller's line is told only when it ends them, before what their fall sets off; a floor that holds tells its own. harm: what
+    carries it when no blow does (a key of combat.yaml harms: a curse), as side_damage's; a blow's own is the blow, and with neither the
+    path's own word. Returns whether it ended them."""
+    from engine import damage
+    if not reaches(combat, dfn):
+        return False
+    at = len(combat.story)
+    damage.resolve("outright", combat, dfn, dfn.hp, source, rng, harm=harm)
+    if dfn.alive:
+        return False
+    tell(combat, told, at=at)
+    return True
+
+
 def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, label: str, rng: random.Random,
                  can_cleave: bool = True, can_riposte: bool = True, how: str = "", can_flurry: bool = True,
                  reliable: bool = False, riders=None) -> bool:

@@ -481,12 +481,8 @@ def _express_more(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> N
             att.counters["rehid"] = 1
             C.tell(combat, f"{C.who(att)} {C.vb(att, 'fold', 'folds')} back into the shadows ({e['label']})")
     elif eid == "deaths_door" and dfn.alive and not dfn.boss and dfn.rank != "boss" and dfn.hp < dfn.max_hp * N("pct", 15) / 100:
-        from engine import damage
-        floor = 1 if ((combat.mentor and dfn.side == "player") or damage.duel_holds(combat, dfn)) else 0
-        dfn.hp = float(floor)
-        C.tell(combat, f"death reaches for {C.who(dfn)} and does not let go ({e['label']})")
-        if not dfn.alive:
-            damage.fall_step(combat, dfn, att)              # (f768) a kill outright falls as any death does
+        C.kill_outright(combat, dfn, att, rng,                  # (f773) the declared path: every floor holds it, the fall step ends it
+                        f"death reaches for {C.who(dfn)} and does not let go ({e['label']})", harm=ctx.get("harm"))
     elif eid == "life_theft" and dfn.alive:
         dfn.counters["life_theft"] = att.id
     # ---- radiant
@@ -1048,7 +1044,8 @@ def curse_turn(combat, f, rng=None) -> None:
             hits = [e for e in c.get("exprs", []) if e in EXPR and not is_control(e)]
             if hits and maker.alive:
                 maker.counters["last_hit"] = int(dealt)
-                maker.casting = {"exprs": hits, "tier": c["tier"], "name": c["name"], "once": []}
+                maker.casting = {"exprs": hits, "tier": c["tier"], "name": c["name"], "once": [],
+                                 "harm": "curse"}                   # (f773) what carries them, for a floor's line
                 on_hit(combat, maker, f, dealt, rng)
                 end(maker)
         c["left"] -= 1

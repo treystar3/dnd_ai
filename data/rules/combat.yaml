@@ -218,10 +218,12 @@ ticks:
   burning:  {laid: "the fire {who} left on {fallen} burns on", nobody: "the fire burns on"}
 # (f772) What a floor's line calls the harm it held ("the poison should have ended Bryn, but ...", engine/damage.py harm): a blow and
 # all it carries, a force turned back, each status that ticks, and the side harm its caller names (engine/combat.py side_damage harm=).
-# `unnamed` stands in for a harm with no word of its own: the line told just before it says what struck.
+# `unnamed` stands in for a harm with no word of its own: the line told just before it says what struck. (f773) `outright`: a kill
+# outright with no carrier named; one a blow carries is the blow, one a curse lays the curse.
 harms:
   blow: the blow
   rebound: the force
+  outright: "death's grip"
   poisoned: the poison
   burning: the fire
   unnamed: that

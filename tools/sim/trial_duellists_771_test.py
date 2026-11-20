@@ -6,8 +6,8 @@ The owner, 2026-11-19 (GOALS.md's top decision row, docs/design/34_one_fall_step
 beside their summoner in a trial, a beaten one is unmade by the fall step and decides nothing, and the Bound summon walks in with the
 summoner; companions and hires stay out, because a rank is won by the one who holds it.
 Who decides is read from the fight as it stands: a player fighter, or a foe nobody summoned (engine/combat.py duellist). The duel's
-floor and its ending hold and decide only for a duellist, on every path that can bring one to it: a blow, a tick, a rebound, and the
-spell's own floor of Death's Door. Who may stand (engine/combat.py stands) is one rule with one key (data/rules/guild.yaml
+floor and its ending hold and decide only for a duellist, on every path that can bring one to it: a blow, a tick, a rebound, and
+(f773) a kill outright. Who may stand (engine/combat.py stands) is one rule with one key (data/rules/guild.yaml
 trial.summons), asked by the door (services/fight.py begin and engine/summons.py join_bound) and by every summon made inside
 (engine/summons.py refuse), so the two agree whichever way the key is set. FIGHT_ABILITIES-3's write-back of the bond runs at the
 trial's end (services/fight.py close).
@@ -273,7 +273,8 @@ deaths_door(mine)
 check("Death's Door in a trial: a foe's own summon it reaches is ended and unmade, deciding nothing",
       not mine.alive and mine.counters.get("dead") and f.over == "", (mine.hp, f.over))
 deaths_door(ex)
-check("...the examiner it reaches is held by the spell's own floor, as the duel holds a duellist", ex.alive and ex.hp == 1, ex.hp)
+check("...the examiner it reaches is held at one by the duel's floor on the kill outright's path, and the trial won (f773)",
+      ex.alive and ex.hp == 1 and f.over == "victory", (ex.hp, f.over))
 
 # a second player fighter (checklist 8): a duellist of its own, and its summon none
 c, p = summoner()

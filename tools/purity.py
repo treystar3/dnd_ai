@@ -58,7 +58,6 @@ HP_EXEMPT = {
     # floors and clamps outside a blow
     ("services/fight.py", "x.hp = 1"),
     ("engine/spellcraft.py", "dfn.hp = min(dfn.hp, dfn.max_hp)"),
-    ("engine/spellcraft.py", "dfn.hp = float(floor)"),
     ("engine/bosses.py", 'f.hp = max(1, round(f.max_hp * cfg["hp_pct"] / 100))'),
     # heals outside restore
     ("engine/combat_perks.py", "target.hp = min(target.max_hp, target.hp + amount)"),

@@ -19,7 +19,7 @@ def check(n, ok, x=""):
 
 check("no module outside the law writes a health bar", purity.hp_writes() == [], purity.hp_writes())
 check("every exemption names a line that still exists (the list may only shrink)", purity.hp_exempt_missing() == [], purity.hp_exempt_missing())
-check("the exemptions are the named sites: construction, unmaking, floors, heals outside restore, costs, a trap", len(purity.HP_EXEMPT) == 20
+check("the exemptions are the named sites: construction, unmaking, floors, heals outside restore, costs, a trap", len(purity.HP_EXEMPT) == 19
       and {rel for rel, _ in purity.HP_EXEMPT} == {"engine/combat.py", "engine/bosses.py", "engine/events.py", "engine/party.py", "engine/summons.py",
                                                    "engine/combat_perks.py", "scenes/arc_actions.py", "services/fight.py", "engine/spellcraft.py",
                                                    "engine/healing.py", "engine/relics.py", "scenes/field_actions.py"}, sorted(purity.HP_EXEMPT))
