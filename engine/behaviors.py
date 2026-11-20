@@ -82,17 +82,24 @@ def _break(combat, f, surrender: bool) -> bool:
     return True
 
 
+def _breaks(combat, e, surrender: bool, line: str) -> None:
+    """(f770) A break a rout asked for: held to the end of the action in progress (engine/combat.py hold_break), else made at once;
+    its line told only if it broke."""
+    from engine import combat as C
+    if not C.hold_break(combat, e, surrender, line) and _break(combat, e, surrender):
+        C.tell(combat, line)
+
+
 def morale(combat, source, rng: random.Random) -> None:
     """When the strongest of a group breaks, the rest may break with it."""
     from engine import combat as C
-    rest = [e for e in combat.enemies() if e is not source]
+    rest = [e for e in combat.enemies() if e is not source and not C.held(combat, e)]     # (f770) one held to break counts as gone
     if not rest or any(e.level > source.level for e in rest):
         return
     for e in rest:
         if e.boss or "fearless" in e.behaviors or rng.random() >= MORALE_ODDS:
             continue
-        if _break(combat, e, can_surrender(e)):
-            C.tell(combat, f"{C.who(e)} loses heart seeing {C.who(source)} break")
+        _breaks(combat, e, can_surrender(e), f"{C.who(e)} loses heart seeing {C.who(source)} break")
 
 
 def _routs(e, combat) -> bool:
@@ -108,7 +115,7 @@ def morale_on_death(combat, fallen, rng: random.Random) -> None:
     if fallen.side != "enemy" or combat.duel:
         return
     M = C.RULES.get("morale") or {}
-    living = combat.enemies()
+    living = [e for e in combat.enemies() if not C.held(combat, e)]       # (f770) one held to break counts as gone, as one that fled
     if not living:
         return
     dead = [f for f in combat.fighters if f.side == "enemy" and not f.alive]
@@ -122,8 +129,8 @@ def morale_on_death(combat, fallen, rng: random.Random) -> None:
         if not _routs(e, combat):
             continue
         chance = odds + (M.get("frightened_bonus", 0.25) if "frightened" in e.statuses else 0)
-        if rng.random() < chance and _break(combat, e, can_surrender(e)):
-            C.tell(combat, f"{C.who(e)} breaks, {why}")
+        if rng.random() < chance:
+            _breaks(combat, e, can_surrender(e), f"{C.who(e)} breaks, {why}")
 
 
 def pre_turn(combat, e, target, rng: random.Random) -> bool:

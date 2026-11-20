@@ -191,6 +191,7 @@ def _do(combat, e, opt: dict, rng, mult: float) -> None:
             _strike(combat, e, combat.player, 1.0, rng)
 
 
+@C.one_action
 def legendary(combat, rng) -> None:
     """One legendary action, taken at the end of someone else's turn."""
     for e in combat.enemies():

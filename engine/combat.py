@@ -4,11 +4,13 @@ Everything here is deterministic given a random generator, so the same code runs
 the danger estimate (the debug view's and the tools', f647), and the balance simulator (tools/balance.py).
 """
 
+import contextlib
 import copy
+import functools
 import math
 import random
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field as dataclass_field
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -431,7 +433,7 @@ class Combat(BaseModel):
     felled_by: dict[str, str] = {}  # (f412) who struck each fallen fighter down, as the story names them: a night's narration gave a
                                     # pirate's killing blow on a companion to the player's own blade
     purpose: Purpose | None = None  # (f765) a chamber, a camp, the Keeper, a town's gate: none for a fight for nothing beyond itself
-    _open: list = PrivateAttr(default_factory=list)  # (f768) the blows in progress, innermost last (OpenBlow): never in the row
+    _open: list = PrivateAttr(default_factory=list)  # (f768, f770) in progress, innermost last (OpenAction, OpenBlow): never in the row
     ONE_OF_THE_FIGHT: ClassVar[tuple[str, ...]] = ("mentor_ally",)             # (f643) held by name while also in `fighters`
     NOT_YET_IN_IT: ClassVar[tuple[str, ...]] = ("reserves", "ally_reserves")   # (f643) they leave their list as they enter
 
@@ -1417,11 +1419,8 @@ def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, 
     if meet:
         multiplier *= martial.FORMS["counter"]["weaken"]
     blow = OpenBlow(att, dfn)
-    combat._open.append(blow)                              # (f768) the blow in progress, held on the fight and never in its row
-    try:
+    with in_progress(combat, blow):                        # (f768) the blow in progress, held on the fight and never in its row
         landed = _apply_damage(combat, att, dfn, multiplier, label, rng, can_cleave, can_riposte, how, can_flurry, reliable, blow=blow)
-    finally:
-        combat._open.remove(blow)
     if blow.fell and not blow.tail:
         credit(combat, blow.by, dfn, rng)                  # (f768) its target fell before its tail (a miss whose riposte met thorns)
     if meet:
@@ -1440,9 +1439,86 @@ class OpenBlow:
     by: Fighter | None = None
 
 
+@contextlib.contextmanager
+def in_progress(combat: Combat, rec):
+    """(f770) What is in progress on the fight (an OpenAction, an OpenBlow): held on its private list for the block, and taken off
+    however the block ends."""
+    combat._open.append(rec)
+    try:
+        yield rec
+    finally:
+        combat._open.remove(rec)
+
+
 def open_blow(combat: Combat, f: Fighter) -> OpenBlow | None:
     """(f768) The innermost blow in progress on this fighter whose tail has not run, or None."""
-    return next((o for o in reversed(getattr(combat, "_open", None) or []) if o.dfn is f and not o.tail), None)
+    return next((o for o in reversed(getattr(combat, "_open", None) or []) if isinstance(o, OpenBlow) and o.dfn is f and not o.tail), None)
+
+
+@dataclass(eq=False)
+class HeldBreak:
+    """(f770) A break a death's rout rolled inside an action, held to its end: the fighter, whether it yields, and the line its
+    caller tells if it breaks."""
+    f: Fighter
+    surrender: bool
+    line: str
+
+
+@dataclass(eq=False)
+class OpenAction:
+    """(f770) The outermost action in progress (an ability, an attack, a movement or a retreat, a turn or its start, an improvisation,
+    a talk, the mentor's strike, a boss's action between turns): the breaks its deaths' routs asked for, in the order they were rolled,
+    settled when it is done."""
+    held: list[HeldBreak] = dataclass_field(default_factory=list)
+
+
+def open_action(combat: Combat | None) -> OpenAction | None:
+    """(f770) The action in progress on this fight, or None."""
+    return next((o for o in (getattr(combat, "_open", None) or []) if isinstance(o, OpenAction)), None)
+
+
+def one_action(entry):
+    """(f770) An entry that is one whole action runs inside an action's scope on its fight (the argument that is a Combat): a break a
+    death's rout asks for in it is held (hold_break), and when the outermost closes the held breaks are settled (settle). One opened
+    inside another (a perk's repeat, a release) settles nothing of its own. A failed action leaves nothing held."""
+    @functools.wraps(entry)
+    def run(*args, **kwargs):
+        fight = next((a for a in (*args, *kwargs.values()) if isinstance(a, Combat)), None)
+        if fight is None or open_action(fight) is not None:
+            return entry(*args, **kwargs)
+        act = OpenAction()
+        with in_progress(fight, act):
+            out = entry(*args, **kwargs)
+            settle(fight, act)
+        return out
+    return run
+
+
+def hold_break(combat: Combat, f: Fighter, surrender: bool, line: str) -> bool:
+    """(f770) A break a death's rout asked for, held to the end of the action in progress: True when held, False when no action is."""
+    act = open_action(combat)
+    if act is None:
+        return False
+    act.held.append(HeldBreak(f, surrender, line))
+    return True
+
+
+def held(combat: Combat, f: Fighter) -> bool:
+    """(f770) Whether this fighter's break is held to the end of the action in progress: a rout's roll counts it gone, as one fled."""
+    act = open_action(combat)
+    return act is not None and any(b.f is f for b in act.held)
+
+
+def settle(combat: Combat, act: OpenAction) -> None:
+    """(f770) The action is done: each held break, in the order it was rolled, through the one way out (behaviors._break), its line
+    told only when it broke; one no longer a foe in the fight (fallen, gone or turned since) does not break. A break settled here can
+    end in a death (No One Escapes) whose rout is held in turn and settled after it, until none is left."""
+    from engine import behaviors
+    while act.held:
+        b = act.held[0]
+        if any(e is b.f for e in combat.enemies()) and behaviors._break(combat, b.f, b.surrender):
+            tell(combat, b.line)
+        act.held.pop(0)
 
 
 def credit(combat: Combat, killer: Fighter | None, fallen: Fighter, rng: random.Random, A: dict | None = None) -> None:
@@ -2006,6 +2082,7 @@ def told_player(combat: Combat, att: Fighter, kind: str, **facts) -> None:
         combat.told.append(told.say(kind, combat.round, **facts))
 
 
+@one_action
 def act_attack(combat: Combat, att: Fighter, target: Fighter, rng: random.Random) -> None:
     from engine import battlefield as bf
     if att.side == "player" and target:
@@ -2185,6 +2262,7 @@ def apply_rider(combat: Combat, att: Fighter, t: Fighter, move: Move, rng: rando
             tell(combat, f"{who(t)} {vb(t, 'are', 'is')} hauled out of {'the back' if t.row != 'front' else 'position'} and into the fight ({r['label']})")
 
 
+@one_action
 def act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | None, rng: random.Random,
                 give: list[Fighter] | None = None, echo: bool = False, released: dict | None = None) -> str | None:
     """One ability, resolved. An echo (engine/combat_perks.py) is the same ability happening again on a perk's account: nothing is
@@ -2588,6 +2666,7 @@ def act_defend(combat: Combat, f: Fighter) -> None:
     tell(combat, f"{who(f)} {vb(f, 'set', 'sets')} {whose(f)} guard and {vb(f, 'wait', 'waits')}")
 
 
+@one_action
 def retreat(combat: Combat, f: Fighter, rng: random.Random) -> str:
     """Backing away from the fight, priced (the movement law): free and clean behind your own working line; otherwise it costs the
     action, everyone on you gets a parting blow as you pull away, and the fast simply follow. Returns the story."""
@@ -2627,6 +2706,7 @@ def advance_step(combat: Combat, f: Fighter, target: Fighter | None) -> str:
     return story if (story or f.zone_id != before) else ""
 
 
+@one_action
 def act_move(combat: Combat, f: Fighter, how: str, target: Fighter | None) -> None:
     from engine import battlefield as bf
     f.move_round = combat.round
@@ -2734,6 +2814,7 @@ def mentor_script(combat: Combat, rng: random.Random) -> None:
     combat.mentor_phase += 1
 
 
+@one_action
 def mentor_strikes(combat: Combat, rng: random.Random) -> None:
     """The round after she steps in, once the player has given their command: her blow, before the troll can act. A real blow, rolled and
     recorded like any other, that never misses; she swings again if the first somehow leaves it standing."""
@@ -2783,6 +2864,7 @@ def muster(combat: Combat) -> bool:
 
 # ---------- turn order and AI ----------
 
+@one_action
 def start_turn(f: Fighter, combat: Combat | None = None, rng: random.Random | None = None) -> bool:
     """Tick statuses at the start of a fighter's turn. Returns False if they lose the turn, or have none (takes_turn)."""
     if not takes_turn(combat, f):
@@ -2879,6 +2961,7 @@ def _pressed(combat: Combat, e: Fighter) -> str:
     return "near" if any(bf.hostile(e, o) for o in bf.standing(combat, e.zone_id)) else "far"
 
 
+@one_action
 def enemy_turn(combat: Combat, e: Fighter, rng: random.Random) -> None:
     if not takes_turn(combat, e):
         return                                         # (f769) down or gone since the round's order was made: no turn, and no line of one
@@ -3139,6 +3222,7 @@ def give_order(combat: Combat, ally: Fighter, kind: str, target_id: str = "", sa
     return ""
 
 
+@one_action
 def ally_turn(combat: Combat, a: Fighter, rng: random.Random) -> None:
     from engine import combat_perks
     if not takes_turn(combat, a):
