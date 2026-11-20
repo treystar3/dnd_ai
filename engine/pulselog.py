@@ -13,9 +13,11 @@ _writes = 0
 def _write(row: dict) -> None:
     global _writes
     import config
+    from core import paths
     path = getattr(config, "PULSE_LOG_PATH", "")
     if not path:
         return
+    path = paths.written(path)                                         # (f779) in the one logs folder
     try:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         with open(path, "a", encoding="utf-8") as fh:

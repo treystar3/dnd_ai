@@ -469,7 +469,8 @@ def batch(args) -> None:
     if unknown:
         die(f"--personas must be of: {', '.join(PERSONAS)} (not {', '.join(unknown)})")
     stamp = datetime.now().strftime("%Y%m%d_%H%M")
-    base = Path(args.out or "logs/nightrun")
+    from core import paths
+    base = Path(args.out).resolve() if args.out else paths.written("logs/nightrun")     # (f779) in the one logs folder
     base.mkdir(parents=True, exist_ok=True)
     plan = [(classes[i % len(classes)], args.seed + i, points[i % len(points)], personas[i % len(personas)]) for i in range(args.runs)]
     from storage import saves
@@ -602,7 +603,8 @@ def main() -> None:
     save = args.save or f"nightrun_{stamp}"
     from storage import saves
     saves.scratch(save, typed=bool(args.save))           # (f743) before anything is made or opened: a game, or a folder no tool made, is refused
-    out = Path(args.out or f"logs/nightrun/{stamp}")
+    from core import paths
+    out = Path(args.out).resolve() if args.out else paths.written(f"logs/nightrun/{stamp}")   # (f779) absolute, in the one logs folder
     out.mkdir(parents=True, exist_ok=True)
 
     import config
@@ -613,7 +615,7 @@ def main() -> None:
     config.REFUSALS_LOG_PATH = str(out / "refusals.jsonl")
     config.CRASH_LOG_PATH = str(out / "crash.log")            # (f492) each run's faults in its own folder: runs on one card never interleave
     from llm import audit
-    audit.A["folder"] = str(out.resolve() / "audit")         # (f779) its audit too: a night's runs never use up the window kept for play
+    audit.FOLDER = out / "audit"                             # (f779) its audit too: a night's runs never use up the window kept for play
     config.LOG_MAX_MB = 10 ** 6
     config.LOG_FULL_PROMPTS = True                           # (f361) every system prompt whole: a run's log is training data (tools/lora_dataset.py)
     from storage import worldrow

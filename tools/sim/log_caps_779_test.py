@@ -78,7 +78,7 @@ CADENCE = 50                              # a writer that trims every fiftieth w
 SMALL = dict(LOG_MAX_MB=TINY, LOG_KEEP_ENTRIES=KEEP)
 for key in [n for n in dir(config) if n.endswith("_PATH")]:         # any write not asked for lands here, never in the project's logs/
     setattr(config, key, str(scratch / "stray" / Path(getattr(config, key)).name))
-held_audit = (dict(audit.A), audit._path, audit._full, audit._count)
+held_audit = (dict(audit.A), audit._path, audit._full, audit._count, audit.FOLDER)
 try:
     # ---- the finder's case: the pulse log, the one log with no cap (engine5-5)
     pulse_path = scratch / "pulse.jsonl"
@@ -113,7 +113,8 @@ try:
         for name in ("notes.txt", "my_copy.md", "2026-10-01_120000.md.bak"):
             (folder / name).write_text("kept by hand\n", encoding="utf-8")
         audit.A.clear()
-        audit.A.update({**held_audit[0], **(extra or {}), "folder": str(folder)})
+        audit.A.update({**held_audit[0], **(extra or {})})
+        audit.FOLDER = folder
         audit._path = None
         try:
             new = audit.path()
@@ -143,7 +144,8 @@ try:
         for d in range(window):
             (folder / f"2099-01-{d + 1:02d}_120000.md").write_text("# a session from a clock ahead\n", encoding="utf-8")
         audit.A.clear()
-        audit.A.update({k: v for k, v in {**held_audit[0], **(extra or {}), "folder": str(folder)}.items() if v is not None})
+        audit.A.update({k: v for k, v in {**held_audit[0], **(extra or {})}.items() if v is not None})
+        audit.FOLDER = folder
         audit._path, audit._full = None, False
         return attempt(audit.path)
     ahead = scratch / "audit_ahead"
@@ -163,7 +165,7 @@ try:
               isinstance(opened, Path) and count == window + 1, (opened, count))
     audit.A.clear()
     audit.A.update({k: v for k, v in held_audit[0].items() if k != "max_mb"})
-    audit.A["folder"] = str(scratch / "audit_no_ceiling")
+    audit.FOLDER = scratch / "audit_no_ceiling"
     audit._path, audit._full = None, False
     with replaced(config, AUDIT_LOG=True):
         recorded = attempt(lambda: audit.record("narrate", 0, 0.1, [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}],
@@ -172,7 +174,8 @@ try:
     check("...and with no max_mb the call is not failed: nothing raised, the file says it stops and holds no call",
           not isinstance(recorded, Exception) and "## #" not in no_ceiling and "reached its size limit" in no_ceiling, (recorded, no_ceiling[-200:]))
     audit.A.clear()
-    audit.A.update({**held_audit[0], "folder": str(scratch / "audit_full"), "max_mb": 0.0001})
+    audit.A.update({**held_audit[0], "max_mb": 0.0001})
+    audit.FOLDER = scratch / "audit_full"
     audit._path, audit._full = None, False
     with replaced(config, AUDIT_LOG=True):
         for i in range(20):
@@ -259,13 +262,16 @@ try:
         ("config.py", "logs/turns.jsonl"): "turns", ("config.py", "logs/sessions.jsonl"): "sessions",
         ("config.py", "logs/refusals.jsonl"): "refusals", ("config.py", "logs/crash.log"): "crash",
         ("engine/turnlog.py", "logs/turns.jsonl"): "turns", ("engine/turnlog.py", "logs/sessions.jsonl"): "sessions",
+        ("engine/turnlog.py", "paths.written in path"): "turns", ("engine/turnlog.py", "paths.written in write_session_stats"): "sessions",
+        ("llm/gateway.py", "paths.written in trim_log"): "llm_calls", ("llm/gateway.py", "paths.written in _log"): "llm_calls",
+        ("engine/pulselog.py", "paths.written in _write"): "pulse",
         ("engine/refusals.py", "logs/refusals.jsonl"): "refusals", ("engine/refusals.py", "paths.written in path"): "refusals",
         ("engine/crashlog.py", "logs/crash.log"): "crash", ("engine/crashlog.py", "paths.written in path"): "crash",
         ("llm/audit.py", "logs/audit"): "audit", ("llm/audit.py", "paths.written in path"): "audit",
         ("engine/recording.py", "paths.written in where"): "recordings",
         ("llm/runtime.py", "paths.written in Runtime"): "the server's logs",       # llama-server.log, llama-embed.log, its crash notes
         ("core/selfcheck.py", "logs/selfcheck.log"): "selfcheck", ("core/selfcheck.py", "paths.written in log_path"): "selfcheck",
-        ("scenes/audit_actions.py", "logs/reports"): "reports",
+        ("scenes/audit_actions.py", "logs/reports"): "reports", ("scenes/audit_actions.py", "paths.written in AuditActions"): "reports",
     }
 
     def log_sites(text: str) -> list[str]:
@@ -297,11 +303,11 @@ try:
     # ---- the live tools that audit their calls keep the audit in their run's own folder, never in the window kept for play
     for tool in ("nightrun.py", "eventrun.py"):
         src = (ROOT / "tools" / tool).read_text(encoding="utf-8")
-        check(f"tools/{tool} puts its audit in the run's own folder, beside its other logs", 'audit.A["folder"] = str(out.resolve() / "audit")' in src)
+        check(f"tools/{tool} puts its audit in the run's own folder, beside its other logs", 'audit.FOLDER = out / "audit"' in src)
 finally:
     audit.A.clear()
     audit.A.update(held_audit[0])
-    audit._path, audit._full, audit._count = held_audit[1], held_audit[2], held_audit[3]
+    audit._path, audit._full, audit._count, audit.FOLDER = held_audit[1], held_audit[2], held_audit[3], held_audit[4]
     shutil.rmtree(scratch, ignore_errors=True)
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))

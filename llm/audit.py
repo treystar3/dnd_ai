@@ -1,6 +1,7 @@
 """The audit log (f314): every call to the model, written for a person to read afterwards.
 
-One Markdown file per session under logs/audit/ (data/rules/audit_log.yaml) while config.AUDIT_LOG, its one switch, is on (f778). For
+One Markdown file per session in FOLDER, logs/audit under the one logs folder (f779: core.paths.logs(); a test's own under the suite),
+with its numbers in data/rules/audit_log.yaml, while config.AUDIT_LOG, its one switch, is on (f778). For
 each call: which turn it belongs to and what the player typed, why the game made the call, the system prompt (in full the first time,
 then by reference while it is unchanged), the user prompt in full - with the typed parts marked when the prompt was built from them
 (engine/prompt.py: what is an instruction, what is a fact, what is history) - the model's answer, and the verdict: accepted, or rejected
@@ -23,6 +24,7 @@ import config
 from core import paths, yamlio
 
 A = yamlio.safe_load((Path(paths.BUNDLE) / "data" / "rules" / "audit_log.yaml").read_text(encoding="utf-8"))   # (f777) a built game's data is in the bundle
+FOLDER = Path("logs/audit")           # (f779) placed by core.paths when named: in the one logs folder; a night tool's own, absolute
 
 _lock = threading.Lock()
 _path: Path | None = None
@@ -42,7 +44,7 @@ def enabled() -> bool:
 def path() -> Path:
     global _path
     if _path is None:
-        folder = paths.written(A.get("folder", "logs/audit"))      # (f777) beside the exe, with the other logs
+        folder = paths.written(FOLDER)                                 # (f777) beside the exe, with the other logs
         folder.mkdir(parents=True, exist_ok=True)
         _path = folder / f"{datetime.now().strftime('%Y-%m-%d_%H%M%S')}.md"
         _path.write_text(f"# Audit log - session started {datetime.now().isoformat(timespec='seconds')}\n\n"

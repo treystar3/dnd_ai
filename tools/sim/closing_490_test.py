@@ -17,6 +17,7 @@ simlib.install(stub)
 SHOWN = simlib.quiet_console()
 import config
 import latency
+from core import paths
 from engine import canon, data_check
 
 bad = []
@@ -36,7 +37,7 @@ check("...which refuses a speech task with none, and a ceiling for a task that i
       and any("made_up" in b for b in data_check.ceilings_problems(dict(C, ceilings=dict(C["ceilings"], made_up={"chars": 10})))))
 
 # ---- the briefs a fixture builds fit their ceilings
-log = Path("saves/closing_490_calls.jsonl")
+log = paths.written("saves/closing_490_calls.jsonl")                 # (f779) where the game writes a log named so: the test's own folder
 log.unlink(missing_ok=True)
 config.LOG_PATH = str(log)
 game = simlib.campaign("closing_490", minutes=600, location="guild_house")

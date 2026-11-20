@@ -41,6 +41,7 @@ ROOT = Path(__file__).resolve().parents[2]
 os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 import simlib                                                         # (f741) a saves folder of the test's own
+import yaml
 stub = simlib.Stub("warrior", 777)
 simlib.install(stub)
 import config
@@ -123,9 +124,11 @@ for key, fn in (("TURN_LOG_PATH", "turns.jsonl"), ("CRASH_LOG_PATH", "crash.log"
 bundle, app, tool = scratch / "bundle", scratch / "app", scratch / "a_tool"
 (bundle / "data" / "rules").mkdir(parents=True)
 app.mkdir()
-PLANTED = "logs/audit_from_the_bundle"                                 # a folder only the bundle's settings name
+PLANTED = 77                                                         # (f779) a ceiling only the bundle's settings name
+DECOY = scratch / "a_test_logs"                                       # (f779) a test's logs folder, named while the game is a build
 kept_settings = (ROOT / "data" / "rules" / "audit_log.yaml").read_text(encoding="utf-8")
-(bundle / "data" / "rules" / "audit_log.yaml").write_text(re.sub(r"(?m)^folder:.*$", f"folder: {PLANTED}", kept_settings, count=1),
+PROJECT_MB = yaml.safe_load(kept_settings).get("max_mb")
+(bundle / "data" / "rules" / "audit_log.yaml").write_text(re.sub(r"(?m)^max_mb:\s*\S+", f"max_mb: {PLANTED}", kept_settings, count=1),
                                                           encoding="utf-8")
 
 
@@ -144,7 +147,8 @@ def as_build():
     """core.paths reloaded as a built game's: BUNDLE where its data is unpacked, APP the exe's folder, both apart from the code's folder.
     The audit is imported again inside it, as a built game first imports it; both are put back after."""
     saved = {"frozen": getattr(sys, "frozen", None), "meipass": getattr(sys, "_MEIPASS", None), "exe": sys.executable}
-    env_before = {k: os.environ.pop(k, None) for k in ("MERAVIA_RUNTIME", "MERAVIA_MODELS", "MERAVIA_RUN")}
+    env_before = {k: os.environ.pop(k, None) for k in ("MERAVIA_RUNTIME", "MERAVIA_MODELS", "MERAVIA_RUN", "MERAVIA_LOGS")}
+    os.environ["MERAVIA_LOGS"] = str(DECOY)                          # (f779) a test's logs folder named: a built game must not read it
     try:
         sys.frozen = True
         sys._MEIPASS = str(bundle)
@@ -153,6 +157,7 @@ def as_build():
         importlib.reload(audit)
         yield
     finally:
+        os.environ.pop("MERAVIA_LOGS", None)
         for k, v in env_before.items():
             if v is not None:
                 os.environ[k] = v
@@ -172,8 +177,13 @@ try:
     w = getattr(paths, "written", None)
     check("core.paths has one helper that places a file the game writes: written(rel)", callable(w), w)
     if callable(w):
-        with replaced(paths, "APP", scratch / "exe_folder"):
-            rel = attempt(lambda: w("logs/x.log"))
+        held_logs = os.environ.pop("MERAVIA_LOGS", None)              # (f779) as a player's game is: no test's logs folder named
+        try:
+            with replaced(paths, "APP", scratch / "exe_folder"):
+                rel = attempt(lambda: w("logs/x.log"))
+        finally:
+            if held_logs is not None:
+                os.environ["MERAVIA_LOGS"] = held_logs
         check("...a relative path lies under APP, asked at the call", rel == scratch / "exe_folder" / "logs" / "x.log", rel)
         check("...an absolute one (a test's, a night tool's) is returned as it is", attempt(lambda: w(tool / "x.log")) == tool / "x.log"
               and attempt(lambda: w(str(tool / "x.log"))) == tool / "x.log", attempt(lambda: w(tool / "x.log")))
@@ -195,10 +205,10 @@ try:
         ref_path = attempt(lambda: refusals.path())
         check("the refusals too: refusals.jsonl under APP/logs, written there",
               ref_path == app / "logs" / "refusals.jsonl" and "f777 probe line" in text_of(app / "logs" / "refusals.jsonl"), ref_path)
-        check("the audit's settings are read from BUNDLE, where a built game's data is", audit.A.get("folder") == PLANTED, audit.A.get("folder"))
+        check("the audit's settings are read from BUNDLE, where a built game's data is", audit.A.get("max_mb") == PLANTED, audit.A.get("max_mb"))
         audit_file = attempt(audit.path)
-        check("...and its session file is written under APP/logs, in the folder they name (llm1-3)",
-              isinstance(audit_file, Path) and audit_file.parent == app / PLANTED and audit_file.is_file(), audit_file)
+        check("...and its session file is written under APP/logs, in the one logs folder's audit/ (llm1-3; f779)",
+              isinstance(audit_file, Path) and audit_file.parent == app / "logs" / "audit" and audit_file.is_file(), audit_file)
         config.REFUSALS_LOG = False
         rec = attempt(lambda: recording.Recorder(game.store, name="f777_probe"))
         if isinstance(rec, recording.Recorder):
@@ -222,7 +232,7 @@ try:
         check("a tool's absolute paths are kept: crash.log and the refusals", attempt(crashlog.path) == tool / "crash.log"
               and attempt(lambda: refusals.path()) == tool / "refusals.jsonl", (attempt(crashlog.path), attempt(lambda: refusals.path())))
         audit._path = None
-        with replaced(audit, "A", {**audit.A, "folder": str(tool / "audit")}):
+        with replaced(audit, "FOLDER", tool / "audit"):
             tool_audit = attempt(audit.path)
         audit._path = None
         with replaced(recording, "FOLDER", tool / "recordings"):
@@ -232,7 +242,8 @@ try:
     game.session.close()
     config.CRASH_LOG_PATH, config.REFUSALS_LOG_PATH = str(LOGS / "crash.log"), str(LOGS / "refusals.jsonl")
     check("from source both are the project folder again, and the audit reads its settings there",
-          not paths.FROZEN and paths.APP == ROOT and paths.BUNDLE == ROOT and audit.A.get("folder") == "logs/audit", (paths.APP, audit.A.get("folder")))
+          not paths.FROZEN and paths.APP == ROOT and paths.BUNDLE == ROOT and audit.A.get("max_mb") == PROJECT_MB != PLANTED,
+          (paths.APP, audit.A.get("max_mb"), PROJECT_MB))
 
     # ---- a process started as a built game is: the working folder where main.py puts it, every file it writes beside the exe
     probe_dir, exe_dir = scratch / "probe", scratch / "installed"
@@ -273,7 +284,7 @@ out = {"cwd": os.getcwd(), "app": str(paths.APP), "bundle": str(paths.BUNDLE),
 print("F777 " + json.dumps(out))
 ''', encoding="utf-8")
     env = {k: v for k, v in os.environ.items() if not k.startswith(("DND_", "MERAVIA_SAVES", "MERAVIA_RUNTIME", "MERAVIA_MODELS", "MERAVIA_RUN"))}
-    env.update(PYTHONUTF8="1", PYTHONPATH=str(ROOT))
+    env.update(PYTHONUTF8="1", PYTHONPATH=str(ROOT), MERAVIA_LOGS=str(DECOY))   # (f779) a test's logs folder named: the build ignores it
     done = subprocess.run([sys.executable, str(probe), str(ROOT), str(exe_dir)], cwd=str(scratch), env=env, capture_output=True,
                           text=True, encoding="utf-8", errors="replace", timeout=300)
     line = next((l[5:] for l in done.stdout.splitlines() if l.startswith("F777 ")), None)
@@ -292,6 +303,9 @@ print("F777 " + json.dumps(out))
         check("the files named relative to the working folder (turns, llm_calls, sessions, pulse, reports, the saves) resolve beside"
               " the exe, where main.py puts the working folder in a build", not pinned and len(got["working"]) == 6, pinned)
         check("...and that process wrote nothing under the code's folder", got["refused"] == [], got["refused"][:5])
+    check("a build reads no test's logs folder: with MERAVIA_LOGS named, in this process and in the one started as a build, nothing"
+          " was written there (f779)", not DECOY.exists() or not any(p.is_file() for p in DECOY.rglob("*")),
+          sorted(str(p) for p in DECOY.rglob("*"))[:5])
 
     # ---- the source check: nothing but data/ is joined onto a path made from __file__; nothing but core.paths joins onto APP
     GAME = ("core", "engine", "llm", "scenes", "storage", "world", "ui", "npc", "character", "services")

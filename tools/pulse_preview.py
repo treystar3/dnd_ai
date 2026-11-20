@@ -130,7 +130,8 @@ def main() -> None:
     session.close()                                  # (f743) the scratch world let go, so the next --fresh can clear it
     text = "\n".join(report)
     import config
-    dest = ROOT / Path(config.LOG_PATH).parent / "pulse_preview" / "preview.md"   # (f743) never inside the world --fresh clears
+    from core import paths
+    dest = paths.written(config.LOG_PATH).parent / "pulse_preview" / "preview.md"   # (f743) never inside the world; (f779) the logs folder
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(text, encoding="utf-8")
     print(text)

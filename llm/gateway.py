@@ -21,6 +21,7 @@ from pydantic import BaseModel, ValidationError
 
 import config
 
+from core import paths
 from core.interrupts import Interrupt   # (f449) an exception raised on purpose (a replay parted) is never a failed try
 from llm.errors import Cancelled, Failure, LLMError   # (f514) the classes live where importing them starts nothing; LLMError stays here
 
@@ -454,7 +455,7 @@ def _compact(messages: list[dict]) -> list[dict]:
 def trim_log(path: Path | None = None) -> None:
     """Keep the log small: past LOG_MAX_MB, keep only the most recent LOG_KEEP_ENTRIES entries. (f566) Never raises: a trim the system
     refuses (another process holding the log, or trimming it too) is left for the next one, the log whole and no temp behind."""
-    path = path or Path(config.LOG_PATH)
+    path = path or paths.written(config.LOG_PATH)                     # (f779) in the one logs folder
     tmp = path.with_name(f"{path.stem}.{os.getpid()}.{threading.get_ident()}.tmp")   # (f566) its own temp, never another trim's
     try:
         limit = getattr(config, "LOG_MAX_MB", 5) * 1024 * 1024
@@ -509,7 +510,7 @@ def _log(task, attempt, elapsed, messages, raw, error, usage=None, shape=None):
     global _writes
     from engine import crashlog
     with crashlog.carried("the model's call log: a try's row", quiet=(OSError,), task=task):
-        path = Path(config.LOG_PATH)
+        path = paths.written(config.LOG_PATH)                         # (f779) in the one logs folder
         from engine import actor
         from llm import audit
         entry = {

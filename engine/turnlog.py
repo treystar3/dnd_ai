@@ -31,6 +31,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import config
+from core import paths
 from engine import actor
 
 COUNTS: dict[str, int] = {}          # handled_by -> lines this session
@@ -45,7 +46,7 @@ def enabled() -> bool:
 
 
 def path() -> Path:
-    return Path(getattr(config, "TURN_LOG_PATH", "logs/turns.jsonl"))
+    return paths.written(getattr(config, "TURN_LOG_PATH", "logs/turns.jsonl"))      # (f779) in the one logs folder
 
 
 def _head() -> dict:
@@ -237,7 +238,7 @@ def write_session_stats() -> None:
     if not COUNTS:
         return
     try:
-        p = Path(getattr(config, "SESSION_STATS_PATH", "logs/sessions.jsonl"))
+        p = paths.written(getattr(config, "SESSION_STATS_PATH", "logs/sessions.jsonl"))   # (f779) in the one logs folder
         p.parent.mkdir(parents=True, exist_ok=True)
         with p.open("a", encoding="utf-8") as f:
             f.write(json.dumps(session_stats(), ensure_ascii=False) + "\n")

@@ -149,13 +149,14 @@ class AuditActions:
         import json
         from datetime import datetime
         from pathlib import Path
+        from core import paths
         from engine import refusals
-        folder = Path(getattr(config, "REPORTS_PATH", "logs/reports"))
+        folder = paths.written(getattr(config, "REPORTS_PATH", "logs/reports"))      # (f779) in the one logs folder
         folder.mkdir(parents=True, exist_ok=True)
         turn = self.store.meta.turn
         calls = []
         try:
-            lines = Path(config.LOG_PATH).read_text(encoding="utf-8").splitlines()[-400:]
+            lines = paths.written(config.LOG_PATH).read_text(encoding="utf-8").splitlines()[-400:]
             for line in lines:
                 try:
                     row = json.loads(line)
@@ -173,7 +174,8 @@ class AuditActions:
         path = folder / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_turn{turn}.json"
         path.write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
         refusals.note("reported", note or "(no note)", "the player flagged what was shown", self.player.location, turn)
-        console.note(f"Reported. What you just read and your note are saved in {path}, with the game's records behind them. Nothing is sent anywhere.")
+        shown = path.relative_to(paths.APP) if path.is_relative_to(paths.APP) else path     # (f779) the words shown as before: logs/reports/...
+        console.note(f"Reported. What you just read and your note are saved in {shown}, with the game's records behind them. Nothing is sent anywhere.")
         return str(path)
 
     def ask_back(self, kind: str, text: str, why: str, meaning: str = "", place: str = "") -> None:

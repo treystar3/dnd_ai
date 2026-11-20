@@ -12,23 +12,31 @@ from pathlib import Path
 # ------------------------------------------------------------------ (f741) a test's saves are its own
 
 
-def _own_saves() -> None:
-    """(f741) A test's saves are a folder of its own, never the player's saves/: the suite names one for each test it runs
-    (tools/run_suite.py, MERAVIA_SAVES), and a test run by hand (a *_test.py script) gets a fresh one here, removed when it ends (set
-    MERAVIA_SAVES to keep them). Every process the test starts finds it in MERAVIA_SAVES. A tool that imports simlib keeps saves/."""
-    if os.environ.get("MERAVIA_SAVES") or not Path(sys.argv[0] if sys.argv else "").name.endswith("_test.py"):
-        return
+def _own(name: str) -> str:
+    """A fresh folder named in the environment variable `name` for a test run by hand (a *_test.py script), removed when it ends,
+    or "" when the variable is set already (the suite's, or one set to keep them) or the script is no test (a tool keeps the game's)."""
+    if os.environ.get(name) or not Path(sys.argv[0] if sys.argv else "").name.endswith("_test.py"):
+        return ""
     import atexit
     import shutil
     import tempfile
-    folder = tempfile.mkdtemp(prefix="meravia_saves_")
-    os.environ["MERAVIA_SAVES"] = folder
+    folder = tempfile.mkdtemp(prefix=name.lower() + "_")
+    os.environ[name] = folder
     atexit.register(shutil.rmtree, folder, True)
-    if "storage.campaign" in sys.modules:                  # read from the environment before it was set
+    return folder
+
+
+def _own_saves() -> None:
+    """(f741) A test's saves are a folder of its own, never the player's saves/: the suite names one for each test it runs
+    (tools/run_suite.py, MERAVIA_SAVES), and a test run by hand gets a fresh one here (_own). Every process the test starts finds it
+    in MERAVIA_SAVES. A tool that imports simlib keeps saves/."""
+    folder = _own("MERAVIA_SAVES")
+    if folder and "storage.campaign" in sys.modules:       # read from the environment before it was set
         sys.modules["storage.campaign"].SAVES_DIR = Path(folder)
 
 
 _own_saves()
+_own("MERAVIA_LOGS")     # (f779) and its logs (core.paths.logs(), asked at the call), never the project's logs/: the suite names one too
 
 
 def saves_path(*parts) -> Path:

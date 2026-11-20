@@ -451,8 +451,13 @@ try:
             check("...and what it wrote is handed whole to the way out its caller gives (it prints nothing itself)",
                   said == [log.read_text(encoding="utf-8").rstrip("\n")], said[:1])
             app_was = paths.APP
-            with replaced(paths, "APP", scratch / "exe_folder"):
-                where = selfcheck.log_path()
+            held_logs = os.environ.pop("MERAVIA_LOGS", None)             # (f779) a player's game names no test's logs folder
+            try:
+                with replaced(paths, "APP", scratch / "exe_folder"):
+                    where = selfcheck.log_path()
+            finally:
+                if held_logs is not None:
+                    os.environ["MERAVIA_LOGS"] = held_logs
             check("its log lies beside the exe: logs/selfcheck.log under core.paths.APP, asked at the call",
                   where == scratch / "exe_folder" / "logs" / "selfcheck.log" and paths.APP == app_was, where)
         finally:

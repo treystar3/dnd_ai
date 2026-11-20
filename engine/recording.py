@@ -56,7 +56,8 @@ ORPHANS: set = set()     # (f453) threads a closed session left running (a creat
 
 
 def where() -> Path:
-    """The folder recordings are made in: FOLDER under core.paths.APP, asked now, or FOLDER itself when it is absolute (a test's)."""
+    """The folder recordings are made in: FOLDER placed by core.paths.written, asked now: under APP in play, in a test's own folder
+    under the suite (f779), or FOLDER itself when it is absolute."""
     return paths.written(FOLDER)
 
 

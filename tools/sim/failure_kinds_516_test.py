@@ -33,6 +33,7 @@ import yaml
 from pydantic import BaseModel
 
 import config
+from core import paths                     # (f779) a log read back where the game wrote it
 from core.interrupts import Interrupt
 from engine import asked, budget, crashlog, failures, refusals
 from llm import backend, embed, gateway
@@ -95,7 +96,7 @@ class Script:
 
 
 def last_logged() -> dict:
-    rows = [json.loads(l) for l in Path(config.LOG_PATH).read_text(encoding="utf-8").splitlines() if l.strip()]
+    rows = [json.loads(l) for l in Path(paths.written(config.LOG_PATH)).read_text(encoding="utf-8").splitlines() if l.strip()]
     return rows[-1] if rows else {}
 
 
@@ -248,7 +249,7 @@ for how, where in (("stand-in", "through a stand-in"),):
 check("...and the stub answers again after", isinstance(backend.source(), backend.StandIn) and backend.source().name == "stub", backend.source())
 
 # ---- 4. a cancel at a turn's understanding
-crashlog_before = Path(config.CRASH_LOG_PATH).read_text(encoding="utf-8") if Path(config.CRASH_LOG_PATH).exists() else None
+crashlog_before = Path(paths.written(config.CRASH_LOG_PATH)).read_text(encoding="utf-8") if Path(paths.written(config.CRASH_LOG_PATH)).exists() else None
 g = simlib.campaign(SAVE + "_turn", cls="warrior", seed=5, location="parth")
 ws = g.scene
 ws.enter("parth")
@@ -287,7 +288,7 @@ check("a cancel at the understanding leaves the turn as Cancelled", isinstance(g
 check("...with the save as it was before the turn", statehash.digest(g.store)["all"] == digest0)
 lines = set(failures.lines())
 check("...no 'not taken' line shown", not any(t in lines for _, t in SHOWN), [t for _, t in SHOWN if t in lines])
-after = Path(config.CRASH_LOG_PATH).read_text(encoding="utf-8") if Path(config.CRASH_LOG_PATH).exists() else None
+after = Path(paths.written(config.CRASH_LOG_PATH)).read_text(encoding="utf-8") if Path(paths.written(config.CRASH_LOG_PATH)).exists() else None
 check("...nothing written to logs/crash.log", after == crashlog_before and len(crashlog.SESSION) == crashes0, crashlog.SESSION[crashes0:])
 s = asked.serving()
 check("...no answers left served", s is None or not s.answers, s and len(s.answers))

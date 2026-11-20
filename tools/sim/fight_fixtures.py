@@ -413,20 +413,36 @@ def fault_lines(limit: int = 5) -> list[str]:
     return [f"{f['case']}: {f['where']}/{f['operation'] or '-'}: {f['error']}" for f in FAULTS[:limit]]
 
 
+def own_logs() -> str:
+    """(f779) A run by hand logs to a folder of its own (MERAVIA_LOGS, core.paths.logs()), never the project's logs/, where the
+    stub's calls and turns would be added to the owner's and trim them. Returns the folder made, or "" when one was named already
+    (the suite's, or one set to keep)."""
+    import os
+    import tempfile
+    if os.environ.get("MERAVIA_LOGS"):
+        return ""
+    os.environ["MERAVIA_LOGS"] = tempfile.mkdtemp(prefix="fight_fixtures_logs_")
+    return os.environ["MERAVIA_LOGS"]
+
+
 def main() -> int:
+    import shutil
+    from core import paths
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     record = "--record" in sys.argv
     shards = [int(a) for a in args] or list(range(SHARDS))
     moved = 0
+    made, faulted = own_logs(), False
     for s in shards:
         TIMES.clear()
         records, cover = play(s)
+        faulted = faulted or bool(FAULTS)
         if "--time" in sys.argv:                                      # (f508) by hand: how long the odds took, case by case
             for r, t in zip(records, TIMES):
                 print(f"  danger {t:6.2f}s  {r['id']}")
             print(f"  danger total {sum(TIMES):.1f}s over {len(TIMES)} cases")
         if record and FAULTS:                                         # (f566) a turn rolled back is a round not fought: never the numbers kept
-            print(f"shard {s}: not recorded, {len(FAULTS)} turn(s) rolled back by a fault (logs/crash.log has the tracebacks)")
+            print(f"shard {s}: not recorded, {len(FAULTS)} turn(s) rolled back by a fault ({paths.logs() / 'crash.log'} has the tracebacks)")
             for l in fault_lines():
                 print("  " + l)
             moved += 1
@@ -444,6 +460,10 @@ def main() -> int:
     if record and set(shards) == set(range(SHARDS)):
         _write(OUT / "sheets.json.gz", {"header": header(), "sheets": _norm(sheets())})
         print("sheets recorded")
+    if made and not faulted:
+        shutil.rmtree(made, ignore_errors=True)                       # (f779) nothing to read in it; a fault's folder is kept to be read
+    elif made:
+        print(f"the faults' tracebacks: {Path(made) / 'crash.log'}")
     return 1 if moved else 0
 
 

@@ -16,6 +16,7 @@ stub = simlib.Stub("warrior", 3)
 restore = simlib.install(stub)
 import config
 import ui.console as console
+from core import paths
 from engine import crashlog, operation, refusals, turnlog
 from llm import audit
 from llm.backend import Failure
@@ -25,7 +26,7 @@ def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x)
     if not ok: bad.append(n)
 
-BASE = Path("saves/log_rows_628")
+BASE = paths.written("saves/log_rows_628")             # (f779) where the game writes the logs named under it: the test's own folder
 OUT = Path("saves/log_rows_628_rec")
 for folder in (BASE, OUT):
     shutil.rmtree(folder, ignore_errors=True)

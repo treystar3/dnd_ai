@@ -14,6 +14,7 @@ import simlib
 stub = simlib.Stub("warrior", 3)
 simlib.install(stub)
 import config
+from core import paths                     # (f779) a log read back where the game wrote it
 import ui.console as uc
 from core.interrupts import Interrupt
 from engine import operation, recording, turnlog
@@ -88,7 +89,7 @@ def ask(*a, **k):
 uc.put("ask", ask)
 stub.plan = [{"kind": "look"}]
 ws.run()
-rows = [json.loads(l) for l in pathlib.Path(config.TURN_LOG_PATH).read_text(encoding="utf-8").splitlines() if l.strip()]
+rows = [json.loads(l) for l in pathlib.Path(paths.written(config.TURN_LOG_PATH)).read_text(encoding="utf-8").splitlines() if l.strip()]
 by = {r.get("text"): r for r in rows}
 r1, r2, r3 = by.get("I look around."), by.get("I look around again."), by.get("I look around once more.")
 check("a line that stood: its row names its operations, every one stood, the first action and its passage among them",
@@ -126,7 +127,7 @@ shutil.rmtree(OUT, ignore_errors=True)
 g.session.record(folder=OUT)
 stub.plan = [{"kind": "look"}]
 ws.run()
-rows = [json.loads(l) for l in pathlib.Path(config.TURN_LOG_PATH).read_text(encoding="utf-8").splitlines() if l.strip()]
+rows = [json.loads(l) for l in pathlib.Path(paths.written(config.TURN_LOG_PATH)).read_text(encoding="utf-8").splitlines() if l.strip()]
 last = rows[-1]
 check("the first row after a load counts what was told at it, once", ws.recovered_at_load == 1 and last.get("recovered") == 1 and last.get("text") == "I look around.", {k: last.get(k) for k in ("text", "recovered")})
 g.close()

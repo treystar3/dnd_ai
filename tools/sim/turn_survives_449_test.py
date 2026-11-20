@@ -15,6 +15,7 @@ import simlib
 stub = simlib.Stub("warrior", 9)
 simlib.install(stub)
 import config
+from core import paths                     # (f779) a log read back where the game wrote it
 from ui import console
 SHOWN = []
 for fn in ("narrate", "say", "note", "ledger", "out"):
@@ -126,7 +127,7 @@ check("a turn the game itself breaks on is not taken, and does not end the game"
 check("...the save is rolled back whole and the scene put back to match", statehash.digest(store)["all"] == digest0 and ws.player.character.coins == coins0
       and store.load_player().character.coins == coins0, (ws.player.character.coins, coins0))
 entry = crashlog.last()
-log = Path(config.CRASH_LOG_PATH)
+log = Path(paths.written(config.CRASH_LOG_PATH))
 check("...and the fault is written to logs/crash.log with its traceback, the line and the place", entry and entry["where"] == "turn"
       and "KeyError" in entry["error"] and entry.get("text") == "go the te watchmen" and entry.get("place") == "parth" and log.exists()
       and "Traceback" in log.read_text(encoding="utf-8") and "go the te watchmen" in log.read_text(encoding="utf-8"), entry)
@@ -170,7 +171,7 @@ except Exception as e:
     ran = f"{type(e).__name__}: {e}"
 check("a pane command's fault is rolled back and the loop goes on to the next line", ran is True and crashlog.last()["where"] == "command"
       and any(t in failures.lines() for _, t in SHOWN), (ran, crashlog.last(), SHOWN[-3:]))
-rows = [json.loads(l) for l in Path(config.TURN_LOG_PATH).read_text(encoding="utf-8").splitlines() if l.strip()]
+rows = [json.loads(l) for l in Path(paths.written(config.TURN_LOG_PATH)).read_text(encoding="utf-8").splitlines() if l.strip()]
 crashed = [r for r in rows if r.get("crashed")]
 check("...and the turn log marks it as the game's fault, apart from the model's", crashed and all(not r.get("model_failed") for r in crashed)
       and "ValueError" in crashed[-1]["crashed"], [{k: r.get(k) for k in ("text", "crashed", "model_failed")} for r in rows[-3:]])

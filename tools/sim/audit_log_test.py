@@ -23,7 +23,7 @@ def check(n, ok, x=""):
 
 # a session file of our own, in a scratch folder (f778: outside the project's logs/)
 SCRATCH = Path(tempfile.mkdtemp(prefix="audit_log_")).resolve()
-audit.A["folder"] = str(SCRATCH / "audit_test")
+audit.FOLDER = SCRATCH / "audit_test"                              # (f779) the audit's folder, where its table named it before
 for key, fn in (("LOG_PATH", "llm_calls.jsonl"), ("TURN_LOG_PATH", "turns.jsonl"), ("REFUSALS_LOG_PATH", "refusals.jsonl"), ("CRASH_LOG_PATH", "crash.log")):
     setattr(config, key, str(SCRATCH / "logs" / fn))               # (f778) the call log and the rest, here and not in the project's logs/
 audit._path = None; audit._count = 0; audit._system_seen.clear(); audit._first_attempt.clear(); audit._full = False

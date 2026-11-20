@@ -129,7 +129,7 @@ def load(args=None, *, attach: bool | None = None, out: Path | str | None = None
         raise SystemExit("The model server's files are not in place:\n" + "\n".join(f"  - {p}" for p in problems) + "\n" + FETCH_HINT)
     own = run_dir is None and out is None
     run_dir = Path(run_dir) if run_dir is not None else (Path(out) / "run" if out is not None else Path(paths.APP) / "run" / f"tool_{os.getpid()}")
-    logs = Path(logs) if logs is not None else (Path(out) if out is not None else Path(paths.APP) / "logs")
+    logs = Path(logs) if logs is not None else (Path(out) if out is not None else paths.written("logs"))     # (f779) the one logs folder
     rt = runtime.Runtime(run_dir=run_dir, logs=logs, adapters=adapters)
     managed = runtime.Managed(rt)
     undo = backend.use(managed)

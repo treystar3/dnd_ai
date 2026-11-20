@@ -13,6 +13,7 @@ sys.path.insert(0, "tools")
 import simlib
 simlib.install(simlib.Stub("warrior", 2))
 import config
+from core import paths
 from pydantic import BaseModel
 from engine.prompt import Prompt
 from engine import data_check, recording
@@ -54,7 +55,7 @@ def answer(**k):                     # (f532) a stand-in's counts, in the interf
                                  usage={"prompt": 400, "out": 5, "read_ms": 100, "write_ms": 10, "cached": 300})
 
 
-log = Path("saves/measure_first_475_calls.jsonl")
+log = paths.written("saves/measure_first_475_calls.jsonl")     # (f779) where the game writes it
 log.unlink(missing_ok=True)
 config.LOG_PATH = str(log)
 game = simlib.campaign("measure_first_475")

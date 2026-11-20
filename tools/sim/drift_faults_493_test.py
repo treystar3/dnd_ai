@@ -70,7 +70,8 @@ def handin(nid):
 
 ws.turn_in = handin
 import config
-crash = Path(config.CRASH_LOG_PATH)
+from core import paths                     # (f779) a log read back where the game wrote it
+crash = Path(paths.written(config.CRASH_LOG_PATH))
 before = crash.read_text() if crash.exists() else ""
 stub.plan = [{"kind": "talk", "target": npc.id, "speech": "Your lamb is home. Pay me."}]
 ws.turn('I say, "Your lamb is home. Pay me."')
