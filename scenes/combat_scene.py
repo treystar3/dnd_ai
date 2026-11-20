@@ -271,7 +271,7 @@ class CombatScene:
             events.recruit_allies(ws, enemies)
         prep = [] if duel else ws.field_prep(enemies)
         kind = PURPOSES.get(purpose.kind) if purpose is not None else None
-        near, later = ([], []) if duel else cls.allies(ws, hold=bool(kind and kind.hold))
+        near, later = ([], []) if duel else cls.allies(ws, hold=bool(kind and kind.hold))   # (f771) no party stands in a trial (stands)
         tether_notes = ws.tether_for(near)
         from engine import battlefield_builder
         ground = battlefield_builder.for_scene(ws, duel=bool(duel), big="" if duel else battlefield_builder.big_kind(enemies, reserves or [], big))

@@ -30,6 +30,7 @@ trial:
   level_edge: {E: 4, D: 7, C: 13, B: 6, A: 0, S: 22}   # levels added to the examiner's (the higher of the rank's bar and yours); tools/tune_trial.py sets them so a typically geared character wins about seven times in ten
   master_edge: 0                 # more again for the guild master, who tests for the top rank
   roles: [fighter, archer, rogue, mage]
+  summons: true                  # (f771) summons stand beside their summoner (engine/combat.py stands); false needs summons_refused
 
 ranks:
   F: {levels: [1, 10],    reward: {coins: 750,   xp: 310},    requires: null,

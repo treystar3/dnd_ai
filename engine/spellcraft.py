@@ -481,11 +481,11 @@ def _express_more(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> N
             att.counters["rehid"] = 1
             C.tell(combat, f"{C.who(att)} {C.vb(att, 'fold', 'folds')} back into the shadows ({e['label']})")
     elif eid == "deaths_door" and dfn.alive and not dfn.boss and dfn.rank != "boss" and dfn.hp < dfn.max_hp * N("pct", 15) / 100:
-        floor = 1 if ((combat.mentor and dfn.side == "player") or combat.duel) else 0
+        from engine import damage
+        floor = 1 if ((combat.mentor and dfn.side == "player") or damage.duel_holds(combat, dfn)) else 0
         dfn.hp = float(floor)
         C.tell(combat, f"death reaches for {C.who(dfn)} and does not let go ({e['label']})")
         if not dfn.alive:
-            from engine import damage
             damage.fall_step(combat, dfn, att)              # (f768) a kill outright falls as any death does
     elif eid == "life_theft" and dfn.alive:
         dfn.counters["life_theft"] = att.id

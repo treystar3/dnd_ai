@@ -272,13 +272,14 @@ class FightService:
         fight.battlefield = spec.battlefield
         if spec.duel:
             fight.duel, fight.no_rewards = True, True
-        fight.ally_reserves = list(spec.later)
+        for x in [x for x in fight.fighters if not combat.stands(fight, x)]:
+            combat.leave(fight, x, "gone")   # (f771) the door: who may not stand in a trial of rank waits outside
+        fight.ally_reserves = [a for a in spec.later if combat.stands(fight, a)]
         fight.ally_arrive = party_rules.P["hold_arrival_round"]
         fight.gentle = pools.mechanic(c, "gentle_approach") is not None
         fight.reserves = list(spec.reserves or [])
         fight.reinforce_every, fight.reinforce_count, fight.reinforce_from = spec.wave
-        if not spec.duel:
-            summons.join_bound(fight, c)     # the Bound summon walks in with them, whole (unless it was unmade and not yet made again)
+        summons.join_bound(fight, c)         # the Bound summon walks in with them, whole (unless it was unmade and not yet made again)
         battlefield.place_fighters(fight)
         notes = []
         if spec.initiated and not spec.duel:
@@ -720,7 +721,7 @@ class FightService:
 
     def close(self, fight: combat.Combat) -> Ending:
         """The fight is over: the row dropped, the minutes it took, who fell. A trial of rank (duel): nobody dies, the blades were pulled,
-        the pools written back. FightEnded published."""
+        the pools written back, and what it did to each character's Bound summon (companions_after). FightEnded published."""
         f = fight
         c = self.player.character
         if f.duel:
@@ -731,7 +732,8 @@ class FightService:
             self.store.save_combat(None)
             minutes = max(1, math.ceil(f.round * combat.RULES["round_seconds"] / 60))
             self._publish(FightEnded(minute=self.now(), serial=f.serial, outcome=f.over, duel=True))
-            return Ending(f.over, minutes, [], [], [], duel=True, notes=[note] if note else [])
+            notes = ([note] if note else []) + self.companions_after(f, set())    # (f771) summons stand in a trial: its end writes the bond
+            return Ending(f.over, minutes, [], [], [], duel=True, notes=notes)
         needs.fight(c)
         self.store.save_combat(None)                        # (f499) what the fight remembered of itself goes with its row
         minutes = max(1, math.ceil(f.round * combat.RULES["round_seconds"] / 60))

@@ -672,6 +672,7 @@ def check() -> list[str]:
             need(False, f"improv.yaml {k_}: {e_}")
     _pw = _load("data/rules/guild.yaml").get("payer_words") or {}                        # (f694)
     need(all(_pw.get(k) for k in ("guild", "asker")), "guild.yaml payer_words: needs guild and asker")
+    bad += trial_problems()                                                               # (f771) who stands in a trial
     for t_ in Q.get("in_need", {}).get("kind", []) + Q.get("in_need", {}).get("hard", []):
         need(t_ in Q.get("blueprints", {}), f"quirks.yaml in_need: '{t_}' is not a temperament")
     from engine import voices as _vk                                                         # (f431) a blueprint line a kit forbids
@@ -930,6 +931,18 @@ def goods_problems(G: list | None = None) -> list[str]:
     rows, unset = (_load("data/world/goods.yaml") if G is None else G), Good.model_fields["stack"].default
     return [f"goods.yaml {g.get('id')}: a {g.get('kind')} carries its own state, so its stack must be 1 (it is {g.get('stack', unset)})"
             for g in rows or [] if g.get("kind") in OWN_STATE and g.get("stack", unset) != 1]
+
+
+def trial_problems(T: dict | None = None) -> list[str]:
+    """(f771) Who stands in a trial of rank beside its duellists (engine/combat.py stands): guild.yaml trial.summons, true or false, and
+    while it is false the line a summon cast inside is refused with (summons_refused)."""
+    T = (_load("data/rules/guild.yaml").get("trial") or {}) if T is None else T
+    if not isinstance(T.get("summons"), bool):
+        return [f"guild.yaml trial.summons: true or false, whether summons stand beside their summoner in a trial (it is {T.get('summons')!r})"]
+    line = T.get("summons_refused")
+    if not T["summons"] and not (isinstance(line, str) and line.strip()):
+        return ["guild.yaml trial.summons_refused: summons are kept out of a trial, so the line a summon cast in one is refused with is needed"]
+    return []
 
 
 def endings_problems(D: dict | None = None) -> list[str]:

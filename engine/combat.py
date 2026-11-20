@@ -406,7 +406,7 @@ class Combat(BaseModel):
     record: bool = False           # keep a breakdown of every blow (the window's combat log); off while the odds are simulated
     serial: str = ""               # tells this fight's blows apart from another fight's
     hits: list[dict] = []          # this turn's blows: who, how the roll and the damage were worked out, what was dealt
-    duel: bool = False             # a trial of rank: nobody can die, the blow that would kill ends it and decides it
+    duel: bool = False             # a trial of rank: its duellists cannot die; the blow that would end one decides it (duellist)
     mentor: bool = False           # the scripted first hunt: no running, and the player cannot die (a killing blow leaves them on 1)
     mentor_troll: bool = False     # the scripted troll: one round of its blows going wide, then the mentor steps in and ends it
     mentor_ally: Fighter | None = None    # the mentor, waiting to step in
@@ -1011,6 +1011,30 @@ def takes_turn(combat: Combat | None, f: Fighter) -> bool:
     """(f769) Whether this fighter has a turn: in the fight and on its field (not down, fled, yielded, tamed, bound or freed). Every
     way into a turn asks it at the moment of the turn: start_turn, enemy_turn and ally_turn."""
     return in_fight(f) and (combat is None or combat.get(f.id) is not None)
+
+
+def duellist(combat: Combat, f: Fighter) -> bool:
+    """(f771) Whether this fighter decides the trial of rank it stands in, read from the fight as it stands: one of its player fighters,
+    or a foe nobody summoned. A summon on either side, and anyone else on the player's side, decides nothing."""
+    return not f.summon_form and (f.side == "enemy" or any(p is f for p in combat.player_fighters()))
+
+
+def no_summons(combat: Combat) -> str:
+    """(f771) Why no summon may stand in this fight, or '' when one may. Only a trial of rank can keep summons out, and only while
+    data/rules/guild.yaml trial.summons says so, in that table's own words (summons_refused). Every summon made inside asks it
+    (engine/summons.py refuse), and the door asks it through stands."""
+    if not combat.duel:
+        return ""
+    from engine import quests
+    t = quests.G["trial"]
+    return "" if t["summons"] else t["summons_refused"]
+
+
+def stands(combat: Combat, f: Fighter) -> bool:
+    """(f771) Whether this fighter may stand in this fight: anyone in a fight that is no trial of rank; in a trial its duellists, and a
+    summon while no_summons lets one in (a summon is its summoner's own ability), never a companion or a hire. The door asks it of
+    everyone (services/fight.py begin, engine/summons.py join_bound)."""
+    return not combat.duel or duellist(combat, f) or (bool(f.summon_form) and not no_summons(combat))
 
 
 LEAVINGS = ("fled", "yielded", "gone")       # (f766) how a fighter leaves: out of it alive, out of it a prisoner, off the field

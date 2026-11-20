@@ -1,7 +1,7 @@
 """The trial of rank: when you have earned the next guild rank on paper, you win it in a duel with an examiner of that rank.
 
-The engine decides who qualifies, who the examiner is and how the duel goes. Nobody can die in it: the blow that would kill ends
-it and decides it, for either side. The model only voices the scene.
+The engine decides who qualifies, who the examiner is and how the duel goes. Its duellists cannot die in it: the blow that would end
+one ends it and decides it, for either side (engine/combat.py duellist). The model only voices the scene.
 """
 
 import random
@@ -124,7 +124,7 @@ class TrialActions:
         self.store.save_player(me)
         master = nxt == quests.LETTERS[-1]
         label = "the guild master" if master else f"a rank-{nxt} guild member"
-        console.note(f"Trial for rank {nxt}: you face {f.name}, {label}. Nobody dies here: the first blow that would end a fighter decides it. "
+        console.note(f"Trial for rank {nxt}: you face {f.name}, {label}. Nobody dies here: the first blow that would end either of you decides it. "
                      "No potions or draughts. Your companions and hired party wait outside.")
         intro = (f"The player stands in the guild hall's practice yard for the trial of rank {nxt}, facing {f.name}, {label}, who fights "
                  f"as a {role}.")

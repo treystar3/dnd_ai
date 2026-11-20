@@ -252,12 +252,26 @@ def rounded(b: Blow) -> bool:
 
 # ---------- the floors: a blow that would end someone, pulled short
 
-def duel_floor(b: Blow) -> bool:
-    d, combat = b.dfn, b.combat
-    if combat.duel and b.dealt >= d.hp:
-        d.hp = 1
+def duel_holds(combat: C.Combat | None, d: C.Fighter) -> bool:
+    """(f771) A trial of rank holds this fighter above death: one of its duellists (engine/combat.py duellist). Anyone else in it falls
+    as in any fight, and decides nothing. Every floor of the duel asks it: the blow's, a tick's and a torn wound's, a rebound's, and
+    Death's Door's own (engine/spellcraft.py)."""
+    return combat is not None and combat.duel and C.duellist(combat, d)
+
+
+def duel_decided(combat: C.Combat, d: C.Fighter) -> None:
+    """(f771) Decides the trial for this duellist brought to the floor: a player fighter loses it, the foe loses it to the player; the
+    first decision stands."""
+    if not combat.over:
         combat.over = "defeat" if d.side == "player" else "victory"
         combat.log.append(f"{d.name} is beaten")
+
+
+def duel_floor(b: Blow) -> bool:
+    d, combat = b.dfn, b.combat
+    if duel_holds(combat, d) and b.dealt >= d.hp:
+        d.hp = 1
+        duel_decided(combat, d)
         C.tell(combat, f"the blow that would have ended {C.who(d)} is pulled short, and the duel is decided" if d.side != "player" else
                "the blow that would have ended you is pulled short, and the duel is decided")
         return False
@@ -405,9 +419,12 @@ def rebound(b: Blow) -> bool:
     for effect, applies in (("retribution", True), ("spellmirror", b.damage_type == "magical")):
         if source and effect in b.L and applies and source.alive:
             back = max(1, round(b.dealt * b.L[effect] / 100))
-            source.hp = max(0, source.hp - back)
+            held = duel_holds(combat, source) and back >= source.hp     # (f771) the duel's floor holds a rebound as it holds a blow
+            source.hp = 1 if held else max(0, source.hp - back)
             combat.log.append(f"{effect.capitalize()} returns {back} damage to {source.name}")
             C.tell(combat, f"the force rebounds into {C.who(source)} ({effect.capitalize()})")
+            if held:
+                duel_decided(combat, source)
             if not source.alive:
                 fall_step(combat, source, b.dfn, None, "rebound")     # (f768) the striker's fall, the wearer's kill
     return True
@@ -416,9 +433,9 @@ def rebound(b: Blow) -> bool:
 # ---------- the bypasses: a tick at the start of the turn, a wound torn
 
 def tick_floor(b: Blow) -> bool:
-    """The first hunt cannot kill the player; a duel kills no one."""
+    """The first hunt cannot kill the player; a duel kills none of its duellists."""
     combat, d = b.combat, b.dfn
-    b.floor = 1 if (combat is not None and ((combat.mentor and d.side == "player") or combat.duel)) else 0
+    b.floor = 1 if (combat is not None and ((combat.mentor and d.side == "player") or duel_holds(combat, d))) else 0
     return True
 
 
@@ -439,8 +456,8 @@ def tick_on_tick(b: Blow) -> bool:
 
 def tick_duel_end(b: Blow) -> bool:
     combat, d = b.combat, b.dfn
-    if combat is not None and combat.duel and d.hp <= 1 and not combat.over:
-        combat.over = "defeat" if d.side == "player" else "victory"
+    if duel_holds(combat, d) and d.hp <= 1:
+        duel_decided(combat, d)
     return True
 
 
