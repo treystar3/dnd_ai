@@ -5,6 +5,7 @@
 
 folder: logs/audit
 max_mb: 200                # a session's file stops growing past this (a line says so); the next session starts a new file
+keep_sessions: 8           # (f779) the newest session files the folder keeps; the older ones go when a session starts (at least 4)
 
 # why each kind of call is made, in plain words. A kind not listed here is shown by its name alone.
 tasks:

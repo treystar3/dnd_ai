@@ -4,13 +4,15 @@ One Markdown file per session under logs/audit/ (data/rules/audit_log.yaml) whil
 each call: which turn it belongs to and what the player typed, why the game made the call, the system prompt (in full the first time,
 then by reference while it is unchanged), the user prompt in full - with the typed parts marked when the prompt was built from them
 (engine/prompt.py: what is an instruction, what is a fact, what is history) - the model's answer, and the verdict: accepted, or rejected
-with the reason it was sent back. Nothing is trimmed; a file that grows past the limit says so and stops.
+with the reason it was sent back. Nothing is trimmed; a file that grows past the limit says so and stops. (f779) The folder keeps the
+newest keep_sessions session files: the older ones go when a session's file is named.
 
 The gateway (llm/gateway.py) reports every attempt here; the world scene reports the turn (note_turn)."""
 from __future__ import annotations
 
 import hashlib
 import json
+import re
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -46,7 +48,40 @@ def path() -> Path:
         _path.write_text(f"# Audit log - session started {datetime.now().isoformat(timespec='seconds')}\n\n"
                          "Every call to the model this session: the turn it served, why it was made, the prompts in full, the answer, and the verdict.\n\n",
                          encoding="utf-8")
+        prune(folder, keep=_path)                                      # (f779) the folder keeps a window of sessions, this one among them
     return _path
+
+
+SESSION_FILE = re.compile(r"\d{4}-\d{2}-\d{2}_\d{6}\.md")            # a session's file as path() names it
+
+
+def number(key: str) -> float | None:
+    """A number of audit_log.yaml's (keep_sessions, max_mb), or None when the table holds none: the startup check refuses that, and a
+    tool that skips the check must never fail the call being recorded over it (f566)."""
+    v = A.get(key)
+    return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def prune(folder: Path, keep: Path | None = None) -> None:
+    """The folder keeps keep_sessions session files (audit_log.yaml) and the rest are removed. `keep`, the session just named, is always
+    kept and counts as one of them, whatever its name: a clock set back, or a folder copied from another machine, can name it before
+    files already there. The others kept are the latest by name, which is the time each was named on the clock that named it. Only files
+    of a session's own dated name are touched. Never raises: with no number for keep_sessions every file stays, and a file that cannot
+    be removed now is left for the next session."""
+    window = number("keep_sessions")
+    if window is None:
+        return
+    try:
+        others = sorted(p for p in Path(folder).iterdir() if p.is_file() and SESSION_FILE.fullmatch(p.name)
+                        and (keep is None or p.name != Path(keep).name))
+    except OSError:
+        return
+    room = int(window) - (keep is not None)
+    for p in (others[:-room] if room > 0 else others):
+        try:
+            p.unlink()
+        except OSError:
+            pass
 
 
 def note_turn(turn: int, text: str) -> None:
@@ -92,7 +127,8 @@ def _record(task: str, attempt: int, elapsed: float, messages: list[dict], raw: 
         p = path()
         if _full:
             return
-        if p.stat().st_size > A.get("max_mb", 200) * 1024 * 1024:
+        ceiling = number("max_mb")                                     # (f779) none in the table: nothing more is written, nothing raised
+        if ceiling is None or p.stat().st_size > ceiling * 1024 * 1024:
             with p.open("a", encoding="utf-8") as f:
                 f.write("\n---\n\n**The log has reached its size limit for this session; later calls are not recorded.**\n")
             _full = True

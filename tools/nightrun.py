@@ -612,6 +612,8 @@ def main() -> None:
     config.SESSION_STATS_PATH = str(out / "sessions.jsonl")
     config.REFUSALS_LOG_PATH = str(out / "refusals.jsonl")
     config.CRASH_LOG_PATH = str(out / "crash.log")            # (f492) each run's faults in its own folder: runs on one card never interleave
+    from llm import audit
+    audit.A["folder"] = str(out.resolve() / "audit")         # (f779) its audit too: a night's runs never use up the window kept for play
     config.LOG_MAX_MB = 10 ** 6
     config.LOG_FULL_PROMPTS = True                           # (f361) every system prompt whole: a run's log is training data (tools/lora_dataset.py)
     from storage import worldrow

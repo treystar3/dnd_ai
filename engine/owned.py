@@ -120,6 +120,7 @@ STATE: dict[str, Row] = {
     # ---- this run's: tallies and logs kept in memory
     "engine.turnlog.COUNTS": Row(PROCESS, TALLY + " (logs/sessions.jsonl): lines by who handled them"),
     "engine.turnlog._writes": Row(PROCESS, "nothing: rows written to the turn log, to trim it every so often"),
+    "engine.pulselog._writes": Row(PROCESS, "nothing: rows written to the pulse log, to trim it every so often (f779)"),
     "llm.gateway.TALLY": Row(PROCESS, TALLY + " (logs/sessions.jsonl): each task's calls, failures and attempts"),
     "llm.gateway.OUTCOMES": Row(PROCESS, TALLY + ": the last few hundred calls and how each ended"),
     "llm.gateway.FALLBACKS": Row(PROCESS, TALLY + ": the tasks that gave up, for the live check"),

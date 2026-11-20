@@ -1026,6 +1026,7 @@ def check() -> list[str]:
     bad += _llama.sampler_problems()                                   # (f521) every sampler key one llama-server reads, in its range
     bad += model_problems()                                            # (f527) the model ids name the server's files
     bad += world_caps_problems()                                       # (f589) what the world's state keeps of each list
+    bad += audit_log_problems()                                        # (f779) the audit folder's window, and a session file's ceiling
     bad += endings_problems()                                          # (f598) how a matter's ending is told and paid
     from engine import told
     bad += told.problems()                                             # (f661) what the engine decided, told to the player
@@ -1092,6 +1093,22 @@ def world_caps_problems(E: dict | None = None, P: dict | None = None) -> list[st
                      ("pulse.yaml news.keep_days", (P.get("news") or {}).get("keep_days"))):
         if not (isinstance(v, int) and not isinstance(v, bool) and v > 0):
             bad.append(f"{where}: needs a whole number above 0 (got {v!r})")
+    return bad
+
+
+AUDIT_SESSIONS_FLOOR = 4      # (f779) the planned Send logs sends "this session and the last 3" (docs/design/11_send_logs_feature.md)
+
+
+def audit_log_problems(A: dict | None = None) -> list[str]:
+    """(f779) The audit log's numbers in audit_log.yaml: keep_sessions, the session files its folder keeps, a whole number of at least
+    AUDIT_SESSIONS_FLOOR, and max_mb, one session file's ceiling, a number above 0."""
+    A = _load("data/rules/audit_log.yaml") if A is None else A
+    bad = []
+    k, m = A.get("keep_sessions"), A.get("max_mb")
+    if not (isinstance(k, int) and not isinstance(k, bool) and k >= AUDIT_SESSIONS_FLOOR):
+        bad.append(f"audit_log.yaml keep_sessions: needs a whole number of at least {AUDIT_SESSIONS_FLOOR} (got {k!r})")
+    if not (isinstance(m, (int, float)) and not isinstance(m, bool) and m > 0):
+        bad.append(f"audit_log.yaml max_mb: needs a number above 0 (got {m!r})")
     return bad
 
 

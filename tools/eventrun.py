@@ -521,6 +521,8 @@ def main() -> None:
     config.TURN_LOG_PATH = str(out / "turns_game.jsonl")
     config.SESSION_STATS_PATH = str(out / "sessions.jsonl")
     config.REFUSALS_LOG_PATH = str(out / "refusals.jsonl")
+    from llm import audit
+    audit.A["folder"] = str(out.resolve() / "audit")         # (f779) its audit in the run's folder: runs never use up the window kept for play
     config.LOG_MAX_MB = 10 ** 6
 
     import simlib
