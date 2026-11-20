@@ -86,7 +86,7 @@ def armed(f) -> bool:
 def maneuver(combat, att, t, move, rng, contested: bool = False) -> bool:
     """The maneuver lands on a target already hit (or, for martial control, one that lost the contest). Returns True if it took."""
     mid = getattr(move, "maneuver", "")
-    if not mid or mid not in MANEUVERS or t is None or not C.in_fight(t):
+    if not mid or mid not in MANEUVERS or t is None or not C.in_fight(combat, t):
         return False                                       # (f763) nothing more lands on one who yielded or fled at this blow
     m = MANEUVERS[mid]
     if not fits(att, t, mid):
@@ -136,8 +136,7 @@ def maneuver(combat, att, t, move, rng, contested: bool = False) -> bool:
 def control(combat, att, move, target, rng) -> None:
     """Martial control: the maneuver is the whole ability, contested with the technique's attributes; a partial success still
     lands it, a round shorter where it has rounds."""
-    from engine import battlefield as bf
-    enemies = [e for e in combat.fighters if e.alive and not e.fled and bf.hostile(att, e)]
+    enemies = combat.foes_of(att)
     t = target if target is not None and target.alive else (enemies[0] if enemies else None)
     if t is None:
         C.tell(combat, f"{C.who(att)} {C.vb(att, 'look', 'looks')} for someone to use {move.name} on, but there is no one")
@@ -172,8 +171,7 @@ def control(combat, att, move, target, rng) -> None:
 # ---- forms --------------------------------------------------------------------------------------------------------------------
 
 def sweep_targets(combat, att, t) -> list:
-    from engine import battlefield as bf
-    foes = [e for e in combat.fighters if e.alive and not e.fled and bf.hostile(att, e)]
+    foes = combat.foes_of(att)
     engaged = [e for e in foes if e.id in att.engaged_with]
     if t is not None and t.alive and t not in engaged and t.zone_id == att.zone_id:
         engaged = [t] + engaged

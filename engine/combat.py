@@ -485,17 +485,18 @@ class Combat(BaseModel):
         return self.player_fighters() + self.allies()
 
     def enemies(self) -> list[Fighter]:
-        """The foes still in the fight: those fighting for the foes' side now (battlefield.is_foe), so never a foe turned."""
-        return [f for f in self.fighters if is_foe(f) and f.alive and not f.fled]
+        """The foes still in the fight (in_fight): those fighting for the foes' side now (battlefield.is_foe), so never a foe turned."""
+        return [f for f in self.fighters if is_foe(f) and in_fight(self, f)]
 
     def foes_of(self, f: Fighter) -> list[Fighter]:
         """(f774) Whom this fighter may strike: everyone still in the fight on the other side from it now (battlefield.hostile), for a
         foe as for the player. The player's fighters first, then the allies, then the rest in the fight's order."""
         first = self.player_side()
-        return [x for x in first + [y for y in self.fighters if not any(y is z for z in first)] if in_fight(x) and hostile(f, x)]
+        return [x for x in first + [y for y in self.fighters if not any(y is z for z in first)] if in_fight(self, x) and hostile(f, x)]
 
     def allies(self) -> list[Fighter]:
-        return [f for f in self.fighters if f.side == "ally" and f.alive]
+        """The allies still in the fight (in_fight): a companion, a hire, a summon or a thrall, never one down, fled or gone."""
+        return [f for f in self.fighters if f.side == "ally" and in_fight(self, f)]
 
 
 # ---------- telling the story ----------
@@ -1009,9 +1010,17 @@ def flat_bonus(f: Fighter, stat: str, triggers: set[str]) -> float:
     return sum(b.magnitude for b in f.bonuses if b.modifies == stat and b.trigger in triggers and b.flat)
 
 
-def in_fight(f: Fighter) -> bool:
-    """(f763) Still in the fight: alive and not fled (battlefield.standing's rule). What strikes or acts on someone asks it."""
-    return f.alive and not f.fled
+def in_fight(combat: Combat | None, f: Fighter) -> bool:
+    """(f763) Still in the fight: alive, not fled (nor yielded), and one of the fight's fighters by id, so not one leave(..., "gone")
+    took off the field. With no fight (a bare simulation), alive and not fled."""
+    if not f.alive or f.fled:
+        return False
+    if combat is None:
+        return True
+    for x in combat.fighters:                           # (f774) the same object first, cheaply: asked on every blow and list of foes
+        if x is f:
+            return True
+    return any(x.id == f.id for x in combat.fighters)
 
 
 def reaches(combat: Combat | None, f: Fighter, by: Fighter | None = None) -> bool:
@@ -1027,7 +1036,7 @@ def reaches(combat: Combat | None, f: Fighter, by: Fighter | None = None) -> boo
     act = open_action(combat) if by is not None else None
     if act is not None and any(a is by and d is f for a, d in act.floored):
         return False
-    return in_fight(f)
+    return in_fight(combat, f)
 
 
 def hold_in_blow(combat: Combat | None, f: Fighter) -> None:
@@ -1049,9 +1058,9 @@ def blow_now(combat: Combat | None):
 
 
 def takes_turn(combat: Combat | None, f: Fighter) -> bool:
-    """(f769) Whether this fighter has a turn: in the fight and on its field (not down, fled, yielded, tamed, bound or freed). Every
-    way into a turn asks it at the moment of the turn: start_turn, enemy_turn and ally_turn."""
-    return in_fight(f) and (combat is None or combat.get(f.id) is not None)
+    """(f769) Whether this fighter has a turn: in the fight (in_fight: not down, fled, yielded, tamed, bound or freed). Every way into
+    a turn asks it at the moment of the turn: start_turn, enemy_turn and ally_turn."""
+    return in_fight(combat, f)
 
 
 def duellist(combat: Combat, f: Fighter) -> bool:
@@ -1087,7 +1096,7 @@ def leave(combat: Combat, f: Fighter, how: str) -> bool:
     out does not leave: False, and the fight's log says so."""
     if how not in LEAVINGS:
         raise ValueError(f"a fighter leaves a fight {' or '.join(LEAVINGS)}, not {how!r}")
-    if not in_fight(f):
+    if not in_fight(combat, f):
         combat.log.append(f"{f.name} is down and cannot leave the fight" if not f.alive else f"{f.name} has already left the fight")
         return False
     from engine import battlefield as bf
@@ -1563,9 +1572,11 @@ class HeldBreak:
 class OpenAction:
     """(f770) The outermost action in progress (an ability, an attack, a movement or a retreat, a turn or its start, an improvisation,
     a talk, the mentor's strike, a boss's action between turns): the breaks its deaths' routs asked for, in the order they were rolled,
-    settled when it is done. (f772) floored: (striker, target) for each target a floor held in that striker's blow."""
+    settled when it is done. (f772) floored: (striker, target) for each target a floor held in that striker's blow. (f774) after:
+    (fighter, line) for each line that rests on the held breaks, told once they are settled (after_breaks)."""
     held: list[HeldBreak] = dataclass_field(default_factory=list)
     floored: list = dataclass_field(default_factory=list)
+    after: list = dataclass_field(default_factory=list)
 
 
 def open_action(combat: Combat | None) -> OpenAction | None:
@@ -1599,6 +1610,17 @@ def hold_break(combat: Combat, f: Fighter, surrender: bool, line: str) -> bool:
     return True
 
 
+def after_breaks(combat: Combat, f: Fighter, line: str) -> None:
+    """(f774) A line about this fighter that rests on the breaks held in the action in progress (Dominate's `alone`: no one of its
+    own left): told when they are settled, once however often it is asked, and only if the fighter is still a foe in the fight then;
+    with none held, told now."""
+    act = open_action(combat)
+    if act is None or not act.held:
+        tell(combat, line)
+    elif not any(g is f and said == line for g, said in act.after):
+        act.after.append((f, line))
+
+
 def held(combat: Combat, f: Fighter) -> bool:
     """(f770) Whether this fighter's break is held to the end of the action in progress: a rout's roll counts it gone, as one fled."""
     act = open_action(combat)
@@ -1608,13 +1630,19 @@ def held(combat: Combat, f: Fighter) -> bool:
 def settle(combat: Combat, act: OpenAction) -> None:
     """(f770) The action is done: each held break, in the order it was rolled, through the one way out (behaviors._break), its line
     told only when it broke; one no longer a foe in the fight (fallen, gone or turned since) does not break. A break settled here can
-    end in a death (No One Escapes) whose rout is held in turn and settled after it, until none is left."""
+    end in a death (No One Escapes) whose rout is held in turn and settled after it, until none is left. (f774) Whether that one foe
+    is still a foe in the fight is the question asked (is_foe, in_fight), not whether its side is gone (foes_gone). Then the lines
+    that rested on the breaks (after_breaks), each of a fighter still a foe in the fight."""
     from engine import behaviors
     while act.held:
         b = act.held[0]
-        if any(e is b.f for e in combat.enemies()) and behaviors._break(combat, b.f, b.surrender):
+        if is_foe(b.f) and in_fight(combat, b.f) and behaviors._break(combat, b.f, b.surrender):
             tell(combat, b.line)
         act.held.pop(0)
+    for f, line in act.after:
+        if is_foe(f) and in_fight(combat, f):
+            tell(combat, line)
+    act.after.clear()
 
 
 def credit(combat: Combat, killer: Fighter | None, fallen: Fighter, rng: random.Random, A: dict | None = None) -> None:
@@ -1622,7 +1650,7 @@ def credit(combat: Combat, killer: Fighter | None, fallen: Fighter, rng: random.
     With no killer standing, nothing is paid but the marks and Plaguebearer still work. A: the killer's mechanics as its blow read them."""
     from engine import combat_perks
     from engine import spellcraft as _sc
-    if killer is None or killer is fallen or not in_fight(killer):
+    if killer is None or killer is fallen or not in_fight(combat, killer):
         combat_perks.on_kill(combat, None, fallen, rng)
         _sc.on_death(combat, fallen, killer)
         return
@@ -1843,7 +1871,7 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
         rec["figure"] = figure(rec)
     if att.side == "ally" and is_foe(dfn):
         dfn.counters["flanked"] = combat.round                             # an ally has struck it (Flanking)
-    answers = in_fight(dfn)                              # (f772) a defender the blow felled or drove off answers nothing
+    answers = in_fight(combat, dfn)                      # (f772) a defender the blow felled or drove off answers nothing
     if "frost_armor" in D and att.reach in ("melee", "extended") and att.alive and hostile(att, dfn) and answers:
         if add_status(combat, att, "slowed", 2, dfn):     # 2: it holds through the attacker's next turn
             tell(combat, f"{who(att)} {vb(att, 'strike', 'strikes')} the ice around {who(dfn)} and the cold bites deep - {vb(att, 'you are', 'it is')} slowed (Frost Armor)")
@@ -2226,7 +2254,7 @@ def act_attack(combat: Combat, att: Fighter, target: Fighter, rng: random.Random
 def cleave_target(combat: Combat, att: Fighter, t: Fighter):
     """The one other enemy a cleaving blow carries into: someone else engaged with the attacker, else someone engaged with the target
     in the same place - the closest. None if there is no one."""
-    foes = [e for e in combat.fighters if e.alive and not e.fled and e is not t and hostile(att, e)]
+    foes = [e for e in combat.foes_of(att) if e is not t]
     near = [e for e in foes if e.id in att.engaged_with] or [e for e in foes if e.zone_id == att.zone_id and e.id in t.engaged_with]
     if not near:
         return None
@@ -2334,7 +2362,7 @@ def apply_rider(combat: Combat, att: Fighter, t: Fighter, move: Move, rng: rando
             att.mana = min(att.max_mana, att.mana + back)
             tell(combat, f"{move.name} pulls {round(back)} mana back into {who(att)} ({r['label']})")
         return
-    if not t or not in_fight(t):
+    if not t or not in_fight(combat, t):
         return                                         # (f763) nothing more lands on one who yielded or fled at this blow
     if "status" in r:
         if rng.uniform(0, 100) < AT.value(r["chance"], move.tier) and add_status(combat, t, r["status"], r["rounds"], att):
@@ -2946,10 +2974,19 @@ def bring_allies(combat: Combat) -> None:
     tell(combat, f"{names} burst{'s' if len(came) == 1 else ''} in from outside, answering the alarm")
 
 
+def foes_standing(combat: Combat, but: Fighter | None = None) -> list[Fighter]:
+    """(f774) The foes' side as it stands: the foes still in the fight (Combat.enemies()) but the one named and those whose break is
+    held to the end of the action in progress (held), for every way a held break settles ends that foe as no foe of its side (fled,
+    yielded, cut down, or turned). A death's rout rolls among them (behaviors.morale_on_death, morale), and the side is gone when
+    none of them stands and no wave waits (foes_gone)."""
+    return [e for e in combat.enemies() if e is not but and not held(combat, e)]
+
+
 def foes_gone(combat: Combat, but: Fighter | None = None) -> bool:
-    """(f774) Whether the foes' side is gone: no foe stands that fights for it (but the one named) and no wave waits to come. The
-    turning law (combat_perks.turn_foe), the settling of the turned and the won fight ask it."""
-    return not any(e is not but for e in combat.enemies()) and not combat.reserves
+    """(f774) Whether the foes' side is gone: none of it stands (foes_standing, but the one named) and no wave waits to come. The
+    turning law (combat_perks.turn_foe and through it Dread Regent), the settling of the turned and the won fight ask it, and the
+    rout reads the same side, so a foe held to break is gone to all of them."""
+    return not foes_standing(combat, but) and not combat.reserves
 
 
 def won(combat: Combat) -> bool:
@@ -2957,12 +2994,12 @@ def won(combat: Combat) -> bool:
     up), and the turned settled first (combat_perks.settle_turned), so a foe turned for a time is a foe again and the fight goes
     on. Every check of a won fight asks it."""
     if not foes_gone(combat):
-        if not combat.enemies():
+        if not foes_standing(combat):
             muster(combat)
         return False
     from engine import combat_perks
     combat_perks.settle_turned(combat)
-    return not combat.enemies()
+    return foes_gone(combat)
 
 
 def muster(combat: Combat) -> bool:
@@ -3038,11 +3075,11 @@ def start_turn(f: Fighter, combat: Combat | None = None, rng: random.Random | No
     if combat is not None:
         if f.charging and spellcraft.release(combat, f, rng):
             f.counters["cast_turn"] = 1                   # the charged spell was this whole turn (released, or broken)
-    if combat is not None and in_fight(f):
+    if combat is not None and in_fight(combat, f):
         from engine import spellcraft as _sct
         _sct.turn_effects(combat, f, rng)                 # frostbite, creeping corrosion, a seed about to burst (f268)
     for dot in RULES["ticks"]:                           # (f768) the statuses that tick, each with its words (combat.yaml ticks); an open
-        if dot in f.statuses and in_fight(f):            # wound does nothing by itself: blows make it bleed (engine/afflictions.py)
+        if dot in f.statuses and in_fight(combat, f):    # wound does nothing by itself: blows make it bleed (engine/afflictions.py)
             from engine import damage, spellcraft as _sck
             amount = combat_perks.dot_damage(f, dot, round(afflictions.tick(f, dot) * _sck.tick_mult(f, dot)))
             laid = combat.get(f.status_from.get(dot, "")) if combat is not None else None     # (f768) its death is the layer's kill
@@ -3231,7 +3268,7 @@ def enemy_turn(combat: Combat, e: Fighter, rng: random.Random) -> None:
         return
     apply_damage(combat, e, target, mult, f"attacks ({e.weapon_name})", rng,
                  riders=lambda hit: behaviors.after_hit(combat, e, target, hit, rng))     # (f772) its venom rides the blow
-    if not in_fight(e):
+    if not in_fight(combat, e):
         return                                         # (f772) fallen or yielded at its own blow (a riposte, thorns): its turn is over
     behaviors.after_turn(combat, e, rng)
     if e.boss and combat.player.alive:

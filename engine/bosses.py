@@ -168,10 +168,10 @@ def _do(combat, e, opt: dict, rng, mult: float) -> None:
     elif kind == "rend":
         t = combat.player
         _strike(combat, e, t, mult or B["legendary_strike"] * 1.3, rng, "rends",          # (f772) the wound rides the blow that tore it
-                riders=lambda hit: hit and C.in_fight(e) and C.reaches(combat, t) and C.add_status(combat, t, "bleeding", 3))
+                riders=lambda hit: hit and C.in_fight(combat, e) and C.reaches(combat, t) and C.add_status(combat, t, "bleeding", 3))
     elif kind == "sweep":
         for t in targets:
-            if not C.in_fight(e):
+            if not C.in_fight(combat, e):
                 break                                   # (f772) felled or driven off by its own blow (thorns): the sweep ends there
             _strike(combat, e, t, mult, rng, "engulfs")
     elif kind == "cow":
@@ -230,7 +230,7 @@ def own_turn(combat, e, target, rng) -> None:
     if t["extra"] > 0 and target.alive:
         _strike(combat, e, target, t["extra"], rng, "follows through")
     due = combat.round >= 2 and (combat.round - 2) % B["signature_every"] == 0
-    if (due or e.boss["sig_ready"]) and C.in_fight(e) and combat.player.alive:      # (f772) not after its own follow-through felled it
+    if (due or e.boss["sig_ready"]) and C.in_fight(combat, e) and combat.player.alive:  # (f772) not after its own follow-through felled it
         e.boss["sig_ready"] = False
         sig = _kit(e)["signature"]
         _do(combat, e, sig, rng, sig.get("mult", 0.0))

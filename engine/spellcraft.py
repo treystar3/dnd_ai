@@ -219,7 +219,7 @@ def _express(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> None:
         C.add_status(combat, dfn, "burning", 2, att)
     if eid == "spreading_flames" and eid not in ctx["once"]:
         ctx["once"].append(eid)
-        others = [o for o in in_area(combat, att, dfn.zone_id, _foes(combat, att))
+        others = [o for o in in_area(combat, att, dfn.zone_id, combat.foes_of(att))
                   if o is not dfn and o.alive]
         for o in others:
             C.add_status(combat, o, "burning", 2, att)
@@ -229,7 +229,7 @@ def _express(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> None:
         C.add_status(combat, dfn, "slowed", int(n["rounds"]), att)
     elif eid in ("arc", "conduction") and eid not in ctx["once"] and taken > 0:
         ctx["once"].append(eid)
-        pool = [o for o in in_area(combat, att, dfn.zone_id, _foes(combat, att)) if o is not dfn and o.alive]
+        pool = [o for o in in_area(combat, att, dfn.zone_id, combat.foes_of(att)) if o is not dfn and o.alive]
         if eid == "arc":
             pool = sorted(pool, key=lambda o: o.hp)[:1]
         else:
@@ -284,7 +284,7 @@ def _express(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> None:
         C.add_status(combat, dfn, "weakened", int(n["rounds"]), att)
     elif eid == "splash" and eid not in ctx["once"] and taken > 0:
         ctx["once"].append(eid)
-        for o in [o for o in in_area(combat, att, dfn.zone_id, _foes(combat, att)) if o is not dfn and o.alive]:
+        for o in [o for o in in_area(combat, att, dfn.zone_id, combat.foes_of(att)) if o is not dfn and o.alive]:
             C.side_damage(combat, o, taken * n["pct"] / 100, att, rng, "magical", told=lambda d: f"acid splashes over {C.who(o)} for {d} ({e['label']})")
     elif eid == "barkskin_graft" and att.alive and taken > 0:
         cap = att.max_hp * float(e.get("cap", 0.5))
@@ -318,7 +318,7 @@ def _express_more(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> N
     killed = not dfn.alive
     mine = [o for o in combat.fighters if o.alive and not o.fled and o is not att and bf.kin(att, o)]   # (f774) never a foe turned
     near_mine = [o for o in mine if o.zone_id == att.zone_id]
-    foes_here = [o for o in in_area(combat, att, dfn.zone_id, _foes(combat, att)) if o.alive]
+    foes_here = [o for o in in_area(combat, att, dfn.zone_id, combat.foes_of(att)) if o.alive]
     # ---- fire
     if eid == "flashfire" and dfn.alive and "burning" in dfn.statuses:
         left = dfn.statuses["burning"] * afflictions.tick(dfn, "burning")
@@ -581,7 +581,7 @@ def on_any_hit(combat, att, dfn, taken: float, rng) -> None:
         return
     if "superconductive" in dfn.statuses and (att.hit_element or att.element) == "lightning" and not att.counters.get("arcing"):
         e = EXPR["superconductor"]
-        others = [o for o in in_area(combat, att, dfn.zone_id, _foes(combat, att)) if o is not dfn and o.alive]
+        others = [o for o in in_area(combat, att, dfn.zone_id, combat.foes_of(att)) if o is not dfn and o.alive]
         att.counters["arcing"] = 1
         try:
             for o in others:
@@ -629,7 +629,7 @@ def turn_effects(combat, f, rng) -> None:
             C.side_damage(combat, f, fb[1], combat.get(fb[0]), rng, "magical", told=lambda d: f"the frostbite eats at {C.who(f)}: {d} (Frostbite)",
                           harm="frostbite")
     creep = f.counters.get("creeping")
-    if creep and C.in_fight(f):                          # (f772) not on one the frostbite has just driven off
+    if creep and C.in_fight(combat, f):                  # (f772) not on one the frostbite has just driven off
         left, pct = creep
         if left <= 0 or C.warded(f, "acid"):
             f.counters.pop("creeping", None)
@@ -638,7 +638,7 @@ def turn_effects(combat, f, rng) -> None:
             f.counters["creeping"] = [left - 1, pct]
             C.tell(combat, f"the corrosion creeps further over {C.who(f)} ({f.corroded:g}% gone, Creeping Corrosion)")
     seed = f.counters.get("seed")
-    if seed and C.in_fight(f) and combat.round >= seed[1]:
+    if seed and C.in_fight(combat, f) and combat.round >= seed[1]:
         f.counters.pop("seed", None)
         C.side_damage(combat, f, seed[2], combat.get(seed[0]), rng, "magical", told=lambda d: f"the seed in {C.who(f)} bursts: {d} ({seed[3]}, Seedburst)",
                       harm="seed")
@@ -718,11 +718,6 @@ def carried(combat, att, dfn, exprs: list[str], tier, name: str, taken: float, r
         att.casting = held
 
 
-def _foes(combat, att) -> list:
-    from engine import battlefield as bf
-    return [o for o in combat.fighters if o.alive and not o.fled and bf.hostile(att, o)]
-
-
 def _hostile(a, b) -> bool:
     from engine import battlefield as bf
     return bf.hostile(a, b)
@@ -742,7 +737,7 @@ def control(combat, att, move, target, rng) -> None:
     """A control spell with expressions: each changes the place or strips the creature; it deals no damage. Ground expressions
     always land; those on a creature share one contest."""
     exprs = [e for e in exprs_of(move) if is_control(e)]
-    enemies = _foes(combat, att)
+    enemies = combat.foes_of(att)
     t = target if target is not None and target.alive else (enemies[0] if enemies else None)
     zone = t.zone_id if t is not None else att.zone_id
     for eid in [e for e in exprs if e in GROUND]:
@@ -813,7 +808,7 @@ def _ground(combat, att, move, eid, zone, t, rounds, n) -> None:
     until = combat.round + rounds
     if eid in ("thunderclap", "flare", "earthquake"):         # (f266) instant: everyone hostile there, now
         from engine import martial, battlefield as bfm
-        hit = [f for f in combat.fighters if f.alive and not f.fled and f.zone_id == zone and _hostile(att, f)]
+        hit = [f for f in combat.foes_of(att) if f.zone_id == zone]
         for f in hit:
             if eid == "thunderclap":
                 f.winding, f.charging = {}, {}
@@ -968,7 +963,7 @@ def zone_turn(combat, f, rng=None) -> None:
         if (maker is None or _hostile(maker, f)) and C.add_status(combat, f, "grappled", 2, maker):   # 2: worn down at this same turn-start
             C.tell(combat, f"dead hands close on {C.who(f)} and hold {C.vb(f, 'you', 'it')} fast ({z['name']})")
     z = eff.get("caustic_pool")
-    if z and C.in_fight(f):                              # (f772) not on one the ground has just driven off
+    if z and C.in_fight(combat, f):                      # (f772) not on one the ground has just driven off
         maker = combat.get(z["by"])
         if (maker is None or _hostile(maker, f)) and not C.warded(f, "acid"):
             cut = min(75, f.corroded + z["pct"])
@@ -1028,7 +1023,7 @@ def curse_turn(combat, f, rng=None) -> None:
     rng = rng or _RNG
     keep = []
     for c in f.curses:
-        if not C.in_fight(f):
+        if not C.in_fight(combat, f):
             break                                           # (f772) fallen, or yielded to the curse before it
         maker = combat.get(c["by"])
         held = maker.hit_element if maker is not None else ""

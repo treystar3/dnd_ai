@@ -90,12 +90,12 @@ _roll, _resolve = combat.roll_attack, damage.resolve
 
 
 def roll_attack(att, dfn, combat_, rng, trace=None):
-    ROLLS.append((att.id, dfn.id, combat.in_fight(att), combat.in_fight(dfn)))
+    ROLLS.append((att.id, dfn.id, combat.in_fight(combat_, att), combat.in_fight(combat_, dfn)))
     return _roll(att, dfn, combat_, rng, trace=trace)
 
 
 def resolve(path, combat_, dfn, *a, **k):
-    STRUCK.append((path, dfn.id, combat.in_fight(dfn)))
+    STRUCK.append((path, dfn.id, combat.in_fight(combat_, dfn)))
     return _resolve(path, combat_, dfn, *a, **k)
 
 

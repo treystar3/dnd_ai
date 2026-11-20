@@ -128,7 +128,7 @@ def settle(c, act):
 
 
 def roll_attack(att, dfn, c, rng, trace=None):
-    ROLLS.append((dfn.id, combat.in_fight(dfn), tuple(x.id for x in c.fighters if not x.alive)))
+    ROLLS.append((dfn.id, combat.in_fight(c, dfn), tuple(x.id for x in c.fighters if not x.alive)))
     return _roll(att, dfn, c, rng, trace=trace)
 
 

@@ -206,7 +206,7 @@ def _guard(combat, a, t, rng, **_) -> bool:
     p = combat.player
     if not p.alive or p.hp >= p.max_hp * float(t.get("below", 1.0)) or a.zone_id != p.zone_id or a.covering:
         return False
-    if not any(e.alive and not e.fled for e in combat.enemies()):
+    if not combat.enemies():
         return False
     a.covering = p.id
     combat.log.append(f"{a.name} uses {t['name']}: blows meant for {p.name} land on them")

@@ -894,15 +894,17 @@ def blood_summon(combat: C.Combat, att: C.Fighter, move: C.Move, rng: random.Ran
 
 def turn_foe(combat: C.Combat, f: C.Fighter, until: int | None, line: str, log: str = "", alone: str = "") -> bool:
     """(f774) A foe turns on its own side, for a time (until: the last round of it) or for good (None): only a foe still in the fight,
-    and only while its side is not gone without it (combat.foes_gone: another foe not turned stands, or a wave waits), so turning
-    never wins a fight by itself; then `alone`, the caller's line for it, is told and nothing turns. Its ties end both ways (it was
-    tied to the side it now fights for), and the caller's line is told. True when it turned. Every way a foe is turned calls it."""
+    and only while its side is not gone without it (combat.foes_gone: another foe not turned and not held to break stands, or a wave
+    waits), so turning never wins a fight by itself; else nothing turns and `alone`, the caller's line for it, is told, after the
+    breaks held in the action in progress when there are any (combat.after_breaks), for it rests on them. Its ties end
+    both ways (it was tied to the side it now fights for), and the caller's line is told. True when it turned. Every way a foe is
+    turned calls it."""
     from engine import battlefield as bf
-    if not C.in_fight(f) or not bf.is_foe(f):
+    if not C.in_fight(combat, f) or not bf.is_foe(f):
         return False
     if C.foes_gone(combat, but=f):
         if alone:
-            C.tell(combat, alone)
+            C.after_breaks(combat, f, alone)        # (f774) told after the breaks it rests on
         return False
     f.counters["turned"] = 1
     if until is None:
@@ -937,7 +939,7 @@ def settle_turned(combat: C.Combat) -> None:
     from engine import battlefield as bf
     if not C.foes_gone(combat):
         return
-    turned = [x for x in combat.fighters if bf.turned(x) and C.in_fight(x)]
+    turned = [x for x in combat.fighters if bf.turned(x) and C.in_fight(combat, x)]
     for f in turned:
         if bf.turned_until(f) is not None:
             turn_back(combat, f)
@@ -962,8 +964,9 @@ def turn_coat(combat: C.Combat, f: C.Fighter) -> bool:
 
 
 def turned_turn(combat: C.Combat, e: C.Fighter, rng: random.Random) -> None:
-    """A turned enemy's turn: it goes for the nearest of those it fights now (Combat.foes_of: its old side); with none of them left,
-    the turned are settled (settle_turned)."""
+    """A turned enemy's turn: it goes for the nearest of those it may strike now (Combat.foes_of: its old side, a foe held to break
+    among them, for it stays a foe until its action is done); with none of them left to strike, the turned are settled
+    (settle_turned), which asks the other question, whether its old side is gone (combat.foes_gone)."""
     from engine import battlefield as bf
     others = [o for o in combat.foes_of(e) if C.reaches(combat, o, by=e)]
     if not others:

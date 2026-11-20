@@ -586,7 +586,7 @@ _ad = combat.apply_damage
 
 
 def spy(c, att, dfn, *a_, **k):
-    STRUCK.append((att.id, dfn.id, combat.in_fight(dfn)))
+    STRUCK.append((att.id, dfn.id, combat.in_fight(c, dfn)))
     return _ad(c, att, dfn, *a_, **k)
 
 
