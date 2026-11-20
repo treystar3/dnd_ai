@@ -51,7 +51,7 @@ Rules this run needs:
 - Every turn is decided by the save, its seed and what was typed (engine/streams.py, f439): no unseeded randomness, uuid4, wall clock, or ordering by id() or set iteration in play.
 - A recorded session replays exactly (engine/recording.py, tools/rerun.py).
 - When a model call fails every try, the turn rolls back and the player is told in the narrator's words (engine/failures.py); the game goes on.
-- The target card is an RTX 3060 and no turn may take over a minute (data/rules/card_profile.yaml).
+- The target card is an RTX 3060 and no turn may take over a minute (data/measured/card_profile.yaml, data/rules/budget.yaml).
 You are read-only: change no file in the repository, and run no test and not the suite (they write to saves/). Reading files, grep, git log/show/diff and short python -c checks are fine.
 Cite every claim as file:line.`
 
@@ -266,7 +266,7 @@ const DIMENSIONS = [
   { key: 'determinism', how: 'Determinism and replay. Any unseeded randomness, uuid4, wall clock, id() or set ordering, or background-thread timing in play? Would a recording made before this diff still replay with tools/rerun.py? If a golden recording was re-blessed, is that justified?' },
   { key: 'goals', how: 'GOALS.md. Does anything the player now sees break a pillar or a recorded owner decision, show the machinery, or pull against a goal in a way that should have gone to the owner first?' },
   { key: 'conventions', how: "The repo's conventions: feature numbers in comments and commit subjects; numbers and content in data/ with a data_check block; a test in tools/sim for each change that fails without it, not one that passes whatever the code does." },
-  { key: 'cost', how: 'Turn cost on the 3060 (data/rules/card_profile.yaml): model calls added per turn, prompt growth, retries and waits. Could any turn now pass a minute?' },
+  { key: 'cost', how: 'Turn cost on the 3060 (data/measured/card_profile.yaml, data/rules/budget.yaml): model calls added per turn, prompt growth, retries and waits. Could any turn now pass a minute?' },
 ]
 const rank = (s) => ({ blocker: 0, major: 1, minor: 2 })[s] ?? 3
 
