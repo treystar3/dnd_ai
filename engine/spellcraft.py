@@ -207,8 +207,8 @@ def on_hit(combat, att, dfn, taken: float, rng) -> None:
     if not ctx:
         return
     for eid in ctx["exprs"]:
-        if C.in_fight(dfn) or eid in DEAD_OK:              # (f763) a foe who yielded or fled at this blow is gone, as the dead are
-            _express(combat, att, dfn, taken, rng, ctx, eid)
+        if C.reaches(combat, dfn) or eid in DEAD_OK:       # (f763) a foe who yielded or fled at this blow is gone, as the dead are;
+            _express(combat, att, dfn, taken, rng, ctx, eid)  # (f772) and one a floor held in it takes nothing more of it
 
 
 def _express(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> None:
@@ -240,7 +240,7 @@ def _express(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> None:
                 share *= C.ATTUNE["lightning"]                # an archon of storm arcs harder (f246)
             C.side_damage(combat, o, taken * share, att, rng, "magical",
                           told=lambda d: f"the lightning {'jumps' if eid == 'arc' else 'runs'} on into {C.who(o)} for {d} ({e['label']})",
-                          logged=lambda d: f"{e['label']} from {att.name}'s {ctx['name']} hits {o.name}: {d} damage")
+                          logged=lambda d: f"{e['label']} from {att.name}'s {ctx['name']} hits {o.name}: {d} damage", harm="lightning")
     elif eid == "envenom" and dfn.alive:
         C.add_status(combat, dfn, "poisoned", 3, att)
     elif eid == "corrode" and dfn.alive and not C.warded(dfn, "acid"):
@@ -589,7 +589,7 @@ def on_any_hit(combat, att, dfn, taken: float, rng) -> None:
         try:
             for o in others:
                 C.side_damage(combat, o, taken * num(e, "light", "pct", 30) / 100, att, rng, "magical",
-                              told=lambda d: f"the lightning runs through the ice into {C.who(o)} for {d} (Superconductor)")
+                              told=lambda d: f"the lightning runs through the ice into {C.who(o)} for {d} (Superconductor)", harm="lightning")
         finally:
             att.counters.pop("arcing", None)
 
@@ -604,7 +604,8 @@ def on_attack(combat, att) -> None:
             return
         maker = combat.get(by)
         C.side_damage(combat, att, amount, maker, combat.rng if hasattr(combat, "rng") else _RNG, "magical",
-                      told=lambda d: f"acid runs down {C.whose(att)} arm as {C.vb(att, 'you', 'it')} {C.vb(att, 'swing', 'swings')}: {d} (Caustic Drip)")
+                      told=lambda d: f"acid runs down {C.whose(att)} arm as {C.vb(att, 'you', 'it')} {C.vb(att, 'swing', 'swings')}: {d} (Caustic Drip)",
+                      harm="acid")
 
 
 def on_move(combat, f) -> None:
@@ -616,7 +617,8 @@ def on_move(combat, f) -> None:
             f.counters.pop("bramble", None)
             return
         C.side_damage(combat, f, amount, combat.get(by), _RNG, "magical",
-                      told=lambda d: f"the brambles tear at {C.who(f)} as {C.vb(f, 'you', 'it')} {C.vb(f, 'move', 'moves')}: {d} (Bramble Wrap)")
+                      told=lambda d: f"the brambles tear at {C.who(f)} as {C.vb(f, 'you', 'it')} {C.vb(f, 'move', 'moves')}: {d} (Bramble Wrap)",
+                      harm="brambles")
 
 
 def turn_effects(combat, f, rng) -> None:
@@ -627,9 +629,10 @@ def turn_effects(combat, f, rng) -> None:
         if "slowed" not in f.statuses or not f.alive:
             f.counters.pop("frostbite", None)
         else:
-            C.side_damage(combat, f, fb[1], combat.get(fb[0]), rng, "magical", told=lambda d: f"the frostbite eats at {C.who(f)}: {d} (Frostbite)")
+            C.side_damage(combat, f, fb[1], combat.get(fb[0]), rng, "magical", told=lambda d: f"the frostbite eats at {C.who(f)}: {d} (Frostbite)",
+                          harm="frostbite")
     creep = f.counters.get("creeping")
-    if creep and f.alive:
+    if creep and C.in_fight(f):                          # (f772) not on one the frostbite has just driven off
         left, pct = creep
         if left <= 0 or C.warded(f, "acid"):
             f.counters.pop("creeping", None)
@@ -638,9 +641,10 @@ def turn_effects(combat, f, rng) -> None:
             f.counters["creeping"] = [left - 1, pct]
             C.tell(combat, f"the corrosion creeps further over {C.who(f)} ({f.corroded:g}% gone, Creeping Corrosion)")
     seed = f.counters.get("seed")
-    if seed and f.alive and combat.round >= seed[1]:
+    if seed and C.in_fight(f) and combat.round >= seed[1]:
         f.counters.pop("seed", None)
-        C.side_damage(combat, f, seed[2], combat.get(seed[0]), rng, "magical", told=lambda d: f"the seed in {C.who(f)} bursts: {d} ({seed[3]}, Seedburst)")
+        C.side_damage(combat, f, seed[2], combat.get(seed[0]), rng, "magical", told=lambda d: f"the seed in {C.who(f)} bursts: {d} ({seed[3]}, Seedburst)",
+                      harm="seed")
     if f.counters.get("turned") and f.counters.get("turned_until") is not None and f.counters["turned_until"] < combat.round:
         f.counters.pop("turned", None)
         f.counters.pop("turned_until", None)
@@ -963,14 +967,15 @@ def zone_turn(combat, f, rng=None) -> None:
     if z and f.alive and z.get("round") == combat.round:
         maker = combat.get(z["by"])
         if maker is None or _hostile(maker, f):
-            C.side_damage(combat, f, z["amount"], maker, rng, "magical", told=lambda d: f"the ball of lightning bursts over {C.who(f)} for {d} ({z['name']})")
+            C.side_damage(combat, f, z["amount"], maker, rng, "magical", told=lambda d: f"the ball of lightning bursts over {C.who(f)} for {d} ({z['name']})",
+                          harm="lightning")
     z = eff.get("grasping_dead")
     if z and f.alive:
         maker = combat.get(z["by"])
         if (maker is None or _hostile(maker, f)) and C.add_status(combat, f, "grappled", 2, maker):   # 2: worn down at this same turn-start
             C.tell(combat, f"dead hands close on {C.who(f)} and hold {C.vb(f, 'you', 'it')} fast ({z['name']})")
     z = eff.get("caustic_pool")
-    if z and f.alive:
+    if z and C.in_fight(f):                              # (f772) not on one the ground has just driven off
         maker = combat.get(z["by"])
         if (maker is None or _hostile(maker, f)) and not C.warded(f, "acid"):
             cut = min(75, f.corroded + z["pct"])
@@ -991,7 +996,7 @@ def _zone_hurt(combat, f, z, eid, rng) -> None:
     if maker is not None:
         maker.hit_element = element
     C.side_damage(combat, f, amount, maker, rng, "magical", told=lambda d: f"{z['name']} {'burns' if eid == 'burning_ground' else 'shocks'} {C.who(f)} for {d}",
-                  logged=lambda d: f"{z['name']} hurts {f.name}: {d} damage")
+                  logged=lambda d: f"{z['name']} hurts {f.name}: {d} damage", harm=eid)
     if maker is not None:
         maker.hit_element = held
 
@@ -1030,14 +1035,14 @@ def curse_turn(combat, f, rng=None) -> None:
     rng = rng or _RNG
     keep = []
     for c in f.curses:
-        if not f.alive:
-            break
+        if not C.in_fight(f):
+            break                                           # (f772) fallen, or yielded to the curse before it
         maker = combat.get(c["by"])
         held = maker.hit_element if maker is not None else ""
         if maker is not None:
             maker.hit_element = c.get("element", "")
         dealt = C.side_damage(combat, f, c["per"], maker, rng, "magical", told=lambda d: f"{c['name']} gnaws at {C.who(f)} for {d}",
-                              logged=lambda d: f"{c['name']} gnaws at {f.name}: {d} damage")
+                              logged=lambda d: f"{c['name']} gnaws at {f.name}: {d} damage", harm="curse")
         if maker is not None:
             maker.hit_element = held
             hits = [e for e in c.get("exprs", []) if e in EXPR and not is_control(e)]

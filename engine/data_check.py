@@ -1151,8 +1151,9 @@ def improv_problems(I: dict | None = None) -> list[str]:
 def tables_problems(AE: dict | None = None, ST: dict | None = None, CB: dict | None = None) -> list[str]:
     """(f504) The fight's tables held to the code both ways: every kind in active_effects.yaml has a family, an expiry and a stacking rule
     the table itself lists, a status kind's deltas name a combat.yaml statuses row and every statuses row has a kind; every stage a
-    damage path in stages.yaml names has a function in engine/damage.py and every function there is named by a path; the hit steps are
-    a list of names; (f507) every status eligibility stage named has a function in engine/effects.py and every function there is
+    damage path in stages.yaml names has a function in engine/damage.py and every function there is named by a path; (f772) every path
+    names exactly the floors the floors table gives it, in the table's order, and the table names only stages and paths; the hit steps
+    are a list of names; (f507) every status eligibility stage named has a function in engine/effects.py and every function there is
     named; every stacking recipe has a function in engine/stacking.py and every function a recipe, with parts the recipe knows. Data
     cannot promise what code cannot run."""
     from engine import damage, stacking
@@ -1197,6 +1198,15 @@ def tables_problems(AE: dict | None = None, ST: dict | None = None, CB: dict | N
             names = {n for _, n, _, _ in string.Formatter().parse(line) if n is not None}
             need(names <= allowed, f"combat.yaml ticks.{st}.{form}: unknown placeholder {sorted(names - allowed)} in {line!r}")
             need(not ("—" in line or "–" in line or " - " in line), f"combat.yaml ticks.{st}.{form}: a dash in story text (owner's rule): {line!r}")
+    harms = CB.get("harms")                              # (f772) every word a floor's line calls a harm by, in one table
+    need(isinstance(harms, dict) and bool(harms), "combat.yaml harms: the words a floor's line calls each harm by")
+    harms = harms if isinstance(harms, dict) else {}
+    for k, word in harms.items():
+        ok = isinstance(word, str) and bool(word.strip()) and "{" not in word
+        need(ok, f"combat.yaml harms.{k}: a plain word or two, with no placeholder")
+        need(not ok or not ("—" in word or "–" in word or " - " in word), f"combat.yaml harms.{k}: a dash in story text (owner's rule): {word!r}")
+    for k in ["unnamed"] + list(ticks if isinstance(ticks, dict) else {}):
+        need(k in harms, f"combat.yaml harms.{k}: a floor that holds it needs its word")
     paths = ST.get("damage") or {}
     declared = set()
     for path, ids in paths.items():
@@ -1208,6 +1218,23 @@ def tables_problems(AE: dict | None = None, ST: dict | None = None, CB: dict | N
                 need(ids[k + 1:k + 2] == ["fall"], f"stages.yaml damage.{path}: '{i}' writes health, so 'fall' must come straight after it")
     for i in damage.STAGES:
         need(i in declared, f"stages.yaml damage: engine/damage.py has a stage '{i}' that no path names")
+    floors = ST.get("floors")                            # (f772) the floors, declared once: every path held to the table both ways
+    need(isinstance(floors, dict) and bool(floors), "stages.yaml floors: the floors under the health bar, each with the paths it holds")
+    floors = floors if isinstance(floors, dict) else {}
+    for fl, held in floors.items():
+        need(fl in damage.STAGES, f"stages.yaml floors.{fl}: no stage engine/damage.py can run")
+        need(isinstance(held, list) and all(isinstance(p, str) for p in held), f"stages.yaml floors.{fl}: a list of the paths it holds")
+        for p in held if isinstance(held, list) else []:
+            need(p in paths, f"stages.yaml floors.{fl}: '{p}' is no damage path")
+            need(p == "dot_tick" or damage.PATH_HARM.get(p) in harms,         # a tick's word is its status's, checked above
+                 f"stages.yaml floors.{fl}: no word in combat.yaml harms for the harm on path '{p}' (engine/damage.py PATH_HARM)")
+    for path, ids in paths.items():
+        got = [i for i in (ids or []) if i in floors]
+        want = [fl for fl in floors if path in (floors[fl] if isinstance(floors[fl], list) else [])]
+        if sorted(got) != sorted(want):
+            need(False, f"stages.yaml damage.{path}: names the floors {got}, but the floors table gives it {want}")
+        elif got != want:
+            need(False, f"stages.yaml damage.{path}: its floors {got} are not in the floors table's order {want}")
     for key in ("hit_steps", "status_eligibility"):
         v = ST.get(key)
         need(isinstance(v, list) and v and all(isinstance(i, str) and i for i in v), f"stages.yaml {key}: a list of names")

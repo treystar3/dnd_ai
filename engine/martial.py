@@ -185,8 +185,8 @@ def flurry(combat, att, t, move, mult, rng) -> bool:
     strikes: list[dict] = []
     s0, l0 = len(combat.story), len(combat.log)
     for i in range(hits):
-        if not t.alive:
-            break
+        if not C.reaches(combat, t, by=att):
+            break                                       # (f772) down, gone, or held by a floor at an earlier strike: a flurry is one blow
         n0 = len(combat.hits)
         landed |= C.apply_damage(combat, att, t, mult * each, f"uses {move.name} on" if i == 0 else "strikes again at", rng,
                                  how=f"with {move.name}" if i == 0 else f"as {move.name} keeps coming",

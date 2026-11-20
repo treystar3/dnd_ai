@@ -1007,6 +1007,40 @@ def in_fight(f: Fighter) -> bool:
     return f.alive and not f.fled
 
 
+def reaches(combat: Combat | None, f: Fighter, by: Fighter | None = None) -> bool:
+    """(f772) Whether harm can still reach this fighter: in the fight, not held by a floor in the blow in progress, and not held by a
+    floor in an earlier strike of the same striker's on it in this action. A floor that holds a blow holds the whole of it (its torn
+    wound, its riders, a gear element's damage, a Death's Door it sets off), and one striker's strikes on one target in one action
+    (a flurry, a volley, a follow-through, a perk's repeat) are one blow; another striker's blow is its own. by: the striker of a strike
+    about to begin, when no blow is open yet. Every damage path, side_damage, add_status and the blow's own riders ask it."""
+    blow = blow_now(combat)
+    if blow is not None and any(x is f for x in blow.floored):
+        return False
+    by = by if by is not None else (blow.att if blow is not None and blow.dfn is f else None)
+    act = open_action(combat) if by is not None else None
+    if act is not None and any(a is by and d is f for a, d in act.floored):
+        return False
+    return in_fight(f)
+
+
+def hold_in_blow(combat: Combat | None, f: Fighter) -> None:
+    """(f772) A floor has held this fighter: noted on the blow in progress (the innermost) for as long as it lasts and, when it was
+    that blow's target, on the action in progress against that blow's striker."""
+    blow = blow_now(combat)
+    if blow is None:
+        return
+    if not any(x is f for x in blow.floored):
+        blow.floored.append(f)
+    act = open_action(combat)
+    if act is not None and f is blow.dfn and not any(a is blow.att and d is f for a, d in act.floored):
+        act.floored.append((blow.att, f))
+
+
+def blow_now(combat: Combat | None):
+    """(f772) The innermost blow in progress on this fight, or None."""
+    return next((o for o in reversed(getattr(combat, "_open", None) or []) if isinstance(o, OpenBlow)), None)
+
+
 def takes_turn(combat: Combat | None, f: Fighter) -> bool:
     """(f769) Whether this fighter has a turn: in the fight and on its field (not down, fled, yielded, tamed, bound or freed). Every
     way into a turn asks it at the moment of the turn: start_turn, enemy_turn and ally_turn."""
@@ -1064,8 +1098,9 @@ FOE_EFFECTS = ("damage", "control", "influence")       # (f763) the abilities th
 def aim(combat: Combat, att: Fighter, move: Move, target: Fighter | None) -> Fighter | None:
     """(f763) Who an ability goes at: one that needs a foe, named at someone no longer a foe in the fight (down, fled or turned),
     goes at the nearest foe standing (None when none stands); anything else keeps its target. Only the player's side acts
-    through act_ability, so the foes are Combat.enemies()."""
-    foes = combat.enemies()
+    through act_ability, so the foes are Combat.enemies(). (f772) A foe a floor held in this striker's blow earlier in the action
+    is no foe for it to go at again (a perk's repeat)."""
+    foes = [e for e in combat.enemies() if reaches(combat, e, by=att)]
     if target is None or any(e is target for e in foes):
         return target
     from engine import battlefield as bf
@@ -1399,7 +1434,7 @@ def restore(combat: Combat | None, f: Fighter, amount: float, source: Fighter | 
         dealt = side_damage(combat, f, amount, source, rng or streams.get("combat"), "magical",
                             told=lambda d: f"the healing curdles in {who(f)} and tears at {vb(f, 'you', 'it')} instead ({d})",
                             logged=lambda d: f"{f.name}'s healing turns on it: {d} damage (Unraveled)",
-                            cause=combat.get(f.status_from.get("unraveled", "")))      # (f768) a death by it is the unraveller's
+                            cause=combat.get(f.status_from.get("unraveled", "")), harm="healing")   # (f768) a death by it is the unraveller's
         return -float(dealt)
     before = f.hp
     f.hp = min(f.max_hp, f.hp + amount)
@@ -1410,20 +1445,25 @@ AS_SOURCE: Any = object()      # (f768) a harm's death is the kill of its source
 
 
 def take_damage(combat: Combat, dfn: Fighter, amount: float, source: Fighter | None, rng: random.Random,
-                damage_type: str = "physical", rec: dict | None = None, cause=AS_SOURCE) -> int:
+                damage_type: str = "physical", rec: dict | None = None, cause=AS_SOURCE, harm: str | None = None) -> int:
     """Apply final damage to a fighter, with defensive legendary effects. Returns damage actually dealt. With a record, every effect that
     changed the figure is written into it by the name of the passive or gear that caused it. (f505) The blow's path, stage by stage, as
-    data/rules/stages.yaml declares it and engine/damage.py runs it: one calculation, the value and its explanation together."""
+    data/rules/stages.yaml declares it and engine/damage.py runs it: one calculation, the value and its explanation together. (f772)
+    harm: what a floor that holds it calls side harm (a key of combat.yaml harms)."""
     from engine import damage
-    return damage.resolve("blow", combat, dfn, amount, source, rng, damage_type, rec, cause=cause)
+    return damage.resolve("blow", combat, dfn, amount, source, rng, damage_type, rec, cause=cause, harm=harm)
 
 
 def side_damage(combat: Combat, dfn: Fighter, amount: float, source: Fighter | None, rng: random.Random,
-                damage_type: str = "physical", told=None, logged=None, cause=AS_SOURCE) -> int:
+                damage_type: str = "physical", told=None, logged=None, cause=AS_SOURCE, harm: str | None = None) -> int:
     """(f757) Damage outside a blow's own path, told in order: the caller's lines (told for the story, logged for the log; a line, or
-    a function of what was dealt, "" to tell nothing) go before whatever the damage set off. Returns what was dealt."""
+    a function of what was dealt, "" to tell nothing) go before whatever the damage set off. Returns what was dealt. (f772) Harm that
+    cannot reach its fighter (reaches) deals nothing and tells nothing; harm names it for a floor's line (a key of combat.yaml
+    harms; none, and the floor says "that", after the caller's own line)."""
+    if dfn.alive and not reaches(combat, dfn):
+        return 0
     at, log_at = len(combat.story), len(combat.log)
-    dealt = take_damage(combat, dfn, amount, source, rng, damage_type, cause=cause)
+    dealt = take_damage(combat, dfn, amount, source, rng, damage_type, cause=cause, harm=harm)
     line = logged(dealt) if callable(logged) else logged
     if line:
         combat.log.insert(log_at, line)
@@ -1435,9 +1475,10 @@ def side_damage(combat: Combat, dfn: Fighter, amount: float, source: Fighter | N
 
 def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, label: str, rng: random.Random,
                  can_cleave: bool = True, can_riposte: bool = True, how: str = "", can_flurry: bool = True,
-                 reliable: bool = False) -> bool:
+                 reliable: bool = False, riders=None) -> bool:
     """Attack roll, damage and mitigation. Returns True if it landed. A defender with a readied counter meets the first engaged blow:
-    it lands weakened, and the defender strikes back (engine/martial.py)."""
+    it lands weakened, and the defender strikes back (engine/martial.py). riders(landed): what the blow carries besides its damage (a
+    family's venom, a slam's stun), run last and as part of the blow, so a floor that held the blow holds them too."""
     from engine import martial
     meet = martial.countering(att, dfn)
     if meet:
@@ -1449,18 +1490,23 @@ def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, 
         credit(combat, blow.by, dfn, rng)                  # (f768) its target fell before its tail (a miss whose riposte met thorns)
     if meet:
         martial.strike_back(combat, dfn, att, rng)
+    if riders is not None:
+        blow.tail = True                                   # its target's fall, if any, is already paid
+        with in_progress(combat, blow):                    # (f772) what the blow carries is the blow: its floors' notes hold
+            riders(landed)
     return landed
 
 
 @dataclass(eq=False)
 class OpenBlow:
     """(f768) A blow in progress: its striker and its target, whether its tail has run, and whether its target fell inside it and by
-    whose doing. The fall step notes such a fall here; the blow's tail pays it."""
+    whose doing. The fall step notes such a fall here; the blow's tail pays it. (f772) floored: whom a floor has held in it."""
     att: Fighter
     dfn: Fighter
     tail: bool = False
     fell: bool = False
     by: Fighter | None = None
+    floored: list = dataclass_field(default_factory=list)
 
 
 @contextlib.contextmanager
@@ -1492,8 +1538,9 @@ class HeldBreak:
 class OpenAction:
     """(f770) The outermost action in progress (an ability, an attack, a movement or a retreat, a turn or its start, an improvisation,
     a talk, the mentor's strike, a boss's action between turns): the breaks its deaths' routs asked for, in the order they were rolled,
-    settled when it is done."""
+    settled when it is done. (f772) floored: (striker, target) for each target a floor held in that striker's blow."""
     held: list[HeldBreak] = dataclass_field(default_factory=list)
+    floored: list = dataclass_field(default_factory=list)
 
 
 def open_action(combat: Combat | None) -> OpenAction | None:
@@ -1574,8 +1621,9 @@ def credit(combat: Combat, killer: Fighter | None, fallen: Fighter, rng: random.
 def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, label: str, rng: random.Random,
                   can_cleave: bool = True, can_riposte: bool = True, how: str = "", can_flurry: bool = True,
                   reliable: bool = False, blow: OpenBlow | None = None) -> bool:
-    if not in_fight(dfn):
-        return False                                        # (f763) no blow starts on one who is down or gone: no die, no second fall
+    if not reaches(combat, dfn):
+        return False                                        # (f763) no blow starts on one who is down or gone: no die, no second fall;
+    #                                                         (f772) nor on one a floor held in this striker's earlier strike this action
     how = how or weapon_phrase(att)
     from engine import spellcraft as _sc
     if can_cleave and att.alive:
@@ -1746,7 +1794,8 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
             taken -= moved
             if rec is not None:
                 rec["extras"].append(["Guardian takes a share", f"-{round(moved)}"])
-            side_damage(combat, guard, moved, att, rng, att.damage_type, told=f"{who(guard)} throws itself in the way and takes {round(moved)} of it")
+            side_damage(combat, guard, moved, att, rng, att.damage_type, told=f"{who(guard)} throws itself in the way and takes {round(moved)} of it",
+                        harm="blow")
     pre_shield = taken
     taken = take_damage(combat, dfn, taken, att, rng, att.damage_type, rec=rec)
     att.counters["last_hit"] = int(taken)               # what this blow dealt, for an ignite it sets (engine/afflictions.py)
@@ -1769,19 +1818,20 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
         rec["figure"] = figure(rec)
     if att.side == "ally" and dfn.side == "enemy":
         dfn.counters["flanked"] = combat.round                             # an ally has struck it (Flanking)
-    if "frost_armor" in D and att.reach in ("melee", "extended") and att.alive and att.side != dfn.side:
+    answers = in_fight(dfn)                              # (f772) a defender the blow felled or drove off answers nothing
+    if "frost_armor" in D and att.reach in ("melee", "extended") and att.alive and att.side != dfn.side and answers:
         if add_status(combat, att, "slowed", 2, dfn):     # 2: it holds through the attacker's next turn
             tell(combat, f"{who(att)} {vb(att, 'strike', 'strikes')} the ice around {who(dfn)} and the cold bites deep - {vb(att, 'you are', 'it is')} slowed (Frost Armor)")
-    if "thorn_pct" in D and att.reach in ("melee", "extended") and att.alive and att.side != dfn.side:
+    if "thorn_pct" in D and att.reach in ("melee", "extended") and att.alive and att.side != dfn.side and answers:
         back = D.get("thorn_flat", 0) + dfn.armor * D["thorn_pct"] / 100          # Thorns (buff): a little for anyone, a lot for the armored
         side_damage(combat, att, back, dfn, rng, "physical",
                     told=lambda d: f"{who(att)} {vb(att, 'are', 'is')} torn for {d} by the thorns around {who(dfn)} (Thorns)",
-                    logged=lambda d: f"{att.name} is hurt by {dfn.name}'s thorns: {d}")
-    if "thorns" in D and att.reach == "melee" and att.alive and att.side != dfn.side:
+                    logged=lambda d: f"{att.name} is hurt by {dfn.name}'s thorns: {d}", harm="thorns")
+    if "thorns" in D and att.reach == "melee" and att.alive and att.side != dfn.side and answers:
         floor = AT.T["thorns_floor"] * RULES["mitigation"]["armor_k"] * growth(att.level)
         back = max(dfn.armor, floor) * D["thorns"] / 100
         side_damage(combat, att, back, dfn, rng, "physical", told=lambda d: f"{who(att)} {vb(att, 'are', 'is')} hurt for {d} as the blow rebounds (Thorns)",
-                    logged=lambda d: f"{att.name} is hurt by {dfn.name}'s thorns: {d}")
+                    logged=lambda d: f"{att.name} is hurt by {dfn.name}'s thorns: {d}", harm="thorns")
     note = {"graze": " (graze)", "crit": " (critical)"}.get(outcome, "")
     soak = f", {round(absorbed)} absorbed" if absorbed >= 1 else ""
     combat.log.insert(log_at, f"{att.name} {label} {dfn.name}: {taken} damage{note}{soak}")
@@ -1790,9 +1840,9 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
     after = f" - {who(dfn)} {vb(dfn, 'are', 'is')} {condition(dfn)}" if dfn.alive else ""
     tell(combat, f"{who(att)} {vb(att, 'hit', 'hits')} {who(dfn)} {how}: {quality}{turned}{after}", rec, at=at)
     emult = multiplier * {"graze": 0.5, "hit": 1.0, "crit": crit_multiplier(att)}[outcome]
-    for el in elements.ELEMENTS:
+    for el in elements.ELEMENTS:                         # (f772) what else the blow carries reaches only one it still reaches
         flat = flat_bonus(att, f"{el}_damage", {"always"})
-        if flat > 0 and dfn.alive:
+        if flat > 0 and reaches(combat, dfn):
             part, _ = mitigate(dfn, flat * emult, "magical", att.level, combat, att)
             held, att.hit_element = att.hit_element, el
             dealt = side_damage(combat, dfn, part, att, rng, "magical",          # (f349) told once a fight (lightning was narrated 56 rounds running); a kill by it is always told
@@ -1805,15 +1855,15 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
             if rec is not None:
                 rec["extras"].append([f"{el.capitalize()} damage from gear", f"+{round(dealt)}"])
             combat.burn_told = True
-    if "acid_weapon" in A and dfn.alive and taken > 0 and att.spell_kind != "spell" and not warded(dfn, "acid"):
+    if "acid_weapon" in A and reaches(combat, dfn) and taken > 0 and att.spell_kind != "spell" and not warded(dfn, "acid"):
         cap = AT.BUFFS.get("acidcoat", {}).get("cap", 75)
         cut = min(cap, dfn.corroded + A["acid_weapon"] * (ATTUNE["acid"] if attuned(att, "acid") else 1))   # Acid Coating
         if cut > dfn.corroded:
             dfn.corroded = cut
             tell(combat, f"the acid eats into {whose(dfn)} armor ({cut:g}% gone)")
-    if "envenom_weapon" in A and dfn.alive and taken > 0 and att.spell_kind != "spell":
+    if "envenom_weapon" in A and reaches(combat, dfn) and taken > 0 and att.spell_kind != "spell":
         add_status(combat, dfn, "poisoned", 3, att)        # Envenom Weapon: every weapon hit adds a stack, and nothing more
-    if "elemental_weapon" in A and dfn.alive and taken > 0 and att.spell_kind != "spell":     # Imbue: weapon hits only, never spells
+    if "elemental_weapon" in A and reaches(combat, dfn) and taken > 0 and att.spell_kind != "spell":     # Imbue: weapon hits only, never spells
         buff = next((b for b in att.buffs.values() if b.get("kind") == "imbue"), {})
         el = buff.get("element") or "fire"
         part, _ = mitigate(dfn, dmg * A["elemental_weapon"] / 100, "magical", att.level, combat, att)
@@ -1828,7 +1878,7 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
             from engine import spellcraft
             spellcraft.carried(combat, att, dfn, buff["exprs"], buff.get("etier", "light"), buff.get("name", ""), taken, rng)
     att.counters["storm"] = att.counters.get("storm", 0) + 1 if "stormcaller" in A else 0
-    if "stormcaller" in A and dfn.alive and att.counters["storm"] % 3 == 0:
+    if "stormcaller" in A and reaches(combat, dfn) and att.counters["storm"] % 3 == 0:
         bolt, _ = mitigate(dfn, dmg * 0.5, "magical", att.level, combat, att)
         side_damage(combat, dfn, bolt, att, rng, "magical", told=f"lightning answers {whose(att)} weapon and cracks down onto {who(dfn)} (Stormcaller)",
                     logged=lambda d: f"lightning strikes {dfn.name}: {d} damage (Stormcaller)")
@@ -1864,7 +1914,7 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
         for stat, status, rounds, word in (("envenom_chance", "poisoned", 3, "envenomed"), ("ignite_chance", "burning", 3, "ignited"),
                                            ("jolt_chance", "stunned", 1, "jolted")):
             chance = bonus(att, stat, always)
-            if chance and dfn.alive and rng.uniform(0, 100) < chance and add_status(combat, dfn, status, rounds, att):
+            if chance and reaches(combat, dfn) and rng.uniform(0, 100) < chance and add_status(combat, dfn, status, rounds, att):
                 combat.log.append(f"{dfn.name} is {status} (weapon)")
                 tell(combat, f"{who(dfn)} {STATUS_WORDS[status][0 if dfn.side == 'player' else 1]} (the weapon {word} it)")
     if att.side == "player" and "lifebinder" in A:
@@ -1875,10 +1925,10 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
             if dfn.alive and rng.uniform(0, 100) < A["packbond"]:
                 apply_damage(combat, ally, dfn, 1.0, "strikes alongside", rng, can_cleave=False, can_riposte=False,
                              can_flurry=False, how="as the bond answers the blow (Packbond)")
-    if "hex" in A and dfn.alive and "hexed" not in dfn.statuses and add_status(combat, dfn, "hexed", 99, att):   # (f507) through the stages
+    if "hex" in A and reaches(combat, dfn) and "hexed" not in dfn.statuses and add_status(combat, dfn, "hexed", 99, att):   # (f507) through the stages
         combat.log.append(f"{dfn.name} is hexed")
         tell(combat, f"a curse settles on {who(dfn)} like cold ash (Hex)")
-    if dfn.alive:
+    if reaches(combat, dfn):
         for effect, status, rounds in (("frostbite", "slowed", 2), ("rending", "bleeding", 3), ("thunderous", "stunned", 1),
                                        ("blinding", "blinded", 1), ("terrify", "frightened", 2)):
             if effect in A and rng.uniform(0, 100) < A[effect] and add_status(combat, dfn, status, rounds, att):
@@ -1887,11 +1937,11 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
                     rec["figure"] = figure(rec)
                 combat.log.append(f"{dfn.name} is {status}")
                 tell(combat, f"{who(dfn)} {STATUS_WORDS[status][0 if dfn.side == 'player' else 1]} ({effect.capitalize()})")
-    if "earthshaker" in A and dfn.alive and (outcome == "crit" or (outcome == "hit" and rng.uniform(0, 100) < A["earthshaker"])):
+    if "earthshaker" in A and reaches(combat, dfn) and (outcome == "crit" or (outcome == "hit" and rng.uniform(0, 100) < A["earthshaker"])):
         if add_status(combat, dfn, "prone", 1, att):
             combat.log.append(f"{dfn.name} is knocked flat")
             tell(combat, f"the blow lands like a falling wall and {who(dfn)} {STATUS_WORDS['prone'][0 if dfn.side == 'player' else 1]} (Earthshaker)")
-    if "open_palm" in A and dfn.alive and (outcome == "crit" or (outcome == "hit" and rng.uniform(0, 100) < A["open_palm"])):
+    if "open_palm" in A and reaches(combat, dfn) and (outcome == "crit" or (outcome == "hit" and rng.uniform(0, 100) < A["open_palm"])):
         if add_status(combat, dfn, "prone", 1, att):
             combat.log.append(f"{dfn.name} is swept off their feet")
             tell(combat, f"the open palm turns {whose(dfn)} balance against {who(dfn)} and {who(dfn)} {STATUS_WORDS['prone'][0 if dfn.side == 'player' else 1]} (Open Palm)")
@@ -1900,7 +1950,7 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
         blow.tail = True                                   # (f768) its target, fallen inside it, is paid here; told at its fall
         if blow.fell:
             credit(combat, blow.by, dfn, rng, A if blow.by is att else None)
-    if can_flurry and "flurry" in A and dfn.alive and att.alive and rng.uniform(0, 100) < A["flurry"]:
+    if can_flurry and "flurry" in A and reaches(combat, dfn) and att.alive and rng.uniform(0, 100) < A["flurry"]:   # (f772) one blow
         apply_damage(combat, att, dfn, multiplier * 0.6, "strikes again at", rng, can_cleave=False, can_riposte=False,
                      how="in a blur of follow-up blows (Flurry)", can_flurry=False)
     if can_cleave and "many_heads" in A and att.side == "player" and att.counters.get("heads_round") != combat.round and att.alive:
@@ -2169,8 +2219,8 @@ def shaped_strike(combat: Combat, att: Fighter, t: Fighter, move: Move, mult: fl
     if "parts" in sh:                                  # volley, double strike, barrage: several smaller hits
         landed = False
         for i in range(sh["parts"]):
-            if not t.alive:
-                break
+            if not reaches(combat, t, by=att):
+                break                                  # (f772) down, gone, or held by a floor at an earlier part: the parts are one blow
             landed |= apply_damage(combat, att, t, mult * sh["each"], label if i == 0 else "strikes again at", rng,
                                    how=how if i == 0 else f"as {move.name} keeps coming", can_cleave=(i == 0), can_flurry=(i == 0))
         return landed
@@ -2939,18 +2989,21 @@ def start_turn(f: Fighter, combat: Combat | None = None, rng: random.Random | No
         spellcraft.zone_turn(combat, f, rng)              # burning, charged or poisoned ground (engine/spellcraft.py)
         if f.curses:
             spellcraft.curse_turn(combat, f, rng)
-        if f.charging and f.alive and spellcraft.release(combat, f, rng):
+    if not takes_turn(combat, f):
+        return False                                    # (f772) fallen or yielded to the ground or a curse: nothing more of its turn lands
+    if combat is not None:
+        if f.charging and spellcraft.release(combat, f, rng):
             f.counters["cast_turn"] = 1                   # the charged spell was this whole turn (released, or broken)
-    if combat is not None and f.alive:
+    if combat is not None and in_fight(f):
         from engine import spellcraft as _sct
         _sct.turn_effects(combat, f, rng)                 # frostbite, creeping corrosion, a seed about to burst (f268)
     for dot in RULES["ticks"]:                           # (f768) the statuses that tick, each with its words (combat.yaml ticks); an open
-        if dot in f.statuses:                            # wound does nothing by itself: blows make it bleed (engine/afflictions.py)
+        if dot in f.statuses and in_fight(f):            # wound does nothing by itself: blows make it bleed (engine/afflictions.py)
             from engine import damage, spellcraft as _sck
             amount = combat_perks.dot_damage(f, dot, round(afflictions.tick(f, dot) * _sck.tick_mult(f, dot)))
             laid = combat.get(f.status_from.get(dot, "")) if combat is not None else None     # (f768) its death is the layer's kill
-            damage.resolve("dot_tick", combat, f, amount, None, rng, dot=dot, cause=laid)     # (f505) the tick's path: the floor (the
-            #                               first hunt cannot kill the player; a duel kills no one), the health, the fall, what rides on it
+            damage.resolve("dot_tick", combat, f, amount, None, rng, dot=dot, cause=laid)     # (f505) the tick's path: the floors
+            #                               (stages.yaml floors), the health, the fall, what rides on it
     if not takes_turn(combat, f):
         return False                                    # (f768, f769) fallen or yielded at its turn's start (a curse): the turn is gone
     skip = "stunned" in f.statuses or "petrified" in f.statuses or bool(f.counters.get("cast_turn"))
@@ -3136,10 +3189,12 @@ def enemy_turn(combat: Combat, e: Fighter, rng: random.Random) -> None:
         tell(combat, f"{who(e)} cannot bring its arms to bear, and guards instead")
         behaviors.after_turn(combat, e, rng)
         return
-    landed = apply_damage(combat, e, target, mult, f"attacks ({e.weapon_name})", rng)
-    behaviors.after_hit(combat, e, target, landed, rng)
+    apply_damage(combat, e, target, mult, f"attacks ({e.weapon_name})", rng,
+                 riders=lambda hit: behaviors.after_hit(combat, e, target, hit, rng))     # (f772) its venom rides the blow
+    if not in_fight(e):
+        return                                         # (f772) fallen or yielded at its own blow (a riposte, thorns): its turn is over
     behaviors.after_turn(combat, e, rng)
-    if e.boss and e.alive and combat.player.alive:
+    if e.boss and combat.player.alive:
         from engine import bosses
         bosses.own_turn(combat, e, target if target.alive else combat.player, rng)
 

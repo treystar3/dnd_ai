@@ -143,7 +143,16 @@ def after_turn(c, e, rng):
     return _after_turn(c, e, rng)
 
 
+_after_hit = behaviors.after_hit
+
+
+def after_hit(c, e, target, landed, rng):
+    ORDER.append(("turn over", e.id))           # (f772) a foe felled at its own blow ends its turn with that blow's riders
+    return _after_hit(c, e, target, landed, rng)
+
+
 behaviors.morale_on_death, behaviors._routs, behaviors._break, behaviors.after_turn = morale_on_death, routs, broke, after_turn
+behaviors.after_hit = after_hit
 EVERY = lambda fallen, e: True                     # noqa: E731  every foe breaks at the first death it is rolled for
 
 ROUT = re.compile(r"breaks and runs|throws down .* yields|breaks, (seeing|with so many)|loses heart|turns on its own side")
@@ -437,7 +446,7 @@ for sd in range(1, 61):
     if a.alive:
         continue
     seen += 1
-    over = ORDER.index(("turn over", a.id)) if ("turn over", a.id) in ORDER else -1
+    over = max((i for i, x in enumerate(ORDER) if x == ("turn over", a.id)), default=-1)     # (f772) the turn's last step
     breaks = [i for i, x in enumerate(ORDER) if x == ("break", b.id)]
     story = f.story[m[0]:]
     if not (b.fled and breaks and over > -1 and breaks[0] > over and ROUT.search(story[-1]) and not faults(f, foes, m)):
@@ -662,6 +671,7 @@ check("a killing blow inside an attack draws the blow's die as one outside any a
       not differ, differ[:3])
 
 behaviors.morale_on_death, behaviors._routs, behaviors._break, behaviors.after_turn = _morale, _routs, _break, _after_turn
+behaviors.after_hit = _after_hit
 combat.roll_attack, damage.resolve = _roll, _resolve
 print("all ok" if not bad else f"FAILED: {len(bad)}", file=sys.__stdout__)
 sys.exit(1 if bad else 0)

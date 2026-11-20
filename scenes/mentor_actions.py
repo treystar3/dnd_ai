@@ -767,7 +767,7 @@ class MentorActions:
         seed = self.mentor_seed()
         if f.mentor_saved and "floor" not in f.mentor_beats:
             f.mentor_beats.append("floor")
-            self.mentor_say(mentor.line(self.player, "floor", seed), beat="the player was nearly killed; you pulled them clear and give them a draught")
+            self.mentor_say(mentor.line(self.player, "floor", seed), beat="the player was nearly killed; you caught them before they fell and give them a draught")
             if not any(i.good == M["hunt"]["potion"] for i in self.player.character.inventory):
                 self.to_pack(inventory.make_good(M["hunt"]["potion"]))
                 console.note(M["lessons"]["floor_potion"])

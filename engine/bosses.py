@@ -124,8 +124,8 @@ def bloodied(combat, f) -> None:
             orenna.seal_prompt(combat, f)
 
 
-def _strike(combat, e, target, mult: float, rng, label: str = "strikes") -> bool:
-    return C.apply_damage(combat, e, target, mult, label, rng, can_cleave=False, can_riposte=False, can_flurry=False)
+def _strike(combat, e, target, mult: float, rng, label: str = "strikes", riders=None) -> bool:
+    return C.apply_damage(combat, e, target, mult, label, rng, can_cleave=False, can_riposte=False, can_flurry=False, riders=riders)
 
 
 def _weakest(combat):
@@ -166,10 +166,12 @@ def _do(combat, e, opt: dict, rng, mult: float) -> None:
         _strike(combat, e, _weakest(combat), mult or B["legendary_strike"] * 1.8, rng, "smites")
     elif kind == "rend":
         t = combat.player
-        if _strike(combat, e, t, mult or B["legendary_strike"] * 1.3, rng, "rends") and t.alive:
-            C.add_status(combat, t, "bleeding", 3)
+        _strike(combat, e, t, mult or B["legendary_strike"] * 1.3, rng, "rends",          # (f772) the wound rides the blow that tore it
+                riders=lambda hit: hit and C.in_fight(e) and C.reaches(combat, t) and C.add_status(combat, t, "bleeding", 3))
     elif kind == "sweep":
         for t in targets:
+            if not C.in_fight(e):
+                break                                   # (f772) felled or driven off by its own blow (thorns): the sweep ends there
             _strike(combat, e, t, mult, rng, "engulfs")
     elif kind == "cow":
         t = combat.player
@@ -227,7 +229,7 @@ def own_turn(combat, e, target, rng) -> None:
     if t["extra"] > 0 and target.alive:
         _strike(combat, e, target, t["extra"], rng, "follows through")
     due = combat.round >= 2 and (combat.round - 2) % B["signature_every"] == 0
-    if (due or e.boss["sig_ready"]) and combat.player.alive:
+    if (due or e.boss["sig_ready"]) and C.in_fight(e) and combat.player.alive:      # (f772) not after its own follow-through felled it
         e.boss["sig_ready"] = False
         sig = _kit(e)["signature"]
         _do(combat, e, sig, rng, sig.get("mult", 0.0))

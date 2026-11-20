@@ -11,9 +11,25 @@ damage:
          fall, after_damage, healing_after_damage, yields_break, boss_after_damage, second_wind, rebound]
   # the bypasses, kept as bypasses: a poison's or a burn's tick at the start of the turn (engine/combat.py start_turn), a wound torn by a
   # blow (engine/afflictions.py tear). A relic's smite, a boss's option and No One Escapes are full blows (apply_damage); a relic's mend
-  # is a restore.
-  dot_tick: [tick_floor, tick_health, fall, tick_on_tick, tick_duel_end]
-  tear: [tick_floor, tear_health, fall]
+  # is a restore. (f772) Each meets the floors the table below gives it, as the blow does.
+  dot_tick: [duel_floor, lifeline, tether, boss_last_stand, breath, mentor_floor, deathless, deathward, yields_floor, tick_health, fall,
+             tick_on_tick, yields_break]
+  tear: [duel_floor, lifeline, tether, boss_last_stand, breath, mentor_floor, deathless, deathward, yields_floor, tear_health, fall,
+         yields_break]
+  # (f772) the force Retribution or Spellmirror turns back on the striker (the blow's rebound stage); it holds no rebound: the loop guard
+  rebound: [duel_floor, lifeline, tether, boss_last_stand, breath, mentor_floor, deathless, deathward, yields_floor, rebound_health,
+            fall, yields_break]
+# (f772) The floors, in the order a path meets them, each with the paths it holds; engine/data_check.py holds every path to it both ways.
+floors:
+  duel_floor:      [blow, dot_tick, tear, rebound]     # a trial of rank: its duellists cannot die, and the harm that would end one decides it
+  lifeline:        [blow, dot_tick, tear, rebound]     # a companion that would fall is held at 1, once a fight
+  tether:          [blow, dot_tick, tear, rebound]     # the Soul Tether: survived once
+  boss_last_stand: [blow, dot_tick, tear, rebound]     # the first killing harm does not kill a boss
+  breath:          [blow, dot_tick, tear, rebound]     # Orenna's Last Breath: restored in full, once
+  mentor_floor:    [blow, dot_tick, tear, rebound]     # the first hunt: the player cannot die
+  deathless:       [blow, dot_tick, tear, rebound]     # will not fall
+  deathward:       [blow, dot_tick, tear, rebound]     # once a fight
+  yields_floor:    [blow, dot_tick, tear, rebound]     # a foe that yields never dies
 hit_steps:          # _apply_damage's hit-multiplier chain (engine/combat.py), code, declared and tested in order (owner question 11)
   - Move power
   - Glancing blow | Critical hit
@@ -38,8 +54,8 @@ hit_steps:          # _apply_damage's hit-multiplier chain (engine/combat.py), c
   - Windwalker
   - Flowing Step
   - combat_perks.damage_mult   # Bulwark Engine, War Drum, Thick of It, Overchannel
-status_eligibility: [unyielding, earthshaker, stoneform, iron_will, element_ward, attune_extend, sanctified, boss_resisted, perk_transform,
-                     bloodless, affliction_law, record, crippling_chain, winding_cancel]       # add_status, in order
+status_eligibility: [reached, unyielding, earthshaker, stoneform, iron_will, element_ward, attune_extend, sanctified, boss_resisted,
+                     perk_transform, bloodless, affliction_law, record, crippling_chain, winding_cancel]       # add_status, in order
 stacking:            # the recipes (engine/stacking.py RECIPES), each part in the order it is applied
   base_damage: [flat, percent]      # raw_damage: weapon + attribute + flat, then x (1 + percent/100) x variance x magic
   mitigate: [percent, flat]         # x max(0.05, 1 - percent/100), then - flat, never below a tenth of what came in

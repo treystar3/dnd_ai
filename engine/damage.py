@@ -1,15 +1,20 @@
 """(f504) One damage calculation, declared stage by stage. data/rules/stages.yaml names the stages of each damage path in order (the
-blow, a poison's or a burn's tick, a wound torn); STAGES here names the function behind each id, and engine/data_check.py holds the two
-to each other: a stage the data names must have a function, and a function here must be named by a path. Each stage reads and writes
-one Blow (the shared locals of engine/combat.py take_damage, so nothing is stale), keeps take_damage's labels and its 0.5 threshold for
-the record (step), and returns False to end the path (a floor that held, a petrified target, nothing left to land). The retribution
-and spellmirror rebound writes the striker's health directly, as take_damage does: that write is the loop guard.
+blow, a poison's or a burn's tick, a wound torn, a force turned back); STAGES here names the function behind each id, and
+engine/data_check.py holds the two to each other: a stage the data names must have a function, and a function here must be named by a
+path. Each stage reads and writes one Blow (the shared locals of engine/combat.py take_damage, so nothing is stale), keeps take_damage's
+labels and its 0.5 threshold for the record (step), and returns False to end the path (a floor that held, a petrified target, nothing
+left to land). The retribution and spellmirror rebound runs the rebound path, which has no rebound stage: that is the loop guard.
 
 (f768) Every path that writes health names `fall` straight after it (engine/data_check.py holds it): the one fall step, fall_step, that
 every death ends in, whatever killed.
 
-(f505) take_damage is resolve("blow"), the tick in start_turn resolve("dot_tick") and afflictions.tear resolve("tear"): one calculation,
-its value and its explanation from the declared recipe; the fight fixtures (93 cases, none moved) are the proof that no number moved.
+(f772) The floors under the health bar are one table (stages.yaml floors), every path held to it: the same floor stages run on every
+path, reading what is about to land through one accessor (Blow.landing). A floor that holds notes its fighter on the blow in progress
+(engine/combat.py hold_in_blow), and the rest of that blow takes nothing from it (reaches): a floor that holds a blow holds all of it.
+
+(f505) take_damage is resolve("blow"), the tick in start_turn resolve("dot_tick"), afflictions.tear resolve("tear") and the rebound
+stage resolve("rebound"): one calculation, its value and its explanation from the declared recipe; the fight fixtures (93 cases, none
+moved) are the proof that no number moved.
 The health bar is written here and in engine/combat.py restore, and in the named exemptions tools/purity.py HP_EXEMPT lists (construction,
 unmaking, floors outside a blow, heals outside restore, costs and drains); nowhere else (hp_writes, tools/sim/hp_writes_505_test.py)."""
 from __future__ import annotations
@@ -26,8 +31,9 @@ from engine import combat as C
 from engine import effects as E
 from engine import items
 
-PATHS: dict[str, list[str]] = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "stages.yaml")
-                                             .read_text(encoding="utf-8"))["damage"]
+_ST = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "stages.yaml").read_text(encoding="utf-8"))
+PATHS: dict[str, list[str]] = _ST["damage"]
+FLOORS: tuple[str, ...] = tuple(_ST.get("floors") or ())    # (f772) the floor stages, declared once; each writes health only to hold one up
 
 NAMED = {"blood_pact": "Blood Pact", "hardening": "Hardening", "aegis": "Aegis", "last_stand": "Last Stand", "stoneskin": "Stoneskin",
          "plating": "Plating", "spellward": "Spellward", "unbroken": "Unbroken", "guardian": "Guardian", "mana_shield": "Mana shield"}
@@ -37,7 +43,7 @@ NAMED = {"blood_pact": "Blood Pact", "hardening": "Hardening", "aegis": "Aegis",
 class Blow:
     """The shared locals of one damage path: the fight, the one struck, what is coming (amount, a float until it is rounded to what is
     dealt), who struck, the die, the kind of damage, the blow's record (None when blows are not being recorded), the struck one's active
-    mechanics (L), and for a tick the affliction and the floor under the health bar."""
+    mechanics (L), and for a tick the affliction."""
     combat: C.Combat
     dfn: C.Fighter
     amount: float
@@ -48,12 +54,26 @@ class Blow:
     dealt: int = 0
     L: dict = field(default_factory=dict)
     dot: str = ""
-    floor: int = 0
     deep: float = 1.0
     by: str = ""
     path: str = "blow"
     cause: C.Fighter | None = None      # (f768) whose kill a death here is: the source, unless the path was handed another
     up: bool = False                    # (f768) standing just before the health stage wrote
+    whole: bool = False                 # (f772) the figure has been rounded to what is dealt (the blow's `rounded`)
+    harm: str = "blow"                  # (f772) what a floor's line calls this harm: a key of combat.yaml harms
+
+    @property
+    def landing(self) -> float:
+        """(f772) What is about to land: the rounded figure once the path has rounded it (a blow), else the amount (a tick, a torn
+        wound, a rebound). Every floor reads it, so the same floors run on every path."""
+        return self.dealt if self.whole else self.amount
+
+    @landing.setter
+    def landing(self, value: float) -> None:
+        if self.whole:
+            self.dealt = int(value)
+        else:
+            self.amount = value
 
     def label(self, mid: str) -> str:
         le = items.LEGENDARY.get(mid)
@@ -247,15 +267,32 @@ def ward_conversion(b: Blow) -> bool:
 def rounded(b: Blow) -> bool:
     """What is dealt: a whole number, never less than one once something got through."""
     b.dealt = max(1, round(b.amount))
+    b.whole = True
     return True
 
 
-# ---------- the floors: a blow that would end someone, pulled short
+# ---------- the floors: a harm that would end someone, pulled short (stages.yaml floors: every path meets the same ones)
+
+PATH_HARM = {"blow": "blow", "tear": "blow", "rebound": "rebound"}   # (f772) a torn wound is its blow's; a tick's harm is its status
+
+
+def harm(b: Blow) -> str:
+    """(f772) What a floor's line calls the harm it held (combat.yaml harms): "the blow", "the poison", "the thorns", or "that" for a
+    harm with no word of its own."""
+    return C.RULES["harms"][b.harm]
+
+
+def _held(b: Blow) -> bool:
+    """(f772) A floor has held this fighter: noted on the blow in progress, so the rest of that blow takes nothing from it. Ends the
+    path."""
+    C.hold_in_blow(b.combat, b.dfn)
+    return False
+
 
 def duel_holds(combat: C.Combat | None, d: C.Fighter) -> bool:
     """(f771) A trial of rank holds this fighter above death: one of its duellists (engine/combat.py duellist). Anyone else in it falls
-    as in any fight, and decides nothing. Every floor of the duel asks it: the blow's, a tick's and a torn wound's, a rebound's, and
-    Death's Door's own (engine/spellcraft.py)."""
+    as in any fight, and decides nothing. The duel's floor asks it on every path (stages.yaml floors), and Death's Door's own floor
+    (engine/spellcraft.py)."""
     return combat is not None and combat.duel and C.duellist(combat, d)
 
 
@@ -269,90 +306,95 @@ def duel_decided(combat: C.Combat, d: C.Fighter) -> None:
 
 def duel_floor(b: Blow) -> bool:
     d, combat = b.dfn, b.combat
-    if duel_holds(combat, d) and b.dealt >= d.hp:
+    if duel_holds(combat, d) and b.landing >= d.hp:
         d.hp = 1
         duel_decided(combat, d)
-        C.tell(combat, f"the blow that would have ended {C.who(d)} is pulled short, and the duel is decided" if d.side != "player" else
-               "the blow that would have ended you is pulled short, and the duel is decided")
-        return False
+        C.tell(combat, f"{harm(b)} that would have ended {C.who(d)} is pulled short, and the duel is decided" if b.harm == "blow" else
+               f"the trial is called before {C.who(d)} can fall, and the duel is decided" if b.harm == "unnamed" else
+               f"the trial is called before {harm(b)} can end {C.who(d)}, and the duel is decided")
+        return _held(b)
     return True
 
 
 def lifeline(b: Blow) -> bool:
     d, combat = b.dfn, b.combat
-    if b.dealt >= d.hp and C.fights_for_you(d) and "lifeline" in C.mechanics(combat.player, combat) and not d.counters.get("lifeline"):
+    if b.landing >= d.hp and C.fights_for_you(d) and not d.counters.get("lifeline") \
+            and any("lifeline" in C.mechanics(p, combat) for p in combat.player_fighters()):     # (f772) its master, by fighter
         d.counters["lifeline"] = 1
         d.hp = 1
         combat.log.append(f"{d.name} should have fallen - the bond holds it to life (Lifeline)")
-        C.tell(combat, f"the blow should have ended {C.who(d)}, but the bond with its master will not let it fall (Lifeline)")
-        return False
+        C.tell(combat, f"{harm(b)} should have ended {C.who(d)}, but the bond with its master will not let it fall (Lifeline)")
+        return _held(b)
     return True
 
 
 def tether(b: Blow) -> bool:
     d, combat = b.dfn, b.combat
-    if b.dealt >= d.hp and d.tether:
+    if b.landing >= d.hp and d.tether:
         d.hp = max(1, round(d.max_hp * d.tether / 100))
         d.tether = 0
         combat.log.append(f"{d.name} should have fallen - the Soul Tether holds it to life")
-        C.tell(combat, f"the blow should have ended {C.who(d)}, but a thread of the master's will draws it back from the brink (Soul Tether)")
-        return False
+        C.tell(combat, f"{harm(b)} should have ended {C.who(d)}, but a thread of the master's will draws it back from the brink (Soul Tether)")
+        return _held(b)
     return True
 
 
 def boss_last_stand(b: Blow) -> bool:
-    if b.dfn.boss and b.dealt >= b.dfn.hp:
+    if b.dfn.boss and b.landing >= b.dfn.hp:
         from engine import bosses
         if bosses.last_stand(b.combat, b.dfn):
-            return False
+            return _held(b)
     return True
 
 
 def breath(b: Blow) -> bool:
     d, combat = b.dfn, b.combat
-    if b.dealt >= d.hp and d.breath:
+    if b.landing >= d.hp and d.breath:
         d.breath = False
         d.hp, d.mana = d.max_hp, d.max_mana
         combat.log.append(f"{d.name} should have fallen - Orenna's Last Breath restores them in full")
-        C.tell(combat, f"the blow should have killed {C.who(d)} - but a thin, tired warmth catches them, and {C.vb(d, 'you rise', 'they rise')} whole, health and strength restored (Orenna's Last Breath, now spent)")
-        return False
+        C.tell(combat, f"{harm(b)} should have killed {C.who(d)}, but a thin, tired warmth catches {C.vb(d, 'you', 'them')}, and "
+                       f"{C.vb(d, 'you rise', 'they rise')} whole (Orenna's Last Breath, now spent)")
+        return _held(b)
     return True
 
 
 def mentor_floor(b: Blow) -> bool:
     d, combat = b.dfn, b.combat
-    if b.dealt >= d.hp and d.side == "player" and combat.mentor:
+    if b.landing >= d.hp and d.side == "player" and combat.mentor:
         combat.mentor_saved += 1
         d.hp = 1
-        C.tell(combat, "the blow should have ended you, but a hand pulls you aside at the last instant")
-        return False
+        C.tell(combat, f"{harm(b)} should have ended you, but a hand catches you before you fall")
+        return _held(b)
     return True
 
 
 def deathless(b: Blow) -> bool:
     d = b.dfn
-    if b.dealt >= d.hp and "deathless" in b.L:
+    if b.landing >= d.hp and "deathless" in b.L:
         d.hp = 1
-        C.tell(b.combat, f"the blow should have ended {C.who(d)}, but {C.vb(d, 'you are', 'it is')} held on the threshold and will not fall")
-        return False
+        C.tell(b.combat, f"{harm(b)} should have ended {C.who(d)}, but {C.vb(d, 'you are', 'it is')} held on the threshold and will not fall")
+        return _held(b)
     return True
 
 
 def deathward(b: Blow) -> bool:
     d, combat = b.dfn, b.combat
-    if b.dealt >= d.hp and "deathward" in b.L and not d.deathward_used:
+    if b.landing >= d.hp and "deathward" in b.L and not d.deathward_used:
         d.deathward_used = True
         d.hp = 1 + round(d.max_hp * b.L["deathward"] / 100)
         combat.log.append(f"{d.name} should have fallen - Deathward holds them to life")
-        C.tell(combat, f"the blow should have killed {C.who(d)} - but a power older than death refuses to let go (Deathward)")
-        return False
+        C.tell(combat, f"{harm(b)} should have killed {C.who(d)}, but a power older than death refuses to let go (Deathward)")
+        return _held(b)
     return True
 
 
 def yields_floor(b: Blow) -> bool:
+    """A foe that yields never dies: what would end it lands one short, and it yields (yields_break, after the fall)."""
     d = b.dfn
-    if d.yields_at and b.dealt >= d.hp:
-        b.dealt = max(0, round(d.hp) - 1)
+    if d.yields_at and b.landing >= d.hp:
+        b.landing = max(0, round(d.hp) - 1)
+        C.hold_in_blow(b.combat, d)
     return True
 
 
@@ -367,11 +409,14 @@ def health(b: Blow) -> bool:
     return True
 
 
+HOW = {"dot_tick": "tick", "rebound": "rebound"}       # (f768) how a fall on each path is told; a blow's and a torn wound's by who struck
+
+
 def fall(b: Blow) -> bool:
     """(f768) The health stage just before took this fighter from standing to zero: the fall step, once. The blow's path keeps its
-    own die; a tick's and a torn wound's fall uses the death's keyed die."""
+    own die; a tick's, a torn wound's and a rebound's fall uses the death's keyed die."""
     if b.combat is not None and b.up and not b.dfn.alive:
-        fall_step(b.combat, b.dfn, b.cause, b.rng if b.path == "blow" else None, "tick" if b.path == "dot_tick" else None, b.dot)
+        fall_step(b.combat, b.dfn, b.cause, b.rng if b.path == "blow" else None, HOW.get(b.path), b.dot)
     return True
 
 
@@ -389,7 +434,7 @@ def healing_after_damage(b: Blow) -> bool:
 
 def yields_break(b: Blow) -> bool:
     d = b.dfn
-    if d.yields_at and d.alive and not d.fled and d.hp <= d.max_hp * d.yields_at:
+    if b.combat is not None and d.yields_at and d.alive and not d.fled and d.hp <= d.max_hp * d.yields_at:
         C.leave(b.combat, d, "fled")
         C.tell(b.combat, d.yield_text or f"{C.who(d)} breaks off and is gone")
     return True
@@ -414,36 +459,25 @@ def second_wind(b: Blow) -> bool:
 
 
 def rebound(b: Blow) -> bool:
-    """Retribution and Spellmirror: the striker's health written directly, the loop guard (a rebound never rebounds)."""
+    """Retribution and Spellmirror: a share of what the blow dealt goes back into its striker, on the rebound's own path (stages.yaml
+    rebound: the floors, its health, the fall), which holds no rebound of its own: the loop guard."""
     combat, source = b.combat, b.source
     for effect, applies in (("retribution", True), ("spellmirror", b.damage_type == "magical")):
-        if source and effect in b.L and applies and source.alive:
+        if source and effect in b.L and applies and C.reaches(combat, source):
             back = max(1, round(b.dealt * b.L[effect] / 100))
-            held = duel_holds(combat, source) and back >= source.hp     # (f771) the duel's floor holds a rebound as it holds a blow
-            source.hp = 1 if held else max(0, source.hp - back)
             combat.log.append(f"{effect.capitalize()} returns {back} damage to {source.name}")
             C.tell(combat, f"the force rebounds into {C.who(source)} ({effect.capitalize()})")
-            if held:
-                duel_decided(combat, source)
-            if not source.alive:
-                fall_step(combat, source, b.dfn, None, "rebound")     # (f768) the striker's fall, the wearer's kill
+            resolve("rebound", combat, source, back, b.dfn, None, cause=b.dfn)     # (f768) a death by it is the wearer's kill
     return True
 
 
-# ---------- the bypasses: a tick at the start of the turn, a wound torn
-
-def tick_floor(b: Blow) -> bool:
-    """The first hunt cannot kill the player; a duel kills none of its duellists."""
-    combat, d = b.combat, b.dfn
-    b.floor = 1 if (combat is not None and ((combat.mentor and d.side == "player") or duel_holds(combat, d))) else 0
-    return True
-
+# ---------- the bypasses: a tick at the start of the turn, a wound torn, a force turned back
 
 def tick_health(b: Blow) -> bool:
     """A poison's or a burn's tick (engine/combat.py start_turn): the amount the perks and the element's expressions set, straight
-    through armour and shields, never below the floor."""
+    through armour and shields."""
     b.up = b.dfn.alive
-    b.dfn.hp = max(b.floor, b.dfn.hp - b.amount)
+    b.dfn.hp = max(0, b.dfn.hp - b.amount)
     return True
 
 
@@ -454,10 +488,12 @@ def tick_on_tick(b: Blow) -> bool:
     return True
 
 
-def tick_duel_end(b: Blow) -> bool:
-    combat, d = b.combat, b.dfn
-    if duel_holds(combat, d) and d.hp <= 1:
-        duel_decided(combat, d)
+def rebound_health(b: Blow) -> bool:
+    """(f772) The force turned back (the rebound stage): straight to the striker's health, through armour and shields."""
+    d = b.dfn
+    b.up = d.alive
+    d.hp = max(0, d.hp - b.amount)
+    b.dealt = round(b.amount)
     return True
 
 
@@ -466,7 +502,7 @@ def tear_health(b: Blow) -> bool:
     What it took is dealt."""
     d = b.dfn
     before, b.up = d.hp, d.alive
-    d.hp = max(b.floor, d.hp - b.amount)
+    d.hp = max(0, d.hp - b.amount)
     b.dealt = round(before - d.hp)
     if b.dealt:
         b.combat.log.append(f"{d.name}'s wound tears: {b.dealt}")
@@ -476,8 +512,7 @@ def tear_health(b: Blow) -> bool:
 
 # ---------- (f768) the fall: the one step every death ends in
 
-HEALTH = ("health", "tick_health", "tear_health")      # the stages that take health away: a path names `fall` straight after each
-FLOORS = ("duel_floor", "lifeline", "tether", "breath", "mentor_floor", "deathless", "deathward")   # write health only to hold one up
+HEALTH = ("health", "tick_health", "tear_health", "rebound_health")   # the stages that take health away: `fall` straight after each
 
 
 def fall_step(combat: C.Combat, f: C.Fighter, cause: C.Fighter | None, rng: random.Random | None = None, how: str | None = None,
@@ -549,22 +584,41 @@ STAGES: dict[str, Callable[[Blow], bool]] = {
     "yields_floor": yields_floor, "health": health, "fall": fall, "after_damage": after_damage,
     "healing_after_damage": healing_after_damage, "yields_break": yields_break,
     "boss_after_damage": boss_after_damage, "second_wind": second_wind, "rebound": rebound,
-    "tick_floor": tick_floor, "tick_health": tick_health, "tick_on_tick": tick_on_tick, "tick_duel_end": tick_duel_end,
-    "tear_health": tear_health,
+    "tick_health": tick_health, "tick_on_tick": tick_on_tick, "tear_health": tear_health, "rebound_health": rebound_health,
 }
+
+
+def _harm_key(combat, path: str, dfn, source, dot: str, harm: str | None) -> str:
+    """(f772) What this harm is called: a tick by its status, a torn wound and a rebound by their path; on the blow's path the blow's
+    own (its striker on its target), else what the caller named, else unnamed."""
+    if path == "dot_tick":
+        return dot
+    if path != "blow":
+        return PATH_HARM[path]
+    blow = C.blow_now(combat)
+    if blow is not None and blow.att is source and blow.dfn is dfn:
+        return "blow"
+    return harm or "unnamed"
 
 
 def resolve(path: str, combat: C.Combat, dfn: C.Fighter, amount: float, source: C.Fighter | None, rng: random.Random,
             damage_type: str = "physical", rec: dict | None = None, dot: str = "", deep: float = 1.0, by: str = "",
-            cause=C.AS_SOURCE) -> int:
+            cause=C.AS_SOURCE, harm: str | None = None) -> int:
     """Run one damage path (data/rules/stages.yaml damage) on this fighter, stage by stage, in the order declared. Returns what was
     dealt. `rec` is the blow's record (every stage that changed the figure writes its name into it); `dot` the affliction of a tick;
     `deep` and `by` a torn wound's depth and the perk that deepened it. (f768) `cause`: whose kill a death on this path is, when not
-    the source (a tick's layer, a torn wound's striker, Unraveled's layer); None names nobody."""
+    the source (a tick's layer, a torn wound's striker, Unraveled's layer); None names nobody. (f772) Nothing lands on one who has
+    left the fight or whom a floor has held in the blow in progress (engine/combat.py reaches); with no fight, no floor stands.
+    `harm`: what side harm on the blow's path is called (a key of combat.yaml harms; None, a harm with no word of its own); the blow's
+    own harm, and everything it carries, is the blow."""
+    if dfn.alive and not C.reaches(combat, dfn):
+        return 0
     b = Blow(combat, dfn, amount, source, rng, damage_type, rec, dot=dot, deep=deep, by=by, path=path,
-             cause=source if cause is C.AS_SOURCE else cause)
+             cause=source if cause is C.AS_SOURCE else cause, harm=_harm_key(combat, path, dfn, source, dot, harm))
     b.L = C.mechanics(dfn, combat, source)
     for stage in PATHS[path]:
+        if combat is None and stage in FLOORS:
+            continue
         if STAGES[stage](b) is False:
             break
     return b.dealt

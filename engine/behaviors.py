@@ -169,16 +169,18 @@ def pre_turn(combat, e, target, rng: random.Random) -> bool:
     every = int(beh(e, "surge_every", 0))
     if beh(e, "surge") and every and combat.round % every == 0 and C.in_reach(e, target):
         C.tell(combat, f"{C.who(e)} gathers itself and surges at {C.who(target)}")
-        C.apply_damage(combat, e, target, beh(e, "surge"), "surges against", rng)
-        after_hit(combat, e, target, True, rng)
+        C.apply_damage(combat, e, target, beh(e, "surge"), "surges against", rng,
+                       riders=lambda hit: after_hit(combat, e, target, True, rng))          # (f772) what the blow carries is the blow
         return True
     every = int(beh(e, "slam_every", 0))
     if beh(e, "slam") and every and combat.round % every == 0 and C.in_reach(e, target):
         C.tell(combat, f"{C.who(e)} heaves up a crushing blow for {C.who(target)}")
-        hit = C.apply_damage(combat, e, target, beh(e, "slam"), "slams", rng)
-        if hit and target.alive and rng.random() < 0.3 and C.add_status(combat, target, "stunned", 1):
-            C.tell(combat, f"{C.who(target)} {C.STATUS_WORDS['stunned'][0 if target.side == 'player' else 1]}")
-        after_hit(combat, e, target, hit, rng)
+
+        def stuns(hit):
+            if hit and C.in_fight(e) and C.reaches(combat, target) and rng.random() < 0.3 and C.add_status(combat, target, "stunned", 1):
+                C.tell(combat, f"{C.who(target)} {C.STATUS_WORDS['stunned'][0 if target.side == 'player' else 1]}")
+            after_hit(combat, e, target, hit, rng)
+        C.apply_damage(combat, e, target, beh(e, "slam"), "slams", rng, riders=stuns)
         return True
     return False
 
@@ -188,6 +190,8 @@ def _area(combat, e, rng, mult: float, label: str, intro: str) -> None:
     C.tell(combat, intro)
     foes = [f for f in combat.player_side() if f.alive]
     for t in foes:
+        if not C.in_fight(e):
+            break                                       # (f772) felled or driven off by its own blow (thorns): it breathes no more
         C.apply_damage(combat, e, t, mult, f"{label}s over", rng, can_cleave=False, can_riposte=False, can_flurry=False)
 
 
@@ -234,18 +238,21 @@ def sweeps(combat, e, rng) -> bool:
         return False
     C.tell(combat, f"{C.who(e)} boils over everyone in reach at once")
     for t in foes:
-        hit = C.apply_damage(combat, e, t, beh(e, "sweep"), "swarms over", rng, can_cleave=False, can_riposte=False, can_flurry=False)
-        after_hit(combat, e, t, hit, rng)
+        if not C.in_fight(e):
+            break                                       # (f772) felled or driven off by its own blow (thorns): the swarm is spent
+        C.apply_damage(combat, e, t, beh(e, "sweep"), "swarms over", rng, can_cleave=False, can_riposte=False, can_flurry=False,
+                       riders=lambda hit, t=t: after_hit(combat, e, t, hit, rng))
     return True
 
 
 def after_hit(combat, e, target, landed: bool, rng: random.Random) -> None:
-    """What a landed blow does besides damage: poison, seize, scatter the mind, wear armor, drain stamina."""
+    """What a landed blow does besides damage: poison, seize, scatter the mind, wear armor, drain stamina. (f772) It rides the blow
+    (apply_damage riders): nothing of it from one that fell or yielded at its own blow, nor onto one a floor held in it."""
     from engine import combat as C
     if not e.family or e.boss:
         return
     e.counters["struck"] = 1
-    if not landed or not target.alive:
+    if not landed or not C.in_fight(e) or not C.reaches(combat, target):
         return
     for key, status, rounds in (("venom", "poisoned", 3), ("grapple", "grappled", 2), ("befuddle", "befuddled", 1)):
         chance = beh(e, key)                            # (f768) laid by e, for the record: the dose is sized as before, with no source

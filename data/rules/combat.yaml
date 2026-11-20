@@ -216,6 +216,25 @@ statuses:
 ticks:
   poisoned: {laid: "{whose} poison does its work", nobody: "the poison does its work"}
   burning:  {laid: "the fire {who} left on {fallen} burns on", nobody: "the fire burns on"}
+# (f772) What a floor's line calls the harm it held ("the poison should have ended Bryn, but ...", engine/damage.py harm): a blow and
+# all it carries, a force turned back, each status that ticks, and the side harm its caller names (engine/combat.py side_damage harm=).
+# `unnamed` stands in for a harm with no word of its own: the line told just before it says what struck.
+harms:
+  blow: the blow
+  rebound: the force
+  poisoned: the poison
+  burning: the fire
+  unnamed: that
+  thorns: the thorns
+  curse: the curse
+  burning_ground: the fire
+  static_field: the lightning
+  lightning: the lightning
+  frostbite: the frostbite
+  seed: the seed
+  acid: the acid
+  brambles: the brambles
+  healing: the healing
 
 creatures:
   # Lift: a creature weaker than the benchmark build of its level (size, ability score and category below) is strengthened toward it, so

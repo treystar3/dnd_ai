@@ -103,8 +103,8 @@ def bloodless(f) -> bool:
 def tear(combat, f, deep: float = 1.0, by: str = "", cause=None) -> int:
     """A physical hit lands on an open wound: it bleeds its size (times deep: Open Wound tears twice as deep, f311), through armor and
     shields. Returns what it took. (f768) cause: the striker whose blow tore it, whose kill a death by it is; the path's source stays
-    None."""
-    if "bleeding" not in f.statuses or not f.alive:
+    None. (f772) A wound tears on no one who has left the fight, nor on one a floor held in the blow that would tear it."""
+    if "bleeding" not in f.statuses or not C.reaches(combat, f):
         return 0
     from engine import combat_perks, damage
     amount = combat_perks.dot_damage(f, "bleeding", tick(f, "bleeding")) * deep

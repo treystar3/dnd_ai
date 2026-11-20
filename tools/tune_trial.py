@@ -16,10 +16,10 @@ def trial_rates(rank=None, edge=None, runs=120, seed=7, over=0):
     out = []
     for letter in quests.LETTERS[1:]:
         lv = G["ranks"][letter]["requires"]["level"] + over
-        rng = random.Random(seed)
         wins = rounds = 0
         n = 0
         for i in range(runs):
+            rng = random.Random(f"{seed}:{letter}:{i}")       # (f772) a die per trial: a draw one trial adds or drops moves no other
             role = G["trial"]["roles"][i % len(G["trial"]["roles"])]
             p = combat.fighter_from_character(geared(lv, rng))
             lvl = max(G["ranks"][letter]["requires"]["level"], lv) + (G["trial"]["level_edge"][letter] if edge is None else edge) + (G["trial"]["master_edge"] if letter == quests.LETTERS[-1] else 0)

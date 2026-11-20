@@ -193,7 +193,7 @@ def after_hit(combat: C.Combat, att: C.Fighter, dfn: C.Fighter, outcome: str, ta
     A = C.mechanics(att, combat, dfn)
     if att.side == dfn.side:
         return
-    if "thermal_shock" in A and dfn.alive and taken > 0:
+    if "thermal_shock" in A and C.reaches(combat, dfn) and taken > 0:          # (f772) what the blow set off is the blow
         el = att.hit_element or att.element
         pair = ("slowed", "burning") if el == "fire" else (("burning", "slowed") if el == "cold" else None)
         if pair and pair[0] in dfn.statuses:
@@ -220,7 +220,7 @@ def after_hit(combat: C.Combat, att: C.Fighter, dfn: C.Fighter, outcome: str, ta
         dfn.counters["precise"] = 1
     if taken > 0 and "high_ground_hunter" in A and _ranged_now(att) and _high_or_hidden(combat, att):
         dfn.counters["pinned"] = combat.round + 1
-    if outcome == "crit" and "dormant_venom" in A and (dfn.counters.get("venom_store") or "poisoned" in dfn.statuses) and dfn.alive:
+    if outcome == "crit" and "dormant_venom" in A and (dfn.counters.get("venom_store") or "poisoned" in dfn.statuses) and C.reaches(combat, dfn):
         from engine import afflictions
         burst = dfn.counters.pop("venom_store", 0)
         if "poisoned" in dfn.statuses:
@@ -242,7 +242,7 @@ def after_hit(combat: C.Combat, att: C.Fighter, dfn: C.Fighter, outcome: str, ta
             at = len(combat.story)                                  # (f757) the arcs are told before what they set off
             for e in others:
                 arc, _ = C.mitigate(e, taken * P["storm_chosen"]["arc"], "magical", att.level, combat, att)
-                C.side_damage(combat, e, arc, att, rng, "magical", logged=lambda d: f"lightning arcs to {e.name}: {d}")
+                C.side_damage(combat, e, arc, att, rng, "magical", logged=lambda d: f"lightning arcs to {e.name}: {d}", harm="lightning")
             att.hit_element = held
             C.tell(combat, f"the storm answers: lightning leaps from the blow into {', '.join(C.who(e) for e in others)} {tag(att, 'storm_chosen')}", at=at)
     if att.summon_form and p is not None and p.alive and p.max_mana and taken > 0 and has(p, "bound_pair", combat):
@@ -278,7 +278,7 @@ def on_kill(combat: C.Combat, att: C.Fighter | None, dfn: C.Fighter, rng: random
     PM = C.mechanics(p, combat)
     if "plaguebearer" in PM:
         carried = {s: r for s, r in dfn.statuses.items() if s in AFFLICTIONS and r > 0}
-        others = [e for e in combat.enemies() if e is not dfn]
+        others = [e for e in combat.enemies() if e is not dfn and C.reaches(combat, e)]   # (f772) not onto one a floor held in this blow
         if carried and others:
             nxt = bf.closest(combat, dfn, others) or others[0]
             for s, r in carried.items():
@@ -355,7 +355,8 @@ def before_damage(combat: C.Combat, dfn: C.Fighter, amount: float, source: C.Fig
         amount -= moved
         p.counters["martyring"] = 1
         try:
-            C.side_damage(combat, p, moved, source, rng, damage_type, told=f"half of what was meant for {C.who(dfn)} lands on you instead {tag(p, 'martyr')}")
+            C.side_damage(combat, p, moved, source, rng, damage_type, told=f"half of what was meant for {C.who(dfn)} lands on you instead {tag(p, 'martyr')}",
+                          harm="blow")
         finally:
             p.counters.pop("martyring", None)
     if dfn is p and has(p, "shared_skin", combat) and not p.counters.get("sharing"):
@@ -808,8 +809,9 @@ def sees_through_cover(fight, att: C.Fighter, dfn: C.Fighter) -> bool:
 
 
 def rust(combat: C.Combat, att: C.Fighter, dfn: C.Fighter, taken: float) -> None:
-    """Curse of Rust: with no metal on you, each hit strips armor off them, stacking to a cap."""
-    if taken <= 0 or att.wears_metal or dfn.side == att.side or not has(att, "curse_of_rust", combat):
+    """Curse of Rust: with no metal on you, each hit strips armor off them, stacking to a cap. (f772) Not off one who has left the
+    fight or whom a floor held in the blow."""
+    if taken <= 0 or att.wears_metal or dfn.side == att.side or not has(att, "curse_of_rust", combat) or not C.reaches(combat, dfn):
         return
     cap = int(P["curse_of_rust"]["cap"])
     n = dfn.counters.get("rust", 0)

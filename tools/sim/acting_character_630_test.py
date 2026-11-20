@@ -158,7 +158,7 @@ over, fell = unrecorded(reads["scene"], READS)
 check("the engine reads the scene's player in the recorded places and no more (new code takes an id and asks player_of)", not over, over)
 check("...and a count that fell is lowered here", not fell, fell)
 FIGHT_READS = {                                          # (f748) combat.player read in the engine, per file: a count only falls
-    "engine/battlefield.py": 1, "engine/bosses.py": 7, "engine/combat.py": 33, "engine/combat_perks.py": 1, "engine/damage.py": 2,
+    "engine/battlefield.py": 1, "engine/bosses.py": 7, "engine/combat.py": 33, "engine/combat_perks.py": 1, "engine/damage.py": 1,
     "engine/parley.py": 1, "engine/relics.py": 1, "engine/summons.py": 3, "engine/techniques.py": 2,
 }
 over, fell = unrecorded(reads["fight"], FIGHT_READS)

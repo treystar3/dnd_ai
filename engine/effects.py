@@ -304,6 +304,14 @@ class Landing:
                                                      and status in ("slowed", "blinded", "bleeding", "prone", "petrified") else "")
 
 
+def reached(l: Landing):
+    """(f772) Nothing lands on one who has left the fight, nor on one a floor has held in the blow in progress (engine/combat.py
+    reaches): a floor that holds a blow holds all it carries."""
+    from engine import combat as C
+    if l.f.alive and not C.reaches(l.combat, l.f):
+        return False
+
+
 def unyielding(l: Landing):
     from engine import combat as C
     if "unyielding" in l.fm and l.status in ("stunned", "prone"):
@@ -416,8 +424,8 @@ def winding_cancel(l: Landing):
 
 
 STAGES: dict[str, Callable[[Landing], object]] = {
-    "unyielding": unyielding, "earthshaker": earthshaker, "stoneform": stoneform, "iron_will": iron_will, "element_ward": element_ward,
-    "attune_extend": attune_extend, "sanctified": sanctified, "boss_resisted": boss_resisted, "perk_transform": perk_transform,
+    "reached": reached, "unyielding": unyielding, "earthshaker": earthshaker, "stoneform": stoneform, "iron_will": iron_will,
+    "element_ward": element_ward, "attune_extend": attune_extend, "sanctified": sanctified, "boss_resisted": boss_resisted, "perk_transform": perk_transform,
     "bloodless": bloodless, "affliction_law": affliction_law, "record": record, "crippling_chain": crippling_chain,
     "winding_cancel": winding_cancel}
 
