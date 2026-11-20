@@ -4,7 +4,8 @@
     python main.py --new      start a new character straight away (every other game stays saved)
     python main.py --debug    show what the engine is deciding behind the scenes
     python main.py --gui      play in a window instead of the terminal (needs: pip install pywebview; falls back to your browser)
-    Meravia.exe               the built game opens its window by itself (--terminal for the text version)
+    python main.py --check    check the data and the window's files, write logs/selfcheck.log, exit 0 when all is well (the build runs it)
+    Meravia.exe               the built game opens its window by itself (--terminal for the text version, --check as above)
 
 On start the game starts its own model server from runtime/ and models/ (data/runtime/server.yaml, llm/runtime.py) and shows the home
 page while it loads; Continue waits for it behind one line, New Game's first pages open at once (f528).
@@ -51,6 +52,7 @@ def options(argv=None):
     parser.add_argument("--debug", action="store_true", help="show engine decisions")
     parser.add_argument("--gui", action="store_true", help="play in a window instead of the terminal")
     parser.add_argument("--terminal", action="store_true", help="play in the terminal (the built app opens a window by default)")
+    parser.add_argument("--check", action="store_true", help="check the data and the window's files, write logs/selfcheck.log and exit: 0 when all is well")
     args = parser.parse_args(argv)
     actor.prefs().debug = args.debug
     return args
@@ -59,6 +61,9 @@ def options(argv=None):
 def main():
     args = options()
     utf8_streams()
+    if args.check:                                     # (f775) the build's check: nothing started, nothing locked, the answer its exit code
+        from core import selfcheck
+        sys.exit(selfcheck.run(say=console.out))
     import atexit
     from engine import turnlog
     atexit.register(turnlog.write_session_stats)   # and the session leaves its one line in logs/sessions.jsonl

@@ -190,9 +190,11 @@ def compute(key: str, fn):
     return copy.deepcopy(result)
 
 
-def problems(known: set[str]) -> list[str]:
-    """The startup check: every task named to be asked outside is a task the code asks for."""
-    return [f"budget.yaml asked_outside: '{t}' is no task the code asks for" for t in sorted(tasks() - set(known))]
+def problems(known: set[str], named: set[str] | None = None, known_as: str = "the code asks for") -> list[str]:
+    """The startup check: every task named to be asked outside (named, else budget.yaml asked_outside) is one of known, the tasks
+    known_as says: the code's, or in a built game, which carries no code to read, those budget.yaml knows."""
+    named = tasks() if named is None else set(named)
+    return [f"budget.yaml asked_outside: '{t}' is no task {known_as}" for t in sorted(named - set(known))]
 
 
 actor.moved(__name__, {"_LOCAL": "asked.serving()"})

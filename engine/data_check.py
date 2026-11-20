@@ -5,7 +5,12 @@ words, a temperament needs personality lines, a motive has secrets. A typo in an
 a missing line or a silent fallback. check() lists every broken reference and every rule a table must keep; the game refuses to start on
 any, and the test suite runs it too.
 
-Adding to the data needs no change here unless a new kind of cross-reference is added; then it belongs here, beside the others."""
+Adding to the data needs no change here unless a new kind of cross-reference is added; then it belongs here, beside the others.
+
+Some rules hold data to the code that runs it, read from the code's source. A built game carries data/ and no source, so the source is
+read only through one reader (source, tree, modules) beside one fact, built(): in a build the reader answers None, every scan that reads
+through it answers None, and those rules skip their rows held to the code while every rule of the data alone still runs. The rules held
+to the code are proven where the source is: the suite, a launch from source, and the build's first step (main.py --check)."""
 from __future__ import annotations
 
 import re
@@ -38,44 +43,77 @@ def _load(rel: str):
     return yaml.load((ROOT / rel).read_text(encoding="utf-8"), Loader=_Strict)
 
 
+def built() -> bool:
+    """This is a built game (core.paths.FROZEN, asked at the call, not a file found absent): it carries no source."""
+    from core import paths
+    return paths.FROZEN
+
+
+def source(rel: str) -> str | None:
+    """The text of one of the game's source files (rel: a posix path under ROOT), or None in a built game. From source a file that is
+    not there raises: a tree missing its code fails loudly."""
+    if built():
+        return None
+    return (ROOT / rel).read_text(encoding="utf-8")
+
+
+def tree(rel: str):
+    """The syntax tree of one of the game's source files (ast.Module), or None in a built game."""
+    import ast
+    text = source(rel)
+    return None if text is None else ast.parse(text)
+
+
+def modules(folder: str, deep: bool = False) -> list[str] | None:
+    """The game's modules in a folder under ROOT (deep: its subfolders' too) as posix paths under ROOT, or None in a built game. From
+    source a folder that is not there raises, never an empty list."""
+    if built():
+        return None
+    where = ROOT / folder
+    if not where.is_dir():
+        raise FileNotFoundError(f"{where}: no such folder in the source tree")
+    return [p.relative_to(ROOT).as_posix() for p in sorted(where.rglob("*.py") if deep else where.glob("*.py"))]
+
+
 GAME_DIRS = ("engine", "scenes", "npc", "llm", "character", "services")      # (f459) where the game asks the model; tools/*.py asks for its
 #                                                                                  own ends. (f503) services/ too: a service asks nothing
 
 
-def task_literals(dirs: tuple = GAME_DIRS, tools: bool = True) -> dict[str, list[str]]:
+def task_literals(dirs: tuple = GAME_DIRS, tools: bool = True) -> dict[str, list[str]] | None:
     """(f459) Every task name the code gives the gateway, generate("...") or fresh("..."), with where it is called: the one source the
-    per-task tables (budget.yaml, audit_log.yaml, lora.yaml, hygiene.yaml, config.SAMPLING) are checked against, so none drifts."""
+    per-task tables (budget.yaml, audit_log.yaml, lora.yaml, hygiene.yaml, config.SAMPLING) are checked against, so none drifts. None in
+    a built game."""
     import ast
+    # (f775) tools/ is required like the game's folders: budget.yaml's tool tasks are held to it, and every source tree tracks it
+    folders = [modules(d, deep=True) for d in dirs] + ([modules("tools")] if tools else [])
+    if any(f is None for f in folders):
+        return None
     found: dict[str, list[str]] = {}
-    files = [p for d in dirs for p in sorted((ROOT / d).rglob("*.py"))]
-    if tools:
-        files += sorted((ROOT / "tools").glob("*.py"))
-    for p in files:
+    for rel in (r for f in folders for r in f):
         try:
-            tree = ast.parse(p.read_text(encoding="utf-8"))
+            parsed = tree(rel)
         except SyntaxError:
             continue
-        for node in ast.walk(tree):
+        for node in ast.walk(parsed):
             if not isinstance(node, ast.Call) or not node.args:
                 continue
             f = node.func
             name = f.id if isinstance(f, ast.Name) else (f.attr if isinstance(f, ast.Attribute) else "")
             a0 = node.args[0]
             if name in ("generate", "fresh") and isinstance(a0, ast.Constant) and isinstance(a0.value, str):
-                found.setdefault(a0.value, []).append(f"{p.relative_to(ROOT).as_posix()}:{node.lineno}")
+                found.setdefault(a0.value, []).append(f"{rel}:{node.lineno}")
     return found
 
 
 def budget_problems(B: dict | None = None, found: dict | None = None) -> list[str]:
     """(f459) data/rules/budget.yaml: its numbers whole and above zero, every task the code calls in its table with a need and a size,
     no task in the table that nothing calls, and the four older per-task lists (the audit log's reasons, the voice lists, the
-    narrator's tasks, the sampling table) subsets of it."""
+    narrator's tasks, the sampling table) subsets of it. In a built game the rows held to the code are skipped, and the tasks asked
+    outside are held to the table instead of to the code."""
     import config
     bad: list[str] = []
     B = _load("data/rules/budget.yaml") if B is None else B
     found = task_literals() if found is None else found
-    from engine import asked as _asked                                 # (f485) what is asked outside an operation is a task the code asks for
-    bad += _asked.problems(set(found))
 
     def need(ok, msg):
         if not ok:
@@ -91,6 +129,12 @@ def budget_problems(B: dict | None = None, found: dict | None = None) -> list[st
     if not isinstance(T, dict) or not T:
         bad.append("budget.yaml tasks: needs a table of the model's tasks")
         return bad
+    from engine import asked as _asked                                 # (f485) what is asked outside an operation is a task the code asks for
+    outside = set(B.get("asked_outside") or [])
+    if found is not None:
+        bad += _asked.problems(set(found), outside)
+    else:                                                              # (f775) a built game: held to the table, the code being unread
+        bad += _asked.problems(set(T), outside, "budget.yaml knows")
     for name, spec in T.items():
         spec = spec or {}
         need(spec.get("need") in ("required", "optional", "tool"), f"budget.yaml tasks.{name}: need must be required, optional or tool")
@@ -99,10 +143,11 @@ def budget_problems(B: dict | None = None, found: dict | None = None) -> list[st
             need(spec.get("later") in ("deferred", "dropped"), f"budget.yaml tasks.{name}: an optional task says later: deferred or dropped")
         else:
             need("later" not in spec, f"budget.yaml tasks.{name}: only an optional task has a later")
-    missing = sorted(set(found) - set(T))
-    need(not missing, "budget.yaml tasks: the code calls tasks the table does not know: " + ", ".join(f"{t} ({found[t][0]})" for t in missing))
-    unused = sorted(set(T) - set(found))
-    need(not unused, "budget.yaml tasks: nothing in the code calls " + ", ".join(unused))
+    if found is not None:                                              # (f775) held to the code where the code is
+        missing = sorted(set(found) - set(T))
+        need(not missing, "budget.yaml tasks: the code calls tasks the table does not know: " + ", ".join(f"{t} ({found[t][0]})" for t in missing))
+        unused = sorted(set(T) - set(found))
+        need(not unused, "budget.yaml tasks: nothing in the code calls " + ", ".join(unused))
     lists = {
         "audit_log.yaml tasks": set((_load("data/rules/audit_log.yaml").get("tasks") or {})),
         "lora.yaml prose_tasks and speech_tasks": set((_load("data/rules/lora.yaml").get("prose_tasks") or []) + (_load("data/rules/lora.yaml").get("speech_tasks") or [])),
@@ -1081,18 +1126,20 @@ def data_words_problems(root: Path | None = None, table: dict | None = None) -> 
     return out
 
 
-def improv_handled() -> set[str]:
-    """(f567) The effects engine/combat_improv.py resolve() branches on (`effect == "..."`), read from its source."""
+def improv_handled() -> set[str] | None:
+    """(f567) The effects engine/combat_improv.py resolve() branches on (`effect == "..."`), read from its source; None in a built game."""
     import ast
-    src = (ROOT / "engine" / "combat_improv.py").read_text(encoding="utf-8")
-    fn = next(n for n in ast.walk(ast.parse(src)) if isinstance(n, ast.FunctionDef) and n.name == "resolve")
+    parsed = tree("engine/combat_improv.py")
+    if parsed is None:
+        return None
+    fn = next(n for n in ast.walk(parsed) if isinstance(n, ast.FunctionDef) and n.name == "resolve")
     return {c.comparators[0].value for c in ast.walk(fn) if isinstance(c, ast.Compare) and isinstance(c.left, ast.Name)
             and c.left.id == "effect" and isinstance(c.comparators[0], ast.Constant)}
 
 
 def improv_problems(I: dict | None = None) -> list[str]:
     """(f567) combat.yaml improv: every effect has what it is about, its odds and the words that name it, and the effects are exactly the
-    ones the resolver handles."""
+    ones the resolver handles (not asked in a built game)."""
     I = (_load("data/rules/combat.yaml").get("improv") or {}) if I is None else I
     out = []
     for k in ("base_odds", "min", "max", "damage_mult", "scant_odds"):                  # (f568) the shared formula's base and bounds, in a fight
@@ -1141,6 +1188,8 @@ def improv_problems(I: dict | None = None) -> list[str]:
     for k in sorted(set(P) - {k for k, e in E.items() if isinstance(e, dict) and "needs" in e}):
         out.append(f"combat.yaml improv.scant.{k}: lines for an effect with no needs, never said")
     handled = improv_handled()
+    if handled is None:                                                # (f775) a built game carries no resolver's source
+        return out
     for k in sorted(set(E) - handled):
         out.append(f"combat.yaml improv.effects.{k}: the resolver (engine/combat_improv.py) has no branch for it")
     for k in sorted(handled - set(E)):
@@ -1253,15 +1302,18 @@ def tables_problems(AE: dict | None = None, ST: dict | None = None, CB: dict | N
     return out
 
 
-def evaluated_triggers() -> set[str]:
+def evaluated_triggers() -> set[str] | None:
     """(f507) Every trigger id the code can make true, read from the code: the string literals of engine/combat.py active_triggers,
     scenes/world.py conditions and scenes/check_actions.py check_triggers, the creature-category triggers (engine/combat.py
-    CATEGORY_TRIGGERS), and in_<biome> for every biome the world data names (conditions builds it from the place's biome)."""
+    CATEGORY_TRIGGERS), and in_<biome> for every biome the world data names (conditions builds it from the place's biome). None in a
+    built game."""
     import ast
     found: set[str] = set()
     for rel, fn in (("engine/combat.py", "active_triggers"), ("scenes/world.py", "conditions"), ("scenes/check_actions.py", "check_triggers")):
-        tree = ast.parse((ROOT / rel).read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
+        parsed = tree(rel)
+        if parsed is None:
+            return None
+        for node in ast.walk(parsed):
             if isinstance(node, ast.FunctionDef) and node.name == fn:
                 found |= {n.value for n in ast.walk(node) if isinstance(n, ast.Constant) and isinstance(n.value, str)}
     from engine import combat
@@ -1287,9 +1339,11 @@ def evaluated_triggers() -> set[str]:
 
 def trigger_problems(T: list | None = None) -> list[str]:
     """(f507) triggers.yaml held to the code both ways: a trigger no code evaluates must say dormant: true (creation, gear and lessons
-    never offer it; an old character's passive still loads), and one the code evaluates must not."""
+    never offer it; an old character's passive still loads), and one the code evaluates must not. Not asked in a built game."""
     T = _load("data/rules/triggers.yaml") if T is None else T
     live = evaluated_triggers()
+    if live is None:                                                   # (f775) every row is held to the code, which a build does not carry
+        return []
     out = []
     for t in T or []:
         tid, dormant = (t or {}).get("id"), bool((t or {}).get("dormant"))
@@ -1302,22 +1356,29 @@ def trigger_problems(T: list | None = None) -> list[str]:
 
 # ---------- (f509) the allow-lists: every table the fight reads, held to the code that runs it, both ways ----------
 
-def _literals(paths) -> set[str]:
-    """Every string constant in these modules' syntax trees."""
+def _literals(paths) -> set[str] | None:
+    """Every string constant in these modules' syntax trees; None in a built game."""
     import ast
     out: set[str] = set()
     for rel in paths:
-        for n in ast.walk(ast.parse((ROOT / rel).read_text(encoding="utf-8"))):
+        parsed = tree(rel)
+        if parsed is None:
+            return None
+        for n in ast.walk(parsed):
             if isinstance(n, ast.Constant) and isinstance(n.value, str):
                 out.add(n.value)
     return out
 
 
-def _compared(rel: str, names: tuple[str, ...]) -> set[str]:
-    """Every string a module compares one of these names against (`kind == "smite"`, `eid in ("a", "b")`): what its dispatch handles."""
+def _compared(rel: str, names: tuple[str, ...]) -> set[str] | None:
+    """Every string a module compares one of these names against (`kind == "smite"`, `eid in ("a", "b")`): what its dispatch handles.
+    None in a built game."""
     import ast
+    parsed = tree(rel)
+    if parsed is None:
+        return None
     out: set[str] = set()
-    for c in ast.walk(ast.parse((ROOT / rel).read_text(encoding="utf-8"))):
+    for c in ast.walk(parsed):
         if isinstance(c, ast.Compare) and isinstance(c.left, ast.Name) and c.left.id in names:
             for comp in c.comparators:
                 if isinstance(comp, ast.Constant) and isinstance(comp.value, str):
@@ -1331,45 +1392,48 @@ GAME_CODE = ("engine", "scenes", "services", "npc", "character", "llm")     # (f
 _SCAN: dict = {}
 
 
-def scan_code(precise: bool = False) -> tuple[set[str], set[str]]:
+def scan_code(precise: bool = False) -> tuple[set[str], set[str]] | None:
     """(f509) What the game's code names: (every string it holds, every row key it reads by name: x["key"], x.get("key")), over
     GAME_CODE. By default read by pattern with the comments stripped (a tenth of a second, for the check at every startup); precise,
     read from the syntax tree (two seconds, for the suite's test, which holds the two readings to one verdict). Cached: the code does
-    not change while a process runs."""
+    not change while a process runs. None in a built game."""
     import ast
     import re
+    folders = [modules(d) for d in GAME_CODE]
+    if any(f is None for f in folders):
+        return None
     if precise in _SCAN:
         return _SCAN[precise]
     lits, keys = set(), set()
-    for d in GAME_CODE:
-        for p in sorted((ROOT / d).glob("*.py")):
-            text = p.read_text(encoding="utf-8")
-            if precise:
-                for n in ast.walk(ast.parse(text)):
-                    if isinstance(n, ast.Constant) and isinstance(n.value, str):
-                        lits.add(n.value)
-                    elif isinstance(n, ast.Subscript) and isinstance(n.slice, ast.Constant) and isinstance(n.slice.value, str):
-                        keys.add(n.slice.value)
-                    elif isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "get" and n.args \
-                            and isinstance(n.args[0], ast.Constant) and isinstance(n.args[0].value, str):
-                        keys.add(n.args[0].value)
-            else:
-                code = "\n".join(line.split("#")[0] for line in text.split("\n"))
-                lits |= set(re.findall(r'["\']([A-Za-z_][\w ]*)["\']', code))
-                for a, b in re.findall(r'\[["\']([a-z_]+)["\']\]|\.get\(["\']([a-z_]+)["\']', code):
-                    keys.add(a or b)
+    for rel in (r for f in folders for r in f):
+        if precise:
+            for n in ast.walk(tree(rel)):
+                if isinstance(n, ast.Constant) and isinstance(n.value, str):
+                    lits.add(n.value)
+                elif isinstance(n, ast.Subscript) and isinstance(n.slice, ast.Constant) and isinstance(n.slice.value, str):
+                    keys.add(n.slice.value)
+                elif isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "get" and n.args \
+                        and isinstance(n.args[0], ast.Constant) and isinstance(n.args[0].value, str):
+                    keys.add(n.args[0].value)
+        else:
+            code = "\n".join(line.split("#")[0] for line in source(rel).split("\n"))
+            lits |= set(re.findall(r'["\']([A-Za-z_][\w ]*)["\']', code))
+            for a, b in re.findall(r'\[["\']([a-z_]+)["\']\]|\.get\(["\']([a-z_]+)["\']', code):
+                keys.add(a or b)
     _SCAN[precise] = (lits, keys)
     return lits, keys
 
 
-def _read_keys(precise: bool = False) -> set[str]:
-    """Every key the game's code reads from a row by name."""
-    return scan_code(precise)[1]
+def _read_keys(precise: bool = False) -> set[str] | None:
+    """Every key the game's code reads from a row by name; None in a built game."""
+    scan = scan_code(precise)
+    return None if scan is None else scan[1]
 
 
-def code_named(precise: bool = False) -> set[str]:
-    """Every string the game's code names (what it can run by name)."""
-    return scan_code(precise)[0]
+def code_named(precise: bool = False) -> set[str] | None:
+    """Every string the game's code names (what it can run by name); None in a built game."""
+    scan = scan_code(precise)
+    return None if scan is None else scan[0]
 
 
 def creature_categories() -> set[str]:
@@ -1417,7 +1481,8 @@ def allowlist_problems(tables: dict | None = None, handled: dict | None = None, 
     maneuver the code names in the table), movement kinds (engine/movement.py), healing forms (engine/healing.py, mend the plain one),
     passive mechanics (core/rules.py's engine sets: the refusal that lived at import, and a set entry that is neither a mechanic nor a
     legendary effect). `tables` and `handled` override a table or the code's side, for the test's planted ids; `precise` reads the
-    code by its syntax tree (scan_code)."""
+    code by its syntax tree (scan_code). In a built game a row held to the code's source is skipped; the rows of the data alone, and
+    those held to the tables the code publishes (core/rules.py's sets), still run."""
     from core import rules
     from engine import items, legendary, summons, martial, spellcraft, combat as _cb
     T = tables or {}
@@ -1434,10 +1499,11 @@ def allowlist_problems(tables: dict | None = None, handled: dict | None = None, 
     EXPR = T.get("expressions") or spellcraft.EXPR
     named = H.get("expressions") or _literals(["engine/spellcraft.py", "engine/combat.py"])
     compared = H.get("expressions_compared") or _compared("engine/spellcraft.py", ("eid",))
-    for eid in EXPR:
-        need(eid in named or eid in compared, f"spellcraft.yaml expressions.{eid}: nothing in engine/spellcraft.py or engine/combat.py runs it")
-    for eid in sorted(compared):
-        need(eid in EXPR, f"engine/spellcraft.py handles an expression '{eid}' that spellcraft.yaml does not name")
+    if named is not None and compared is not None:                     # (f775) None: a built game, which carries no source
+        for eid in EXPR:
+            need(eid in named or eid in compared, f"spellcraft.yaml expressions.{eid}: nothing in engine/spellcraft.py or engine/combat.py runs it")
+        for eid in sorted(compared):
+            need(eid in EXPR, f"engine/spellcraft.py handles an expression '{eid}' that spellcraft.yaml does not name")
     out += expression_words_problems(EXPR)
     if "dominate" in EXPR:                               # (f774) told when it lands on the last foe of its side and nothing turns
         need(bool(EXPR["dominate"].get("alone")), "spellcraft.yaml expressions.dominate: no 'alone' line (engine/spellcraft.py tells it)")
@@ -1456,10 +1522,11 @@ def allowlist_problems(tables: dict | None = None, handled: dict | None = None, 
                 walk(v)
     walk(AC)
     relic_kinds = H.get("relics") or _compared("engine/relics.py", ("kind",))
-    for k in sorted(kinds_used):
-        need(k in relic_kinds, f"accessories.yaml: a power of kind '{k}' has no handler in engine/relics.py")
-    for k in sorted(relic_kinds):
-        need(k in kinds_used, f"engine/relics.py handles a power kind '{k}' that no power in accessories.yaml uses")
+    if relic_kinds is not None:
+        for k in sorted(kinds_used):
+            need(k in relic_kinds, f"accessories.yaml: a power of kind '{k}' has no handler in engine/relics.py")
+        for k in sorted(relic_kinds):
+            need(k in kinds_used, f"engine/relics.py handles a power kind '{k}' that no power in accessories.yaml uses")
     # summon forms
     forms = T.get("summons") or summons.FORMS
     form_keys = H.get("summons") or _read_keys(precise)              # read by name anywhere in the game's code
@@ -1467,46 +1534,52 @@ def allowlist_problems(tables: dict | None = None, handled: dict | None = None, 
     summon_kinds = {k for k, v in (AE.get("kinds") or {}).items() if (v or {}).get("family") == "summon"}
     for form, row in forms.items():
         need(form in summon_kinds, f"summons.yaml forms.{form}: no summon kind of that name in active_effects.yaml")
-        for key in (row or {}):
+        for key in (row or {}) if form_keys is not None else ():
             need(key in form_keys, f"summons.yaml forms.{form}: the key '{key}' is one no game code reads")
     for k in sorted(summon_kinds):
         need(k in forms, f"active_effects.yaml kinds.{k}: a summon kind with no form in summons.yaml")
     # boss options
     BS = T.get("bosses") or _load("data/rules/bosses.yaml")
     boss_kinds = H.get("bosses") or _compared("engine/bosses.py", ("kind",))
-    used = set()
-    for kit, spec in (BS.get("kits") or {}).items():
-        for opt in [spec.get("signature")] + list(spec.get("legendary") or []):
-            if opt:
-                used.add(opt.get("kind"))
-                need(opt.get("kind") in boss_kinds, f"bosses.yaml kits.{kit}: an option of kind '{opt.get('kind')}' has no handler in engine/bosses.py _do")
-    for k in sorted(boss_kinds):
-        need(k in used, f"engine/bosses.py _do handles an option kind '{k}' that no kit in bosses.yaml uses")
+    if boss_kinds is not None:
+        used = set()
+        for kit, spec in (BS.get("kits") or {}).items():
+            for opt in [spec.get("signature")] + list(spec.get("legendary") or []):
+                if opt:
+                    used.add(opt.get("kind"))
+                    need(opt.get("kind") in boss_kinds, f"bosses.yaml kits.{kit}: an option of kind '{opt.get('kind')}' has no handler in engine/bosses.py _do")
+        for k in sorted(boss_kinds):
+            need(k in used, f"engine/bosses.py _do handles an option kind '{k}' that no kit in bosses.yaml uses")
     # martial maneuvers
     MT = T.get("martial") or martial.MANEUVERS
     man_keys = H.get("martial") or _read_keys(precise)
     statuses = set((_cb.RULES.get("statuses") or {}))
     for mid, row in MT.items():
-        for key in (row or {}):
+        for key in (row or {}) if man_keys is not None else ():
             need(key in man_keys, f"martial.yaml maneuvers.{mid}: the key '{key}' is one no game code reads")
         if (row or {}).get("status"):
             need(row["status"] in statuses, f"martial.yaml maneuvers.{mid}: status '{row['status']}' is no combat.yaml status")
-    for m in sorted(H.get("martial_named") or _compared("engine/martial.py", ("maneuver", "mid", "man"))):
+    for m in sorted(H.get("martial_named") or _compared("engine/martial.py", ("maneuver", "mid", "man")) or ()):
         need(m in MT, f"engine/martial.py names a maneuver '{m}' that martial.yaml does not have")
     # movement kinds
     MV = T.get("movement") or _load("data/rules/movement.yaml")
     move_kinds = H.get("movement") or _compared("engine/movement.py", ("kind",))
-    for k in (MV.get("kinds") or {}):
-        need(k in move_kinds, f"movement.yaml kinds.{k}: no handler in engine/movement.py")
-    for k in sorted(move_kinds):
-        need(k in (MV.get("kinds") or {}), f"engine/movement.py handles a movement kind '{k}' that movement.yaml does not name")
+    if move_kinds is not None:
+        for k in (MV.get("kinds") or {}):
+            need(k in move_kinds, f"movement.yaml kinds.{k}: no handler in engine/movement.py")
+        for k in sorted(move_kinds):
+            need(k in (MV.get("kinds") or {}), f"engine/movement.py handles a movement kind '{k}' that movement.yaml does not name")
     # healing forms
     HL = T.get("healing") or _load("data/rules/healing.yaml")
-    heal_forms = H.get("healing") or (_compared("engine/healing.py", ("form",)) | {"mend"})     # mend is the plain form, the else arm
-    for f in (HL.get("forms") or {}):
-        need(f in heal_forms, f"healing.yaml forms.{f}: no handler in engine/healing.py")
-    for f in sorted(heal_forms):
-        need(f in (HL.get("forms") or {}), f"engine/healing.py handles a healing form '{f}' that healing.yaml does not name")
+    heal_forms = H.get("healing")
+    if not heal_forms:
+        heal_forms = _compared("engine/healing.py", ("form",))
+        heal_forms = None if heal_forms is None else heal_forms | {"mend"}     # mend is the plain form, the else arm
+    if heal_forms is not None:
+        for f in (HL.get("forms") or {}):
+            need(f in heal_forms, f"healing.yaml forms.{f}: no handler in engine/healing.py")
+        for f in sorted(heal_forms):
+            need(f in (HL.get("forms") or {}), f"engine/healing.py handles a healing form '{f}' that healing.yaml does not name")
     # passive mechanics (the refusal that lived at core/rules.py import)
     PM = T.get("mechanics") or rules.MECHANICS
     combat_set, world_set = H.get("mechanics_combat") or rules.ENGINE_COMBAT_MECHANICS, H.get("mechanics_world") or rules.ENGINE_WORLD_MECHANICS
