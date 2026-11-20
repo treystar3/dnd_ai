@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import collections
 import re
-from pathlib import Path
 
 from engine import actor
 
@@ -23,11 +22,13 @@ _VOCAB: set[str] = set()
 
 
 def vocab() -> set[str]:
-    """Every word the game's own data writes in lower case: the ordinary words, so 'Wind' at the head of a sentence is never taken for the
-    river Wend. Names are written capitalised there, so they are not in it."""
+    """Every word the game's own data files write in lower case (their YAML and their JSON): the ordinary words, so 'Wind' at the head
+    of a sentence is never taken for the river Wend. Names are written capitalised there, so they are not in it. (f786) The files the
+    data hash reads (storage/statehash.py game_data) and no other: a recording, a test case, a tool's file or a measurement decides
+    no mend."""
     if not _VOCAB:
-        root = Path(__file__).resolve().parent.parent / "data"
-        for p in root.rglob("*.yaml"):
+        from storage import statehash
+        for p in statehash.game_data():
             try:
                 _VOCAB.update(WORD.findall(p.read_text(encoding="utf-8")))
             except OSError:

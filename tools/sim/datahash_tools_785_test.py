@@ -2,8 +2,8 @@
 
 The data hash is game content only (f572, the owner's decision of 2026-11-10). data/rules/lora.yaml (a training run), data/rules/cards.yaml
 (the graphics cards a night is timed on) and two tables of towns.yaml (districts_by_scale and anchors_by_scale, the town drafter's)
-are named by no module of the game, only by the tools and the startup check (engine/names.py vocab() reads every YAML under data/
-without naming one: GATE-20 points it at game_data()); a change to them sent every kept recording to be made again. They now live in
+are named by no module of the game, only by the tools and the startup check (engine/names.py vocab() read every YAML under data/
+without naming one, until f786 pointed it at game_data()); a change to them sent every kept recording to be made again. They now live in
 data/tools, and what is not the game is said once: storage/statehash.py NOT_GAME, the folders at the top of data/ outside the hash
 (data/replay, data/measured, data/runtime, data/tools), game_data(), the game's data files, which the hash reads and the data words
 rule (hygiene.yaml data_words) skips by, and copy_data(), a copy of data/ without those folders for a test. Held here:
@@ -21,7 +21,8 @@ rule (hygiene.yaml data_words) skips by, and copy_data(), a copy of data/ withou
 - the data words rule skips the folders NOT_GAME names (data/runtime among them now: no string there is shown to a player) and
   hygiene.yaml keeps no list of its own; no file of the game or the tools names the moved files at their old places.
 What the fence does not read: whether a module that names a file reads it (a docstring counts); a file named by a name built at run
-time; a module that reads the whole tree without naming a file (engine/names.py vocab, GATE-20's); a key inside a game file that only
+time; a module that reads the whole tree without naming a file (tools/sim/names_vocab_786_test.py's fence holds that: such a read
+goes through game_data()); a key inside a game file that only
 a tool reads (districts_by_scale was that case: STARTUP_DATA-3's key check, data_check.keys_problems with scan_code over the game's
 code, will hold it); and the tools' side (a file of data/tools that no tool reads).
 Run: python tools/sim/datahash_tools_785_test.py"""
