@@ -98,6 +98,13 @@ def _load(rel: str):
     return _kept("data", rel, lambda: yaml.load((ROOT / rel).read_text(encoding="utf-8"), Loader=_Strict))
 
 
+def _tools(name: str):
+    """(f785) A file of data/tools, what only the tools read (storage/statehash.py NOT_GAME), on the strict loader; None where there
+    is no data/tools, and the rules held to it are skipped there. No build will ship it once SHIPPING-10 stages the build; today's
+    carries it, and these rules run there."""
+    return _load(f"data/tools/{name}") if (ROOT / "data" / "tools").is_dir() else None
+
+
 def _why(rel: str, fault: Exception) -> str:
     """Why a data file could not be read. A YAML fault is told as the pure-Python loader tells it, read again on it: libyaml's drops the
     line, its caret and some of the detail (a tab is no longer named). Nothing is read again for a file that loads."""
@@ -223,11 +230,13 @@ def budget_problems(B: dict | None = None, found: dict | None = None) -> list[st
         need(not unused, "budget.yaml tasks: nothing in the code calls " + ", ".join(unused))
     lists = {
         "audit_log.yaml tasks": set((_load("data/rules/audit_log.yaml").get("tasks") or {})),
-        "lora.yaml prose_tasks and speech_tasks": set((_load("data/rules/lora.yaml").get("prose_tasks") or []) + (_load("data/rules/lora.yaml").get("speech_tasks") or [])),
         "hygiene.yaml narrator_tasks": set(_load("data/rules/hygiene.yaml").get("narrator_tasks") or []),
         "config.SAMPLING": set(getattr(config, "SAMPLING", {})),
         "DND_THINK_TASKS (config.THINK_TASKS)": set(getattr(config, "THINK_TASKS", ())),     # (f533) a misspelt name would think nowhere
     }
+    lora = _tools("lora.yaml")
+    if lora is not None:                                               # (f785) the tools' training run, where data/tools is
+        lists["lora.yaml prose_tasks and speech_tasks"] = set((lora.get("prose_tasks") or []) + (lora.get("speech_tasks") or []))
     for where, names in lists.items():
         stray = sorted(names - set(T))
         need(not stray, f"{where} names tasks budget.yaml does not know (and so nothing calls): {', '.join(stray)}")
@@ -355,10 +364,12 @@ def sampling_problems(S: dict | None = None) -> list[str]:
 
 
 def cards_problems(C: dict | None = None) -> list[str]:
-    """(f527) data/rules/cards.yaml: the minimum cards named for each backend are cards the file knows, and every device pattern is a
-    regular expression for a known card."""
+    """(f527) data/tools/cards.yaml: the minimum cards named for each backend are cards the file knows, and every device pattern is a
+    regular expression for a known card. (f785) Skipped where there is no data/tools."""
     import re as _re
-    C = _load("data/rules/cards.yaml") if C is None else C
+    C = _tools("cards.yaml") if C is None else C
+    if C is None:
+        return []
     bad: list[str] = []
     cards = set((C or {}).get("cards") or {})
     minimum = (C or {}).get("minimum") or {}
@@ -956,8 +967,9 @@ def check() -> list[str]:
                 need(all(n in made for n, w in table.items() if w), f"name_sounds.yaml {people} {kind}: syllables asks for names of "
                      f"{sorted(n for n, w in table.items() if w and n not in made)} syllables, and its sounds cannot make any")
 
-    # ---- (f444) the cards a recording may be timed on
-    for card, spec in ((_load("data/rules/cards.yaml") or {}).get("cards") or {}).items():
+    # ---- (f444) the cards a recording may be timed on; (f785) the tools' own, where data/tools is
+    cards = _tools("cards.yaml")
+    for card, spec in ((cards or {}).get("cards") or {}).items():
         need(all(isinstance((spec or {}).get(k), (int, float)) and spec[k] > 0 for k in ("bandwidth_gbs", "tflops", "memory_gb")),
              f"cards.yaml {card}: needs bandwidth_gbs, tflops and memory_gb above 0")
 
@@ -965,9 +977,10 @@ def check() -> list[str]:
     prof = ROOT / "data" / "measured" / "card_profile.yaml"
     if prof.exists():
         P_ = _load("data/measured/card_profile.yaml") or {}
-        cards_known = set(((_load("data/rules/cards.yaml") or {}).get("cards") or {}))
-        need(P_.get("card") in cards_known, f"card_profile.yaml: card '{P_.get('card')}' is not in cards.yaml")
-        need(not P_.get("scaled_from") or P_["scaled_from"] in cards_known, f"card_profile.yaml: scaled_from '{P_.get('scaled_from')}' is not in cards.yaml")
+        if cards is not None:
+            cards_known = set(cards.get("cards") or {})
+            need(P_.get("card") in cards_known, f"card_profile.yaml: card '{P_.get('card')}' is not in cards.yaml")
+            need(not P_.get("scaled_from") or P_["scaled_from"] in cards_known, f"card_profile.yaml: scaled_from '{P_.get('scaled_from')}' is not in cards.yaml")
         for k in ("prompt_tokens_per_second", "answer_tokens_per_second", "embed_seconds_per_text", "median_turn_seconds", "longest_turn_seconds"):
             need(isinstance(P_.get(k), (int, float)) and P_[k] > 0, f"card_profile.yaml {k}: needs a number above 0")   # (f527) the embed price among them
     bad += cards_problems()                                              # (f527) the minimum cards and the device patterns
@@ -1195,12 +1208,13 @@ def data_words_problems(root: Path | None = None, table: dict | None = None) -> 
     """(f621) The words that stand in data/ carry no dash (the owner's rule). Every string there is told as true unless hygiene.yaml
     data_words.not_told declares its file and key a label, a rule for a model, structure the engine reads, or a note: told is the
     default, so a new file or a new key is held without being added anywhere. The table is held too: each entry names a file and a key
-    that are there, and one of the four kinds."""
+    that are there, and one of the four kinds. The folders storage/statehash.py NOT_GAME names are not read."""
     T = (_load("data/rules/hygiene.yaml").get("data_words") or {}) if table is None else table
     D = T.get("not_told") or {}
-    if not isinstance(D, dict) or not all(isinstance(v, dict) for v in D.values()) or not isinstance(T.get("skip") or [], list):
-        return ["hygiene.yaml data_words: needs skip (a list of folders) and not_told (file: {key: kind})"]
-    rows = list(data_strings(ROOT / "data" if root is None else root, tuple(T.get("skip") or ())))
+    if not isinstance(D, dict) or not all(isinstance(v, dict) for v in D.values()):
+        return ["hygiene.yaml data_words: needs not_told (file: {key: kind})"]
+    from storage import statehash
+    rows = list(data_strings(ROOT / "data" if root is None else root, tuple(statehash.NOT_GAME)))    # (f785) what is not the game, said once
     files = {rel for rel, _, _ in rows}
     out = []
     for rel, keys in D.items():

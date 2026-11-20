@@ -125,7 +125,7 @@ def used_elsewhere(world, top) -> list[str]:
     return out
 
 
-towns_rules = yaml.safe_load((ROOT / "data" / "rules" / "towns.yaml").read_text(encoding="utf-8"))
+towns_rules = yaml.safe_load((ROOT / "data" / "tools" / "towns_draft.yaml").read_text(encoding="utf-8"))   # (f785) the drafter's own tables
 
 
 def districts_for(scale: str, rules: dict) -> str:

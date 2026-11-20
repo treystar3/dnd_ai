@@ -13,7 +13,7 @@ def check(n, ok, x=""):
     if not ok: bad.append(n)
 
 tmp = Path(tempfile.mkdtemp(prefix="datahash_560_"))
-shutil.copytree("data", tmp / "data", ignore=shutil.ignore_patterns("replay", "measured", "runtime"))
+statehash.copy_data(tmp)                        # (f785) the game's data, as the hash reads it
 texts = [f for f in sorted((tmp / "data").rglob("*.yaml")) if b"\r\n" not in f.read_bytes()]
 check("the copy has LF text files to convert", len(texts) > 10, len(texts))
 lf = statehash.data_hash(tmp)

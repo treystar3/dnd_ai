@@ -492,7 +492,7 @@ try:
     text = pathlib.Path("data/rules/spellcraft.yaml").read_text(encoding="utf-8")
     planted = text.replace(SC.EXPR["dominate"]["alone"], DASHED_ALONE)
     (tmp / "rules" / "spellcraft.yaml").write_text(planted, encoding="utf-8")
-    probs = data_check.data_words_problems(root=tmp, table={"skip": [], "not_told": {"rules/spellcraft.yaml": {"text": "label"}}})
+    probs = data_check.data_words_problems(root=tmp, table={"not_told": {"rules/spellcraft.yaml": {"text": "label"}}})
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 check("...it is f621's one rule for every word data/ tells that refuses it, once",

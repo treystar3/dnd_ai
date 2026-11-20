@@ -2,7 +2,7 @@
 (docs/design/14_phase2_plan.md, the pod session): (1) the two slots (f536): does the understanding's cached prompt hold from turn to
 turn on its own slot, and does a background call on the shared slot make the player's turn wait (or move its call to the understanding's
 slot); (2) births and situation rulings: their count and seconds a game day, priced on the minimum card from the card they were measured
-on (data/rules/cards.yaml, as tools/card_profile.py scales), and how many births were within reach. tools/night_measure.py reads a run
+on (data/tools/cards.yaml, as tools/card_profile.py scales), and how many births were within reach. tools/night_measure.py reads a run
 folder as a night writes it; this test makes one whose answers are known, and reads it again as a finished night leaves it.
 Run: python tools/sim/night_measure_602_test.py"""
 import json

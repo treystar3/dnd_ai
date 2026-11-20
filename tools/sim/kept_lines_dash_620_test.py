@@ -161,8 +161,9 @@ def data_words() -> str:
     data_words declares a label, a rule for a model, marks the engine reads or a note. What data/ tells as true holds none
     (engine/data_check.py data_words_problems), so a dash in a request is the rules' own wording or the engine's."""
     from engine import data_check
+    from storage import statehash
     T = hygiene.H.get("data_words") or {}
-    return "\n".join(" ".join(s.lower().split()) for rel, path, s in data_check.data_strings(ROOT / "data", tuple(T.get("skip") or ()))
+    return "\n".join(" ".join(s.lower().split()) for rel, path, s in data_check.data_strings(ROOT / "data", tuple(statehash.NOT_GAME))
                      if dashed(s) and data_check.not_told(T.get("not_told") or {}, rel, path))
 
 

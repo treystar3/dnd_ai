@@ -11,7 +11,7 @@ stock word or trail off, how long they run, and whether they break the measurabl
 past twenty words for a short-sentence speaker, a question from someone who never asks, two of the words the prompt said were worn out).
 The logged answers score too, as the row called 'logged', so a tuned model is read against both the base and what the game accepted.
 
-The task is the file's name (npc_conversation.sft.jsonl); its contract is data/rules/lora.yaml schemas. Writes a Markdown table, to
+The task is the file's name (npc_conversation.sft.jsonl); its contract is data/tools/lora.yaml schemas. Writes a Markdown table, to
 --out if given. The test runs it on the stand-in (simlib.install) with no adapter: the base row alone beside the logged one."""
 from __future__ import annotations
 
@@ -27,14 +27,14 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 import yaml
 
-L = yaml.safe_load((ROOT / "data" / "rules" / "lora.yaml").read_text(encoding="utf-8"))
+L = yaml.safe_load((ROOT / "data" / "tools" / "lora.yaml").read_text(encoding="utf-8"))
 
 
 def schema_for(task: str):
     from llm import contracts
     name = (L.get("schemas") or {}).get(task)
     if not name or not hasattr(contracts, name):
-        raise SystemExit(f"no contract known for task '{task}' (data/rules/lora.yaml schemas)")
+        raise SystemExit(f"no contract known for task '{task}' (data/tools/lora.yaml schemas)")
     return getattr(contracts, name)
 
 

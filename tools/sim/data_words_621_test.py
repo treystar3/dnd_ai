@@ -18,6 +18,7 @@ stub = simlib.Stub("warrior", 3)
 simlib.install(stub)
 simlib.quiet_console()
 from engine import data_check, hygiene
+from storage import statehash
 
 bad = []
 def check(n, ok, x=""):
@@ -26,7 +27,7 @@ def check(n, ok, x=""):
 
 
 # ---- the rule, on trees it is handed: shapes the game's own files do not hold
-tmp = Path("saves/data_words_621")
+tmp = simlib.saves_path("data_words_621")
 shutil.rmtree(tmp, ignore_errors=True)
 (tmp / "world").mkdir(parents=True)
 (tmp / "rules").mkdir()
@@ -39,7 +40,7 @@ def tree(files: dict) -> None:
 
 
 def found(table: dict) -> list[str]:
-    return data_check.data_words_problems(root=tmp, table={"skip": ["measured", "replay"], "not_told": table})
+    return data_check.data_words_problems(root=tmp, table={"not_told": table})
 
 
 tree({"world/inns.yaml": "- {id: plough, sign: A plough - tilted, rooms: 4}\n- id: stag\n  sign: The white stag\n  told:\n    - Its ale is thin — its beds are not.\n"
@@ -74,13 +75,13 @@ T = hygiene.H.get("data_words") or {}
 got = data_check.data_words_problems()
 check("no told string in data/ holds a dash", not got, (len(got), got[:4]))
 check("...and the game's startup check holds it", "data_words_problems()" in Path(data_check.__file__).read_text(encoding="utf-8").split("def check()")[1].split("\ndef ")[0])
-rows = list(data_check.data_strings(data_check.ROOT / "data", tuple(T.get("skip") or ())))
+rows = list(data_check.data_strings(data_check.ROOT / "data", tuple(statehash.NOT_GAME)))
 dashed = [(rel, path, s) for rel, path, s in rows if data_check.DASHED.search(s)]
 kinds = {}
 for rel, path, s in dashed:
     kinds.setdefault(data_check.not_told(T.get("not_told") or {}, rel, path), []).append((rel, ".".join(path)))
 other = [f.as_posix() for f in (data_check.ROOT / "data").rglob("*") if f.is_file() and f.suffix not in data_check.DATA_KINDS
-         and f.relative_to(data_check.ROOT / "data").parts[0] not in (T.get("skip") or ())]
+         and f.relative_to(data_check.ROOT / "data").parts[0] not in statehash.NOT_GAME]
 check("every file in data/ is of a kind the rule reads", not other, other)
 check("the data is read whole: thousands of strings in a hundred files", len(rows) > 5000 and len({r for r, _, _ in rows}) > 100, (len(rows), len({r for r, _, _ in rows})))
 check("...the dashes left are all of the four declared kinds", set(kinds) == set(data_check.NOT_TOLD) and "" not in kinds, {k: len(v) for k, v in kinds.items()})

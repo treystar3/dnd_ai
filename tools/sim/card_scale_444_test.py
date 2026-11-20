@@ -1,6 +1,6 @@
 """(f444) A measure scaled to the card the game is built for, when that card cannot be rented: Runpod has no RTX 3060, so a night is
 recorded on the nearest card and every call's reading and writing time is scaled by the two cards' compute and memory bandwidth
-(data/rules/cards.yaml), an estimate kept as one. And a night of several runs with --record keeps a recording of its first run
+(data/tools/cards.yaml), an estimate kept as one. And a night of several runs with --record keeps a recording of its first run
 alone: the measuring runs play unrecorded, as the game ships (f529, the owner's decision of 5 Nov)."""
 import gzip, json, os, shutil, subprocess, sys
 from pathlib import Path

@@ -166,7 +166,7 @@ config.MODEL = "gemma4:12b"
 h2 = statehash.data_hash()
 config.MODEL = saved
 check("the data hash folds the GGUF id in: another id, another hash", h1 != h2 and statehash.data_hash() == h1)
-C = yaml.safe_load(Path("data/rules/cards.yaml").read_text(encoding="utf-8"))
+C = yaml.safe_load(Path("data/tools/cards.yaml").read_text(encoding="utf-8"))
 check("cards.yaml names the minimum cards, the RX 7600 XT among them, with a pattern for each card",
       C["minimum"] == {"cuda": "RTX 3060 12GB", "vulkan": "RX 7600 XT 16GB"} and "RX 7600 XT 16GB" in C["cards"] and set(C["patterns"]) == set(C["cards"])
       and data_check.cards_problems() == [])

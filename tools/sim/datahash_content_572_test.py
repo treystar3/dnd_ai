@@ -17,7 +17,7 @@ def check(n, ok, x=""):
     if not ok: bad.append(n)
 
 tmp = Path(tempfile.mkdtemp(prefix="datahash_572_"))
-shutil.copytree("data", tmp / "data", ignore=shutil.ignore_patterns("replay", "measured", "runtime"))
+statehash.copy_data(tmp)                        # (f785) the game's data, as the hash reads it
 base = statehash.data_hash(tmp)
 
 real_version = version.VERSION
