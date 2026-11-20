@@ -6,7 +6,12 @@ that runs tools/sim/fake_llama.py as "llama-server" (flag files in the run's fol
 - A call that reaches the embedder while it is being started again waits and is answered; the facts keep the decision.
 - An embedder that was off at the load stays off after a chat server's restart (the recording's meta said so).
 - The place decision reads the chat model's own "offloaded" line, never the draft model's after it.
-- A chat server that fails its restart turns embeddings off, and nothing starts an embedder on the failed runtime.
+- A chat server that fails its restart stops the embedder with it, and nothing starts an embedder on the failed runtime.
+- (f784) Every way the model is brought back brings the embedder with it: Try again after a failed restart, the same through the load
+  screen (a turn's call, the could-not-wake page, the call answered), Play slowly on the processor, Try again after a first load that
+  failed once its embedder had started, and Try again after the chat server's second death took the embedder with it. An embed call
+  on its way when the runtime stops the embedder is no death of the embedder's and decides nothing. An embedder that failed on its own
+  at the load stays off through all of it, its reason kept in the facts.
 - A port taken before the embedder binds is retried on another; the facts' refusal is its own type.
 
 Run: python tools/sim/embed_review_524_test.py"""
@@ -78,6 +83,8 @@ def script(path, body, n):
         texts = body.get("input") or []
         if any(t.startswith("clustering: slow") for t in texts):
             return {{"vectors": [[1.0, 0.0] for _ in texts], "delay": 3.0}}
+        if any(t.startswith("clustering: stall") for t in texts):     # (f784) still on its way when a failed restart has ended
+            return {{"vectors": [[1.0, 0.0] for _ in texts], "delay": 10.0}}
         return {{"vectors": [[float(len(t)), 1.0] for t in texts]}}
     return {{"content": '{{"x": "y"}}'}}
 try:
@@ -317,7 +324,7 @@ try:
         os.environ.pop("FAKE_DRAFT_OFFLOAD", None)
         env.cleanup()
 
-    # ---- a failed chat restart turns embeddings off, and nothing starts an embedder on the failed runtime
+    # ---- a failed chat restart stops the embedder with it, and nothing starts an embedder on the failed runtime
     env = Env("failed")
     undo = None
     try:
@@ -326,19 +333,177 @@ try:
         undo = backend.use(runtime.Managed(rt))
         embed.reset()
         e1 = rt.embed
+        budget_was = rt.embed_restarts_left
+        flying: dict = {}
+
+        def in_flight(key, text):
+            """An embed call straight to the runtime, on a thread of its own (llm/embed.py's session switch is left out of it)."""
+            try:
+                flying[key] = rt.embed_call([text]) is not None
+            except Failure as f:
+                flying[key] = f.kind
+
+        def embed_notes() -> int:
+            return (env.logs / "crash.log").read_text().count("llama-server (embed)") if (env.logs / "crash.log").exists() else 0
+        # (f784) an embed call on its way as the restart fails: the fake answers "stall" after 10 s, past the failed restart's 4 s
+        going = threading.Thread(target=in_flight, args=("restart", "clustering: stall, on its way as the restart fails"))
+        going.start()
+        time.sleep(0.8)
         env.flag("chat_fail")
         kill(rt.chat.proc)
         chat()
+        going.join(30)
         v = embed.vectors(["a line"])
-        check("a failed chat restart turns embeddings off", rt.state == "failed" and not e1.alive() and rt.facts()["embedder"] is False,
-              (rt.state, rt.facts()["embedder"]))
+        check("a failed chat restart stops the embedder with it: no embeddings while the runtime is failed, and the facts say why",
+              rt.state == "failed" and not e1.alive() and rt.facts()["embedder"] is False
+              and rt.facts()["embed_failure"] == "the model server stopped", (rt.state, rt.facts()["embedder"], rt.facts()["embed_failure"]))
         check("and nothing starts an embedder on the failed runtime", v is None and env.embedders() == []
               and not (env.run_dir / "server.json").exists(), (v, env.embedders()))
+        check("(f784) an embed call on its way as the failed restart stops the embedder is no death of the embedder's: no crash note "
+              "names it, its own restart is not spent, and the next load decides it", flying.get("restart") == "unreachable"
+              and rt.embed_on is None and rt.embed_restarts_left == budget_was and embed_notes() == 0,
+              (flying, rt.embed_on, rt.embed_restarts_left, embed_notes()))
+        # (f784) Try again (the could-not-wake page's: the same runtime loaded again, never closed) brings the embedder back with it
+        env.flag("chat_fail", on=False)
+        rt.load()
+        check("(f784) Try again after the failed restart brings the embedder back with the model: the facts say so, a new embedder "
+              "runs, and the runtime and the game's embeddings answer", rt.state == "ready" and rt.facts()["embedder"] is True
+              and rt.embed is not None and rt.embed is not e1 and rt.embed.alive() and len(env.embedders()) == 1
+              and rt.embed_call(["clustering: a line straight to the runtime"]) is not None and embed.available()
+              and embed.vectors(["a line after Try again"]) is not None,
+              (rt.state, rt.facts()["embedder"], rt.facts()["embed_failure"], env.embedders()))
+
+        # the chat server's second death (its one restart spent above: failed with no load), an embed call on its way on an
+        # embedder that dies with it, then Try again
+        budget_was, e2 = rt.embed_restarts_left, rt.embed
+        going = threading.Thread(target=in_flight, args=("death", "clustering: stall, on its way at the second death"))
+        going.start()
+        time.sleep(0.8)
+        kill(rt.chat.proc)
+        chat()                                                          # the second death: failed, no restart left
+        kill(e2.proc)                                                   # the embedder gone with it (the card's driver reset, say)
+        going.join(30)
+        while_failed = (rt.state, rt.facts()["embedder"], embed.vectors(["a line while it is failed"]), embed.failed(), rt.embed_on,
+                        rt.embed_restarts_left == budget_was)
+        rt.load()                                                       # Try again
+        check("(f784) after the chat server's second death took the embedder with it, an embed call on its way decides nothing, no "
+              "embedding is asked of the failed runtime, and Try again brings the embedder back", flying.get("death") == "unreachable"
+              and while_failed == ("failed", False, None, False, True, True) and rt.state == "ready" and rt.facts()["embedder"] is True
+              and embed.vectors(["a line after the second death"]) is not None and rt.embed.alive(),
+              (flying, while_failed, rt.state, rt.facts()["embedder"], rt.facts()["embed_failure"]))
     finally:
         if undo:
             undo()
         embed.reset()
         env.cleanup()
+
+    # ---- (f784) every way the model is brought back brings the embedder with it, or the facts say why not
+    import config
+    from llm import launch
+    crash_was = config.CRASH_LOG_PATH
+    logs = Path(tempfile.mkdtemp(prefix="emb524_logs_"))
+    config.CRASH_LOG_PATH = str(logs / "crash.log")    # the load screen writes why it could not wake: here, never logs/
+
+    # the load screen: a turn's call finds the restart failed, the could-not-wake page is answered Try again, and the call goes on
+    env = Env("screen")
+    undo = None
+    said: list[str] = []
+    try:
+        rt = env.new_rt()
+        screen = launch.Screen(say=said.append, ask=lambda: "1")      # "1": Try again
+        screen.rt = rt                                                  # as begin() wires it, without the game's own lock or files
+        rt.on_wait, rt.on_ready, rt.on_failed = screen.loading_line, screen._ready, screen.recover
+        undo = backend.use(runtime.Managed(rt))
+        embed.reset()
+        screen._load()
+        first = screen.wait() and rt.facts()["embedder"]
+        e1 = rt.embed
+        env.flag("chat_fail")
+        kill(rt.chat.proc)
+        found = chat()                                                  # the call that finds it dead: the restart fails, no page yet
+        env.flag("chat_fail", on=False)
+        again = chat()                                                  # the next: the page, Try again, the load, the call answered
+        check("(f784) through the load screen: a call that finds the restart failed, the page answered Try again, is answered with the "
+              "embedder back", first is True and found == "Failure" and again == "answered" and rt.facts()["embedder"] is True
+              and rt.embed is not e1 and rt.embed.alive() and embed.vectors(["a line after the page"]) is not None,
+              (first, found, again, rt.facts()["embedder"], rt.facts()["embed_failure"], said[-4:]))
+    finally:
+        if undo:
+            undo()
+        embed.reset()
+        env.cleanup()
+
+    # a first load that fails after its embedder has started (the same failure handler), then Try again; then a failed restart, and
+    # Play slowly on the processor (the same runtime, loaded again on the processor's build)
+    env = Env("late")
+    real_classify, planted = launch.classify, {"left": 1}
+
+    def classify_once(*a, **k):
+        if planted["left"]:
+            planted["left"] -= 1
+            raise Failure("unreachable", "the load failed after the embedder had started")
+        return real_classify(*a, **k)
+    undo = None
+    try:
+        (env.rt_dir / "cpu").mkdir()
+        fake_runtime.write_exe(env.rt_dir / "cpu" / runtime.exe_name(),
+                               LAUNCHER.format(py=sys.executable, sim=str(ROOT / "tools" / "sim"), base=str(env.base)))
+        rt = env.new_rt()
+        launch.classify = classify_once                                 # the load's last step, after the embedder is up
+        try:
+            rt.load()
+            first = "loaded"
+        except Failure:
+            first = "failed"
+        launch.classify = real_classify
+        stopped = env.embedders() == [] and rt.facts()["embedder"] is False
+        rt.load()
+        check("(f784) a first load that fails after its embedder started stops it with the model, and Try again brings both up",
+              first == "failed" and stopped and rt.state == "ready" and rt.facts()["embedder"] is True and rt.embed.alive(),
+              (first, stopped, rt.state, rt.facts()["embedder"], rt.facts()["embed_failure"]))
+        env.flag("chat_fail")
+        kill(rt.chat.proc)
+        undo = backend.use(runtime.Managed(rt))
+        chat()
+        failed_restart = rt.state == "failed"
+        env.flag("chat_fail", on=False)
+        rt.build, rt.device_id = "cpu", None                            # what the page's "Play slowly on the processor" sets
+        rt.load()
+        check("(f784) Play slowly on the processor after a failed restart brings the embedder back too", failed_restart
+              and rt.state == "ready" and rt.build == "cpu" and rt.facts()["embedder"] is True and rt.embed is not None
+              and rt.embed.alive(), (failed_restart, rt.state, rt.build, rt.facts()["embedder"], rt.facts()["embed_failure"]))
+    finally:
+        launch.classify = real_classify
+        if undo:
+            undo()
+        embed.reset()
+        env.cleanup()
+
+    # the pin: an embedder that failed on its own at the load stays off through a failed restart and Try again, and says why
+    env = Env("alone")
+    undo = None
+    try:
+        env.flag("embed_fail")
+        rt = env.new_rt()
+        rt.load()
+        why = rt.facts()["embed_failure"]
+        env.flag("embed_fail", on=False)
+        env.flag("chat_fail")
+        kill(rt.chat.proc)
+        undo = backend.use(runtime.Managed(rt))
+        chat()
+        env.flag("chat_fail", on=False)
+        rt.load()
+        check("(f784) an embedder that failed on its own at the load stays off through a failed restart and Try again, its own reason "
+              "kept", rt.state == "ready" and rt.facts()["embedder"] is False and env.embedders() == [] and why
+              and rt.facts()["embed_failure"] == why, (rt.state, rt.facts()["embedder"], why, rt.facts()["embed_failure"]))
+    finally:
+        if undo:
+            undo()
+        embed.reset()
+        env.cleanup()
+        config.CRASH_LOG_PATH = crash_was
+        shutil.rmtree(logs, ignore_errors=True)
 
     # ---- a port taken before the embedder binds is retried on another
     env = Env("bind")

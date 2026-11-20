@@ -659,7 +659,8 @@ class Runtime:
         self.embed_state = "not_started"
         self.embed_why = ""
         self.embed_on: bool | None = None               # (f524's review) the session's decision, apart from the child's state: None
-                                                        # until the load makes it; a restart of the embedder keeps it
+                                                        # until a load makes it; a restart of the embedder keeps it; (f784) None again
+                                                        # when a failed load stopped a live one, for the next load to make
         self.embed_restarts_left = int((self.cfg.get("server") or {}).get("restarts", 1))
         self._lock = threading.RLock()
         self._closed = False
@@ -828,7 +829,9 @@ class Runtime:
             with self._lock:                            # (f524's review) the embedder is being started again: wait for it, never
                 pass                                    # tell this call embeddings are off (llm/embed.py would turn them off for good)
         if self.embed_state != "ready" or self.source is None:
-            raise Failure("unreachable", "the embedder is off for this session" + (f" ({self.embed_why})" if self.embed_why else ""))
+            said = ("the embedder waits for the model server's next load" if self.embed_on is None
+                    else "the embedder is off for this session")
+            raise Failure("unreachable", said + (f" ({self.embed_why})" if self.embed_why else ""))   # (f784) said by the decision
         emb = self.embed                                # (f522) read once: a restart or a close may change it meanwhile
         try:
             return self.source.embed(texts)
@@ -838,6 +841,8 @@ class Runtime:
             with self._lock:
                 if self._closed or self._stopping.is_set():
                     raise                               # the game is closing: its embedder's end is no death, and nothing restarts
+                if self.state == "failed" or self.embed_on is None:
+                    raise                               # (f784) the runtime stopped it, or the next load decides it: no death
                 if self.embed is emb:                   # another call may have restarted it already
                     self._crash_note(emb)
                     if self.embed_restarts_left > 0:
@@ -938,7 +943,9 @@ class Runtime:
             self._write_run_files()
             tell(0.97)
             if self.embed_on is None:
-                self._start_embed()                        # (f524) embeddings decided here, once, for the session; (f524's review)
+                self._start_embed()                        # (f524) embeddings decided here, by the first load that gets this far, and
+                                                           # (f784) again by the next after a failed load stopped a live one with the
+                                                           # chat server; (f524's review)
                                                            # a chat server's restart keeps the decision: the live embedder is the
                                                            # new source's from its first moment, a dead one is started again by the
                                                            # next embed (once), and an embedder that was off stays off
@@ -958,7 +965,9 @@ class Runtime:
         except BaseException:
             self.state = "failed"
             self._stop_children()
-            if self.embed_on or self.embed_state in ("ready", "loading"):
+            if self.embed_on:                          # (f784) stopped with the chat server, no failure of its own: decided again
+                self.embed_state, self.embed_why, self.embed_on = "not_started", "the model server stopped", None
+            elif self.embed_state in ("ready", "loading"):
                 self.embed_state, self.embed_why, self.embed_on = "failed", "the model server stopped", False
             raise
 
@@ -1105,13 +1114,15 @@ class Runtime:
         crashlog.run_every("closing the model server", ("its calls", calls), ("its servers", servers), ("its run files and state", settled))
 
     def facts(self) -> dict:
-        """What this machine runs, final once the load is: (f524) whether there is an embedder is decided at the load and holds for the
-        session; read before that decision, it would be a guess, so it is refused. A restart of the chat server keeps the decision (the
-        embedder's own server goes on), so the facts are answered through it."""
+        """What this machine runs, final once a load is: (f524) whether there is an embedder is decided at the load and holds until a
+        failed load stops it with the chat server (f784), when the next load (Try again, Play slowly) decides it again; read while
+        undecided, it would be a guess, so it is refused. A restart of the chat server keeps the decision (the embedder's own server goes
+        on), so the facts are answered through it. While the runtime is failed there is no embedder."""
         if self.state in ("loading", "restarting") and self.embed_on is None:
             raise NotFinal("the model server's facts are read before its load is final")
         return {"source": "llama-server", "model": config.MODEL, "embed_model": config.EMBED_MODEL,
-                "embedder": self.embed_on is True, "embed_failure": self.embed_why, "state": self.state, **self.facts_}
+                "embedder": self.embed_on is True and self.state != "failed",   # (f784) none while failed: a call would end it for good
+                "embed_failure": self.embed_why, "state": self.state, **self.facts_}
 
 
 class Managed:
