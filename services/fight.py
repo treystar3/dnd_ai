@@ -390,7 +390,7 @@ class FightService:
         notes: list[str] = []
         f.log, f.story, f.hits, f.told = [], [], [], []
         target = f.get(intent.target) if intent.target else None
-        if intent.kind != "interpose" and (not target or not target.alive or target.side != "enemy" or target.fled):
+        if intent.kind != "interpose" and (not target or not any(e is target for e in f.enemies())):     # (f774) never a foe turned
             target = battlefield.closest(f, p, f.enemies())
         if intent.kind == "talk":
             return self._talk(f, p, target, intent)
@@ -447,7 +447,7 @@ class FightService:
 
         if intent.kind != "flee":
             f.player_acted = True
-        if not f.over and not f.enemies() and not combat.muster(f):
+        if not f.over and combat.won(f):
             f.over = "victory"
         p.counters.pop("moved_now", None)
         if p.counters.pop("free_action", None) and not f.over:   # a movement on its own did not use the action - the player acts again
@@ -467,7 +467,7 @@ class FightService:
         problem = parley.attempt(f, target, intent.approach, self.player.character, self.dice)
         if problem:
             return RoundOutcome("talk", [], [], problem=problem)
-        if not f.enemies() and not combat.muster(f):
+        if combat.won(f):
             f.over = "victory"
         return RoundOutcome("talk", [], [], over=f.over)
 

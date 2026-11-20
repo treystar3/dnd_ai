@@ -87,7 +87,7 @@ def refuse(combat, att, move, target, give=None) -> str | None:
     if att.counters.get("moved_round") == combat.round and not (kind == "shadowmark" and att.shadow):
         return "You have already used a movement ability this turn."
     if kind == "breach":
-        if target is None or target.side != "enemy":
+        if target is None or not bf.is_foe(target):
             return f"{move.name} needs an enemy to reach."
         if combat.battlefield is not None and bf.steps_between(combat, att, target) > 1:
             return f"{target.name} is too far away for {move.name}."
@@ -102,7 +102,7 @@ def refuse(combat, att, move, target, give=None) -> str | None:
     elif kind == "relentless_advance":
         if "grappled" in att.statuses:
             return "You're held fast. Get free of the grapple first."
-        if target is None or target.side != "enemy":
+        if target is None or not bf.is_foe(target):
             return f"{move.name} needs an enemy to close on."
         if bf.attack_access(combat, att, target).ok:
             return f"{target.name} is already within your reach."
@@ -124,7 +124,7 @@ def refuse(combat, att, move, target, give=None) -> str | None:
             return "No enemy is below half health yet, so there's no blood to follow."
     elif kind == "vengeance_leap":
         hurt = combat.get(att.last_hurt_by) if att.last_hurt_by else None
-        if hurt is None or not hurt.alive or hurt.fled or hurt.side == att.side:
+        if hurt is None or not hurt.alive or hurt.fled or not bf.hostile(att, hurt):
             return "Whoever last hurt you is no longer in the fight."
     elif kind == "rally_to_me":
         if not [a for a in combat.allies() if a.alive and not _still(a)]:
@@ -155,7 +155,7 @@ def resolve(combat, att, move, target, rng: random.Random, give=None) -> None:
         old = [o.name for o in was]
         bf.release(combat, att)
         back = att.counters.pop("shift_back", 0)
-        if not back and target is not None and target.alive and target.side == "enemy" and target.zone_id == att.zone_id \
+        if not back and target is not None and target.alive and bf.is_foe(target) and target.zone_id == att.zone_id \
                 and target not in was and bf.attack_access(combat, att, target).ok:
             bf.engage(combat, att, target)
             C.tell(combat, f"{C.who(att)} {C.vb(att, 'pull', 'pulls')} free of {', '.join(old)} with {name} and {C.vb(att, 'turn', 'turns')} on {C.who(target)} instead")

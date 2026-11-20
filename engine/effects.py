@@ -406,7 +406,8 @@ def crippling_chain(l: Landing):
     """Crippling Wounds (f312): an open wound from a foe with it slows for as long as it stays open."""
     from engine import combat as C
     f, source = l.f, l.source
-    if l.status == "bleeding" and source is not None and source.side != f.side and "crippling_wounds" in C.mechanics(source, l.combat) \
+    from engine import battlefield as bf
+    if l.status == "bleeding" and source is not None and bf.hostile(source, f) and "crippling_wounds" in C.mechanics(source, l.combat) \
             and f.alive and land(l.combat, f, "slowed", l.rounds, source):
         f.counters["crippled"] = 1
         C.tell(l.combat, f"the wound drags at {C.who(f)}, and {C.vb(f, 'you slow', 'it slows')} (Crippling Wounds)")

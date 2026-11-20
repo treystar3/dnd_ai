@@ -212,13 +212,14 @@ def on_hit(combat, att, dfn, taken: float, rng) -> None:
 
 
 def _express(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> None:
+    from engine import battlefield as bf
     tier, e = ctx["tier"], EXPR[eid]
     n = _nums(e, tier)
     if eid in ("ignite", "spreading_flames") and dfn.alive:
         C.add_status(combat, dfn, "burning", 2, att)
     if eid == "spreading_flames" and eid not in ctx["once"]:
         ctx["once"].append(eid)
-        others = [o for o in in_area(combat, att, dfn.zone_id, combat.enemies() if att.side != "enemy" else _foes(combat, att))
+        others = [o for o in in_area(combat, att, dfn.zone_id, _foes(combat, att))
                   if o is not dfn and o.alive]
         for o in others:
             C.add_status(combat, o, "burning", 2, att)
@@ -267,7 +268,7 @@ def _express(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> None:
         dfn.max_hp = max(1, round(dfn.max_hp - cut))
         dfn.hp = min(dfn.hp, dfn.max_hp)
         C.tell(combat, f"the flesh around the wound rots away - {C.whose(dfn)} body will not grow it back ({e['label']}: -{round(cut)} max health)")
-    elif eid == "reap" and dfn.alive and att.side != "enemy" and not dfn.boss and dfn.rank != "boss":
+    elif eid == "reap" and dfn.alive and not bf.is_foe(att) and not dfn.boss and dfn.rank != "boss":
         dfn.counters["reaped_by"], dfn.counters["reap_until"] = att.id, combat.round + int(n["rounds"])
     elif eid == "overload" and dfn.alive:
         mark = dfn.counters.get("overload")
@@ -315,7 +316,7 @@ def _express_more(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> N
     N = lambda key, default=0: num(e, tier, key, default)
     crit = att.counters.get("last_outcome") == "crit"
     killed = not dfn.alive
-    mine = [o for o in combat.fighters if o.alive and not o.fled and o is not att and not bf.hostile(att, o)]
+    mine = [o for o in combat.fighters if o.alive and not o.fled and o is not att and bf.kin(att, o)]   # (f774) never a foe turned
     near_mine = [o for o in mine if o.zone_id == att.zone_id]
     foes_here = [o for o in in_area(combat, att, dfn.zone_id, _foes(combat, att)) if o.alive]
     # ---- fire
@@ -472,9 +473,9 @@ def _express_more(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> N
         C.tell(combat, f"the magic on {C.who(dfn)} frays ({e['label']})")
     elif eid == "blood_price" and taken > 0:
         att.hp = max(1.0, att.hp - taken * N("pct", 10) / 100)
-    elif eid == "dominate" and dfn.alive and dfn.side == "enemy" and getattr(dfn, "category", "") == "undead" and not dfn.boss:
-        dfn.counters["turned"], dfn.counters["turned_until"] = 1, combat.round + int(N("rounds", 2))
-        C.tell(combat, f"{C.who(dfn)} turns on its own side, a stronger will on it ({e['label']})")
+    elif eid == "dominate" and dfn.alive and getattr(dfn, "category", "") == "undead" and not dfn.boss:
+        combat_perks.turn_foe(combat, dfn, combat.round + int(N("rounds", 2)),      # (f774) never the last foe of its side
+                              f"{C.who(dfn)} turns on its own side, a stronger will on it ({e['label']})", alone=f"{e['alone']} ({e['label']})")
     elif eid == "shadowcloak":
         if zone_hidden(combat, att.zone_id) and can_hide(combat, att) and "concealed" not in att.position_tags:
             bf.gain(att, "concealed")
@@ -641,10 +642,6 @@ def turn_effects(combat, f, rng) -> None:
         f.counters.pop("seed", None)
         C.side_damage(combat, f, seed[2], combat.get(seed[0]), rng, "magical", told=lambda d: f"the seed in {C.who(f)} bursts: {d} ({seed[3]}, Seedburst)",
                       harm="seed")
-    if f.counters.get("turned") and f.counters.get("turned_until") is not None and f.counters["turned_until"] < combat.round:
-        f.counters.pop("turned", None)
-        f.counters.pop("turned_until", None)
-        C.tell(combat, f"the will on {C.who(f)} lifts, and it remembers its own side")
     for key in ("caustic_drip", "bramble"):
         mark = f.counters.get(key)
         if mark and mark[2] < combat.round:
@@ -676,7 +673,7 @@ def on_death(combat, dead, killer) -> None:
         _pyre(combat, dead, combat.get(by) or killer)
     if dead.counters.pop("contagion", None) and (dead.poison or dead.poison_fixed):
         from engine import battlefield as bf
-        others = [o for o in combat.fighters if o.alive and not o.fled and o is not dead and o.side == dead.side]
+        others = [o for o in combat.fighters if o.alive and not o.fled and o is not dead and bf.kin(dead, o)]
         if others:
             nxt = bf.closest(combat, dead, others) or others[0]
             landed = E.eligible(combat, nxt, "poisoned", dead.statuses.get("poisoned", 3))   # (f507) the neighbour's own wards, resistance

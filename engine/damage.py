@@ -406,7 +406,8 @@ def health(b: Blow) -> bool:
     d = b.dfn
     b.up = d.alive
     d.hp = max(0, d.hp - b.dealt)
-    if b.dealt > 0 and b.source is not None and b.source.side != d.side and b.source is not d:
+    from engine import battlefield as bf
+    if b.dealt > 0 and b.source is not None and bf.hostile(b.source, d) and b.source is not d:
         d.last_hurt_by = b.source.id
     return True
 
@@ -555,8 +556,8 @@ def fall_step(combat: C.Combat, f: C.Fighter, cause: C.Fighter | None, rng: rand
     if f.boss:
         from engine import bosses
         bosses.fall(combat, f)
-    if f.side == "enemy":
-        behaviors.morale_on_death(combat, f, rng)
+    if bf.is_foe(f):
+        behaviors.morale_on_death(combat, f, rng)          # (f774) a turned foe's fall routs none of its old side
     if f.side == "ally":
         for p_ in combat.player_fighters():
             if C.mechanics(p_, combat).get("avenger", 0) and not p_.counters.get("avenger_used"):

@@ -847,6 +847,7 @@ class CombatScene:
         """(f415) The foes as the narrator must keep them: those still fighting, with how hurt each is, and those alive but out of it. Before,
         a foe who had yielded or fled was still under FOES NOW with its wounds, as if it fought on, and one turned by the player's magic
         (Dominate, Dread Regent) was listed as a foe like any other."""
+        from engine import battlefield as bfm
         fighting, out = [], []
         for e in self.fight.fighters:
             if e.side != "enemy" or not e.alive:
@@ -855,7 +856,7 @@ class CombatScene:
                 out.append(f"{combat.who(e)} has yielded: beaten, unarmed and out of the fight")
             elif e.fled:
                 out.append(f"{combat.who(e)} has fled and is gone")
-            elif e.counters.get("turned"):
+            elif bfm.turned(e):
                 fighting.append(f"{combat.who(e)}, {combat.condition(e)}, turned: it fights for the player now, against its own side")
             else:
                 fighting.append(f"{combat.who(e)}, {combat.condition(e)}")

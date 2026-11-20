@@ -57,8 +57,9 @@ def _text(f, template: str) -> str:
     return template.replace("{name}", nm)
 
 
-def _targets(combat):
-    return [t for t in combat.player_side() if t.alive]
+def _targets(combat, e):
+    """(f774) Whom the boss may strike: everyone against it still in the fight."""
+    return combat.foes_of(e)
 
 
 def intro(combat, rng) -> None:
@@ -128,8 +129,8 @@ def _strike(combat, e, target, mult: float, rng, label: str = "strikes", riders=
     return C.apply_damage(combat, e, target, mult, label, rng, can_cleave=False, can_riposte=False, can_flurry=False, riders=riders)
 
 
-def _weakest(combat):
-    return min(_targets(combat), key=lambda t: t.hp / max(1, t.max_hp))
+def _weakest(combat, e):
+    return min(_targets(combat, e), key=lambda t: t.hp / max(1, t.max_hp))
 
 
 def _guards(combat, e, n: int) -> int:
@@ -157,13 +158,13 @@ def _do(combat, e, opt: dict, rng, mult: float) -> None:
     kind = opt["kind"]
     combat.log.append(f"{e.name}: {opt['name']}")
     C.tell(combat, ("BOSS SIGNATURE MOVE: " if opt is _kit(e)["signature"] else "BOSS ACTS BETWEEN TURNS: ") + _text(e, opt["text"]))
-    targets = _targets(combat)
+    targets = _targets(combat, e)
     if not targets:
         return
     if kind == "strike":
         _strike(combat, e, combat.player if rng.random() < 0.7 or len(targets) == 1 else rng.choice(targets), mult or B["legendary_strike"], rng)
     elif kind == "smite":
-        _strike(combat, e, _weakest(combat), mult or B["legendary_strike"] * 1.8, rng, "smites")
+        _strike(combat, e, _weakest(combat, e), mult or B["legendary_strike"] * 1.8, rng, "smites")
     elif kind == "rend":
         t = combat.player
         _strike(combat, e, t, mult or B["legendary_strike"] * 1.3, rng, "rends",          # (f772) the wound rides the blow that tore it

@@ -22,7 +22,7 @@ from core.models import Character
 from core.rules import ATTRIBUTES
 from engine import ability_traits as AT
 from engine import elements, items, pools, stats as _stats
-from engine.battlefield import Battlefield
+from engine.battlefield import Battlefield, hostile, is_foe
 from engine import streams
 from engine import effects as _fx
 from engine.effects import ActiveEffect
@@ -485,7 +485,14 @@ class Combat(BaseModel):
         return self.player_fighters() + self.allies()
 
     def enemies(self) -> list[Fighter]:
-        return [f for f in self.fighters if f.side == "enemy" and f.alive and not f.fled and not f.counters.get("turned")]
+        """The foes still in the fight: those fighting for the foes' side now (battlefield.is_foe), so never a foe turned."""
+        return [f for f in self.fighters if is_foe(f) and f.alive and not f.fled]
+
+    def foes_of(self, f: Fighter) -> list[Fighter]:
+        """(f774) Whom this fighter may strike: everyone still in the fight on the other side from it now (battlefield.hostile), for a
+        foe as for the player. The player's fighters first, then the allies, then the rest in the fight's order."""
+        first = self.player_side()
+        return [x for x in first + [y for y in self.fighters if not any(y is z for z in first)] if in_fight(x) and hostile(f, x)]
 
     def allies(self) -> list[Fighter]:
         return [f for f in self.fighters if f.side == "ally" and f.alive]
@@ -1050,7 +1057,7 @@ def takes_turn(combat: Combat | None, f: Fighter) -> bool:
 def duellist(combat: Combat, f: Fighter) -> bool:
     """(f771) Whether this fighter decides the trial of rank it stands in, read from the fight as it stands: one of its player fighters,
     or a foe nobody summoned. A summon on either side, and anyone else on the player's side, decides nothing."""
-    return not f.summon_form and (f.side == "enemy" or any(p is f for p in combat.player_fighters()))
+    return not f.summon_form and (is_foe(f) or any(p is f for p in combat.player_fighters()))
 
 
 def no_summons(combat: Combat) -> str:
@@ -1104,7 +1111,7 @@ def aim(combat: Combat, att: Fighter, move: Move, target: Fighter | None) -> Fig
     if target is None or any(e is target for e in foes):
         return target
     from engine import battlefield as bf
-    if move.effect not in FOE_EFFECTS and not (move.effect == "mobility" and bf.hostile(att, target)):
+    if move.effect not in FOE_EFFECTS and not (move.effect == "mobility" and not bf.kin(att, target)):
         return target
     return bf.closest(combat, att, foes)
 
@@ -1622,7 +1629,7 @@ def credit(combat: Combat, killer: Fighter | None, fallen: Fighter, rng: random.
     A = mechanics(killer, combat, fallen) if A is None else A
     killer.kill_round = combat.round
     combat_perks.on_kill(combat, killer, fallen, rng, echo=bool(killer.counters.get("echo_cast")))
-    if "thrall" in A and killer.side == "player" and fallen.side == "enemy" and not combat.thrall_used:
+    if "thrall" in A and killer.side == "player" and hostile(killer, fallen) and not combat.thrall_used:
         raise_thrall(combat, fallen)
     else:
         _sc.on_death(combat, fallen, killer)                # Reap, Pyre, Contagion: the marks that wait for death (f266, f268)
@@ -1663,7 +1670,7 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
     dfn.attacked_since_turn = True
     if att.weary:
         multiplier *= 1 + att.weary / 100
-    if "phantom" in D and not dfn.counters.get("phantom_used") and att.side != dfn.side:
+    if "phantom" in D and not dfn.counters.get("phantom_used") and hostile(att, dfn):
         dfn.counters["phantom_used"] = 1
         combat.log.append(f"{att.name} {label} {dfn.name}: passes through them like smoke (Phantom)")
         if rec is not None:
@@ -1686,18 +1693,18 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
         outcome = "crit"
         if rec is not None:
             rec["note"] = "First Blood: the first strike is always critical"
-    if att.counters.get("avenging") and att.side == "player" and att.side != dfn.side:
+    if att.counters.get("avenging") and att.side == "player" and hostile(att, dfn):
         att.counters.pop("avenging", None)
         outcome = "crit" if outcome == "crit" else "hit"
         multiplier *= 1 + mechanics(att, combat).get("avenger", 50) / 100
         if rec is not None:
             rec["note"] = "Avenger: this one cannot miss"
-    if "bladeward" in D and outcome != "miss" and att.reach in ("melee", "extended") and att.side != dfn.side \
+    if "bladeward" in D and outcome != "miss" and att.reach in ("melee", "extended") and hostile(att, dfn) \
             and dfn.counters.get("bladeward_round") != combat.round:
         dfn.counters["bladeward_round"] = combat.round
         multiplier *= 1 - D["bladeward"] / 100                  # Bladeward: the first blade each round is turned (f244)
         tell(combat, f"the ward around {who(dfn)} turns the worst of the blade (Bladeward)")
-    if outcome == "miss" and "enlarged" in D and att.side != dfn.side:
+    if outcome == "miss" and "enlarged" in D and hostile(att, dfn):
         outcome = "hit"                                # Enlarge: too big to miss
     if outcome == "graze" and "precision" in A:
         outcome = "hit"                                # Precision: no glancing blows (f235)
@@ -1708,7 +1715,7 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
         if rec is not None:
             rec["note"] = "Reliable: never misses, never crits"
     guide = dfn.counters.get("guided")
-    if outcome == "miss" and guide and guide != att.id and att.side != dfn.side:
+    if outcome == "miss" and guide and guide != att.id and hostile(att, dfn):
         dfn.counters.pop("guided", None)
         outcome = "hit"                            # Guiding Light (f268): an ally's next blow cannot miss
         if rec is not None:
@@ -1734,7 +1741,7 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
         if "flowing_step" in D:
             dfn.counters["flow"] = min(3, dfn.counters.get("flow", 0) + 1)
         if can_riposte and "riposte" in D and att.reach in ("melee", "extended") and att.alive and dfn.alive \
-                and att.side != dfn.side and dfn.counters.get("riposte_round") != combat.round:
+                and hostile(att, dfn) and dfn.counters.get("riposte_round") != combat.round:
             dfn.counters["riposte_round"] = combat.round               # the first blade that misses you each round is answered
             apply_damage(combat, dfn, att, 1.0, "ripostes against", rng, can_cleave=False, can_riposte=False,
                          how=f"answering the miss in a lightning riposte {weapon_phrase(dfn)}")
@@ -1742,14 +1749,14 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
     mult = hit_step(rec, 1.0, "Move power", multiplier)
     mult = hit_step(rec, mult, {"graze": "Glancing blow", "hit": "", "crit": "Critical hit"}[outcome], {"graze": 0.5, "hit": 1.0, "crit": crit_multiplier(att)}[outcome])
     mult = hit_step(rec, mult, "Weakened or strengthened", max(0.2, 1 + status_mod(att, "power") / 100))                  # poisoned or weakened attackers hit softer
-    if att.side != dfn.side:
+    if hostile(att, dfn):
         mult = hit_step(rec, mult, "Target marked", 1 + status_mod(dfn, "taken") / 100)                       # a marked target takes more
     if "empowered" in A:
         mult = hit_step(rec, mult, "Empowered", 1 + A["empowered"] / 100)
     rally = att.counters.pop("rallied", 0)
-    if rally and att.side != dfn.side:
+    if rally and hostile(att, dfn):
         mult = hit_step(rec, mult, "Rallying Light", 1 + rally / 100)
-    if "scented" in dfn.statuses and (fights_for_you(att) or att.summon_form) and att.side != dfn.side:
+    if "scented" in dfn.statuses and (fights_for_you(att) or att.summon_form) and hostile(att, dfn):
         from engine import spellcraft as _sc2
         mult = hit_step(rec, mult, "Pack Scent", 1 + _sc2.num(_sc2.EXPR["pack_scent"], "light", "pct", 30) / 100)
     if "enlarged" in A and att.reach in ("melee", "extended"):
@@ -1834,18 +1841,18 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
         if rest:
             rec["extras"].append(["Other last-moment effects", f"{rest:+d}"])
         rec["figure"] = figure(rec)
-    if att.side == "ally" and dfn.side == "enemy":
+    if att.side == "ally" and is_foe(dfn):
         dfn.counters["flanked"] = combat.round                             # an ally has struck it (Flanking)
     answers = in_fight(dfn)                              # (f772) a defender the blow felled or drove off answers nothing
-    if "frost_armor" in D and att.reach in ("melee", "extended") and att.alive and att.side != dfn.side and answers:
+    if "frost_armor" in D and att.reach in ("melee", "extended") and att.alive and hostile(att, dfn) and answers:
         if add_status(combat, att, "slowed", 2, dfn):     # 2: it holds through the attacker's next turn
             tell(combat, f"{who(att)} {vb(att, 'strike', 'strikes')} the ice around {who(dfn)} and the cold bites deep - {vb(att, 'you are', 'it is')} slowed (Frost Armor)")
-    if "thorn_pct" in D and att.reach in ("melee", "extended") and att.alive and att.side != dfn.side and answers:
+    if "thorn_pct" in D and att.reach in ("melee", "extended") and att.alive and hostile(att, dfn) and answers:
         back = D.get("thorn_flat", 0) + dfn.armor * D["thorn_pct"] / 100          # Thorns (buff): a little for anyone, a lot for the armored
         side_damage(combat, att, back, dfn, rng, "physical",
                     told=lambda d: f"{who(att)} {vb(att, 'are', 'is')} torn for {d} by the thorns around {who(dfn)} (Thorns)",
                     logged=lambda d: f"{att.name} is hurt by {dfn.name}'s thorns: {d}", harm="thorns")
-    if "thorns" in D and att.reach == "melee" and att.alive and att.side != dfn.side and answers:
+    if "thorns" in D and att.reach == "melee" and att.alive and hostile(att, dfn) and answers:
         floor = AT.T["thorns_floor"] * RULES["mitigation"]["armor_k"] * growth(att.level)
         back = max(dfn.armor, floor) * D["thorns"] / 100
         side_damage(combat, att, back, dfn, rng, "physical", told=lambda d: f"{who(att)} {vb(att, 'are', 'is')} hurt for {d} as the blow rebounds (Thorns)",
@@ -1978,7 +1985,7 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
             apply_damage(combat, att, min(others, key=lambda e: e.hp), A["many_heads"] / 100, "is struck by another head against", rng,
                          can_cleave=False, can_riposte=False, can_flurry=False, how="from the side, with another head of the beast (Many Heads)")
     if can_cleave and "follow_through" in A and not dfn.alive:
-        others = [e for e in (combat.enemies() if att.side != "enemy" else []) if e is not dfn and e.zone_id == att.zone_id]
+        others = [e for e in combat.foes_of(att) if e is not dfn and e.zone_id == att.zone_id]
         if others:
             from engine import battlefield as _bfc
             nxt = _bfc.closest(combat, att, others) or others[0]
@@ -2219,7 +2226,7 @@ def act_attack(combat: Combat, att: Fighter, target: Fighter, rng: random.Random
 def cleave_target(combat: Combat, att: Fighter, t: Fighter):
     """The one other enemy a cleaving blow carries into: someone else engaged with the attacker, else someone engaged with the target
     in the same place - the closest. None if there is no one."""
-    foes = [e for e in combat.fighters if e.alive and not e.fled and e is not t and (e.side == "enemy") != (att.side == "enemy")]
+    foes = [e for e in combat.fighters if e.alive and not e.fled and e is not t and hostile(att, e)]
     near = [e for e in foes if e.id in att.engaged_with] or [e for e in foes if e.zone_id == att.zone_id and e.id in t.engaged_with]
     if not near:
         return None
@@ -2411,15 +2418,15 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
         give = None                                    # only a blessing or a heal can go on someone else; a mana shield is your own
     if give:
         give = give[:1]                                # a blessing falls on one at a time (f217)
-    if att.side == "player" and target and target.side == "enemy":
+    if att.side == "player" and target and is_foe(target):
         combat.focus = target.id
     if move.effect == "relic":
         from engine import relics
         return relics.use(combat, att, move, target, rng)
     if move.effect == "damage" and move.reach != "area" and getattr(move, "spell_form", "") not in ("blast", "burst") \
             and move.martial_form != "counter":
-        aim = target or (combat.enemies()[0] if att.side != "enemy" and combat.enemies() else None)
-        if move.rider == "seeker" and att.side != "enemy" and combat.enemies():
+        aim = target or (combat.enemies()[0] if not is_foe(att) and combat.enemies() else None)
+        if move.rider == "seeker" and not is_foe(att) and combat.enemies():
             aim = min(combat.enemies(), key=lambda e: e.hp / max(1, e.max_hp))
         from engine import battlefield as bf
         access = bf.attack_access(combat, att, aim, move.reach) if aim else None
@@ -2939,6 +2946,25 @@ def bring_allies(combat: Combat) -> None:
     tell(combat, f"{names} burst{'s' if len(came) == 1 else ''} in from outside, answering the alarm")
 
 
+def foes_gone(combat: Combat, but: Fighter | None = None) -> bool:
+    """(f774) Whether the foes' side is gone: no foe stands that fights for it (but the one named) and no wave waits to come. The
+    turning law (combat_perks.turn_foe), the settling of the turned and the won fight ask it."""
+    return not any(e is not but for e in combat.enemies()) and not combat.reserves
+
+
+def won(combat: Combat) -> bool:
+    """(f774) Whether the fight is won: the foes' side gone (foes_gone; while it is not and none of it stands, the next wave comes
+    up), and the turned settled first (combat_perks.settle_turned), so a foe turned for a time is a foe again and the fight goes
+    on. Every check of a won fight asks it."""
+    if not foes_gone(combat):
+        if not combat.enemies():
+            muster(combat)
+        return False
+    from engine import combat_perks
+    combat_perks.settle_turned(combat)
+    return not combat.enemies()
+
+
 def muster(combat: Combat) -> bool:
     """Bring up the next wave from the reserves, at a distance. Returns True if anyone came."""
     if not combat.reserves:
@@ -3060,10 +3086,9 @@ def _pressed(combat: Combat, e: Fighter) -> str:
 def enemy_turn(combat: Combat, e: Fighter, rng: random.Random) -> None:
     if not takes_turn(combat, e):
         return                                         # (f769) down or gone since the round's order was made: no turn, and no line of one
-    if e.counters.get("turned") and e.counters.get("turned_until") is not None and e.counters["turned_until"] < combat.round:
-        e.counters.pop("turned", None)                 # Dominate (f268) wears off
-        e.counters.pop("turned_until", None)
-        tell(combat, f"the will on {who(e)} lifts, and it remembers its own side")
+    from engine import battlefield as bf
+    from engine import combat_perks
+    combat_perks.turn_back(combat, e, due=True)        # Dominate (f268) wears off
     if "numb_hands" in e.statuses and e.reach == "ranged":
         held_reach = e.reach
         e.reach = "melee"                              # Numb Hands (f268): it cannot draw or throw, so it comes in swinging
@@ -3071,8 +3096,7 @@ def enemy_turn(combat: Combat, e: Fighter, rng: random.Random) -> None:
             return enemy_turn(combat, e, rng)
         finally:
             e.reach = held_reach
-    if e.counters.get("turned"):                     # Dread Regent: it fights its old side now
-        from engine import combat_perks
+    if bf.turned(e):                                 # Dread Regent, Dominate: it fights its old side now
         if start_turn(e, combat, rng):
             combat_perks.turned_turn(combat, e, rng)
         return
@@ -3099,14 +3123,12 @@ def enemy_turn(combat: Combat, e: Fighter, rng: random.Random) -> None:
     if e.winding:
         resolve_telegraph(combat, e, rng)
         return
-    targets = combat.player_side()
-    targets = [t for t in targets if t.alive]
+    targets = [t for t in combat.foes_of(e) if reaches(combat, t, by=e)]   # (f774) whom a foe may strike: never one out of the fight
     if not targets:
         return
     held = mechanics(combat.player, combat)
-    bulwark = ("bulwark" in held or "taunt" in held) and combat.player.alive      # taunt: Distract draws every enemy onto you
-    target = combat.player if bulwark or rng.random() < 0.7 or len(targets) == 1 else rng.choice(targets[1:])
-    from engine import combat_perks
+    bulwark = ("bulwark" in held or "taunt" in held) and targets[0] is combat.player      # taunt: Distract draws every enemy onto you
+    target = targets[0] if bulwark or rng.random() < 0.7 or len(targets) == 1 else rng.choice(targets[1:])
     from engine import healing as _heal
     decided = combat_perks.pick_target(combat, e, targets, rng)             # a perk may decide it outright (Provoke, Pack Alpha)
     target = decided or _heal.attention_target(combat, e, rng) or target    # else healing draws the eye
@@ -3137,7 +3159,7 @@ def enemy_turn(combat: Combat, e: Fighter, rng: random.Random) -> None:
             target = rng.choice(mix)
             combat.log.append(f"{e.name} is befuddled and turns on {target.name}")
             tell(combat, f"{who(e)} lashes out blindly at {who(target)}")
-            if target.side == e.side:
+            if not hostile(e, target):
                 apply_damage(combat, e, target, 1.0, f"attacks ({e.weapon_name})", rng)
                 return
     if "frightened" in e.statuses and _pressed(combat, e) != "engaged" and "grappled" not in e.statuses:
@@ -3437,7 +3459,8 @@ def finish_round(combat: Combat, rng: random.Random) -> None:
         if combat.player.alive and not (combat.duel and combat.over):
             turn_in_round(combat, e, rng, had)
             _legendary(combat, rng)
-    for e in [f for f in combat.fighters if f.side == "enemy" and f.counters.get("turned")]:
+    from engine import battlefield as bf
+    for e in [f for f in combat.fighters if bf.turned(f)]:
         turn_in_round(combat, e, rng, had)             # Dread Regent, Dominate: the turned fight their old side
     mentor_script(combat, rng)
     bring_allies(combat)
@@ -3446,7 +3469,7 @@ def finish_round(combat: Combat, rng: random.Random) -> None:
         muster(combat)
     if not p.alive:
         combat.over = "defeat"
-    elif not combat.enemies() and not muster(combat):
+    elif won(combat):
         combat.over = "victory"
     combat.round += 1
 
@@ -3467,7 +3490,7 @@ def player_ai(combat: Combat, rng: random.Random) -> None:
         act_ability(combat, p, usable[0], target, rng)
     else:
         act_attack(combat, p, target, rng)
-    if not combat.enemies() and not muster(combat):
+    if won(combat):
         combat.over = "victory"
 
 

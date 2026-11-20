@@ -95,7 +95,8 @@ def pick_target(combat: C.Combat, e: C.Fighter, targets: list[C.Fighter], rng: r
 def on_outcome(combat: C.Combat, att: C.Fighter, dfn: C.Fighter, outcome: str, rec: dict | None) -> str:
     """The attack roll just made, forced by a perk: a sure crit from hiding, a sure hit from a charged heavy, a cue, a weave."""
     A = C.mechanics(att, combat, dfn)
-    if att.side == dfn.side:
+    from engine import battlefield as bf
+    if not bf.hostile(att, dfn):
         return outcome
     if "dread_ambusher" in A and ("unaware" in dfn.statuses or "concealed" in att.position_tags) and outcome != "crit":
         outcome = "crit"
@@ -124,7 +125,7 @@ def on_outcome(combat: C.Combat, att: C.Fighter, dfn: C.Fighter, outcome: str, r
         if rec is not None:
             rec["note"] = f"{tag(att, 'judgement')[1:-1]}: it hurt an ally, and the blow cannot miss"
         C.tell(combat, f"{C.who(dfn)} hurt one of {C.whose(att)} own, and judgement finds it {tag(att, 'judgement')}")
-    if "quarry" in A and att is p and dfn.side == "enemy":
+    if "quarry" in A and att is p and bf.is_foe(dfn):
         q = quarry_of(combat)
         if q is None or not q.alive or q.fled:
             E.put(combat, E.ActiveEffect(id="quarry", kind="quarry", family="mark", source=att.id, target=dfn.id))   # (f499) on the fight's row
@@ -138,7 +139,7 @@ def on_outcome(combat: C.Combat, att: C.Fighter, dfn: C.Fighter, outcome: str, r
             rec["note"] = f"{tag(att, 'steady_aim')[1:-1]}: steadied, the shot cannot miss"
         C.tell(combat, f"{C.who(att)} {C.vb(att, 'have', 'has')} not moved, and the shot is true {tag(att, 'steady_aim')}")
     if p is not None and p.alive and outcome in ("graze", "hit") and has(p, "coordinated_strike", combat) \
-            and dfn.side == "enemy" and dfn.counters.get("coord", -9) != combat.round \
+            and bf.is_foe(dfn) and dfn.counters.get("coord", -9) != combat.round \
             and ((att is p and dfn.counters.get("struck_a", -9) == combat.round)
                  or (att.side == "ally" and dfn.counters.get("struck_p", -9) == combat.round)):
         dfn.counters["coord"] = combat.round
@@ -176,7 +177,8 @@ def damage_mult(combat: C.Combat, att: C.Fighter, dfn: C.Fighter, mult: float, r
             mult = C.hit_step(rec, mult, tag(p, "war_drum")[1:-1], P["war_drum"]["mult"])
             C.tell(combat, f"{C.who(att)} strikes in the rhythm of {C.whose(p)} blow {tag(p, 'war_drum')}")
     if "thick_of_it" in A:
-        n = sum(1 for o in combat.fighters if o.alive and o.id in att.engaged_with and o.side != att.side)
+        from engine import battlefield as bf
+        n = sum(1 for o in combat.fighters if o.alive and o.id in att.engaged_with and bf.hostile(att, o))
         if n > 1:
             mult = C.hit_step(rec, mult, f"{tag(att, 'thick_of_it')[1:-1]} ({n} on you)", 1 + A["thick_of_it"] * (n - 1) / 100)
     if att.counters.get("blood_cast") and "overchannel" in att.mech_names:
@@ -191,7 +193,7 @@ def after_hit(combat: C.Combat, att: C.Fighter, dfn: C.Fighter, outcome: str, ta
     from engine import battlefield as bf
     p = player_of(combat)
     A = C.mechanics(att, combat, dfn)
-    if att.side == dfn.side:
+    if not bf.hostile(att, dfn):
         return
     if "thermal_shock" in A and C.reaches(combat, dfn) and taken > 0:          # (f772) what the blow set off is the blow
         el = att.hit_element or att.element
@@ -210,7 +212,7 @@ def after_hit(combat: C.Combat, att: C.Fighter, dfn: C.Fighter, outcome: str, ta
                 C.side_damage(combat, dfn, burst, att, rng, "magical", told=f"{el} meets its opposite in {C.who(dfn)} and both go off at once {tag(att, 'thermal_shock')}",
                               logged=lambda d: f"{dfn.name} suffers a thermal shock: {d}")
     conduct(combat, att, dfn, taken, rng)
-    if taken > 0 and dfn.side == "enemy":
+    if taken > 0 and bf.is_foe(dfn):
         if att is p:
             dfn.counters["struck_p"] = combat.round
         elif att.side == "ally":
@@ -250,7 +252,7 @@ def after_hit(combat: C.Combat, att: C.Fighter, dfn: C.Fighter, outcome: str, ta
         p.mana = min(p.max_mana, p.mana + back)
         C.tell(combat, f"{C.whose(att)} blow sends {round(back)} mana back up the bond {tag(p, 'bound_pair')}")
     if att is p:
-        if "provoke" in A and dfn.alive and dfn.side == "enemy":
+        if "provoke" in A and dfn.alive and bf.is_foe(dfn):
             dfn.counters["provoked"] = combat.round
         if "showstopper" in A and outcome == "crit":
             for a in combat.allies():
@@ -260,7 +262,7 @@ def after_hit(combat: C.Combat, att: C.Fighter, dfn: C.Fighter, outcome: str, ta
         if "war_drum" in A and att.counters.get("tier_now") == TIER_CODE["heavy"]:
             for a in combat.allies():
                 a.counters["drum"] = 1
-    elif att.side == "ally" and p is not None and p.alive and dfn.side == "enemy" and dfn.alive and "pack_tactics" in C.mechanics(p, combat) \
+    elif att.side == "ally" and p is not None and p.alive and bf.is_foe(dfn) and dfn.alive and "pack_tactics" in C.mechanics(p, combat) \
             and dfn.id in p.engaged_with and p.counters.get("pack_round") != combat.round \
             and bf.attack_access(combat, p, dfn).ok:
         p.counters["pack_round"] = combat.round
@@ -273,7 +275,7 @@ def on_kill(combat: C.Combat, att: C.Fighter | None, dfn: C.Fighter, rng: random
     """Something has fallen: the leap resets, the rot walks on, an echo rises, blood answers, the summon feeds."""
     from engine import battlefield as bf
     p = player_of(combat)
-    if p is None or dfn.side != "enemy":
+    if p is None or not bf.is_foe(dfn):
         return
     PM = C.mechanics(p, combat)
     if "plaguebearer" in PM:
@@ -374,7 +376,8 @@ def before_damage(combat: C.Combat, dfn: C.Fighter, amount: float, source: C.Fig
 
 def after_damage(combat: C.Combat, dfn: C.Fighter, dealt: int, source: C.Fighter | None) -> None:
     """A blow has landed: what the pain fuels."""
-    if dealt > 0 and source is not None and source.side == "enemy" and dfn.side == "ally":
+    from engine import battlefield as bf
+    if dealt > 0 and source is not None and bf.is_foe(source) and dfn.side == "ally":
         source.counters["hurt_ally"] = combat.round
     if dealt <= 0 or not dfn.alive:
         return
@@ -442,7 +445,8 @@ def on_status(combat: C.Combat, f: C.Fighter, status: str, rounds: int, source: 
             f.counters.pop("freezing", None)
         if froze:
             C.tell(combat, f"slowed twice over, {C.who(f)} {C.vb(f, 'grind', 'grinds')} to a halt {tag(source, 'deep_freeze')}")
-    if "mirror_plate" in F and status in ("stunned", "prone") and source is not None and source.alive and source.side != f.side \
+    from engine import battlefield as bf
+    if "mirror_plate" in F and status in ("stunned", "prone") and source is not None and source.alive and bf.hostile(source, f) \
             and not f.counters.get("mirroring"):
         f.counters["mirroring"] = 1
         try:
@@ -560,7 +564,8 @@ def after_cast(combat: C.Combat, att: C.Fighter, move: C.Move, target: C.Fighter
                 C.tell(combat, f"the mending carries on into {C.who(t)} ({half}) {tag(att, 'echoing_mend')}")
         if "consecration" in A:
             undead = [combat.get(i) for i in healed.engaged_with]
-            undead = [u for u in undead if u is not None and u.alive and u.category == "undead"]
+            from engine import battlefield as bf
+            undead = [u for u in undead if u is not None and u.alive and u.category == "undead" and bf.hostile(att, u)]
             if undead:
                 held, att.hit_element = att.hit_element, P["consecration"]["element"]
                 at = len(combat.story)                              # (f757) the searing is told before what it sets off
@@ -811,7 +816,8 @@ def sees_through_cover(fight, att: C.Fighter, dfn: C.Fighter) -> bool:
 def rust(combat: C.Combat, att: C.Fighter, dfn: C.Fighter, taken: float) -> None:
     """Curse of Rust: with no metal on you, each hit strips armor off them, stacking to a cap. (f772) Not off one who has left the
     fight or whom a floor held in the blow."""
-    if taken <= 0 or att.wears_metal or dfn.side == att.side or not has(att, "curse_of_rust", combat) or not C.reaches(combat, dfn):
+    from engine import battlefield as bf
+    if taken <= 0 or att.wears_metal or not bf.hostile(att, dfn) or not has(att, "curse_of_rust", combat) or not C.reaches(combat, dfn):
         return
     cap = int(P["curse_of_rust"]["cap"])
     n = dfn.counters.get("rust", 0)
@@ -886,29 +892,82 @@ def blood_summon(combat: C.Combat, att: C.Fighter, move: C.Move, rng: random.Ran
     return True
 
 
+def turn_foe(combat: C.Combat, f: C.Fighter, until: int | None, line: str, log: str = "", alone: str = "") -> bool:
+    """(f774) A foe turns on its own side, for a time (until: the last round of it) or for good (None): only a foe still in the fight,
+    and only while its side is not gone without it (combat.foes_gone: another foe not turned stands, or a wave waits), so turning
+    never wins a fight by itself; then `alone`, the caller's line for it, is told and nothing turns. Its ties end both ways (it was
+    tied to the side it now fights for), and the caller's line is told. True when it turned. Every way a foe is turned calls it."""
+    from engine import battlefield as bf
+    if not C.in_fight(f) or not bf.is_foe(f):
+        return False
+    if C.foes_gone(combat, but=f):
+        if alone:
+            C.tell(combat, alone)
+        return False
+    f.counters["turned"] = 1
+    if until is None:
+        f.counters.pop("turned_until", None)
+    else:
+        f.counters["turned_until"] = int(until)
+    bf.release(combat, f)
+    if log:
+        combat.log.append(log)
+    C.tell(combat, line)
+    return True
+
+
+def turn_back(combat: C.Combat, f: C.Fighter, due: bool = False) -> bool:
+    """(f774) A turned foe is a foe again: the mark taken off, its ties to those it fought while turned ended, and told once. due:
+    only when its time is up (a turn for a time, past its last round). True when it came back."""
+    from engine import battlefield as bf
+    end = bf.turned_until(f)
+    if not bf.turned(f) or (due and (end is None or end >= combat.round)):
+        return False
+    f.counters.pop("turned", None)
+    f.counters.pop("turned_until", None)
+    bf.release(combat, f)
+    C.tell(combat, f"the will on {C.who(f)} lifts, and it remembers its own side")
+    return True
+
+
+def settle_turned(combat: C.Combat) -> None:
+    """(f774) With their old side gone (combat.foes_gone: none of it stands and no wave waits), the turned are settled: each turned
+    for a time is a foe again (turn_back), so the fight goes on; then, if the side is still gone, each turned for good leaves by the
+    one way out, its old side broken. Asked before a fight is called won (combat.won) and at a turned foe's turn."""
+    from engine import battlefield as bf
+    if not C.foes_gone(combat):
+        return
+    turned = [x for x in combat.fighters if bf.turned(x) and C.in_fight(x)]
+    for f in turned:
+        if bf.turned_until(f) is not None:
+            turn_back(combat, f)
+    if not C.foes_gone(combat):
+        return
+    for f in turned:
+        if bf.turned(f) and C.leave(combat, f, "fled"):
+            C.tell(combat, f"{C.who(f)} flees, its old side broken")
+
+
 def turn_coat(combat: C.Combat, f: C.Fighter) -> bool:
-    """Dread Regent: the first enemy to break and run turns on its own side instead. True when it turned (it does not flee)."""
+    """Dread Regent: the first enemy to break and run turns on its own side instead, for good. True when it turned (it does not
+    flee)."""
     p = player_of(combat)
     if p is None or not p.alive or p.counters.get("regent") or not has(p, "dread_regent", combat) or f.boss:
         return False
-    if not any(e is not f for e in combat.enemies()):
+    if not turn_foe(combat, f, None, f"{C.who(f)} breaks - and instead of running, turns on its own side in terror {tag(p, 'dread_regent')}",
+                    log=f"{f.name} turns on its own side (Dread Regent)"):
         return False
     p.counters["regent"] = 1
-    f.counters["turned"] = 1
-    from engine import battlefield as bf
-    bf.release(combat, f)
-    combat.log.append(f"{f.name} turns on its own side (Dread Regent)")
-    C.tell(combat, f"{C.who(f)} breaks - and instead of running, turns on its own side in terror {tag(p, 'dread_regent')}")
     return True
 
 
 def turned_turn(combat: C.Combat, e: C.Fighter, rng: random.Random) -> None:
-    """A turned enemy's turn: it goes for the nearest of its former side, and leaves once none remain."""
+    """A turned enemy's turn: it goes for the nearest of those it fights now (Combat.foes_of: its old side); with none of them left,
+    the turned are settled (settle_turned)."""
     from engine import battlefield as bf
-    others = [o for o in combat.enemies() if o is not e]
+    others = [o for o in combat.foes_of(e) if C.reaches(combat, o, by=e)]
     if not others:
-        C.leave(combat, e, "fled")
-        C.tell(combat, f"{C.who(e)} flees, its old side broken")
+        settle_turned(combat)
         return
     t = bf.closest(combat, e, others) or others[0]
     if not bf.attack_access(combat, e, t).ok:

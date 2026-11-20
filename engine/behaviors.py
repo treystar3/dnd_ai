@@ -76,7 +76,7 @@ def _break(combat, f, surrender: bool) -> bool:
     else:
         combat.log.append(f"{f.name} flees")
         C.tell(combat, f"{C.who(f)} breaks and runs")
-    if f.side == "enemy":                               # (f663) the player is told, not only the narrator: it leaves the foes' list
+    if bf.is_foe(f):                                    # (f663) the player is told, not only the narrator: it leaves the foes' list
         from engine import told
         combat.told.append(told.say("foe_yields" if surrender else "foe_flees", combat.round, foe=f.name))
     return True
@@ -112,13 +112,14 @@ def morale_on_death(combat, fallen, rng: random.Random) -> None:
     """A fight's second way to end (engine: a death may rout the rest). The leader slain - nobody left stronger than the fallen - or a
     death that leaves half of them or more down, and each survivor who can break may break: the yielding yield, the rest run."""
     from engine import combat as C
-    if fallen.side != "enemy" or combat.duel:
+    from engine import battlefield as bf
+    if not bf.is_foe(fallen) or combat.duel:
         return
     M = C.RULES.get("morale") or {}
     living = [e for e in combat.enemies() if not C.held(combat, e)]       # (f770) one held to break counts as gone, as one that fled
     if not living:
         return
-    dead = [f for f in combat.fighters if f.side == "enemy" and not f.alive]
+    dead = [f for f in combat.fighters if bf.is_foe(f) and not f.alive]
     leader_fell = not any(e.level > fallen.level for e in living) and (fallen.rank in ("elite", "boss") or len(dead) + len(living) > 1)
     half_down = len(dead) >= len(living)
     if not leader_fell and not half_down:
@@ -188,7 +189,7 @@ def pre_turn(combat, e, target, rng: random.Random) -> bool:
 def _area(combat, e, rng, mult: float, label: str, intro: str) -> None:
     from engine import combat as C
     C.tell(combat, intro)
-    foes = [f for f in combat.player_side() if f.alive]
+    foes = combat.foes_of(e)                            # (f774) whom it may strike: never one out of the fight
     for t in foes:
         if not C.in_fight(e):
             break                                       # (f772) felled or driven off by its own blow (thorns): it breathes no more
@@ -233,7 +234,7 @@ def sweeps(combat, e, rng) -> bool:
     from engine import combat as C
     if not e.family or e.boss or not beh(e, "sweep"):
         return False
-    foes = [f for f in combat.player_side() if f.alive and C.in_reach(e, f)]
+    foes = [f for f in combat.foes_of(e) if C.in_reach(e, f)]
     if not foes:
         return False
     C.tell(combat, f"{C.who(e)} boils over everyone in reach at once")

@@ -1412,6 +1412,8 @@ def allowlist_problems(tables: dict | None = None, handled: dict | None = None, 
         need(eid in named or eid in compared, f"spellcraft.yaml expressions.{eid}: nothing in engine/spellcraft.py or engine/combat.py runs it")
     for eid in sorted(compared):
         need(eid in EXPR, f"engine/spellcraft.py handles an expression '{eid}' that spellcraft.yaml does not name")
+    if "dominate" in EXPR:                               # (f774) told when it lands on the last foe of its side and nothing turns
+        need(bool(EXPR["dominate"].get("alone")), "spellcraft.yaml expressions.dominate: no 'alone' line (engine/spellcraft.py tells it)")
     # relic powers
     AC = T.get("relics") or _load("data/rules/accessories.yaml")
     kinds_used: set[str] = set()

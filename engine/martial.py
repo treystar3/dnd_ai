@@ -136,7 +136,8 @@ def maneuver(combat, att, t, move, rng, contested: bool = False) -> bool:
 def control(combat, att, move, target, rng) -> None:
     """Martial control: the maneuver is the whole ability, contested with the technique's attributes; a partial success still
     lands it, a round shorter where it has rounds."""
-    enemies = [e for e in combat.fighters if e.alive and not e.fled and (e.side == "enemy") != (att.side == "enemy")]
+    from engine import battlefield as bf
+    enemies = [e for e in combat.fighters if e.alive and not e.fled and bf.hostile(att, e)]
     t = target if target is not None and target.alive else (enemies[0] if enemies else None)
     if t is None:
         C.tell(combat, f"{C.who(att)} {C.vb(att, 'look', 'looks')} for someone to use {move.name} on, but there is no one")
@@ -171,7 +172,8 @@ def control(combat, att, move, target, rng) -> None:
 # ---- forms --------------------------------------------------------------------------------------------------------------------
 
 def sweep_targets(combat, att, t) -> list:
-    foes = [e for e in combat.fighters if e.alive and not e.fled and (e.side == "enemy") != (att.side == "enemy")]
+    from engine import battlefield as bf
+    foes = [e for e in combat.fighters if e.alive and not e.fled and bf.hostile(att, e)]
     engaged = [e for e in foes if e.id in att.engaged_with]
     if t is not None and t.alive and t not in engaged and t.zone_id == att.zone_id:
         engaged = [t] + engaged
@@ -283,7 +285,7 @@ def ready_counter(combat, att, move) -> None:
 def countering(att, dfn) -> bool:
     """Whether this defender is ready to meet this attacker's blow (engaged, and its counter is still standing)."""
     from engine import battlefield as bf
-    return bool(dfn.counter_move) and (att.side == "enemy") != (dfn.side == "enemy") and bf.engaged_pair(att, dfn) and dfn.alive
+    return bool(dfn.counter_move) and bf.hostile(att, dfn) and bf.engaged_pair(att, dfn) and dfn.alive
 
 
 def strike_back(combat, dfn, att, rng) -> None:

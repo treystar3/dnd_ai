@@ -85,6 +85,19 @@ LEAVE_ALLOWED_FUNCTIONS = {("engine/combat.py", "leave")}
 LEAVE_EXEMPT = {
     ("engine/combat.py", "t.hp, t.shield, t.fled = float(t.max_hp), 0.0, False"),      # a thrall raised: a new fighter made, not one leaving
 }
+# (f774) The side rule: which side a fighter fights for now is engine/battlefield.py's (is_foe, hostile, kin), the turned mark read
+# there alone and written by the turning pair (engine/combat_perks.py turn_foe and turn_back). A comparison of two fighters' .side, or
+# the mark named, anywhere else fails, with no list of exceptions. In the engine, where the rules of harm live, a side compared with
+# "enemy" fails too (a foe turned keeps that name, so it is the one name turning changes the meaning of), but in a function named here
+# with its reason. A side compared with "ally" or "player" names a kind turning never changes; the fight's books in scenes/ and
+# services/ (who was killed, who yielded, what the narrator is shown) ask what a fighter came as.
+SIDE_ALLOWED_FILES = ("engine/battlefield.py",)
+SIDE_ALLOWED_FUNCTIONS = {("engine/combat_perks.py", "turn_foe"), ("engine/combat_perks.py", "turn_back")}
+TURNED_MARKS = ("turned", "turned_until")
+SIDE_NAME_DIRS = ("engine/",)
+SIDE_KIND_FUNCTIONS = {
+    ("engine/damage.py", "fall_line"): "the words of a fall follow what the fallen came as, not whom it fought for",
+}
 
 
 def _imports(tree: ast.AST) -> list[tuple[int, str]]:
@@ -367,6 +380,51 @@ def leave_exempt_missing() -> list[str]:
     """(f766) Every exempt write whose line no longer exists in its file: the list may only shrink."""
     return [f"{rel}: {text}" for rel, text in sorted(LEAVE_EXEMPT)
             if not (ROOT / rel).exists() or not any(l.strip() == text for l in (ROOT / rel).read_text(encoding="utf-8").split("\n"))]
+
+
+def _sided(node) -> bool:
+    """(f774) A fighter's side, or a comparison made with one."""
+    return (isinstance(node, ast.Attribute) and node.attr == "side") or \
+        (isinstance(node, ast.Compare) and any(_sided(x) for x in [node.left, *node.comparators]))
+
+
+def _names_enemy(node: ast.Compare) -> bool:
+    """(f774) A fighter's .side compared with "enemy" (alone, or in a tuple, list or set)."""
+    ops = [node.left, *node.comparators]
+    lit = lambda x: isinstance(x, ast.Constant) and x.value == "enemy" or \
+        isinstance(x, (ast.Tuple, ast.List, ast.Set)) and any(isinstance(e, ast.Constant) and e.value == "enemy" for e in x.elts)
+    return any(isinstance(x, ast.Attribute) and x.attr == "side" for x in ops) and any(lit(x) for x in ops)
+
+
+def side_problems_in(text: str, rel: str) -> list[str]:
+    """(f774) Every comparison of two fighters' sides (a.side == b.side, or each side's name compared), every side compared with
+    "enemy" in the engine outside the functions SIDE_KIND_FUNCTIONS names, and every naming of the turned mark, in one module's source
+    outside engine/battlefield.py and the turning pair, read from the syntax tree. Returns one 'file:line ...' for each."""
+    if rel in SIDE_ALLOWED_FILES:
+        return []
+    tree = ast.parse(text)
+    spans = [(n.lineno, n.end_lineno) for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and (rel, n.name) in SIDE_ALLOWED_FUNCTIONS]
+    kinds = [(n.lineno, n.end_lineno) for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and (rel, n.name) in SIDE_KIND_FUNCTIONS]
+    out = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Compare) and sum(1 for x in [node.left, *node.comparators] if _sided(x)) >= 2:
+            out.append(f"{rel}:{node.lineno} compares two fighters' sides (ask engine/battlefield.py hostile)")
+        elif isinstance(node, ast.Compare) and rel.startswith(SIDE_NAME_DIRS) and _names_enemy(node) \
+                and not any(a <= node.lineno <= b for a, b in kinds):
+            out.append(f"{rel}:{node.lineno} compares a side with \"enemy\" (ask engine/battlefield.py is_foe)")
+        elif isinstance(node, ast.Constant) and node.value in TURNED_MARKS and not any(a <= node.lineno <= b for a, b in spans):
+            out.append(f"{rel}:{node.lineno} names the turned mark (ask engine/battlefield.py turned)")
+    return sorted(set(out), key=lambda l: int(l.split(":")[1].split(" ")[0]))
+
+
+def side_problems() -> list[str]:
+    """(f774) The side rule over every game module (WRITE_SCAN_DIRS)."""
+    out = []
+    for d in WRITE_SCAN_DIRS:
+        for py in sorted((ROOT / d).glob("*.py")):
+            rel = py.relative_to(ROOT).as_posix()
+            out += side_problems_in(py.read_text(encoding="utf-8"), rel)
+    return out
 
 
 def _hp_target(t) -> bool:
