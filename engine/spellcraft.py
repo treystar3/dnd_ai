@@ -483,7 +483,7 @@ def _express_more(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> N
             C.tell(combat, f"{C.who(att)} {C.vb(att, 'fold', 'folds')} back into the shadows ({e['label']})")
     elif eid == "deaths_door" and dfn.alive and not dfn.boss and dfn.rank != "boss" and dfn.hp < dfn.max_hp * N("pct", 15) / 100:
         C.kill_outright(combat, dfn, att, rng,                  # (f773) the declared path: every floor holds it, the fall step ends it
-                        f"death reaches for {C.who(dfn)} and does not let go ({e['label']})", harm=ctx.get("harm"))
+                        f"death reaches for {C.who(dfn)} and does not let go ({e['label']})")
     elif eid == "life_theft" and dfn.alive:
         dfn.counters["life_theft"] = att.id
     # ---- radiant
@@ -1020,26 +1020,29 @@ def lay_curse(combat, att, dfn, move, mult: float, rng) -> None:
 
 
 def curse_turn(combat, f, rng=None) -> None:
+    """At the cursed one's turn start, each curse in turn is one harm in progress (engine/combat.py OpenHarm, called the curse, no
+    strike): its gnaw and what its expressions carry, so a floor that holds the gnaw holds all of that curse. The hold lasts that
+    curse's record alone: the next curse, and the caster's own strikes later in the turn, are each their own harm, as a tick is."""
     rng = rng or _RNG
     keep = []
     for c in f.curses:
         if not C.in_fight(combat, f):
             break                                           # (f772) fallen, or yielded to the curse before it
         maker = combat.get(c["by"])
-        held = maker.hit_element if maker is not None else ""
-        if maker is not None:
-            maker.hit_element = c.get("element", "")
-        dealt = C.side_damage(combat, f, c["per"], maker, rng, "magical", told=lambda d: f"{c['name']} gnaws at {C.who(f)} for {d}",
-                              logged=lambda d: f"{c['name']} gnaws at {f.name}: {d} damage", harm="curse")
-        if maker is not None:
-            maker.hit_element = held
-            hits = [e for e in c.get("exprs", []) if e in EXPR and not is_control(e)]
-            if hits and maker.alive:
-                maker.counters["last_hit"] = int(dealt)
-                maker.casting = {"exprs": hits, "tier": c["tier"], "name": c["name"], "once": [],
-                                 "harm": "curse"}                   # (f773) what carries them, for a floor's line
-                on_hit(combat, maker, f, dealt, rng)
-                end(maker)
+        with C.in_progress(combat, C.OpenHarm(maker, f, harm="curse", strike=False, tail=True)):   # (f773) its fall is paid at once
+            held = maker.hit_element if maker is not None else ""
+            if maker is not None:
+                maker.hit_element = c.get("element", "")
+            dealt = C.side_damage(combat, f, c["per"], maker, rng, "magical", told=lambda d: f"{c['name']} gnaws at {C.who(f)} for {d}",
+                                  logged=lambda d: f"{c['name']} gnaws at {f.name}: {d} damage")
+            if maker is not None:
+                maker.hit_element = held
+                hits = [e for e in c.get("exprs", []) if e in EXPR and not is_control(e)]
+                if hits and maker.alive:
+                    maker.counters["last_hit"] = int(dealt)
+                    maker.casting = {"exprs": hits, "tier": c["tier"], "name": c["name"], "once": []}
+                    on_hit(combat, maker, f, dealt, rng)
+                    end(maker)
         c["left"] -= 1
         if c["left"] > 0:
             keep.append(c)

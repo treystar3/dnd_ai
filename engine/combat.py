@@ -433,7 +433,7 @@ class Combat(BaseModel):
     felled_by: dict[str, str] = {}  # (f412) who struck each fallen fighter down, as the story names them: a night's narration gave a
                                     # pirate's killing blow on a companion to the player's own blade
     purpose: Purpose | None = None  # (f765) a chamber, a camp, the Keeper, a town's gate: none for a fight for nothing beyond itself
-    _open: list = PrivateAttr(default_factory=list)  # (f768, f770) in progress, innermost last (OpenAction, OpenBlow): never in the row
+    _open: list = PrivateAttr(default_factory=list)  # (f768, f770) in progress, innermost last (OpenAction, OpenHarm): never in the row
     ONE_OF_THE_FIGHT: ClassVar[tuple[str, ...]] = ("mentor_ally",)             # (f643) held by name while also in `fighters`
     NOT_YET_IN_IT: ClassVar[tuple[str, ...]] = ("reserves", "ally_reserves")   # (f643) they leave their list as they enter
 
@@ -1024,37 +1024,41 @@ def in_fight(combat: Combat | None, f: Fighter) -> bool:
 
 
 def reaches(combat: Combat | None, f: Fighter, by: Fighter | None = None) -> bool:
-    """(f772) Whether harm can still reach this fighter: in the fight, not held by a floor in the blow in progress, and not held by a
-    floor in an earlier strike of the same striker's on it in this action. A floor that holds a blow holds the whole of it (its torn
-    wound, its riders, a gear element's damage, a Death's Door it sets off), and one striker's strikes on one target in one action
-    (a flurry, a volley, a follow-through, a perk's repeat) are one blow; another striker's blow is its own. by: the striker of a strike
-    about to begin, when no blow is open yet. Every damage path, side_damage, add_status and the blow's own riders ask it."""
-    blow = blow_now(combat)
-    if blow is not None and any(x is f for x in blow.floored):
+    """(f772) Whether harm can still reach this fighter: in the fight, not held by a floor in the harm in progress, and, for a strike,
+    not held by a floor in an earlier strike of the same striker's on it in this action (may_strike). A floor that holds a harm holds
+    the whole of it, whatever carries it: a blow's torn wound, its riders, a gear element's damage, a Death's Door it sets off; a
+    curse's Death's Door. One striker's strikes on one target in one action (a flurry, a volley, a follow-through, a perk's repeat)
+    are one blow; another striker's is its own, and so is a harm that is no strike (a curse's turn, a tick). by: the striker of a
+    strike about to begin, when no harm is open yet. Every damage path, side_damage, add_status and the blow's own riders ask it."""
+    now = harm_now(combat)
+    if now is not None and any(x is f for x in now.floored):
         return False
-    by = by if by is not None else (blow.att if blow is not None and blow.dfn is f else None)
-    act = open_action(combat) if by is not None else None
-    if act is not None and any(a is by and d is f for a, d in act.floored):
-        return False
-    return in_fight(combat, f)
+    by = by if by is not None else (now.att if now is not None and now.strike and now.dfn is f else None)
+    return may_strike(combat, by, f) if by is not None else in_fight(combat, f)
 
 
-def hold_in_blow(combat: Combat | None, f: Fighter) -> None:
-    """(f772) A floor has held this fighter: noted on the blow in progress (the innermost) for as long as it lasts and, when it was
-    that blow's target, on the action in progress against that blow's striker."""
-    blow = blow_now(combat)
-    if blow is None:
-        return
-    if not any(x is f for x in blow.floored):
-        blow.floored.append(f)
+def may_strike(combat: Combat | None, att: Fighter, dfn: Fighter) -> bool:
+    """(f773) Whether a strike of att's on dfn may begin: dfn still in the fight, and no floor held it in an earlier strike of att's on
+    it in this action. What the head of a blow asks (through reaches); a readied counter and a riposte ask it before they are told or
+    spent, and a counter meets only a blow it may answer."""
     act = open_action(combat)
-    if act is not None and f is blow.dfn and not any(a is blow.att and d is f for a, d in act.floored):
-        act.floored.append((blow.att, f))
+    if act is not None and any(a is att and d is dfn for a, d in act.floored):
+        return False
+    return in_fight(combat, dfn)
 
 
-def blow_now(combat: Combat | None):
-    """(f772) The innermost blow in progress on this fight, or None."""
-    return next((o for o in reversed(getattr(combat, "_open", None) or []) if isinstance(o, OpenBlow)), None)
+def hold_in_harm(combat: Combat | None, f: Fighter) -> None:
+    """(f772) A floor has held this fighter: noted on the harm in progress (the innermost) for as long as it lasts and, when it was
+    the target of a strike (a blow), on the action in progress against that strike's striker. A harm that is no strike (a curse's
+    turn) notes nothing on the action: its hold lasts its own record."""
+    now = harm_now(combat)
+    if now is None:
+        return
+    if not any(x is f for x in now.floored):
+        now.floored.append(f)
+    act = open_action(combat)
+    if act is not None and now.strike and f is now.dfn and not any(a is now.att and d is f for a, d in act.floored):
+        act.floored.append((now.att, f))
 
 
 def takes_turn(combat: Combat | None, f: Fighter) -> bool:
@@ -1476,8 +1480,8 @@ def side_damage(combat: Combat, dfn: Fighter, amount: float, source: Fighter | N
     a function of what was dealt, "" to tell nothing) go before whatever the damage set off. Returns what was dealt. (f772) Harm that
     cannot reach its fighter (reaches) deals nothing and tells nothing; harm names it for a floor's line (a key of combat.yaml
     harms; none, and the floor says "that", after the caller's own line)."""
-    if dfn.alive and not reaches(combat, dfn):
-        return 0
+    if not reaches(combat, dfn):
+        return 0                                           # (f773) the dead too: no floor raises one who has left
     at, log_at = len(combat.story), len(combat.log)
     dealt = take_damage(combat, dfn, amount, source, rng, damage_type, cause=cause, harm=harm)
     line = logged(dealt) if callable(logged) else logged
@@ -1489,18 +1493,17 @@ def side_damage(combat: Combat, dfn: Fighter, amount: float, source: Fighter | N
     return dealt
 
 
-def kill_outright(combat: Combat, dfn: Fighter, source: Fighter | None, rng: random.Random, told: str,
-                  harm: str | None = None) -> bool:
+def kill_outright(combat: Combat, dfn: Fighter, source: Fighter | None, rng: random.Random, told: str) -> bool:
     """(f773) A harm that ends a fighter with no blow's arithmetic (Death's Door): the kill outright's declared path (stages.yaml
     outright), all the health it has, past any armour, ward or barrier, meeting every floor the table gives it, then the fall step.
-    The caller's line is told only when it ends them, before what their fall sets off; a floor that holds tells its own. harm: what
-    carries it when no blow does (a key of combat.yaml harms: a curse), as side_damage's; a blow's own is the blow, and with neither the
-    path's own word. Returns whether it ended them."""
+    The caller's line is told only when it ends them, before what their fall sets off; a floor that holds tells its own, naming the
+    harm by what carries it (the source's harm in progress on them: a blow, a curse), or by the path's own word with none. Returns
+    whether it ended them."""
     from engine import damage
     if not reaches(combat, dfn):
         return False
     at = len(combat.story)
-    damage.resolve("outright", combat, dfn, dfn.hp, source, rng, harm=harm)
+    damage.resolve("outright", combat, dfn, dfn.hp, source, rng)
     if dfn.alive:
         return False
     tell(combat, told, at=at)
@@ -1514,10 +1517,10 @@ def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, 
     it lands weakened, and the defender strikes back (engine/martial.py). riders(landed): what the blow carries besides its damage (a
     family's venom, a slam's stun), run last and as part of the blow, so a floor that held the blow holds them too."""
     from engine import martial
-    meet = martial.countering(att, dfn)
+    meet = martial.countering(att, dfn, combat)
     if meet:
         multiplier *= martial.FORMS["counter"]["weaken"]
-    blow = OpenBlow(att, dfn)
+    blow = OpenHarm(att, dfn)
     with in_progress(combat, blow):                        # (f768) the blow in progress, held on the fight and never in its row
         landed = _apply_damage(combat, att, dfn, multiplier, label, rng, can_cleave, can_riposte, how, can_flurry, reliable, blow=blow)
     if blow.fell and not blow.tail:
@@ -1532,11 +1535,17 @@ def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, 
 
 
 @dataclass(eq=False)
-class OpenBlow:
-    """(f768) A blow in progress: its striker and its target, whether its tail has run, and whether its target fell inside it and by
-    whose doing. The fall step notes such a fall here; the blow's tail pays it. (f772) floored: whom a floor has held in it."""
-    att: Fighter
+class OpenHarm:
+    """(f768) A harm in progress that carries more than its own damage, whatever carries it (f773): a blow, or a curse's turn at its
+    target's turn start. Its striker and its target; the word a floor's line calls it (a key of combat.yaml harms); whether it is a
+    strike (a blow is; a curse's turn is not, so a floor's hold on it lasts this record and notes nothing on the action, as a tick's);
+    whether its tail has run, so that a fall of its target is paid at once (a curse's turn has no tail to come: it opens with it run);
+    and whether its target fell inside it and by whose doing. The fall step notes such a fall here; the tail pays it. (f772) floored:
+    whom a floor has held in it."""
+    att: Fighter | None
     dfn: Fighter
+    harm: str = "blow"
+    strike: bool = True
     tail: bool = False
     fell: bool = False
     by: Fighter | None = None
@@ -1545,7 +1554,7 @@ class OpenBlow:
 
 @contextlib.contextmanager
 def in_progress(combat: Combat, rec):
-    """(f770) What is in progress on the fight (an OpenAction, an OpenBlow): held on its private list for the block, and taken off
+    """(f770) What is in progress on the fight (an OpenAction, an OpenHarm): held on its private list for the block, and taken off
     however the block ends."""
     combat._open.append(rec)
     try:
@@ -1554,9 +1563,11 @@ def in_progress(combat: Combat, rec):
         combat._open.remove(rec)
 
 
-def open_blow(combat: Combat, f: Fighter) -> OpenBlow | None:
-    """(f768) The innermost blow in progress on this fighter whose tail has not run, or None."""
-    return next((o for o in reversed(getattr(combat, "_open", None) or []) if isinstance(o, OpenBlow) and o.dfn is f and not o.tail), None)
+def harm_now(combat: Combat | None, on: Fighter | None = None) -> OpenHarm | None:
+    """(f773) The harm in progress: the innermost on this fight, or with `on` the innermost on that fighter; None when there is none.
+    reaches, a floor's hold and a floor's word read the first; the fall step reads the second, to leave a fall to its harm's tail."""
+    return next((o for o in reversed(getattr(combat, "_open", None) or []) if isinstance(o, OpenHarm) and (on is None or o.dfn is on)),
+                None)
 
 
 @dataclass(eq=False)
@@ -1673,7 +1684,7 @@ def credit(combat: Combat, killer: Fighter | None, fallen: Fighter, rng: random.
 
 def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, label: str, rng: random.Random,
                   can_cleave: bool = True, can_riposte: bool = True, how: str = "", can_flurry: bool = True,
-                  reliable: bool = False, blow: OpenBlow | None = None) -> bool:
+                  reliable: bool = False, blow: OpenHarm | None = None) -> bool:
     if not reaches(combat, dfn):
         return False                                        # (f763) no blow starts on one who is down or gone: no die, no second fall;
     #                                                         (f772) nor on one a floor held in this striker's earlier strike this action
@@ -1768,8 +1779,8 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
             dfn.windwalker_ready = True
         if "flowing_step" in D:
             dfn.counters["flow"] = min(3, dfn.counters.get("flow", 0) + 1)
-        if can_riposte and "riposte" in D and att.reach in ("melee", "extended") and att.alive and dfn.alive \
-                and hostile(att, dfn) and dfn.counters.get("riposte_round") != combat.round:
+        if can_riposte and "riposte" in D and att.reach in ("melee", "extended") and may_strike(combat, dfn, att) and dfn.alive \
+                and hostile(att, dfn) and dfn.counters.get("riposte_round") != combat.round:    # (f773) never spent on one out of reach
             dfn.counters["riposte_round"] = combat.round               # the first blade that misses you each round is answered
             apply_damage(combat, dfn, att, 1.0, "ripostes against", rng, can_cleave=False, can_riposte=False,
                          how=f"answering the miss in a lightning riposte {weapon_phrase(dfn)}")

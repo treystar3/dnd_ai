@@ -280,16 +280,22 @@ def ready_counter(combat, att, move) -> None:
     C.tell(combat, f"{C.who(att)} {C.vb(att, 'settle', 'settles')} into {move.name}, waiting for someone to come at {'you' if att.side == 'player' else 'it'}")
 
 
-def countering(att, dfn) -> bool:
-    """Whether this defender is ready to meet this attacker's blow (engaged, and its counter is still standing)."""
+def countering(att, dfn, combat=None) -> bool:
+    """Whether this defender is ready to meet this attacker's blow (engaged, and its counter is still standing). (f773) With the fight,
+    only a blow it may answer (combat.may_strike): an attacker it cannot strike now is not met, and the counter stays."""
     from engine import battlefield as bf
-    return bool(dfn.counter_move) and bf.hostile(att, dfn) and bf.engaged_pair(att, dfn) and dfn.alive
+    return bool(dfn.counter_move) and bf.hostile(att, dfn) and bf.engaged_pair(att, dfn) and dfn.alive \
+        and (combat is None or C.may_strike(combat, dfn, att))
 
 
 def strike_back(combat, dfn, att, rng) -> None:
+    """The readied counter answers the blow it met: told and spent only when its attacker can still be struck (combat.may_strike); an
+    attacker out of reach by then (fallen, fled, yielded, gone) leaves it untold and standing."""
+    if dfn.alive and not C.may_strike(combat, dfn, att):
+        return                                          # (f773) no line of a strike that cannot land, and nothing spent on it
     move = C.Move(**dfn.counter_move)
     dfn.counter_move = {}
-    if not att.alive or not dfn.alive:
+    if not dfn.alive:
         return
     mult = (move.power or C.RULES["damage"]["multiplier"][move.tier]) * FORMS["counter"]["mult"]
     C.tell(combat, f"{C.who(dfn)} {C.vb(dfn, 'meet', 'meets')} it with {move.name}")

@@ -1379,6 +1379,32 @@ def creature_categories() -> set[str]:
     return set((combat.RULES.get("creatures") or {}).get("natural_armor") or {})
 
 
+EXPR_NAMES = ("element", "kind")                                     # (f773) ids the engine reads, not words anyone is told
+
+
+def expression_words_problems(EXPR: dict) -> list[str]:
+    """(f773) The placeholders in every spellcraft expression's words: its card (`text`) is filled with its own numbers (a flat number
+    or a table by tier, and `cap`), so a placeholder in it is one of those; every other line it has (its `label`, told as "(label)",
+    `depict`, Dominate's `alone`, any later one) is told as it stands, so it holds none. A dash in them is data_words_problems' (f621)."""
+    import string
+    out = []
+    for eid, row in EXPR.items():
+        row = row if isinstance(row, dict) else {}
+        fill = {"cap"} | {k for k, v in row.items() if isinstance(v, dict) or (isinstance(v, (int, float)) and not isinstance(v, bool))}
+        for key, line in row.items():
+            if not isinstance(line, str) or key in EXPR_NAMES:
+                continue
+            try:
+                names = {n for _, n, _, _ in string.Formatter().parse(line) if n is not None}
+            except ValueError as x:
+                names = {f"(unreadable: {x})"}
+            allowed = fill if key == "text" else set()
+            if names - allowed:
+                out.append(f"spellcraft.yaml expressions.{eid}.{key}: unknown placeholder {sorted(names - allowed)} in {line!r}"
+                           + ("" if key == "text" else " (it is told as it stands)"))
+    return out
+
+
 ALLOW_TABLES = ("legendary", "expressions", "relics", "summons", "bosses", "martial", "movement", "healing", "mechanics")
 
 
@@ -1412,6 +1438,7 @@ def allowlist_problems(tables: dict | None = None, handled: dict | None = None, 
         need(eid in named or eid in compared, f"spellcraft.yaml expressions.{eid}: nothing in engine/spellcraft.py or engine/combat.py runs it")
     for eid in sorted(compared):
         need(eid in EXPR, f"engine/spellcraft.py handles an expression '{eid}' that spellcraft.yaml does not name")
+    out += expression_words_problems(EXPR)
     if "dominate" in EXPR:                               # (f774) told when it lands on the last foe of its side and nothing turns
         need(bool(EXPR["dominate"].get("alone")), "spellcraft.yaml expressions.dominate: no 'alone' line (engine/spellcraft.py tells it)")
     # relic powers

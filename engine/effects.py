@@ -305,10 +305,10 @@ class Landing:
 
 
 def reached(l: Landing):
-    """(f772) Nothing lands on one who has left the fight, nor on one a floor has held in the blow in progress (engine/combat.py
-    reaches): a floor that holds a blow holds all it carries."""
+    """(f772) Nothing lands on one who has left the fight, the dead among them, nor on one a floor has held in the harm in progress
+    (engine/combat.py reaches): a floor that holds a harm holds all it carries."""
     from engine import combat as C
-    if l.f.alive and not C.reaches(l.combat, l.f):
+    if not C.reaches(l.combat, l.f):
         return False
 
 

@@ -9,8 +9,9 @@ left to land). The retribution and spellmirror rebound runs the rebound path, wh
 every death ends in, whatever killed.
 
 (f772) The floors under the health bar are one table (stages.yaml floors), every path held to it: the same floor stages run on every
-path, reading what is about to land through one accessor (Blow.landing). A floor that holds notes its fighter on the blow in progress
-(engine/combat.py hold_in_blow), and the rest of that blow takes nothing from it (reaches): a floor that holds a blow holds all of it.
+path, reading what is about to land through one accessor (Blow.landing). A floor that holds notes its fighter on the harm in progress
+(engine/combat.py hold_in_harm: a blow, or a curse's turn), and the rest of that harm takes nothing from it (reaches): a floor that
+holds a harm holds all it carries. Nothing lands on one who has left the fight, the dead included.
 
 (f505) take_damage is resolve("blow"), the tick in start_turn resolve("dot_tick"), afflictions.tear resolve("tear") and the rebound
 stage resolve("rebound"): one calculation, its value and its explanation from the declared recipe; the fight fixtures (93 cases, none
@@ -276,7 +277,7 @@ def rounded(b: Blow) -> bool:
 
 PATH_HARM = {"blow": "blow", "tear": "blow", "rebound": "rebound",   # (f772) a torn wound is its blow's; a tick's harm is its status
              "outright": "outright"}
-CARRIED = {"blow": "unnamed", "outright": "outright"}   # (f773) paths a blow may carry, and the word when no carrier is named
+CARRIED = {"blow": "unnamed", "outright": "outright"}   # (f773) paths a harm in progress may carry, and the word when none is named
 
 
 def harm(b: Blow) -> str:
@@ -286,9 +287,9 @@ def harm(b: Blow) -> str:
 
 
 def _held(b: Blow) -> bool:
-    """(f772) A floor has held this fighter: noted on the blow in progress, so the rest of that blow takes nothing from it. Ends the
+    """(f772) A floor has held this fighter: noted on the harm in progress, so the rest of that harm takes nothing from it. Ends the
     path."""
-    C.hold_in_blow(b.combat, b.dfn)
+    C.hold_in_harm(b.combat, b.dfn)
     return False
 
 
@@ -307,13 +308,16 @@ def duel_decided(combat: C.Combat, d: C.Fighter) -> None:
 
 
 def duel_floor(b: Blow) -> bool:
+    """A trial's duellist is held at one by any harm that would end them. The harm that decides the trial is told, once; a harm after
+    it (a second curse, a tick) is held silently, the trial already decided."""
     d, combat = b.dfn, b.combat
     if duel_holds(combat, d) and b.landing >= d.hp:
         d.hp = 1
-        duel_decided(combat, d)
-        C.tell(combat, f"{harm(b)} that would have ended {C.who(d)} is pulled short, and the duel is decided" if b.harm == "blow" else
-               f"the trial is called before {C.who(d)} can fall, and the duel is decided" if b.harm == "unnamed" else
-               f"the trial is called before {harm(b)} can end {C.who(d)}, and the duel is decided")
+        if not combat.over:                                # (f773) the trial is decided once, and told once
+            duel_decided(combat, d)
+            C.tell(combat, f"{harm(b)} that would have ended {C.who(d)} is pulled short, and the duel is decided" if b.harm == "blow" else
+                   f"the trial is called before {C.who(d)} can fall, and the duel is decided" if b.harm == "unnamed" else
+                   f"the trial is called before {harm(b)} can end {C.who(d)}, and the duel is decided")
         return _held(b)
     return True
 
@@ -396,7 +400,7 @@ def yields_floor(b: Blow) -> bool:
     d = b.dfn
     if d.yields_at and b.landing >= d.hp:
         b.landing = max(0, round(d.hp) - 1)
-        C.hold_in_blow(b.combat, d)
+        C.hold_in_harm(b.combat, d)
     return True
 
 
@@ -530,12 +534,13 @@ HEALTH = ("health", "tick_health", "tear_health", "rebound_health")   # the stag
 def fall_step(combat: C.Combat, f: C.Fighter, cause: C.Fighter | None, rng: random.Random | None = None, how: str | None = None,
               dot: str = "") -> None:
     """(f768) A fighter has fallen: told by its cause and felled_by set, a summon unmade, every tie released, a boss's last words, the
-    rout for a foe, Avenger for an ally, and the kill credited (engine/combat.py credit), at once or, for the target of a blow in
-    progress, at that blow's tail. rng: the blow's die on its path, else the death's keyed die. how: blow, harm, rebound or tick;
-    when not given, a blow if the blow in progress on the fallen is the cause's."""
+    rout for a foe, Avenger for an ally, and the kill credited (engine/combat.py credit), at once or, for the target of a harm in
+    progress whose tail is still to come (a blow's), at that tail. rng: the blow's die on its path, else the death's keyed die. how:
+    blow, harm, rebound or tick; when not given, a blow if the blow in progress on the fallen is the cause's."""
     from engine import battlefield as bf
     from engine import behaviors, streams
-    held = C.open_blow(combat, f)
+    held = C.harm_now(combat, on=f)
+    held = held if held is not None and not held.tail else None   # (f773) its tail run, or none to come (a curse's): paid at once
     how = how or ("blow" if held is not None and cause is held.att else "harm")
     named = cause if cause is not None and cause is not f else None
     rng = rng or streams.keyed("morale", f.id, combat.serial, combat.round)
@@ -602,16 +607,16 @@ STAGES: dict[str, Callable[[Blow], bool]] = {
 
 
 def _harm_key(combat, path: str, dfn, source, dot: str, harm: str | None) -> str:
-    """(f772) What this harm is called: a tick by its status, a torn wound and a rebound by their path; on a path a blow may carry (the
-    blow's, a kill outright's) the blow's own when its striker's blow on its target is in progress, else what the caller named (its
-    carrier: a curse), else the path's own word (CARRIED)."""
+    """(f772) What this harm is called: a tick by its status, a torn wound and a rebound by their path; on a path a harm in progress
+    may carry (the blow's, a kill outright's), that harm's own word when its striker's harm on its target is in progress (the blow, the
+    curse: engine/combat.py harm_now), else what the caller named (side harm: the thorns), else the path's own word (CARRIED)."""
     if path == "dot_tick":
         return dot
     if path not in CARRIED:
         return PATH_HARM[path]
-    blow = C.blow_now(combat)
-    if blow is not None and blow.att is source and blow.dfn is dfn:
-        return "blow"
+    now = C.harm_now(combat)
+    if now is not None and now.att is source and now.dfn is dfn:
+        return now.harm
     return harm or CARRIED[path]
 
 
@@ -622,11 +627,11 @@ def resolve(path: str, combat: C.Combat, dfn: C.Fighter, amount: float, source: 
     dealt. `rec` is the blow's record (every stage that changed the figure writes its name into it); `dot` the affliction of a tick;
     `deep` and `by` a torn wound's depth and the perk that deepened it. (f768) `cause`: whose kill a death on this path is, when not
     the source (a tick's layer, a torn wound's striker, Unraveled's layer); None names nobody. (f772) Nothing lands on one who has
-    left the fight or whom a floor has held in the blow in progress (engine/combat.py reaches); with no fight, no floor stands.
-    `harm`: what side harm on the blow's path is called (a key of combat.yaml harms; None, a harm with no word of its own); the blow's
-    own harm, and everything it carries, is the blow."""
-    if dfn.alive and not C.reaches(combat, dfn):
-        return 0
+    left the fight, the dead among them, or whom a floor has held in the harm in progress (engine/combat.py reaches); with no fight,
+    no floor stands. `harm`: what side harm on the blow's path is called (a key of combat.yaml harms; None, a harm with no word of its
+    own); the harm in progress's own, and everything it carries, is its word (the blow, the curse)."""
+    if not C.reaches(combat, dfn):
+        return 0                                           # (f773) the dead too: no floor raises one who has left
     b = Blow(combat, dfn, amount, source, rng, damage_type, rec, dot=dot, deep=deep, by=by, path=path,
              cause=source if cause is C.AS_SOURCE else cause, harm=_harm_key(combat, path, dfn, source, dot, harm))
     b.L = C.mechanics(dfn, combat, source)
