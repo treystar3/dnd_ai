@@ -79,7 +79,7 @@ SIM_CANON = 0.62                             # a new claim this close to somethi
 # (f527) How freely the model writes, by job, is data: data/rules/sampling.yaml (tasks, base, retry_temperature_step), in the data
 # hash like every other number the game plays by. SAMPLING is its task table (llm/sampling.py resolve lays SAMPLING_BASE under a
 # task's own values on a request to llama-server); DND_TEMP_ADD and DND_REPEAT_ADD above shift it for a night.
-_SAMPLING_FILE = __import__("yaml").safe_load((__import__("pathlib").Path(__file__).resolve().parent / "data" / "rules" / "sampling.yaml").read_text(encoding="utf-8"))
+_SAMPLING_FILE = __import__("core.yamlio", fromlist=["safe_load"]).safe_load((__import__("pathlib").Path(__file__).resolve().parent / "data" / "rules" / "sampling.yaml").read_text(encoding="utf-8"))
 SAMPLING = {t: dict(v or {}) for t, v in (_SAMPLING_FILE.get("tasks") or {}).items()}
 SAMPLING_BASE = dict(_SAMPLING_FILE.get("base") or {})
 RETRY_TEMPERATURE_STEP = float(_SAMPLING_FILE.get("retry_temperature_step") or 0.15)

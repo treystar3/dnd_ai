@@ -95,7 +95,8 @@ check("...a kind's unknown family, a deltas row combat.yaml does not hold, an un
       any("slowed" in p and "mood" in p for p in found) and any("burning" in p and "smoke" in p for p in found) and any("quarry" in p and "never" in p for p in found), found)
 cb2 = copy.deepcopy(CB); cb2["statuses"]["dizzy"] = {"accuracy": -5}
 check("...and a status row with no kind", any("statuses.dizzy" in p for p in data_check.tables_problems(CB=cb2)), data_check.tables_problems(CB=cb2))
-check("the startup check carries the tables", data_check.check() == [], data_check.check())
+startup_found = data_check.check()
+check("the startup check carries the tables", startup_found == [], startup_found)
 
 # ---- the kinds
 try:

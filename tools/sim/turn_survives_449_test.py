@@ -44,7 +44,8 @@ config.CRASH_LOG_PATH = f"saves/{SAVE}/crash.log"
 config.TURN_LOG_PATH = f"saves/{SAVE}/turns.jsonl"
 config.TURN_LOG = True
 
-check("the data (failure lines, doings' places, hygiene's reasons) checks clean", data_check.check() == [], data_check.check()[:3])
+startup_found = data_check.check()
+check("the data (failure lines, doings' places, hygiene's reasons) checks clean", startup_found == [], startup_found[:3])
 
 # ---- the gateway: anything the call raises is a failed try; one timeout ends the tries; an Interrupt passes through
 calls = []

@@ -90,7 +90,8 @@ finally:
     data_check.ROOT = real_root
 check("a built game without data/replay passes the fights check: the goldens are a source tree's", without == [], without)
 check("...and a source tree missing a golden is still told", any("no such recording is kept" in p for p in with_folder), with_folder)
-check("the startup check passes on the source tree", data_check.check() == [], data_check.check()[:3])
+startup_found = data_check.check()
+check("the startup check passes on the source tree", startup_found == [], startup_found[:3])
 
 # ---- what is built and installed
 exe_bat = (ROOT / "build_exe.bat").read_text(encoding="utf-8")

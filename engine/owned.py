@@ -111,6 +111,7 @@ STATE: dict[str, Row] = {
 
     # ---- one call's own
     "engine.martial.MANEUVERS": Row(CALL, "the same call: a move's own form put over the table's while it is resolved, and the table's put back"),
+    "engine.data_check._ONCE": Row(CALL, "the same check(): the files it parsed, let go as it returns, whatever it raised"),
     "llm.backend._lane": Row(CALL, "the block that set it (backend.lane), per thread: the lane and the session of the call being made"),
     "llm.backend._task": Row(CALL, "the block that set it (backend.task), per thread: the task of the call being made"),
     "llm.gateway._TASK": Row(CALL, "the next call on the same thread: the task, the shape and the seed of the call being made"),
@@ -171,7 +172,7 @@ STATE: dict[str, Row] = {
     "engine.names._VOCAB": Row(PROCESS, READ_ONCE + " (the words of the data files, for telling a name from a word)"),
     "engine.truth.FACETS": Row(PROCESS, "nothing: the facets a scene can be asked for, filled as the modules that define them are imported"),
     "engine.combat._LIFT_CACHE": Row(PROCESS, "nothing: worked out from the rules alone, the same for every campaign"),
-    "engine.data_check._SCAN": Row(PROCESS, "nothing: the start-up check's reading of the source, kept for its own run"),
+    "engine.data_check._SCAN": Row(PROCESS, "nothing: the start-up check's reading of the source, kept for the process by ROOT and the build fact"),
     "engine.mapview._LAYOUT_MEMO": Row(PROCESS, "its own cap: keyed by what a layout reads and never by a world, so two saves on one map share it"),
     "engine.weather._CHAIN": Row(PROCESS, "nothing, and it has no cap: a seed's weather, one entry for each block of days asked for, so it grows with "
                                           "the campaign's age; keyed by seed, so one campaign never reads another's"),

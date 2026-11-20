@@ -335,7 +335,8 @@ check("a fraction where a whole number belongs is refused", any("top_k" in p for
 check("a base with a key missing is refused", any("no base value" in p for p in llama.sampler_problems({}, {"top_k": 64})))
 check("a repeat window below 0, which this server refuses, is refused", any("repeat_last_n" in p for p in llama.sampler_problems({"narrate": {"repeat_last_n": -1}})))
 from engine import data_check
-check("the shipped data is clean", data_check.check() == [], data_check.check()[:3])
+startup_found = data_check.check()
+check("the shipped data is clean", startup_found == [], startup_found[:3])
 saved_sampling = config.SAMPLING
 config.SAMPLING = {**saved_sampling, "narrate": {**saved_sampling.get("narrate", {}), "repet_penalty": 1.1}}
 try:

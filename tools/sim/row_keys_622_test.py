@@ -223,7 +223,8 @@ short = [r.id for r in world0.roles.values() if not r.description.rstrip().endsw
 check("...and every role's description is a whole sentence, each row of the file a role", not short and len(lines) == len(world0.roles) > 40,
       (short, len(lines), len(world0.roles)))
 from engine import data_check
-check("the game's data passes its startup check", data_check.check() == [], data_check.check()[:5])
+startup_found = data_check.check()
+check("the game's data passes its startup check", startup_found == [], startup_found[:5])
 
 # ---- the ratchet: whoever loads it, whenever, an authored mapping becomes a model through row alone
 for pkg in ("core", "world", "character", "engine", "npc", "llm", "storage", "services", "scenes", "ui"):

@@ -38,9 +38,10 @@ check("every tongue has a manner, and its slips of grammar apart from it as a li
       {k: sorted(t) for k, t in TONGUES.items()})
 check("...all behaviour, with no quoted words to copy", not [x for t in TONGUES.values() for x in [t["manner"], *t["slips"]] if re.search(r"['\"]\w", x)])
 L = S["slip"]
+startup_found = data_check.check()
 check("the odds are data, by how well they speak Common: a learner slips at least as often as one whose Common is good; the lines for a slip and for none are data too",
       set(L["one_in"]) == {"learner", "fluent"} and 1 <= L["one_in"]["learner"] <= L["one_in"]["fluent"] and "{slip}" in L["shown"] and L["clean"].strip()
-      and data_check.check() == [], (L, data_check.check()[:3]))
+      and startup_found == [], (L, startup_found[:3]))
 wrong_t, wrong_s = copy.deepcopy(TONGUES), copy.deepcopy(S["slip"])
 wrong_s["one_in"]["learner"] = 0
 wrong_s["shown"] = "Their grammar slips."

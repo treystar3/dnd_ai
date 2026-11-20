@@ -564,9 +564,8 @@ def _check_towns(w: dict, problems: list[str]) -> None:
     """A profile must fit the map: its id a top place, its landmarks at the town's places, its anchors roles the town has, its scale and
     guard words the truth layer knows, its festivals on the calendar. What it says about crowd and scale is then written onto the place,
     which stays the one thing the engine reads."""
-    import yaml as _y
-    truth = _y.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "truth.yaml").read_text(encoding="utf-8"))
-    pulse = _y.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "pulse.yaml").read_text(encoding="utf-8"))
+    truth = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "truth.yaml").read_text(encoding="utf-8"))
+    pulse = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "pulse.yaml").read_text(encoding="utf-8"))
     scales, guards, slots = set(truth["crowd"]), set(truth["guard_lines"]), set(truth["periods"].values())
     seasons, days_each = pulse["seasons"]["order"], pulse["seasons"]["days_each"]
     places = w["places"]

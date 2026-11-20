@@ -10,20 +10,26 @@ Adding to the data needs no change here unless a new kind of cross-reference is 
 Some rules hold data to the code that runs it, read from the code's source. A built game carries data/ and no source, so the source is
 read only through one reader (source, tree, modules) beside one fact, built(): in a build the reader answers None, every scan that reads
 through it answers None, and those rules skip their rows held to the code while every rule of the data alone still runs. The rules held
-to the code are proven where the source is: the suite, a launch from source, and the build's first step (main.py --check)."""
+to the code are proven where the source is: the suite, a launch from source, and the build's first step (main.py --check).
+
+This module's own reads in a check parse each data file once and each source file at most once, keeping what was parsed for the
+check's length only (the next check reads every file again, so an edited one is seen); a module the check calls reads its own files.
+Each scan of the code keeps its answer for the process, by ROOT and the build fact (the code does not change while a process runs)."""
 from __future__ import annotations
 
 import re
 from pathlib import Path
 
 import yaml
+from core import yamlio
 
 ROOT = Path(__file__).resolve().parent.parent
 QUOTED = re.compile(r"(?:^|[\s(])['\"\u2018\u201c]\w[^'\"\u2019\u201d]*['\"\u2019\u201d]")   # a quoted phrase in a behaviour line: the model quotes it back
 
 
-class _Strict(yaml.SafeLoader):
-    """A loader that refuses a key given twice in one mapping: plain YAML keeps the last silently, so one table quietly replaces another."""
+class _Strict(yamlio._Loader):
+    """A loader that refuses a key given twice in one mapping: plain YAML keeps the last silently, so one table quietly replaces another.
+    Built on the loader core/yamlio.py picks: libyaml's when PyYAML has it, else the pure-Python one."""
 
 
 def _no_dupes(loader, node, deep=False):
@@ -39,8 +45,68 @@ def _no_dupes(loader, node, deep=False):
 _Strict.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _no_dupes)
 
 
+class _StrictPlain(yaml.SafeLoader):
+    """_Strict on PyYAML's pure-Python loader, for a file that failed: its faults show the line and a caret under the fault."""
+
+
+_StrictPlain.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _no_dupes)
+
+_ONCE: dict | None = None             # (f776) one check()'s parsed files, source texts and syntax trees, by (kind, path); None outside one
+_SCAN: dict = {}                      # (f509, f776) each scan's answer, by the scan, its arguments, ROOT and the build fact
+
+
+def _once(fn):
+    """fn run with a store of its own: what is parsed while it runs is parsed once, and all of it is let go as it returns (a check
+    run inside it shares the outer store)."""
+    import functools
+
+    @functools.wraps(fn)
+    def run(*args, **kwargs):
+        global _ONCE
+        if _ONCE is not None:
+            return fn(*args, **kwargs)
+        _ONCE = {}
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            _ONCE = None
+    return run
+
+
+def _kept(kind: str, rel: str, make):
+    """What make() answers for this file: once a check while one runs (the one object to every asker, read only), else afresh."""
+    if _ONCE is None:
+        return make()
+    key = (kind, rel)
+    if key not in _ONCE:
+        _ONCE[key] = make()
+    return _ONCE[key]
+
+
+def _scanned(key: tuple, scan):
+    """A scan's answer, kept for the process by the scan, its arguments, ROOT and the build fact; each asker gets a copy of its own."""
+    import copy
+    full = key + (str(ROOT), built())
+    if full not in _SCAN:
+        _SCAN[full] = scan()
+    return copy.deepcopy(_SCAN[full])
+
+
 def _load(rel: str):
-    return yaml.load((ROOT / rel).read_text(encoding="utf-8"), Loader=_Strict)
+    """A data file (rel: its path under ROOT) on the strict loader: parsed once a check, so what it hands out is read only."""
+    rel = Path(rel).as_posix()
+    return _kept("data", rel, lambda: yaml.load((ROOT / rel).read_text(encoding="utf-8"), Loader=_Strict))
+
+
+def _why(rel: str, fault: Exception) -> str:
+    """Why a data file could not be read. A YAML fault is told as the pure-Python loader tells it, read again on it: libyaml's drops the
+    line, its caret and some of the detail (a tab is no longer named). Nothing is read again for a file that loads."""
+    if isinstance(fault, yaml.MarkedYAMLError):
+        try:
+            yaml.load((ROOT / rel).read_text(encoding="utf-8"), Loader=_StrictPlain)
+        except Exception as plain:
+            return str(plain)
+    return str(fault)
 
 
 def built() -> bool:
@@ -54,14 +120,15 @@ def source(rel: str) -> str | None:
     not there raises: a tree missing its code fails loudly."""
     if built():
         return None
-    return (ROOT / rel).read_text(encoding="utf-8")
+    return _kept("text", rel, lambda: (ROOT / rel).read_text(encoding="utf-8"))
 
 
 def tree(rel: str):
-    """The syntax tree of one of the game's source files (ast.Module), or None in a built game."""
+    """The syntax tree of one of the game's source files (ast.Module), or None in a built game. Kept for one check at most: the trees
+    of all the game's files are hundreds of megabytes."""
     import ast
     text = source(rel)
-    return None if text is None else ast.parse(text)
+    return None if text is None else _kept("tree", rel, lambda: ast.parse(text))
 
 
 def modules(folder: str, deep: bool = False) -> list[str] | None:
@@ -77,6 +144,7 @@ def modules(folder: str, deep: bool = False) -> list[str] | None:
 
 GAME_DIRS = ("engine", "scenes", "npc", "llm", "character", "services")      # (f459) where the game asks the model; tools/*.py asks for its
 #                                                                                  own ends. (f503) services/ too: a service asks nothing
+CALLS_A_TASK = re.compile(r"\b(?:generate|fresh)\s*\(")
 
 
 def task_literals(dirs: tuple = GAME_DIRS, tools: bool = True) -> dict[str, list[str]] | None:
@@ -84,25 +152,30 @@ def task_literals(dirs: tuple = GAME_DIRS, tools: bool = True) -> dict[str, list
     per-task tables (budget.yaml, audit_log.yaml, lora.yaml, hygiene.yaml, config.SAMPLING) are checked against, so none drifts. None in
     a built game."""
     import ast
-    # (f775) tools/ is required like the game's folders: budget.yaml's tool tasks are held to it, and every source tree tracks it
-    folders = [modules(d, deep=True) for d in dirs] + ([modules("tools")] if tools else [])
-    if any(f is None for f in folders):
-        return None
-    found: dict[str, list[str]] = {}
-    for rel in (r for f in folders for r in f):
-        try:
-            parsed = tree(rel)
-        except SyntaxError:
-            continue
-        for node in ast.walk(parsed):
-            if not isinstance(node, ast.Call) or not node.args:
+
+    def scan():
+        # (f775) tools/ is required like the game's folders: budget.yaml's tool tasks are held to it, and every source tree tracks it
+        folders = [modules(d, deep=True) for d in dirs] + ([modules("tools")] if tools else [])
+        if any(f is None for f in folders):
+            return None
+        found: dict[str, list[str]] = {}
+        for rel in (r for f in folders for r in f):
+            if not CALLS_A_TASK.search(source(rel)):                       # (f776) a file that calls neither is not parsed
                 continue
-            f = node.func
-            name = f.id if isinstance(f, ast.Name) else (f.attr if isinstance(f, ast.Attribute) else "")
-            a0 = node.args[0]
-            if name in ("generate", "fresh") and isinstance(a0, ast.Constant) and isinstance(a0.value, str):
-                found.setdefault(a0.value, []).append(f"{rel}:{node.lineno}")
-    return found
+            try:
+                parsed = tree(rel)
+            except SyntaxError:
+                continue
+            for node in ast.walk(parsed):
+                if not isinstance(node, ast.Call) or not node.args:
+                    continue
+                f = node.func
+                name = f.id if isinstance(f, ast.Name) else (f.attr if isinstance(f, ast.Attribute) else "")
+                a0 = node.args[0]
+                if name in ("generate", "fresh") and isinstance(a0, ast.Constant) and isinstance(a0.value, str):
+                    found.setdefault(a0.value, []).append(f"{rel}:{node.lineno}")
+        return found
+    return _scanned(("task_literals", tuple(dirs), tools), scan)
 
 
 def budget_problems(B: dict | None = None, found: dict | None = None) -> list[str]:
@@ -410,13 +483,14 @@ def voice_problems(tongues: dict | None = None, slip: dict | None = None) -> lis
     return bad
 
 
+@_once
 def check() -> list[str]:
     broken = []
     for f in sorted((ROOT / "data").rglob("*.yaml")):              # every data file, not only the ones cross-checked below
         try:
-            _load(str(f.relative_to(ROOT)))
+            _load(f.relative_to(ROOT).as_posix())
         except Exception as e:
-            broken.append(f"{f.relative_to(ROOT).as_posix()}: {e}")
+            broken.append(f"{f.relative_to(ROOT).as_posix()}: {_why(f.relative_to(ROOT).as_posix(), e)}")   # (f776) told with its line and caret
     if broken:
         return broken
     S = _load("data/rules/speech.yaml")
@@ -1078,8 +1152,12 @@ def data_strings(root: Path, skip: tuple = ()):
         rel = f.relative_to(root).as_posix()
         if not f.is_file() or rel.split("/")[0] in skip or f.suffix not in DATA_KINDS:
             continue
-        text = f.read_text(encoding="utf-8")
-        for path, s in walk(json.loads(text) if f.suffix == ".json" else yamlio.safe_load(text), ()):
+        if f.suffix == ".yaml" and root == ROOT / "data":
+            doc = _load(f"data/{rel}")                                 # (f776) the check's own parse of the file, not a second one
+        else:
+            text = f.read_text(encoding="utf-8")
+            doc = json.loads(text) if f.suffix == ".json" else yamlio.safe_load(text)
+        for path, s in walk(doc, ()):
             yield rel, path, s
 
 
@@ -1129,12 +1207,15 @@ def data_words_problems(root: Path | None = None, table: dict | None = None) -> 
 def improv_handled() -> set[str] | None:
     """(f567) The effects engine/combat_improv.py resolve() branches on (`effect == "..."`), read from its source; None in a built game."""
     import ast
-    parsed = tree("engine/combat_improv.py")
-    if parsed is None:
-        return None
-    fn = next(n for n in ast.walk(parsed) if isinstance(n, ast.FunctionDef) and n.name == "resolve")
-    return {c.comparators[0].value for c in ast.walk(fn) if isinstance(c, ast.Compare) and isinstance(c.left, ast.Name)
-            and c.left.id == "effect" and isinstance(c.comparators[0], ast.Constant)}
+
+    def scan():
+        parsed = tree("engine/combat_improv.py")
+        if parsed is None:
+            return None
+        fn = next(n for n in ast.walk(parsed) if isinstance(n, ast.FunctionDef) and n.name == "resolve")
+        return {c.comparators[0].value for c in ast.walk(fn) if isinstance(c, ast.Compare) and isinstance(c.left, ast.Name)
+                and c.left.id == "effect" and isinstance(c.comparators[0], ast.Constant)}
+    return _scanned(("improv_handled",), scan)
 
 
 def improv_problems(I: dict | None = None) -> list[str]:
@@ -1308,14 +1389,20 @@ def evaluated_triggers() -> set[str] | None:
     CATEGORY_TRIGGERS), and in_<biome> for every biome the world data names (conditions builds it from the place's biome). None in a
     built game."""
     import ast
-    found: set[str] = set()
-    for rel, fn in (("engine/combat.py", "active_triggers"), ("scenes/world.py", "conditions"), ("scenes/check_actions.py", "check_triggers")):
-        parsed = tree(rel)
-        if parsed is None:
-            return None
-        for node in ast.walk(parsed):
-            if isinstance(node, ast.FunctionDef) and node.name == fn:
-                found |= {n.value for n in ast.walk(node) if isinstance(n, ast.Constant) and isinstance(n.value, str)}
+
+    def scan():
+        found: set[str] = set()
+        for rel, fn in (("engine/combat.py", "active_triggers"), ("scenes/world.py", "conditions"), ("scenes/check_actions.py", "check_triggers")):
+            parsed = tree(rel)
+            if parsed is None:
+                return None
+            for node in ast.walk(parsed):
+                if isinstance(node, ast.FunctionDef) and node.name == fn:
+                    found |= {n.value for n in ast.walk(node) if isinstance(n, ast.Constant) and isinstance(n.value, str)}
+        return found
+    found = _scanned(("evaluated_triggers",), scan)                    # (f776) the code's half is kept; the data's is read each check
+    if found is None:
+        return None
     from engine import combat
     found |= set(combat.CATEGORY_TRIGGERS.values())
     biomes: set[str] = set()
@@ -1332,7 +1419,7 @@ def evaluated_triggers() -> set[str] | None:
             for v in o:
                 walk(v)
     for f in sorted((ROOT / "data" / "world").rglob("*.yaml")):
-        walk(_load(str(f.relative_to(ROOT))))
+        walk(_load(f.relative_to(ROOT).as_posix()))
     found |= {f"in_{b}" for b in biomes}
     return found
 
@@ -1359,69 +1446,74 @@ def trigger_problems(T: list | None = None) -> list[str]:
 def _literals(paths) -> set[str] | None:
     """Every string constant in these modules' syntax trees; None in a built game."""
     import ast
-    out: set[str] = set()
-    for rel in paths:
-        parsed = tree(rel)
-        if parsed is None:
-            return None
-        for n in ast.walk(parsed):
-            if isinstance(n, ast.Constant) and isinstance(n.value, str):
-                out.add(n.value)
-    return out
+
+    def scan():
+        out: set[str] = set()
+        for rel in paths:
+            parsed = tree(rel)
+            if parsed is None:
+                return None
+            for n in ast.walk(parsed):
+                if isinstance(n, ast.Constant) and isinstance(n.value, str):
+                    out.add(n.value)
+        return out
+    return _scanned(("_literals", tuple(paths)), scan)
 
 
 def _compared(rel: str, names: tuple[str, ...]) -> set[str] | None:
     """Every string a module compares one of these names against (`kind == "smite"`, `eid in ("a", "b")`): what its dispatch handles.
     None in a built game."""
     import ast
-    parsed = tree(rel)
-    if parsed is None:
-        return None
-    out: set[str] = set()
-    for c in ast.walk(parsed):
-        if isinstance(c, ast.Compare) and isinstance(c.left, ast.Name) and c.left.id in names:
-            for comp in c.comparators:
-                if isinstance(comp, ast.Constant) and isinstance(comp.value, str):
-                    out.add(comp.value)
-                elif isinstance(comp, (ast.Tuple, ast.List, ast.Set)):
-                    out |= {x.value for x in comp.elts if isinstance(x, ast.Constant) and isinstance(x.value, str)}
-    return out
+
+    def scan():
+        parsed = tree(rel)
+        if parsed is None:
+            return None
+        out: set[str] = set()
+        for c in ast.walk(parsed):
+            if isinstance(c, ast.Compare) and isinstance(c.left, ast.Name) and c.left.id in names:
+                for comp in c.comparators:
+                    if isinstance(comp, ast.Constant) and isinstance(comp.value, str):
+                        out.add(comp.value)
+                    elif isinstance(comp, (ast.Tuple, ast.List, ast.Set)):
+                        out |= {x.value for x in comp.elts if isinstance(x, ast.Constant) and isinstance(x.value, str)}
+        return out
+    return _scanned(("_compared", rel, tuple(names)), scan)
 
 
 GAME_CODE = ("engine", "scenes", "services", "npc", "character", "llm")     # (f509) where a row's key or an id may be read by name
-_SCAN: dict = {}
 
 
 def scan_code(precise: bool = False) -> tuple[set[str], set[str]] | None:
     """(f509) What the game's code names: (every string it holds, every row key it reads by name: x["key"], x.get("key")), over
     GAME_CODE. By default read by pattern with the comments stripped (a tenth of a second, for the check at every startup); precise,
-    read from the syntax tree (two seconds, for the suite's test, which holds the two readings to one verdict). Cached: the code does
-    not change while a process runs. None in a built game."""
+    read from the syntax tree (two seconds, for the suite's test, which holds the two readings to one verdict). Kept for the process
+    (the code does not change while one runs). None in a built game."""
     import ast
     import re
-    folders = [modules(d) for d in GAME_CODE]
-    if any(f is None for f in folders):
-        return None
-    if precise in _SCAN:
-        return _SCAN[precise]
-    lits, keys = set(), set()
-    for rel in (r for f in folders for r in f):
-        if precise:
-            for n in ast.walk(tree(rel)):
-                if isinstance(n, ast.Constant) and isinstance(n.value, str):
-                    lits.add(n.value)
-                elif isinstance(n, ast.Subscript) and isinstance(n.slice, ast.Constant) and isinstance(n.slice.value, str):
-                    keys.add(n.slice.value)
-                elif isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "get" and n.args \
-                        and isinstance(n.args[0], ast.Constant) and isinstance(n.args[0].value, str):
-                    keys.add(n.args[0].value)
-        else:
-            code = "\n".join(line.split("#")[0] for line in source(rel).split("\n"))
-            lits |= set(re.findall(r'["\']([A-Za-z_][\w ]*)["\']', code))
-            for a, b in re.findall(r'\[["\']([a-z_]+)["\']\]|\.get\(["\']([a-z_]+)["\']', code):
-                keys.add(a or b)
-    _SCAN[precise] = (lits, keys)
-    return lits, keys
+
+    def scan():
+        folders = [modules(d) for d in GAME_CODE]
+        if any(f is None for f in folders):
+            return None
+        lits, keys = set(), set()
+        for rel in (r for f in folders for r in f):
+            if precise:
+                for n in ast.walk(tree(rel)):
+                    if isinstance(n, ast.Constant) and isinstance(n.value, str):
+                        lits.add(n.value)
+                    elif isinstance(n, ast.Subscript) and isinstance(n.slice, ast.Constant) and isinstance(n.slice.value, str):
+                        keys.add(n.slice.value)
+                    elif isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "get" and n.args \
+                            and isinstance(n.args[0], ast.Constant) and isinstance(n.args[0].value, str):
+                        keys.add(n.args[0].value)
+            else:
+                code = "\n".join(line.split("#")[0] for line in source(rel).split("\n"))
+                lits |= set(re.findall(r'["\']([A-Za-z_][\w ]*)["\']', code))
+                for a, b in re.findall(r'\[["\']([a-z_]+)["\']\]|\.get\(["\']([a-z_]+)["\']', code):
+                    keys.add(a or b)
+        return lits, keys
+    return _scanned(("scan_code", precise), scan)
 
 
 def _read_keys(precise: bool = False) -> set[str] | None:

@@ -142,7 +142,8 @@ check("scaling a call to another card scales its reading and writing time", sc["
 
 # ---- 4. the data: sampling.yaml, the model ids, the cards, the grammars, the whole check
 S = yaml.safe_load(Path("data/rules/sampling.yaml").read_text(encoding="utf-8"))
-check("the startup check passes with every new file in", data_check.check() == [], data_check.check()[:4])
+startup_found = data_check.check()
+check("the startup check passes with every new file in", startup_found == [], startup_found[:4])
 check("the sampling table the game plays by is data/rules/sampling.yaml's", config.SAMPLING == S["tasks"] and sampling.BASE == S["base"]
       and sampling.RETRY_TEMPERATURE_STEP == S["retry_temperature_step"] == 0.15 and len(S["tasks"]) == 16)
 plan = sampling.resolve("hire_chat", 1.0).at(0).resolved()
