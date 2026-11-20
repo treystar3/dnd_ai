@@ -478,7 +478,6 @@ ONE_TO_MEND = {
     ("scenes/passive_hooks.py", "PassiveHooks.tavern_ear"): (1, f"{TF10}: carry, with LLMError quiet"),
     ("scenes/quirk_actions.py", "QuirkActions.gesturers"): (1, f"{TF10}: remove the try"),
     ("scenes/road_actions.py", "RoadActions.road_company"): (1, f"{TF10}: remove the try"),
-    ("llm/gateway.py", "_generate"): (2, "TASK_FAILURE-13: the two mends of a taken answer, carried"),
     ("npc/backfill.py", "collect"): (1, "TASK_FAILURE-16: one transaction, carried"),
     ("scenes/dungeon_actions.py", "DungeonActions.void_dungeon_contracts"): (1, "scenes1-13, another workstream's: remove the try"),
 }

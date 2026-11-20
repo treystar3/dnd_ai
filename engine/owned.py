@@ -131,8 +131,8 @@ STATE: dict[str, Row] = {
     "llm.gateway.CHECKED": Row(PROCESS, TALLY + ": passages and spoken replies checked, and those sent back once, for the live gate"),
     "llm.gateway._writes": Row(PROCESS, "nothing: rows written to the call log, to trim it every so often"),
     "engine.names.REPAIRS": Row(PROCESS, TALLY + ": names and pronouns mended, for a night's summary"),
-    "engine.names.BY_TASK": Row(PROCESS, TALLY + ": names mended by task"),
-    "engine.hygiene.REPAIRS": Row(PROCESS, TALLY + ": what was mended on the way to the screen"),
+    "engine.names.BY_TASK": Row(PROCESS, TALLY + ": names found written wrong, by task"),
+    "engine.hygiene.REPAIRS": Row(PROCESS, TALLY + ": what was found to mend on the way to the screen"),
     "engine.crashlog.SESSION": Row(PROCESS, TALLY + ": this run's faults, for the tests and the night tools"),
     "engine.refusals.SESSION": Row(PROCESS, "nothing, and it has no cap: this run's refusals, one for each filed; an operation that runs again takes "
                                             "back the ones its first attempt filed"),

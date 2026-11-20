@@ -16,7 +16,7 @@ from pathlib import Path
 from engine import actor
 
 REPAIRS: collections.Counter = collections.Counter()
-BY_TASK: collections.Counter = collections.Counter()     # (f587) the names mended in answers the game took, by task (A1 counts them)
+BY_TASK: collections.Counter = collections.Counter()     # (f587) names found written wrong, by task (A1 counts them), mend or no mend
 CAP = re.compile(r"\b[A-Z][a-z]{3,}\b")
 WORD = re.compile(r"\b[a-z]+\b")
 _VOCAB: set[str] = set()
