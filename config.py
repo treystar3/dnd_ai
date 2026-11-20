@@ -45,6 +45,7 @@ LOG_KEEP_ENTRIES = 300    # how many of the most recent entries survive a trim
 LOG_FULL_PROMPTS = False  # True stores every system prompt in full (large); False keeps the first part
 
 AUDIT_ENABLED = True       # a second opinion on risky action plans (several steps, money words, an unmatched verb...); costs two quick model calls on those turns only
+#                            (f778) not the audit log, whose one switch is AUDIT_LOG below
 TURN_LOG = True            # every line the player types is a row in TURN_LOG_PATH, naming what handled it (engine/turnlog.py)
 TURN_LOG_PATH = "logs/turns.jsonl"  # one line per typed line: what handled it; for an interpreted line, what was read and what the audit changed
 SESSION_STATS_PATH = "logs/sessions.jsonl"  # one line per session: lines by handler, model calls and failures by task, refusals by kind
@@ -56,7 +57,7 @@ RECORD_KEEP = 5
 REFUSALS_LOG_PATH = "logs/refusals.jsonl"   # (f321) every line the game failed to act on, with why and what it asked back
 CRASH_LOG_PATH = "logs/crash.log"           # (f449) every fault the game went on without (a turn rolled back) or stopped on, with its traceback
 CRASH_KEEP = 50                             # how many of the most recent faults the crash log keeps
-AUDIT_LOG = True           # a readable record of every model call, one file per session under logs/audit/ (data/rules/audit_log.yaml)
+AUDIT_LOG = True           # a readable record of every model call, one file per session under logs/audit/ (data/rules/audit_log.yaml): its one switch
 
 GAME_TITLE = "Meravia"                      # (f345) the name the home page, the window, the exe and the installer carry
 GAME_SUBTITLE = "A tale of gifts unforgiven"

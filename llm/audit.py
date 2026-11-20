@@ -1,10 +1,10 @@
 """The audit log (f314): every call to the model, written for a person to read afterwards.
 
-One Markdown file per session under logs/audit/ (data/rules/audit_log.yaml). For each call: which turn it belongs to and what the player
-typed, why the game made the call, the system prompt (in full the first time, then by reference while it is unchanged), the user prompt
-in full - with the typed parts marked when the prompt was built from them (engine/prompt.py: what is an instruction, what is a fact, what
-is history) - the model's answer, and the verdict: accepted, or rejected with the reason it was sent back. Nothing is trimmed; a file that
-grows past the limit says so and stops.
+One Markdown file per session under logs/audit/ (data/rules/audit_log.yaml) while config.AUDIT_LOG, its one switch, is on (f778). For
+each call: which turn it belongs to and what the player typed, why the game made the call, the system prompt (in full the first time,
+then by reference while it is unchanged), the user prompt in full - with the typed parts marked when the prompt was built from them
+(engine/prompt.py: what is an instruction, what is a fact, what is history) - the model's answer, and the verdict: accepted, or rejected
+with the reason it was sent back. Nothing is trimmed; a file that grows past the limit says so and stops.
 
 The gateway (llm/gateway.py) reports every attempt here; the world scene reports the turn (note_turn)."""
 from __future__ import annotations
@@ -16,6 +16,8 @@ from datetime import datetime
 from pathlib import Path
 
 import yaml
+
+import config
 from core import paths, yamlio
 
 A = yamlio.safe_load((Path(paths.BUNDLE) / "data" / "rules" / "audit_log.yaml").read_text(encoding="utf-8"))   # (f777) a built game's data is in the bundle
@@ -31,11 +33,8 @@ _full = False
 
 
 def enabled() -> bool:
-    try:
-        import config
-        return bool(getattr(config, "AUDIT_LOG", A.get("enabled", True)))
-    except Exception:
-        return bool(A.get("enabled", True))
+    """Whether calls are written: config.AUDIT_LOG, the log's one switch (f778: audit_log.yaml holds none)."""
+    return bool(config.AUDIT_LOG)
 
 
 def path() -> Path:

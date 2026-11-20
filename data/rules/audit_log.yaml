@@ -1,8 +1,8 @@
 # THE AUDIT LOG (f314, llm/audit.py): a readable record of every call the game makes to the model, one file per session under logs/audit/.
 # llm_calls.jsonl is the machine log, trimmed to the last few hundred calls with the system prompts shortened; this one is for a person
 # reading afterwards: every prompt in full, every answer, what was wrong with the ones that were rejected, and why the call was made.
+# (f778) Its one switch is config.AUDIT_LOG (on as shipped; the suite and the replays turn it off), not a key here.
 
-enabled: true
 folder: logs/audit
 max_mb: 200                # a session's file stops growing past this (a line says so); the next session starts a new file
 
