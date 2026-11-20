@@ -53,9 +53,10 @@ def _owned() -> list[tuple[str, Callable[[], None], Callable[[], bool], Callable
 
 
 def reset() -> None:
-    """Every owned binding put back to its initial value: a campaign is opening or has closed."""
-    for _, put_back, _, _ in _owned():
-        put_back()
+    """Every owned binding put back to its initial value: a campaign is opening or has closed. (f783) Each is put back whatever the
+    one before it did, and the first error is raised once the last is back (crashlog.run_every)."""
+    from engine import crashlog
+    crashlog.run_every("putting back the owned state", *[(name, put_back) for name, put_back, _, _ in _owned()])
 
 
 def residue() -> dict[str, str]:
@@ -128,30 +129,42 @@ class CampaignSession:
         return [t for t in self._threads + backfill.threads(self.store) if t.is_alive()]
 
     def close(self) -> None:
-        """The campaign ends in this process: the recorder is closed, the background work is waited for (config.CLOSE_WAIT_SECONDS in all)
-        and what is still running is orphaned, the save's jobs are forgotten, the store is closed and every owned binding is put back.
-        Closing twice does nothing the second time."""
+        """The campaign ends in this process: the recorder is closed, the background calls are cancelled, the threads are waited for
+        (config.CLOSE_WAIT_SECONDS in all) and what is still running is orphaned, the save's jobs are forgotten, the store is closed, the
+        bus is left idle and every owned binding is put back. (f783) Each stage runs whatever the one before it did, and the first error
+        is raised once the last has run (crashlog.run_every): a stage that fails never leaves the store open, a call running or the
+        recorder installed for the next campaign. Closing twice does nothing the second time, a close that raised included."""
         if self.closed:
             return
         self.closed = True
-        from engine import recording
-        from npc import backfill
-        if self.recorder is not None:
-            self.recorder.close()
-            self.recorder = None
+        from engine import crashlog, recording
         from llm import backend
-        backend.cancel_session(str(getattr(self.store, "root", "") or ""))   # (f523) its background calls end now, not after the wait
-        deadline = time.monotonic() + float(getattr(config, "CLOSE_WAIT_SECONDS", 2))
-        for t in self.threads():
-            t.join(max(0.0, deadline - time.monotonic()))
-        recording.orphan(self.threads())                  # the survivors: their answers go nowhere, their calls are never the next save's
-        self._threads.clear()
-        backfill.drop(self.store)
-        self.store.close()
-        from engine.domain_events import IdleBus, use
-        self.bus.clear()                                   # (f454) its listeners hear nothing more; between campaigns, nobody listens
-        use(IdleBus())
-        reset()
+        from npc import backfill
+
+        def recorder() -> None:
+            rec, self.recorder = self.recorder, None
+            if rec is not None:
+                rec.close()
+
+        def calls() -> None:
+            backend.cancel_session(str(getattr(self.store, "root", "") or ""))   # (f523) its background calls end now, not after the wait
+
+        def threads() -> None:
+            deadline = time.monotonic() + float(getattr(config, "CLOSE_WAIT_SECONDS", 2))
+            for t in self.threads():
+                t.join(max(0.0, deadline - time.monotonic()))
+            recording.orphan(self.threads())              # the survivors: their answers go nowhere, their calls are never the next save's
+            self._threads.clear()
+
+        def jobs() -> None:
+            backfill.drop(self.store)
+
+        def bus() -> None:
+            from engine.domain_events import IdleBus, use
+            use(IdleBus())                                 # (f454) between campaigns, nobody listens
+            self.bus.clear()                               # ...and its listeners hear nothing more
+        crashlog.run_every("closing a campaign", ("the recorder", recorder), ("its background calls", calls), ("its threads", threads),
+                           ("its jobs", jobs), ("the store", self.store.close), ("the bus", bus), ("the owned state", reset))
 
     # ---- (f455) a rolled-back turn takes back everything
 

@@ -400,21 +400,35 @@ class Recorder:
         self.shown, self.open_input = [], False
 
     def close(self) -> Path:
-        self._end_input()
-        if self.unwrap is not None:
-            self.unwrap()                                # (f517) this recorder's layer, and only it, off the interface
-            self.unwrap = None
-        for ch, name, fn in reversed(self.undo):
-            ch.set(name, fn)
-        self.undo = []
-        with self._lock:
-            self.closed = True
-            for f in (self.inputs, self.calls, self.turns):
-                f.close()
-        self.meta["overlapped"] = self.overlapped        # (R5) written at close, 0 when no recorded call overlapped another
-        (self.dir / "meta.json").write_text(json.dumps(self.meta, indent=1), encoding="utf-8", newline="\n")
-        from engine import streams
-        streams.STRICT = False
+        """The recording ends. What the recorder put in place comes off first, none of it a write: its layer on the model interface,
+        the console's wraps, the strict session, and `closed`, after which no call is written. Then its writes: the last input's row,
+        the three logs each closed, meta.json. (f783) Each stage runs whatever the one before it did, and the first error is raised once
+        the last has run (crashlog.run_every), so a write the disk refuses leaves nothing of the recorder installed."""
+        from engine import crashlog, streams
+
+        def layer() -> None:
+            if self.unwrap is not None:
+                self.unwrap()                            # (f517) this recorder's layer, and only it, off the interface
+                self.unwrap = None
+
+        def console() -> None:
+            for ch, name, fn in reversed(self.undo):
+                ch.set(name, fn)
+            self.undo = []
+
+        def strict() -> None:
+            streams.STRICT = False
+
+        def shut() -> None:
+            with self._lock:                             # (f783) a call still writing its row finishes first; none is written after
+                self.closed = True
+
+        def meta() -> None:
+            self.meta["overlapped"] = self.overlapped    # (R5) written at close, 0 when no recorded call overlapped another
+            (self.dir / "meta.json").write_text(json.dumps(self.meta, indent=1), encoding="utf-8", newline="\n")
+        crashlog.run_every("closing a recording", ("its layer", layer), ("the console", console), ("the strict session", strict),
+                           ("its calls stopped", shut), ("the last input's row", self._end_input), ("inputs.jsonl", self.inputs.close),
+                           ("the call log", self.calls.close), ("turns.jsonl", self.turns.close), ("meta.json", meta))
         return self.dir
 
 

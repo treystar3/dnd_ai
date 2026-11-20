@@ -106,7 +106,110 @@ recording.prune()
 left = sorted(p.name for p in recording.FOLDER.iterdir())
 check(f"only the newest {config.RECORD_KEEP} recordings are kept", left == [f"r{i}" for i in range(2, config.RECORD_KEEP + 2)], left)
 
-for p in (str(simlib.saves_path(SAVE)), OUT, recording.FOLDER):
+# ---- (f783) a close refused at one of its writes still takes the recorder off, and makes every later write (TASK_FAILURE-14)
+from engine import crashlog
+config.CRASH_LOG_PATH = str(simlib.saves_path("recorder_440_logs", "crash.log"))     # the faults this part makes stay out of logs/
+CONSOLE = {n: uc.channel().get(n) for n in ("ask",) + recording.STORY}
+closing = simlib.campaign("recorder_440_close", seed=41)
+WRITES = ("row", "inputs", "calls", "turns", "meta")
+WHAT = {"row": "the last input's row (the disk full)", "inputs": "inputs.jsonl's close (the disk full at its flush)",
+        "calls": "the call log's close", "turns": "turns.jsonl's close", "meta": "meta.json (a folder in its place)"}
+
+
+class Refused:
+    """A log the disk refuses: its write raises, or its close (the flush it makes) does; the file itself is closed either way."""
+    def __init__(self, f, fault, at):
+        self.f, self.fault, self.at = f, fault, at
+
+    def write(self, s):
+        if self.at == "write":
+            raise self.fault
+        return self.f.write(s)
+
+    def flush(self):
+        self.f.flush()
+
+    def close(self):
+        self.f.close()
+        if self.at == "close":
+            raise self.fault
+
+
+def refused_at(broken: tuple, folder: Path):
+    """A recorder over its own folder with one line typed and its row still to write, closed with each write named in `broken`
+    refused. Returns the recorder, its three logs as opened, the faults put in (None for meta.json's) and what the close raised."""
+    shutil.rmtree(folder, ignore_errors=True)
+    rec = recording.Recorder(closing.store, folder=folder).install()
+    uc.channel().get("ask")(main=True)                  # one line typed: its row is written as the recorder closes
+    logs = {"inputs": rec.inputs, "calls": rec.calls, "turns": rec.turns}
+    faults = {}
+    for at in broken:
+        if at == "meta":
+            faults[at] = None
+            (folder / "meta.json").unlink()
+            (folder / "meta.json").mkdir()                # meta.json cannot be written: a folder stands in its place
+            continue
+        faults[at] = OSError(28, f"No space left on device ({at})")
+        if at == "row":
+            rec.turns = Refused(rec.turns, faults[at], "write")
+        else:
+            setattr(rec, at, Refused(logs[at], faults[at], "close"))
+    try:
+        rec.close()
+        got = None
+    except BaseException as e:
+        got = e
+    return rec, logs, faults, got
+
+
+def written(rec, logs) -> dict:
+    """What each write of the close left: the last input's row in turns.jsonl, each log closed, meta.json with its count of overlaps."""
+    meta = rec.dir / "meta.json"
+    return {"row": len((rec.dir / "turns.jsonl").read_text(encoding="utf-8").splitlines()) == 1,
+            **{at: f.closed for at, f in logs.items()},
+            "meta": meta.is_file() and "overlapped" in json.loads(meta.read_text(encoding="utf-8"))}
+
+
+def taken_off(rec) -> bool:
+    return (rec._layer not in backend.layers() and rec.unwrap is None and rec.closed and streams.STRICT is False
+            and all(uc.channel().get(n) == f for n, f in CONSOLE.items()))
+
+
+def tidy(rec, logs) -> None:
+    """What a close left in place taken off by hand, so the next case starts clean: the close itself is what is checked."""
+    if rec.unwrap is not None:
+        rec.unwrap()
+        rec.unwrap = None
+    for ch, n, fn in reversed(rec.undo):
+        ch.set(n, fn)
+    rec.undo, rec.closed, streams.STRICT = [], True, False
+    for f in logs.values():
+        f.close()
+
+
+folders = [simlib.saves_path("recorder_440_logs")]
+for k, at in enumerate(WRITES):
+    folders.append(simlib.saves_path(f"recorder_440_close_{k}"))
+    rec, logs, faults, got = refused_at((at,), folders[-1])
+    raised = (isinstance(got, OSError) and str(got.filename or "").endswith("meta.json")) if at == "meta" else got is faults[at]
+    done, off = written(rec, logs), taken_off(rec)
+    later = [w for w in WRITES[k + 1:] if not done[w]]
+    check(f"(f783) a recorder's close refused at {WHAT[at]}: that error is raised, the recorder is still taken off (its layer, the "
+          "console's wraps, the strict session), and every later write is still made", raised and off and not later, (got, off, later))
+    tidy(rec, logs)
+folders.append(simlib.saves_path("recorder_440_close_two"))
+since = list(crashlog.SESSION)
+rec, logs, faults, got = refused_at(("row", "meta"), folders[-1])
+wheres = [e["where"] for e in crashlog.SESSION if all(e is not s for s in since)]
+done = written(rec, logs)
+check("(f783) refused at the last input's row and again at meta.json: the first is the error raised, the second is written down once "
+      "under meta.json's name, and the three logs are closed", got is faults["row"] and taken_off(rec) and len(wheres) == 1
+      and "meta.json" in wheres[0] and all(done[w] for w in logs), (got, wheres, done))
+tidy(rec, logs)
+closing.close()
+folders.append(simlib.saves_path("recorder_440_close"))
+
+for p in (str(simlib.saves_path(SAVE)), OUT, recording.FOLDER, *folders):
     shutil.rmtree(p, ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

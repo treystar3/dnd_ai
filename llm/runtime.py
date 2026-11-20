@@ -1073,26 +1073,36 @@ class Runtime:
     def close(self) -> None:
         """Cancel the calls in flight, stop every child, take the run files away. Safe to call twice, and from any thread. (f522) It may
         come while a load or a restart runs: the close is marked and the children stopped before the lock is waited for, so the load
-        ends at once rather than holding the close (and the closed window's process) until it finishes, and nothing starts after it."""
+        ends at once rather than holding the close (and the closed window's process) until it finishes, and nothing starts after it.
+        (f783) Each stage runs whatever the one before it did, and the first error is raised once the last has run (crashlog.run_every):
+        a source whose close raises still leaves no server running and no run files behind."""
+        from engine import crashlog
         self._stopping.set()
-        src = self.source
-        if src is not None:
-            src.close()                                 # the calls in flight cancelled, and (f523) none left waiting for the card
-        for c in (self.chat, self.embed):
-            self._stop(c)
-        with self._lock:
-            if self._closed:
-                return
-            self._closed = True
-            self._stop_children()
-            self.chat = self.embed = None
-            from engine import budget
-            budget.SLOW = False                         # (f526) the slow machine's lifted limits go with its server
-            self.worker = None                          # a load after a close starts with a worker of its own
-            if self.source is not None:
-                self.source.embed_server = None
-            if self.state != "failed":
-                self.state = "not_started"
+
+        def calls() -> None:
+            src = self.source
+            if src is not None:
+                src.close()                             # the calls in flight cancelled, and (f523) none left waiting for the card
+
+        def servers() -> None:
+            for c in (self.chat, self.embed):
+                self._stop(c)
+
+        def settled() -> None:
+            with self._lock:
+                if self._closed:
+                    return
+                self._closed = True
+                self._stop_children()
+                self.chat = self.embed = None
+                from engine import budget
+                budget.SLOW = False                     # (f526) the slow machine's lifted limits go with its server
+                self.worker = None                      # a load after a close starts with a worker of its own
+                if self.source is not None:
+                    self.source.embed_server = None
+                if self.state != "failed":
+                    self.state = "not_started"
+        crashlog.run_every("closing the model server", ("its calls", calls), ("its servers", servers), ("its run files and state", settled))
 
     def facts(self) -> dict:
         """What this machine runs, final once the load is: (f524) whether there is an embedder is decided at the load and holds for the
@@ -1194,11 +1204,21 @@ def start_for_game(progress=None, say=print) -> bool:
 
 
 def stop_for_game() -> None:
-    """Stop the game's server and let the lock go: safe to call twice, and from atexit, main's finally and an update's exit alike."""
+    """Stop the game's server and let the lock go: safe to call twice, and from atexit, main's finally and an update's exit alike.
+    (f783) Each stage runs whatever the one before it did (crashlog.run_every): a server whose close raises never leaves the lock held."""
+    from engine import crashlog
     rt, lock, undo = _GAME.pop("rt", None), _GAME.pop("lock", None), _GAME.pop("undo", None)
-    if rt is not None:
-        rt.close()
-    if undo is not None:
-        undo()
-    if lock is not None:
-        lock.release()
+
+    def server() -> None:
+        if rt is not None:
+            rt.close()
+
+    def source() -> None:
+        if undo is not None:
+            undo()
+
+    def let_go() -> None:
+        if lock is not None:
+            lock.release()
+    crashlog.run_every("stopping the game's model server", ("the model server", server), ("the interface's source", source),
+                       ("the lock", let_go))

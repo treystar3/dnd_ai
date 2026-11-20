@@ -11,7 +11,8 @@ a long campaign never grows it without bound. SESSION holds this process's entri
 carried() is for work the game goes on without when it fails (work no operation rolls back, or where a result already taken must not
 be lost): the fault is written here once per place and kind a session, and counted after that in CARRIED; as the session ends its
 count, settle() writes the faults met more than once with their counts. Inside an operation the rule is to let the fault roll the
-operation back instead (f449)."""
+operation back instead (f449). run_every() runs the stages of a close each whatever the one before it did: the first error is raised
+once the last has run, and a later one is carried."""
 from __future__ import annotations
 
 import contextlib
@@ -19,6 +20,7 @@ import threading
 import traceback
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Callable
 
 import config
 from core import paths
@@ -73,6 +75,33 @@ def carried(where: str, quiet: type[BaseException] | tuple[type[BaseException], 
             record(e, where, **context)
         except Exception:                              # (f781) a fault in writing a fault down has nowhere to go: it was counted
             pass
+
+
+def run_every(where: str, *stages: tuple[str, Callable[[], object]]) -> None:
+    """(f783) Run each stage, a (name, function) pair, whatever the one before it did: a close, where a stage that stops the rest
+    leaves the next campaign what the rest would have put back. The first error is raised once the last stage has run, a note on it
+    naming "<where>: <its name>"; a stage that fails after it is carried, written down under that name, so none is lost and the one
+    raised is the one that came first. An Interrupt or what is no Exception (Ctrl+C) in a later stage still lets the rest run, then
+    goes on up in the first error's place, which it holds as its context."""
+    for i, (name, stage) in enumerate(stages):
+        try:
+            stage()
+        except BaseException as e:
+            e.add_note(f"{where}: {name}")
+            _rest(where, stages[i + 1:])
+            raise
+
+
+def _rest(where: str, stages: tuple) -> None:
+    """(f783) The stages after one that failed: each carried, and one that carried lets go (an Interrupt, Ctrl+C) runs the rest first."""
+    for i, (name, stage) in enumerate(stages):
+        try:
+            with carried(f"{where}: {name}"):
+                stage()
+        except BaseException as e:
+            e.add_note(f"{where}: {name}")
+            _rest(where, stages[i + 1:])
+            raise
 
 
 def _first(e: Exception, where: str, quiet: tuple) -> bool:

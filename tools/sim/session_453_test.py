@@ -123,8 +123,250 @@ check("the Threshold hands the session the creation's background thread", "self.
 check("the replayer opens its campaigns through the session too", pathlib.Path("tools/rerun.py").read_text(encoding="utf-8").count("CampaignSession.open(") == 2)
 check("the bound lives in config", isinstance(config.CLOSE_WAIT_SECONDS, (int, float)) and config.CLOSE_WAIT_SECONDS <= 5)
 
+# ---- (f783) closing a campaign runs every stage, whatever the one before it did (TASK_FAILURE-14; engine6-7)
+from engine import crashlog, domain_events
+from engine import session as session_mod
+from llm import backend
+import ui.console as uc
+config.CRASH_LOG_PATH = str(simlib.saves_path("session_453_logs", "crash.log"))     # the faults this part makes stay out of logs/
+recording.FOLDER = simlib.saves_path("session_453_recordings")                       # ...and the recorder's trimming out of recordings/
+wait_was, config.CLOSE_WAIT_SECONDS = config.CLOSE_WAIT_SECONDS, 0.2                 # each close waits this long for the thread held open
+
+
+def new_wheres(since: list) -> list:
+    """The places of the crash entries written since `since` (crashlog.SESSION as it stood), by identity: it keeps only the last few."""
+    return [e["where"] for e in crashlog.SESSION if all(e is not s for s in since)]
+
+
+run_every = getattr(crashlog, "run_every", None)
+check("(f783) engine/crashlog.py has run_every(where, *stages): each stage runs whatever the one before it did", run_every is not None)
+if run_every is not None:
+    ran = []
+
+    def step(n, fault=None):
+        def run():
+            ran.append(n)
+            if fault is not None:
+                raise fault
+        return run
+    first, since = ValueError("the first stage's fault"), list(crashlog.SESSION)
+    try:
+        run_every("f783 probe", ("one", step(1, first)), ("two", step(2, KeyError("the second's"))), ("three", step(3)))
+        got = None
+    except BaseException as e:
+        got = e
+    check("...the first error is raised once the last stage has run, and a later one is written down once, under its stage's name",
+          ran == [1, 2, 3] and got is first and new_wheres(since) == ["f783 probe: two"], (ran, got, new_wheres(since)))
+    ran.clear()
+    try:
+        run_every("f783 probe", ("one", step(1, KeyboardInterrupt())), ("two", step(2)))
+        got = None
+    except BaseException as e:
+        got = e
+    check("...and what is no Exception (Ctrl+C) in a stage still lets the later ones run before it goes on up",
+          ran == [1, 2] and isinstance(got, KeyboardInterrupt), (ran, got))
+    ran.clear()
+    first = ValueError("the first stage's fault, again")
+    try:
+        run_every("f783 probe", ("one", step(1, first)), ("two", step(2, KeyboardInterrupt())), ("three", step(3)))
+        got = None
+    except BaseException as e:
+        got = e
+    check("...and Ctrl+C in a later stage, after one that failed, still lets the stage after it run, then goes on up holding the "
+          "first as its context", ran == [1, 2, 3] and isinstance(got, KeyboardInterrupt) and got.__context__ is first, (ran, got))
+    entry = crashlog.record(first, "f783 probe: what main.py writes")
+    log = crashlog.path().read_text(encoding="utf-8").split(crashlog.SEP)[-1]
+    check("...and the error raised names its stage in a note, which the crash entry main.py writes carries",
+          getattr(first, "__notes__", None) == ["f783 probe: one"] and "f783 probe: one" in log and entry["where"] in log,
+          (getattr(first, "__notes__", None), log[-300:]))
+
+# reset() puts back every owned binding whatever the one before it did (the session's last stage, and every open)
+real_owned = session_mod._owned
+canon.set_ids({**canon.ids(), "someone": "x"})
+enchanting.set_discount(10)
+names.set_cast({"Maren": "she"})
+dirty = sorted(simlib.residue())
+rows = real_owned()
+at = next(i for i, r in enumerate(rows) if r[0] in dirty)          # the first dirty row: the fault goes just before it
+fault = RuntimeError("a put back refused")
+
+def refused() -> None:
+    raise fault
+session_mod._owned = lambda: rows[:at] + [("f783 probe row", refused, lambda: True, lambda: "")] + rows[at:]
+try:
+    session_mod.reset()
+    got = None
+except RuntimeError as e:
+    got = e
+finally:
+    session_mod._owned = real_owned
+check("(f783) reset() with a put back refused in the middle: every row after it is still put back, and that error is raised, "
+      "naming the row", 0 < at < len(rows) - 1 and len(dirty) >= 3 and got is fault and simlib.residue() == {}
+      and getattr(fault, "__notes__", None) == ["putting back the owned state: f783 probe row"], (at, dirty, got, simlib.residue()))
+
+
+def store_closed(store) -> bool:
+    try:
+        store._db.execute("SELECT 1")
+    except sqlite3.ProgrammingError:
+        return True
+    return False
+
+
+SPIED, BREAK = {}, {}                                   # what each stage was called with; the fault a stage raises in its place
+def spy(stage, real):
+    def fn(*a, **k):
+        SPIED.setdefault(stage, []).append(a)
+        if stage in BREAK:
+            raise BREAK[stage]
+        return real(*a, **k)
+    return fn
+real_cancel, real_orphan, real_drop, real_reset = backend.cancel_session, recording.orphan, backfill.drop, session_mod.reset
+backend.cancel_session, recording.orphan = spy("cancel", real_cancel), spy("orphan", real_orphan)
+backfill.drop, session_mod.reset = spy("drop", real_drop), spy("reset", real_reset)
+CONSOLE = {n: uc.channel().get(n) for n in ("ask",) + recording.STORY}
+
+
+class Refused:
+    """A log the disk refuses: its write raises, or its close (the flush it makes) does; the file itself is closed either way."""
+    def __init__(self, f, fault, at):
+        self.f, self.fault, self.at = f, fault, at
+
+    def write(self, s):
+        if self.at == "write":
+            raise self.fault
+        return self.f.write(s)
+
+    def flush(self):
+        self.f.flush()
+
+    def close(self):
+        self.f.close()
+        if self.at == "close":
+            raise self.fault
+
+
+def played(name: str, seed: int):
+    """A campaign recorded into a folder of its own, one line played and its row still to write, a thread of its own held open, its
+    store's close and its bus's clearing spied."""
+    g = simlib.campaign(name, cls="warrior", seed=seed)
+    rec = g.session.record(folder=simlib.saves_path(name + "_rec"))
+    stub.plan = [{"kind": "look"}]
+    g.scene.turn("I look around.")
+    rec.open_input = True                                 # as after a line typed: its row is written as the recorder closes
+    hold = threading.Event()
+    held = g.session.own(threading.Thread(target=hold.wait, args=(15,), daemon=True))
+    held.start()
+    g.store.close = spy("store", g.store.close)
+    g.session.bus.clear = spy("bus", g.session.bus.clear)
+    return g, rec, held, hold
+
+
+def closed_with(g, rec, faults: dict):
+    """g closed with each stage named in `faults` raising its fault: 'meta', 'row' and 'calls' are the recorder's (meta.json, the last
+    input's row, the call log's close), the rest the session's. Returns what the close raised."""
+    for at, fault in faults.items():
+        if at == "meta":
+            (rec.dir / "meta.json").unlink()
+            (rec.dir / "meta.json").mkdir()               # meta.json cannot be written: a folder stands in its place
+        elif at == "row":
+            rec.turns = Refused(rec.turns, fault, "write")
+        elif at == "calls":
+            rec.calls = Refused(rec.calls, fault, "close")
+        else:
+            BREAK[at] = fault
+    SPIED.clear()
+    try:
+        g.close()
+        return None
+    except BaseException as e:
+        return e
+    finally:
+        BREAK.clear()
+
+
+ORDER = ("recorder", "cancel", "orphan", "drop", "store", "bus", "reset")
+STAGE = {"meta": "recorder", "row": "recorder", "calls": "recorder"}
+WHAT = {"meta": "meta.json (a folder in its place: the finder's case)", "row": "the last input's row (the disk full)",
+        "calls": "the call log's close (the disk full at its flush)", "cancel": "the cancel of its background calls",
+        "orphan": "the orphaning of its threads", "drop": "the forgetting of its jobs", "store": "the store's close",
+        "bus": "the clearing of its bus", "reset": "the putting back of the owned state"}
+
+
+def left(g, rec, held) -> dict:
+    """What each stage of the close left: by its effect where it has one, else by the call it made."""
+    return {"recorder": rec.closed and rec._layer not in backend.layers() and not streams.STRICT and g.session.recorder is None
+                        and all(uc.channel().get(n) == f for n, f in CONSOLE.items()),
+            "cancel": [a[0] for a in SPIED.get("cancel", [])] == [str(g.store.root)],
+            "orphan": held in recording.ORPHANS,
+            "drop": [a[0] is g.store for a in SPIED.get("drop", [])] == [True],
+            "store": store_closed(g.store),
+            "bus": isinstance(domain_events.current(), domain_events.IdleBus) and g.session.bus.subscribers() == 0,
+            "reset": simlib.residue() == {}}
+
+
+def tidy(g, rec, hold) -> None:
+    """What a close left undone put right by hand, so the next case starts clean: the close itself is what is checked."""
+    hold.set()
+    if rec.unwrap is not None:
+        rec.unwrap()
+        rec.unwrap = None
+    for ch, n, fn in reversed(rec.undo):
+        ch.set(n, fn)
+    rec.undo, rec.closed, streams.STRICT = [], True, False
+    if not store_closed(g.store):
+        type(g.store).close(g.store)
+    real_reset()
+
+
+CASES = [("meta",), ("row",), ("calls",), ("cancel",), ("orphan",), ("drop",), ("store",), ("bus",), ("reset",), ("calls", "store")]
+names_made = []
+for i, broken in enumerate(CASES):
+    name = f"session_453_close_{i}"
+    names_made += [name, name + "_rec"]
+    g, rec, held, hold = played(name, 60 + i)
+    faults = {at: None if at == "meta" else OSError(28, f"No space left on device ({at})") if at in STAGE else RuntimeError(f"refused: {at}")
+              for at in broken}
+    since = list(crashlog.SESSION)
+    got = closed_with(g, rec, faults)
+    raised = (isinstance(got, OSError) and str(got.filename or "").endswith("meta.json")) if broken[0] == "meta" else got is faults[broken[0]]
+    done = left(g, rec, held)
+    out = {STAGE.get(at, at) for at in broken} - {"recorder"}     # the recorder's take-off holds even when one of its writes failed
+    missing = [s for s in ORDER if s not in out and not done[s]]
+    if len(broken) == 1:
+        check(f"(f783) a close refused at {WHAT[broken[0]]}: that error is raised, and every other stage still did its work"
+              + (" (the recorder taken off, its background calls ended, its thread orphaned, its jobs forgotten, the store closed, the "
+                 "bus idle, every owned binding put back)" if i == 0 else ""), raised and not missing, (got, missing))
+    else:
+        wheres = [w for w in new_wheres(since) if w.startswith("closing a campaign")]
+        check(f"(f783) a close refused at {WHAT[broken[0]]} and then at {WHAT[broken[1]]}: the first is the error raised, the second is "
+              "written down once under the store's stage, and every other stage still did its work",
+              raised and not missing and len(wheres) == 1 and "store" in wheres[0], (got, missing, wheres))
+    if broken == ("meta",):
+        check("...and the error raised names the stage in notes, the recorder's own and the session's, so the crash entry says where",
+              getattr(got, "__notes__", None) == ["closing a recording: meta.json", "closing a campaign: the recorder"],
+              getattr(got, "__notes__", None))
+        SPIED.clear()
+        try:
+            g.close()
+            again = "returned"
+        except BaseException as e:
+            again = e
+        check("...and a second close of the campaign whose close was refused does nothing", again == "returned" and not SPIED, (again, SPIED))
+    if broken == ("row",):
+        n_old = rec.n_call
+        names_made.append("session_453_close_next")
+        nxt = simlib.campaign("session_453_close_next", cls="warrior", seed=59)
+        nxt.scene.turn("I look around.")
+        check("...and the next campaign in the same process, with no recorder of its own, writes no call into the old recording",
+              rec.n_call == n_old, (n_old, rec.n_call))
+        nxt.close()
+    tidy(g, rec, hold)
+backend.cancel_session, recording.orphan, backfill.drop, session_mod.reset = real_cancel, real_orphan, real_drop, real_reset
+config.CLOSE_WAIT_SECONDS = wait_was
+
 life._ask = real_ask
-for n in ("session_453_a", "session_453_b", "session_453_rec"):
+for n in ("session_453_a", "session_453_b", "session_453_rec", "session_453_logs", "session_453_recordings", *names_made):
     shutil.rmtree(simlib.saves_path(n), ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)
