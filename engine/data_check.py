@@ -98,11 +98,26 @@ def _load(rel: str):
     return _kept("data", rel, lambda: yaml.load((ROOT / rel).read_text(encoding="utf-8"), Loader=_Strict))
 
 
+UNSHIPPED = ("tools", "replay")    # (f785) the folders of data/ NOT_GAME names a build may leave out: data/runtime and data/measured ship
+
+
+def _left_out(folder: str) -> bool:
+    """(f785) Whether this game is without data/<folder>, one of UNSHIPPED: only a built game can be. From source a rule held to it
+    reads it, and a tree without it fails loudly; a build that carries it runs the rule, which needs data, not source."""
+    if folder not in UNSHIPPED:
+        raise ValueError(f"data/{folder} is not a folder a build may leave out ({', '.join(UNSHIPPED)})")
+    return built() and not (ROOT / "data" / folder).is_dir()
+
+
+def _unshipped(rel: str):
+    """(f785) A file of a folder in UNSHIPPED (rel: data/<folder>/...), on the strict loader: None where that folder is left out, else
+    read as any data file is."""
+    return None if _left_out(Path(rel).parts[1]) else _load(rel)
+
+
 def _tools(name: str):
-    """(f785) A file of data/tools, what only the tools read (storage/statehash.py NOT_GAME), on the strict loader; None where there
-    is no data/tools, and the rules held to it are skipped there. No build will ship it once SHIPPING-10 stages the build; today's
-    carries it, and these rules run there."""
-    return _load(f"data/tools/{name}") if (ROOT / "data" / "tools").is_dir() else None
+    """(f785) A file of data/tools: none in a build without it, once SHIPPING-10 stages the build without it; today's carries it."""
+    return _unshipped(f"data/tools/{name}")
 
 
 def _why(rel: str, fault: Exception) -> str:
@@ -235,7 +250,7 @@ def budget_problems(B: dict | None = None, found: dict | None = None) -> list[st
         "DND_THINK_TASKS (config.THINK_TASKS)": set(getattr(config, "THINK_TASKS", ())),     # (f533) a misspelt name would think nowhere
     }
     lora = _tools("lora.yaml")
-    if lora is not None:                                               # (f785) the tools' training run, where data/tools is
+    if lora is not None:                                               # (f785) the tools' training run; none in a build without data/tools
         lists["lora.yaml prose_tasks and speech_tasks"] = set((lora.get("prose_tasks") or []) + (lora.get("speech_tasks") or []))
     for where, names in lists.items():
         stray = sorted(names - set(T))
@@ -296,9 +311,9 @@ def fights_problems(data: dict | None = None) -> list[str]:
     if not isinstance(limit, (int, float)) or isinstance(limit, bool) or limit <= 0:
         bad.append(f"bundle_e_fights.yaml limit_seconds: needs a number above zero, not {limit!r}")
     from engine.recording import calls_file                          # (f732) a kept recording's log, in either form
-    replay = ROOT / "data" / "replay"                                # (f531) the kept recordings are a source tree's: a built game
-    for name, rows in (data.get("goldens") or {}).items():          # ships without data/replay, and is not told they are missing
-        if replay.exists() and calls_file(replay / "sessions" / str(name)) is None:
+    kept = not _left_out("replay")                                   # (f785) only a build without data/replay is not told of them
+    for name, rows in (data.get("goldens") or {}).items():
+        if kept and calls_file(ROOT / "data" / "replay" / "sessions" / str(name)) is None:
             bad.append(f"bundle_e_fights.yaml goldens.{name}: no such recording is kept")
         for i, row in (rows or {}).items():
             for k in ("estimate", "operations", "reruns", "simulations"):
@@ -365,7 +380,7 @@ def sampling_problems(S: dict | None = None) -> list[str]:
 
 def cards_problems(C: dict | None = None) -> list[str]:
     """(f527) data/tools/cards.yaml: the minimum cards named for each backend are cards the file knows, and every device pattern is a
-    regular expression for a known card. (f785) Skipped where there is no data/tools."""
+    regular expression for a known card. (f785) Skipped in a built game without data/tools."""
     import re as _re
     C = _tools("cards.yaml") if C is None else C
     if C is None:
@@ -440,9 +455,9 @@ def gate_problems(F: dict | None = None, measured: dict | None = None) -> list[s
     HELD = ("reading_share", "phantoms_per_100", "unknown_names_per_100", "stiff_sent_back_share", "p95_seconds", "over_limit", "stand_ins",
             "leaks", "townsperson_prompt_p95_chars", "first_try_share",       # (f723) the speech work's three
             "leak_lines_with_news")                                           # (f729) whether the leak count could have failed
-    if F is None and not (ROOT / "data" / "replay" / "gate.yaml").exists():
-        return []                                                      # a build without the test data has no gate to hold
-    F = _load("data/replay/gate.yaml") if F is None else F
+    F = _unshipped("data/replay/gate.yaml") if F is None else F
+    if F is None:
+        return []                                                      # (f785) a build without data/replay has no gate to hold
     bad = []
     held = F.get("floors")
     if not isinstance(held, dict) or set(held) != set(HELD):
@@ -967,7 +982,7 @@ def check() -> list[str]:
                 need(all(n in made for n, w in table.items() if w), f"name_sounds.yaml {people} {kind}: syllables asks for names of "
                      f"{sorted(n for n, w in table.items() if w and n not in made)} syllables, and its sounds cannot make any")
 
-    # ---- (f444) the cards a recording may be timed on; (f785) the tools' own, where data/tools is
+    # ---- (f444) the cards a recording may be timed on; (f785) the tools' own, none in a build without data/tools
     cards = _tools("cards.yaml")
     for card, spec in ((cards or {}).get("cards") or {}).items():
         need(all(isinstance((spec or {}).get(k), (int, float)) and spec[k] > 0 for k in ("bandwidth_gbs", "tflops", "memory_gb")),

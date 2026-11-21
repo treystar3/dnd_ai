@@ -16,8 +16,8 @@ rule (hygiene.yaml data_words) skips by, and copy_data(), a copy of data/ withou
   startup check names a file of data/tools, which no build will ship once SHIPPING-10 stages the build (today's carries it, and the
   check's rules held to it run there). A stray file planted under data/rules that nothing names, one only data_check names, and a
   module planted naming lora.yaml are each caught;
-- the startup check's rules held to data/tools (lora.yaml's task names, the cards and the measured profile's card) are skipped in a
-  tree without data/tools, and raise nothing;
+- the startup check reads data/tools through one door (engine/data_check.py _tools); tools/sim/tools_door_785b_test.py holds what it
+  does: from source a tree without data/tools fails loudly, and only a built game without it skips the rules held to it;
 - the data words rule skips the folders NOT_GAME names (data/runtime among them now: no string there is shown to a player) and
   hygiene.yaml keeps no list of its own; no file of the game or the tools names the moved files at their old places.
 What the fence does not read: whether a module that names a file reads it (a docstring counts); a file named by a name built at run
@@ -173,31 +173,9 @@ check("...planted: a stray file under data/rules that nothing names is caught, a
 check("...planted: a module of the game that names a file of data/tools is caught",
       tools_named(["tools/lora.yaml"], {"engine/planted_785.py": 'Path("data/tools/lora.yaml")'}) == ["engine/planted_785.py (tools/lora.yaml)"])
 
-# ---- the startup check's rules held to data/tools are skipped where there is none
+# ---- the startup check reads data/tools through one door; what it does where there is none is tools_door_785b_test's
 from engine import data_check
-tools_of = getattr(data_check, "_tools", None)
-check("(f785) engine/data_check.py reads data/tools through one door (_tools)", callable(tools_of))
-if callable(tools_of):
-    bare = Path(tempfile.mkdtemp(prefix="datahash_785_bare_"))
-    statehash.copy_data(bare)                                          # the game's data alone: no data/tools
-    real_root = data_check.ROOT
-    data_check.ROOT = bare
-    try:
-        none_there = tools_of("lora.yaml") is None and tools_of("cards.yaml") is None
-    finally:
-        data_check.ROOT = real_root
-    data_check._tools = lambda name: None                              # a tree without data/tools, for the rules that read through it
-    try:
-        got, why = data_check.budget_problems() + data_check.cards_problems() + data_check.check(), ""
-    except Exception as e:
-        got, why = [], f"{type(e).__name__}: {e}"
-    finally:
-        data_check._tools = tools_of
-    check("(f785) ...which answers None in a tree without data/tools, and the rules held to it are skipped there, raising nothing",
-          none_there and not why and not [p for p in got if "lora.yaml" in p or "cards.yaml" in p], (none_there, why, got[:4]))
-    check("...while in this tree they are read and hold", tools_of("lora.yaml") and tools_of("cards.yaml")
-          and not [p for p in data_check.check() if "lora.yaml" in p or "cards.yaml" in p])
-    shutil.rmtree(bare, ignore_errors=True)
+check("(f785) engine/data_check.py reads data/tools through one door (_tools)", callable(getattr(data_check, "_tools", None)))
 
 # ---- the data words rule skips by the same list, and nothing names the moved files at their old places
 from engine import hygiene

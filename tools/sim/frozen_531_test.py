@@ -3,8 +3,8 @@ depot (models/*.gguf, the files data/runtime/server.yaml pins), with nothing of 
 
 - core.paths in a frozen build: BUNDLE is where the packaged data is unpacked and APP the exe's folder; RUNTIME, MODELS and RUN sit
   beside the exe, never under the bundle's data/; MERAVIA_RUNTIME and MERAVIA_MODELS still name other folders.
-- The startup check requires the kept recordings only where a replay folder exists (a source tree): a built game without data/replay
-  passes, and a source tree missing a golden is still told.
+- The startup check requires the kept recordings from source: a built game without data/replay passes, and a source tree missing a
+  golden is still told, with its replay folder or without it (f785).
 - build_exe.bat ships runtime/cuda and runtime/vulkan (and the processor's build) beside the exe, never models/, and collects no Ollama.
 - build_installer.bat writes the installer's model downloads from server.yaml (tools/installer_files.py: each file's source, name and
   sha256, checked by the installer); meravia.iss includes them and installs no Ollama; README_testers.md says so.
@@ -80,16 +80,21 @@ built = scratch / "built"
 for rel in ("data/rules/budget.yaml", "data/measured/bundle_e_fights.yaml"):
     (built / rel).parent.mkdir(parents=True, exist_ok=True)
     shutil.copy(ROOT / rel, built / rel)
-real_root = data_check.ROOT
+real_root, real_frozen = data_check.ROOT, paths.FROZEN
 try:
     data_check.ROOT = built
+    paths.FROZEN = True                                               # (f785) the build fact decides, with the folder
     without = data_check.fights_problems()
+    paths.FROZEN = real_frozen
+    from_source = data_check.fights_problems()
     (built / "data" / "replay" / "sessions").mkdir(parents=True)
     with_folder = data_check.fights_problems()
 finally:
-    data_check.ROOT = real_root
+    data_check.ROOT, paths.FROZEN = real_root, real_frozen
 check("a built game without data/replay passes the fights check: the goldens are a source tree's", without == [], without)
-check("...and a source tree missing a golden is still told", any("no such recording is kept" in p for p in with_folder), with_folder)
+check("...and a source tree missing a golden is still told, with its replay folder and without it (f785)",
+      any("no such recording is kept" in p for p in with_folder) and any("no such recording is kept" in p for p in from_source),
+      (with_folder, from_source))
 startup_found = data_check.check()
 check("the startup check passes on the source tree", startup_found == [], startup_found[:3])
 
