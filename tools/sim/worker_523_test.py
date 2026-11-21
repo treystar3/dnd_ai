@@ -13,6 +13,8 @@
   promotion names the Thread, not its ident; a promotion lasts the job's every call; a call is armed in the same hold that lets it
   in, so no foreground call, campaign close or close slips between; a call waiting max_wait runs beside the turn and is not taken
   back; max_cancels 0 still waits for the reading time; a source that cannot be made never fails a save's opening.
+- (f789) That race, and the waiting call's count, are judged by the worker's state, never by a time; every wait in them is bounded
+  and no side of the race is left running; the same judge sees a call armed in a second hold slip, of each kind.
 
 Run: python tools/sim/worker_523_test.py"""
 
@@ -414,30 +416,40 @@ finally:
     undo_p()
 
 # ---- the cancel flag is armed in the same hold that lets the call in
+def slipped(wr, flag) -> bool:
+    """(f789) Sent with its flag clear while the card is the turn's, or its campaign or the worker is closed: the worker's state as
+    the call is sent, never a time (none of the reasons a call may run beside the turn is set where this is asked)."""
+    with wr._cv:
+        return (wr._foreground > 0 or wr._closed or "S" in wr._closed_sessions) and not flag.is_set()
+
+
 real_switch = sys.getswitchinterval()
 sys.setswitchinterval(1e-6)
 escaped = {"fg": 0, "cancel": 0, "close": 0}
+left_running = []
 try:
     for _ in range(60):
         for kind in escaped:
             wr = worker.Worker(max_cancels=3, resume_idle=0.0, step=0.001)
-            res = {}
+            res, bg_done = {}, threading.Event()
 
-            def send_bg(flag, wr=wr, res=res, kind=kind):
-                fg_now = wr._foreground > 0
-                if flag.wait(0.02):
+            def send_bg(flag, wr=wr, res=res):
+                res["escaped"] = res.get("escaped") or slipped(wr, flag)
+                if flag.wait(0.02):                       # in flight a while, so the other side meets it often
                     raise Failure("cancelled", "x")
-                res["escaped"] = fg_now if kind == "fg" else True
                 return "answer"
 
-            def bg_side(wr=wr, res=res):
+            def bg_side(wr=wr, res=res, bg_done=bg_done):
                 try:
                     wr.background(send_bg, session="S")
                 except BaseException as e:
                     res["err"] = e
+                finally:
+                    bg_done.set()
 
-            def other_side(wr=wr, kind=kind):
-                while not wr._background:
+            def other_side(wr=wr, kind=kind, bg_done=bg_done):
+                until = time.monotonic() + 5.0            # (f789) bounded: a side that never meets the call must not spin on
+                while not wr._background and not bg_done.is_set() and time.monotonic() < until:
                     pass
                 if kind == "fg":
                     wr.foreground(lambda _: time.sleep(0.02))
@@ -445,17 +457,63 @@ try:
                     wr.cancel_session("S")
                 else:
                     wr.close()
-            b = threading.Thread(target=other_side)
+            b = threading.Thread(target=other_side, daemon=True)
             b.start()
-            a = threading.Thread(target=bg_side)
+            a = threading.Thread(target=bg_side, daemon=True)
             a.start()
-            a.join(5)
-            b.join(5)
+            a.join(10)
+            b.join(10)
+            left_running += [kind] * (a.is_alive() + b.is_alive())
             escaped[kind] += bool(res.get("escaped"))
 finally:
     sys.setswitchinterval(real_switch)
 check("no foreground call, campaign close or close slips between letting a call in and arming it", escaped == {"fg": 0, "cancel": 0, "close": 0},
       escaped)
+check("and no side of that race is left running", left_running == [], left_running)
+
+
+class _ArmedLate(worker.Worker):
+    """The gap f523's review closed, made certain: the call is let in, the other side acts, and only then is it armed."""
+
+    def __init__(self, act, **kw):
+        super().__init__(**kw)
+        self.act = act
+
+    def _admit(self, call):
+        flag = super()._admit(call)
+        with self._cv:
+            call.flag = None
+        self.act(self)
+        with self._cv:
+            call.flag = flag
+        return flag
+
+
+caught = {}
+for kind in ("fg", "cancel", "close"):
+    release, seen = threading.Event(), []
+
+    def act(wl, kind=kind, release=release):
+        if kind == "fg":
+            inside = threading.Event()
+            threading.Thread(target=lambda: wl.foreground(lambda _: (inside.set(), release.wait(5))), daemon=True).start()
+            inside.wait(5)
+        elif kind == "cancel":
+            wl.cancel_session("S")
+        else:
+            wl.close()
+    wl = _ArmedLate(act, max_cancels=3, resume_idle=0.0, step=0.001)
+
+    def send_late(flag, wl=wl, seen=seen, release=release):
+        seen.append(slipped(wl, flag))
+        release.set()
+        return "answer"
+    try:
+        wl.background(send_late, session="S")
+    except Exception as e:
+        seen.append(e)
+    caught[kind] = seen[0] if seen else None
+check("and that judge sees a call that slips between, of each kind", caught == {"fg": True, "cancel": True, "close": True}, caught)
 
 # ---- a call that has waited max_wait runs beside the turn, and is not taken back
 ws = worker.Worker(max_cancels=3, resume_idle=2.0, max_wait=1.0)
@@ -484,14 +542,19 @@ check("and is not taken back by the turn's next call", ress.get("cancelled") is 
 
 # ---- max_cancels 0 never takes the card back, and still waits for the reading time
 w0 = worker.Worker(max_cancels=0, resume_idle=0.6)
-w0.foreground(lambda _: None)
-t00, res0 = time.monotonic(), {}
-b0 = threading.Thread(target=lambda: res0.setdefault("at", (w0.background(lambda f: "ok"), time.monotonic() - t00)[1]), daemon=True)
+turn_in, turn_end, res0 = threading.Event(), threading.Event(), {}
+turn0 = threading.Thread(target=lambda: w0.foreground(lambda _: (turn_in.set(), turn_end.wait(5))), daemon=True)
+turn0.start()
+turn_in.wait(5)                                        # (f789) a turn's call runs while the call asks: it waits, however slow its start
+b0 = threading.Thread(target=lambda: res0.setdefault("sent", (w0.background(lambda f: "ok"), time.monotonic())[1]), daemon=True)
 b0.start()
-time.sleep(0.2)
+wait_for(lambda: sum(w0.stats()[k] for k in ("waiting", "in_flight")) >= 1, 5)
 waiting_now = w0.stats()
-b0.join(3)
-check("max_cancels 0 still waits for the reading time", res0.get("at", 0) >= 0.5, res0)
+turn_end.set()
+turn0.join(5)
+b0.join(5)
+check("max_cancels 0 still waits for the reading time", res0.get("sent", 0) - w0._last_foreground >= 0.5,
+      (res0, w0._last_foreground))
 check("and the worker tells a waiting call from one in flight", waiting_now.get("waiting") == 1 and waiting_now.get("in_flight") == 0,
       waiting_now)
 
