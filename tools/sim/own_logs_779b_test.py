@@ -14,8 +14,9 @@ reports) were written there too, and trimmed, and a log path a test named under 
   simlib names one for a test run by hand (a *_test.py script), which every process it starts inherits.
 - a fence in every process of every test the runner starts (tools/suite_ran/sitecustomize.py) refuses a write or a removal under the
   project's own logs/ and recordings/, and the runner fails that test, naming the write.
-Held here by planted tests, each in a process of its own. All but the fence's probe carry an audit hook of their own that refuses any
-write under the project's logs/, recordings/ and saves/ before it happens; the fence's probe only aims at folders that are not there.
+Held here by planted tests, each in a process of its own. All but the two fence probes carry an audit hook of their own that refuses
+any write under the project's logs/, recordings/ and saves/ before it happens; the first fence probe only aims at folders that are
+not there, and the second only raises audit events by hand, writing nothing but its note in a temporary folder of its own.
 So nothing here reaches the owner's files, whatever the tree:
 - the finder's case: an older test that calls the gateway with the audit on, run by the real runner, writes its audit session in a
   folder of its own outside the project, and nothing under logs/; and the rest of the kind beside it, each written by the game's own
@@ -31,7 +32,9 @@ So nothing here reaches the owner's files, whatever the tree:
   function of the game that reads a log setting of config places it through written(), each setting names a path under logs/, and
   the audit reads no folder from its table; (f781) and every setting of the logs (a path, a switch, a cap) is read off config
   itself, never with a fallback of its own, so config.py is its one home;
-- the runner reads what a tree's own logs/ and recordings/ hold, for the line a run ends with (yes or no, nothing printed of it).
+- the runner reads what a tree's own logs/ and recordings/ hold, for the line a run ends with (yes or no, nothing printed of it);
+- the fence reads a name given with an open folder handle (dir_fd, as rmtree on Linux gives) against that folder, for each event
+  and each of its names: a test's own folder is let through, the project's is refused.
 Run: python tools/sim/own_logs_779b_test.py"""
 import ast
 import importlib
@@ -100,11 +103,19 @@ def _fence(event, args):
             return
     elif event not in WRITES:
         return
-    for t in args[:2] if event == "os.rename" else args[:1]:
+    fds = {"os.remove": 1, "os.rmdir": 1, "shutil.rmtree": 1, "os.mkdir": 2}   # (f779) where an event carries its dir_fd
+    if event == "os.rename":
+        pairs = [(args[0], args[2] if len(args) > 2 else None), (args[1], args[3] if len(args) > 3 else None)]
+    else:
+        pairs = [(args[0], args[fds[event]] if event in fds and len(args) > fds[event] else None)]
+    for t, fd in pairs:
         if not isinstance(t, (str, bytes, os.PathLike)):
             continue
         try:
-            p = Path(os.fsdecode(t)).resolve()
+            s = os.fsdecode(t)
+            if isinstance(fd, int) and fd >= 0 and not os.path.isabs(s):     # a name relative to an open folder
+                s = os.path.join(os.readlink(f"/proc/self/fd/{fd}"), s)
+            p = Path(s).resolve()
         except (OSError, ValueError):
             continue
         if any(p == g or g in p.parents for g in GUARDED):
@@ -505,6 +516,52 @@ try:
               and len(owners(tree)) == 3, (first, owners(tree)))
 finally:
     shutil.rmtree(scratch, ignore_errors=True)
+
+# ---- (f779) a name relative to an open folder (rmtree on Linux: os.rmdir("logs", dir_fd)) is read against that folder
+FD_PROBE = r'''
+import importlib.util, json, os, sys, tempfile
+spec = importlib.util.spec_from_file_location("fence_under_test", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+os.environ.pop("MERAVIA_FENCE", None); os.environ.pop("MERAVIA_RAN", None)
+spec.loader.exec_module(mod)
+import shutil
+own = tempfile.mkdtemp(prefix="fd_779_")
+try:
+    where = {5: own, 6: sys.argv[2], 7: os.path.join(sys.argv[2], "logs")}   # 5 a test's own folder, 6 the project, 7 its logs/
+    mod._fd_dir = lambda fd: where[fd]
+    mod._fence(os.path.join(own, "note.txt"))
+    CASES = [("rmdir own", "os.rmdir", ("logs", 5)), ("rmdir root", "os.rmdir", ("logs", 6)), ("rmdir bare", "os.rmdir", ("logs", -1)),
+             ("remove own", "os.remove", ("logs", 5)), ("remove in logs", "os.remove", ("x.jsonl", 7)),
+             ("rmtree own", "shutil.rmtree", ("logs", 5)), ("rmtree root", "shutil.rmtree", ("logs", 6)),
+             ("mkdir own", "os.mkdir", ("recordings", 0o777, 5)), ("mkdir root", "os.mkdir", ("recordings", 0o777, 6)),
+             ("rename own", "os.rename", ("logs", "logs2", 5, 5)), ("rename to root", "os.rename", ("logs", "logs", 5, 6)),
+             ("rename from root", "os.rename", ("logs", "logs", 6, 5)), ("rename out of root", "os.rename", ("logs", "away", 6, 5)),
+             ("link to root", "os.link", ("a", "logs", 5, 6)),
+             ("link own", "os.link", ("a", "logs", 6, 5)), ("symlink to root", "os.symlink", ("a", "logs", 6)),
+             ("symlink own", "os.symlink", ("a", "logs", 5))]
+    said = {}
+    for name, event, args in CASES:
+        try:
+            sys.audit(event, *args)
+            said[name] = "let through"
+        except PermissionError:
+            said[name] = "refused"
+    print("FD " + json.dumps(said))
+finally:
+    shutil.rmtree(own, ignore_errors=True)
+'''
+fd_env = {k: v for k, v in os.environ.items() if k != "MERAVIA_FENCE"}   # the probe holds the fence itself, noting only in its own folder
+fd_run = subprocess.run([sys.executable, "-c", FD_PROBE, str(ROOT / "tools" / "suite_ran" / "sitecustomize.py"), str(ROOT)],
+                        cwd=str(ROOT), env=fd_env, capture_output=True, text=True, encoding="utf-8", timeout=60)
+fd_said = next((json.loads(l[3:]) for l in fd_run.stdout.splitlines() if l.startswith("FD ")), {})
+FD_WANT = {"rmdir own": "let through", "rmdir root": "refused", "rmdir bare": "refused", "remove own": "let through",
+           "remove in logs": "refused", "rmtree own": "let through", "rmtree root": "refused", "mkdir own": "let through",
+           "mkdir root": "refused", "rename own": "let through", "rename to root": "refused", "rename from root": "refused",
+           "rename out of root": "refused",
+           "link to root": "refused", "link own": "let through", "symlink to root": "refused", "symlink own": "let through"}
+check("(f779) the fence reads a name given with an open folder against that folder, for each event and each of its names: a test's "
+      "own folder is let through, the project's is refused, and a bare name is read from where the process stands",
+      fd_said == FD_WANT, ({k: v for k, v in fd_said.items() if FD_WANT.get(k) != v}, fd_run.stderr[-600:]))
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

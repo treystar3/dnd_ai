@@ -6,12 +6,32 @@ that drops this record (`blind`: what that process ran is not known). Each funct
 so the test runs at its own speed. With MERAVIA_RAN unset nothing is kept. A sitecustomize the interpreter had is loaded after.
 (f779) And the fence, when MERAVIA_FENCE names its note (the runner names one for every test): no process of a test writes, moves
 or removes anything under the project's own logs/ or recordings/, the owner's play. Such a write is refused (PermissionError) and
-written in the note, and the runner fails the test, whatever the test made of the error."""
+written in the note, and the runner fails the test, whatever the test made of the error. A name given with an open folder handle
+(dir_fd, as rmtree on Linux gives) is read against that folder, and let through where the handle cannot be read; a write-mode
+os.open(..., dir_fd=) is read against the working folder, since its audit event carries no dir_fd."""
 import os
 import sys
 
 _out = os.environ.get("MERAVIA_RAN")
 _here = os.path.dirname(os.path.abspath(__file__))
+
+
+# (f779) per event, the argument holding the dir_fd of its first and second name (CPython's audit events; os.replace raises os.rename)
+_FD_ARG = {"os.remove": (1,), "os.rmdir": (1,), "shutil.rmtree": (1,), "os.mkdir": (2,), "os.rename": (2, 3), "os.link": (2, 3),
+           "os.symlink": (None, 2)}
+
+
+def _dir_fd(event, args, which):
+    """The open folder the event's name number `which` (0 the first, 1 the second) is relative to; None when it names a path whole."""
+    at = _FD_ARG.get(event, ())
+    i = at[which] if which < len(at) else None
+    fd = args[i] if i is not None and len(args) > i else None
+    return fd if isinstance(fd, int) and fd >= 0 else None
+
+
+def _fd_dir(fd: int) -> str:
+    """The folder an open folder handle names, read from /proc on Linux; elsewhere it raises, and the name is let through."""
+    return os.readlink(f"/proc/self/fd/{fd}")
 
 
 def _fence(note: str) -> None:
@@ -21,11 +41,14 @@ def _fence(note: str) -> None:
     second = {"shutil.copyfile", "shutil.copytree", "os.link", "os.symlink"}   # (source, target): only the target is written
     flags = os.O_WRONLY | os.O_RDWR | os.O_APPEND | os.O_CREAT | getattr(os, "O_TRUNC", 0)
 
-    def inside(t) -> str:
+    def inside(t, fd=None) -> str:
         if not isinstance(t, (str, bytes, os.PathLike)):
             return ""
         try:
-            p = os.path.normcase(os.path.realpath(os.fsdecode(t)))
+            t = os.fsdecode(t)
+            if isinstance(fd, int) and not os.path.isabs(t):           # (f779) a name relative to an open folder
+                t = os.path.join(_fd_dir(fd), t)
+            p = os.path.normcase(os.path.realpath(t))
         except (OSError, ValueError, TypeError):
             return ""
         return p if any(p == g or p.startswith(g + os.sep) for g in guarded) else ""
@@ -38,15 +61,15 @@ def _fence(note: str) -> None:
             if not (isinstance(mode, str) and any(c in mode for c in "wax+") or mode is None and isinstance(fl, int) and fl & flags):
                 return
         if event in first:
-            targets = args[:1]
+            targets = [(args[0] if args else None, _dir_fd(event, args, 0))]
         elif event in second:
-            targets = args[1:2]
+            targets = [(args[1] if len(args) > 1 else None, _dir_fd(event, args, 1))]
         elif event == "os.rename":                                     # a move out of the folder takes a file from it
-            targets = args[:2]
+            targets = [(args[0], _dir_fd(event, args, 0)), (args[1], _dir_fd(event, args, 1))]
         else:
             return
-        for t in targets:
-            p = inside(t)
+        for t, fd in targets:
+            p = inside(t, fd)
             if p:
                 try:
                     if noted:

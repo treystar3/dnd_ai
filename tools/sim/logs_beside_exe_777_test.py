@@ -99,11 +99,21 @@ def _fence(event, args):
             return
     elif event not in WRITES:
         return
-    for t in args[:2] if event in ("os.rename", "shutil.copyfile") else args[:1]:
+    fds = {"os.remove": 1, "os.rmdir": 1, "shutil.rmtree": 1, "os.mkdir": 2}   # (f779) where an event carries its dir_fd
+    if event == "os.rename":
+        pairs = [(args[0], args[2] if len(args) > 2 else None), (args[1], args[3] if len(args) > 3 else None)]
+    elif event == "shutil.copyfile":
+        pairs = [(args[0], None), (args[1], None)]
+    else:
+        pairs = [(args[0], args[fds[event]] if event in fds and len(args) > fds[event] else None)]
+    for t, fd in pairs:
         if not isinstance(t, (str, bytes, os.PathLike)):
             continue
         try:
-            p = Path(os.fsdecode(t)).resolve()
+            s = os.fsdecode(t)
+            if isinstance(fd, int) and fd >= 0 and not os.path.isabs(s):     # a name relative to an open folder
+                s = os.path.join(os.readlink(f"/proc/self/fd/{fd}"), s)
+            p = Path(s).resolve()
         except (OSError, ValueError):
             continue
         if any(p == g or g in p.parents for g in GUARDED):
