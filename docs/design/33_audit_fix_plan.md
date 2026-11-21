@@ -336,6 +336,83 @@ its end restores the pools (f771).
 - Names with two meanings: "held" (a break held, a floor that held) and `by` (four uses).
 - The `target.alive` fallbacks in spellcraft and martial control (noted at f763) are still there.
 
+## Phase 6 as built
+
+20 November 2026, branch play/faults, f775 to f787, three follow-ups and f788 (`git log 052475f..d9a0e59`), on the owner's "Yes start
+audit phase 6". Each feature was built with its test first, reviewed against GOALS.md before its commit, and checked by the full
+suite when it landed. SUITE-12 was built last, not first as the phase put it, since it waited on the owner's go for a `.claude` file.
+
+| Feature | The commit that built it | The owner's answer it was built on |
+|---|---|---|
+| SHIPPING-1 | a994ca0 f775: a built game passes its own startup check, and a build that fails it is never handed over (infrastructure; checklist 4, 7) | none asked |
+| STARTUP_DATA-1 | 9e6a968 f776: the startup check parses each data file once, on the fast loader, and reads the source once a process (infrastructure; checklist 4, 5, 7) | none asked |
+| SHIPPING-3 | 07d42c8 f777: the files written under the code's own folder are placed by core.paths, so the logs land beside the exe (infrastructure; checklist 2, 4) | none asked |
+| REMOVALS_1-12 | 3751d72 f778: the audit log has one switch, config.AUDIT_LOG, and a source rule refuses a read of config that falls back to a data table (infrastructure; checklist 2, 4, 5) | none asked |
+| LONG_SAVE-6 | 45259ea f779: the pulse log is trimmed as the other logs are, and the audit folder keeps a window of sessions (infrastructure; checklist 4, 5) | keep_sessions is the plan's default, 8; logs/reports kept whole, no window ("Keep them all") |
+| SHIPPING-7 | 3232c89 f780: the update switch is asked in one place, core/updates.enabled(), and every path obeys it (infrastructure; checklist 2, 4, 7) | none asked |
+| TASK_FAILURE-2 | 3d96223 f781: a fault the game carries on past is written down (crashlog.carried), and a fence stops a new silent handler (infrastructure; checklist 4, 5, 7) | none asked |
+| TASK_FAILURE-13 | 71ef03e f782: the gateway's own bookkeeping never costs an answer or leaves it half mended (infrastructure; pillar 5; checklist 4, 7) | none asked |
+| TASK_FAILURE-14 | 60236c5 f783: closing a campaign runs every stage, whatever the one before it did (infrastructure; pillar 7; checklist 4, 7) | none asked |
+| SHIPPING-12 | dbd2c92 f784: Try again brings the embedder back with the model (infrastructure; checklist 2, 4, 7) | none asked |
+| STARTUP_DATA-8 | 483491b f785: files only tools read leave the game's data hash, and what is not the game is named once (infrastructure; checklist 4, 5, 7) | none asked |
+| GATE-20 | 3dad8d4 f786: name mending reads its ordinary words from the game's own files only (pillar 4; infrastructure; checklist 4, 6, 7) | none asked |
+| SUITE-12 | 920bb68 f787: every file a tracked document or an agent's instructions cite is in git, or held back by a .gitignore line saying why (infrastructure; checklist 4, 7) | Question 41 (recommended): the documents tracked files cite go into git; docs 29 to 31, and the keys of a blind reading not yet done, are held back by a .gitignore line saying why; the bundle workflow's two paths fixed on the owner's go ("Yes you may fix those") |
+
+**From the review across the thirteen**, three follow-ups and one change of its own (f788):
+
+- dd33542 f779: no test writes or trims the owner's logs (infrastructure; checklist 4, 5)
+- d55ca2f f781: the crash log never raises and loses no entry, and a line typed in the page reaches the game whole (infrastructure; checklist 4, 5, 7, 8)
+- d1af31a f785: what a build may leave out fails loudly from source, data/tools and data/replay through one reader (infrastructure; checklist 4, 7)
+- d9a0e59 f788: one definition of the game's own code for every fence, and a top-level package added later is read by each (infrastructure; checklist 4, 7, 8)
+
+**What the suite did to the owner's play logs, and what stops it now.** f779 made the audit folder keep the newest 8 sessions, and
+older tests wrote their audit sessions into the project's own logs/audit; every suite run from f779 to dd33542 pushed the owner's
+older sessions out, and the play audits of 15 and 16 November are gone (the playtest write-ups in docs/play are kept). dd33542 gives
+every test a logs folder of its own (MERAVIA_LOGS, core.paths.logs()) and a fence that refuses a write under the project's logs/ or
+recordings/; tools/sim/fight_fixtures.py run by hand takes a scratch folder too. The rebless skill's step 6 names both folders.
+
+**Working decisions made in building, for the owner to confirm or overrule** (each is in its commit body):
+
+- From source the first startup check holds the code's syntax trees for its length: its memory peak rises from about 75 MB to
+  169 MB, for about 4.7 s back a launch; a build holds none (f776).
+- The audit log's one switch is config.AUDIT_LOG (f778). A line typed in the page with half a character pair loses the half,
+  not the line (d55ca2f).
+- Updates: every read and the install ask core/updates.enabled(); a repository named to the check is no longer read with the
+  switch off (f780). New line, shown by no path today: "Updates are turned off in this copy of the game."
+- A fault the game carries on past is written down once per place and kind a session and counted after (f781); a fight's purpose
+  that does not read is carried, not refused; the turn's budget is kept out of the gateway's bookkeeping (f782).
+- A close runs every stage, seven for a campaign where the plan grouped four, and the model server's, the load screen's and the
+  replay's closes do the same (f783). The embedder is decided again at the next load (f784).
+- What only tools read leaves the data hash for data/tools (f785); a build skips the rules held to a folder it leaves out, and a
+  source tree missing one fails loudly (d1af31a).
+- Name mending reads its ordinary words from the game's own files only (f786). About 27 ordinary words that only tool or test
+  files held (haul, dock, crows, wield, reef, looting among them) can now be mended to a name one or two letters off, when the
+  request holds that name and the word stands nowhere else in it. The fix for the class is an English word list shipped with the
+  game, which is not in the plan: the owner's to decide.
+- audit_log.yaml (the audit's caps and its task reasons) stays inside the data hash, though by f572 it is no game content; its
+  fit is beside data/runtime, outside the hash and shipped.
+
+**Measured, not tuned:** the startup check's first run from about 7.5 s to 2.8 s and a second run in one process from about 6 s
+to 0.5 s (medians of six alternating runs, f776); the full suite about 40 s quicker.
+
+**Owed on the owner's machine** (a real build was not run here): build_exe.bat end to end, its built exe's --check included (f775);
+in the built game a fault, a refusal, an audit session, a recorded session and the server's logs all landing beside the exe (f777),
+the audit window and the pulse trim (f779), a build with updates off (f780); and the closes, Try again and Play slowly on the real
+server and card (f783, f784).
+
+**Left for a later change:**
+- SUITE-2's rest (SIM_OUT, the night tools sharing one function, tools/live_gate.py's own log folder), SHIPPING-10 (a staged
+  build leaving data/tools and data/replay out), SHIPPING-2 (the package check in CI), SHIPPING-8 (the checked download).
+- 38 other `getattr(config, NAME, default)` reads, some of whose fallbacks already disagree with config.py (PROFANITY, TEMP_ADD,
+  REPEAT_ADD, THINK_ROOM, PROSE_MAX_TOKENS, GAME_SUBTITLE): a ratchet of their own. TEMP_ADD and REPEAT_ADD are sampling numbers
+  kept outside data/rules/sampling.yaml.
+- A Failure kind of its own for an embed call refused by a runtime that stopped it (f784).
+- The turn log, recorder and refusals writers still write strict UTF-8 (nothing known reaches them with half a pair now).
+- From source with --gui, the update check runs twice (f780).
+- TASK_FAILURE-10, -11 and -16 empty their entries on f781's handler lists as they land.
+- engine/data_check.py's own lists of the game's folders (GAME_DIRS, GAME_CODE) need a game-side definition, since a build has no git (f788).
+- Character creation draws its starting perks with an unseeded die, before any campaign exists; f788's determinism fence allows it beside the look rolled at creation, the owner's to confirm.
+
 ## The phases
 
 Each phase opens with why it is there. The ordering's criteria, in this order: (a) what stops the game, loses a save or the
