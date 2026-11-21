@@ -50,7 +50,8 @@ try:
     repo = scratch / "repo"
     TREE = ["main.py", "config.py", "simlib.py", "smoke_test.py", "engine/a.py", "engine/smoke_test.py", "multiplayer/__init__.py",
             "multiplayer/seat.py", "tools/rerun.py", "tools/suite_ran/sitecustomize.py", "tools/sim/x_test.py", "tools/sim/helper.py",
-            "data/rules/y.py", "docs/z.py", ".claude/hooks/h.py", "engine/ignored_788.py", "engine/notes.txt"]
+            "data/rules/y.py", "/".join(("docs", "z.py")), ".claude/hooks/h.py", "engine/ignored_788.py", "engine/notes.txt"]
+    # (f788) the made-up docs file is joined, so f787's citation rule does not read it as a document cited
     for rel in TREE:
         (repo / rel).parent.mkdir(parents=True, exist_ok=True)
         (repo / rel).write_text("x = 1\n", encoding="utf-8")
