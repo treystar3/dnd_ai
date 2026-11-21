@@ -227,7 +227,8 @@ startup_found = data_check.check()
 check("the game's data passes its startup check", startup_found == [], startup_found[:5])
 
 # ---- the ratchet: whoever loads it, whenever, an authored mapping becomes a model through row alone
-for pkg in ("core", "world", "character", "engine", "npc", "llm", "storage", "services", "scenes", "ui"):
+from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
+for pkg in sorted({p.parts[0] for p in game_files() if len(p.parts) > 1}):
     for m in pkgutil.walk_packages(importlib.import_module(pkg).__path__, pkg + "."):
         importlib.import_module(m.name)
 npc_traits.load_traits()

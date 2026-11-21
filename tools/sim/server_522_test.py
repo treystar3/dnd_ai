@@ -144,11 +144,11 @@ def scan_max_tokens() -> int:
     """The largest max_tokens= any call in the game's source asks for (what llm/runtime.py parsed at every launch before f522)."""
     import ast
     most = 0
-    for d in ("engine", "scenes", "npc", "character", "llm", "services"):
-        for p in sorted((ROOT / d).rglob("*.py")):
-            for n in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
-                if isinstance(n, ast.keyword) and n.arg == "max_tokens" and isinstance(n.value, ast.Constant) and isinstance(n.value.value, int):
-                    most = max(most, n.value.value)
+    from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
+    for p in [ROOT / q for q in game_files()]:
+        for n in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
+            if isinstance(n, ast.keyword) and n.arg == "max_tokens" and isinstance(n.value, ast.Constant) and isinstance(n.value.value, int):
+                most = max(most, n.value.value)
     return most
 
 

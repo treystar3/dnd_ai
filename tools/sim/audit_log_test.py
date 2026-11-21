@@ -88,7 +88,7 @@ check("#audit can say where it is", "calls recorded" in audit.summary())
 check("every attempt was answered by the test's own stand-in", fake.live() and fake.src.calls["Reply"] == 5, dict(fake.src.calls))
 
 # ---- (f778) one switch: config.AUDIT_LOG alone decides whether a call is written
-import ast, subprocess, yaml
+import ast, yaml
 table = yaml.safe_load(Path("data/rules/audit_log.yaml").read_text(encoding="utf-8"))
 check("(f778) audit_log.yaml holds no switch of its own: the audit log's one is config.AUDIT_LOG", "enabled" not in table, sorted(table))
 
@@ -239,9 +239,8 @@ def module_name(rel: str) -> str:
     return rel[:-3].replace("/", ".").removesuffix(".__init__")
 
 
-files = [f for f in subprocess.run(["git", "ls-files", "--cached", "--others", "--exclude-standard", "*.py"], capture_output=True,
-                                   text=True, encoding="utf-8").stdout.split()
-         if not f.startswith(("docs/", ".claude/", "data/", "tools/sim/")) and Path(f).is_file()]
+from game_files import game_files                                   # (f788) the game's own code and, by name, the tools beside it
+files = [p.as_posix() for p in game_files(with_tools=True)]
 trees = {f: ast.parse(Path(f).read_text(encoding="utf-8")) for f in files}
 index: dict = {module_name(f): set() for f in files}
 for _ in range(4):                                                   # a table read off another module's table: grown across modules

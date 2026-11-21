@@ -117,8 +117,9 @@ check("a deed is journaled as its doer's: the second's as theirs, the first's as
 game.close()
 
 # ---- the ratchet: no code reads a person's view of "the player" without naming the character
-CODE = [p for d in ("engine", "scenes", "npc", "services", "storage", "world", "llm", "ui") for p in Path(d).rglob("*.py")] + \
-       [Path(p) for p in ("main.py", "simlib.py", "tools/nightrun.py", "tools/nightbot.py", "tools/eventrun.py", "tools/acceptance.py",
+from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
+CODE = game_files() + \
+       [Path(p) for p in ("simlib.py", "tools/nightrun.py", "tools/nightbot.py", "tools/eventrun.py", "tools/acceptance.py",
                           "tools/page_measures.py", "tools/interp_eval.py")]
 ALLOWED = {"npc/models.py", "storage/migrations.py", "storage/campaign.py"}       # the legacy map, the migration, the index row
 legacy = []

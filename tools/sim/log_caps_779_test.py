@@ -292,8 +292,8 @@ try:
                               "    return paths.written('logs/new.log')\n\n\nOTHER = 'logs/other.jsonl'\n")
     check("the scan of the game's source finds a log named anew, planted: a paths.written call and a \"logs/...\" string, not a docstring",
           planted_sites == ["paths.written in where", "logs/new.log", "logs/other.jsonl"], planted_sites)
-    GAME = ("core", "engine", "llm", "scenes", "storage", "world", "ui", "npc", "character", "services")
-    files = [p for d in GAME for p in sorted((ROOT / d).rglob("*.py")) if "__pycache__" not in p.parts] + [ROOT / "main.py", ROOT / "config.py"]
+    from game_files import game_files                                 # (f788) the game's own code, one definition for every fence
+    files = [ROOT / p for p in game_files()]
     found = {(p.relative_to(ROOT).as_posix(), s) for p in files for s in log_sites(p.read_text(encoding="utf-8"))}
     check("every log the game's source names (each paths.written call, each \"logs/...\" string) has a case above, or is named open;"
           " a new one fails here until it has", found <= set(SITES) and set(SITES.values()) <= CASES | OPEN, sorted(found - set(SITES)))

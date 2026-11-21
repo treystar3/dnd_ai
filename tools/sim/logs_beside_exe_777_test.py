@@ -308,7 +308,7 @@ print("F777 " + json.dumps(out))
           sorted(str(p) for p in DECOY.rglob("*"))[:5])
 
     # ---- the source check: nothing but data/ is joined onto a path made from __file__; nothing but core.paths joins onto APP
-    GAME = ("core", "engine", "llm", "scenes", "storage", "world", "ui", "npc", "character", "services")
+    from game_files import game_files                # (f788) the game's own code, one definition for every fence
     ALLOWED = {                                       # (file, top-level name): why it may join something else onto the code's folder
         ("engine/data_check.py", "source"): "the startup check's one reader of the code's own source (f775)",
         ("engine/data_check.py", "modules"): "the same reader: the code's modules listed",
@@ -475,7 +475,7 @@ print("F777 " + json.dumps(out))
     check("the source check catches each form it reads of joining onto the code's folder or APP, planted (a parameter's default, an"
           " annotated name, a tuple joined whole, an alias of APP, core.paths.APP dotted among them), and passes data/ and written()",
           all(caught.values()), [s for s, ok in caught.items() if not ok])
-    files = [p for d in GAME for p in sorted((ROOT / d).rglob("*.py")) if "__pycache__" not in p.parts] + [ROOT / "main.py", ROOT / "config.py"]
+    files = [ROOT / p for p in game_files()]
     onto_code, onto_app, allowed_seen = [], [], set()
     for p in files:
         rel = p.relative_to(ROOT).as_posix()

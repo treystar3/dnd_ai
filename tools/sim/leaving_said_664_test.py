@@ -23,17 +23,17 @@ def check(n, ok, x=""):
 
 
 writers, callers = [], []
-for root in ("engine", "scenes", "services", "npc", "storage"):
-    for f in pathlib.Path(root).rglob("*.py"):
-        tree = ast.parse(f.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef):
-                for c in ast.walk(node):
-                    if isinstance(c, ast.Call) and isinstance(c.func, ast.Attribute) and c.func.attr == "journal" \
-                            and any(isinstance(a, ast.Constant) and a.value == "npc_gone" for a in c.args):
-                        writers.append(f"{f.as_posix()}:{node.name}")
-            if isinstance(node, ast.Call) and getattr(node.func, "attr", getattr(node.func, "id", "")) == "remove_npc":
-                callers.append((f.as_posix(), node.lineno, any(k.arg == "dead" for k in node.keywords)))
+from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
+for f in game_files():
+    tree = ast.parse(f.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef):
+            for c in ast.walk(node):
+                if isinstance(c, ast.Call) and isinstance(c.func, ast.Attribute) and c.func.attr == "journal" \
+                        and any(isinstance(a, ast.Constant) and a.value == "npc_gone" for a in c.args):
+                    writers.append(f"{f.as_posix()}:{node.name}")
+        if isinstance(node, ast.Call) and getattr(node.func, "attr", getattr(node.func, "id", "")) == "remove_npc":
+            callers.append((f.as_posix(), node.lineno, any(k.arg == "dead" for k in node.keywords)))
 check("one writer of a leaving: no other code writes the journal's row", writers == ["engine/pulse.py:journal_gone"], writers)
 check("every caller of remove_npc says whether it was a death", callers and all(said for *_, said in callers), [c for c in callers if not c[2]])
 check("...and it cannot be left out", inspect.signature(pulse.remove_npc).parameters["dead"].default is inspect.Parameter.empty)

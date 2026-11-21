@@ -25,7 +25,6 @@ What the fence does not read: a data root that comes in as a parameter or an att
 Run: python tools/sim/names_vocab_786_test.py"""
 import ast
 import shutil
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -91,8 +90,7 @@ finally:
     shutil.rmtree(tmp, ignore_errors=True)
 
 # ---- the fence: a whole read of data/ goes through game_data()
-NOT_GAME_ROOTS = {"tools", "data", "docs", ".claude"}                   # as owned_state_633_test: the game is the rest
-HARNESS = {"simlib", "simbot", "simreport", "smoke_test", "bestiary_check", "world_check"}
+from game_files import game_files                                      # (f788) the game's own code, one definition for every fence
 READS = {"rglob", "glob", "iterdir", "walk", "scandir", "listdir"}
 LISTED = {                                                              # (file, function): why it reads the whole of data/ itself
     ("storage/statehash.py", "game_data"): "the door: the game's data files, every file under data/ but NOT_GAME's folders",
@@ -158,9 +156,7 @@ def whole_reads(src: str) -> list[str]:
     return sorted(out)
 
 
-listed_py = subprocess.run(["git", "ls-files", "--cached", "--others", "--exclude-standard", "*.py"], capture_output=True, text=True,
-                           encoding="utf-8", check=True).stdout.split()
-found = [(p, fn) for p in listed_py if p.split("/")[0] not in NOT_GAME_ROOTS and Path(p).stem not in HARNESS and Path(p).is_file()
+found = [(p.as_posix(), fn) for p in game_files()
          for fn in whole_reads(Path(p).read_text(encoding="utf-8"))]
 check("(f786) no module of the game reads the whole of data/ but through statehash.game_data(), or with its reason listed here",
       not [f for f in found if f not in LISTED], [f for f in found if f not in LISTED])

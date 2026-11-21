@@ -176,7 +176,7 @@ try:
 
     # ---- the fence: no game module calls PyYAML's loaders but core/yamlio.py and the check's strict loader
     LOADERS = {"load", "safe_load", "full_load", "unsafe_load", "load_all", "safe_load_all", "full_load_all", "unsafe_load_all"}
-    GAME = ("core", "engine", "llm", "scenes", "storage", "world", "ui", "npc", "character", "services")
+    from game_files import game_files                                # (f788) the game's own code, one definition for every fence
 
     def yaml_loads(text: str) -> list[tuple[int, str]]:
         """(line, the top-level name it stands in) for each call of one of PyYAML's loaders, by name, through an alias or __import__."""
@@ -199,7 +199,7 @@ try:
                "import yaml as Y\nX = list(Y.safe_load_all('a: 1'))\n"]
     check("the fence catches each way of calling PyYAML's loader, planted", all(yaml_loads(src) for src in planted),
           [src for src in planted if not yaml_loads(src)])
-    files = [p for d in GAME for p in sorted((ROOT / d).rglob("*.py")) if "__pycache__" not in p.parts] + [ROOT / "main.py", ROOT / "config.py"]
+    files = [ROOT / p for p in game_files()]
     loose = []
     for p in files:
         rel = p.relative_to(ROOT).as_posix()

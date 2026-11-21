@@ -255,26 +255,25 @@ shutil.rmtree(simlib.saves_path("story_dice_639_ages"), ignore_errors=True)
 
 # ---- the source keeps it so
 reads = {}
-for d in ("engine", "scenes", "npc", "services", "storage", "world", "llm", "ui"):
-    for p in sorted(Path(d).rglob("*.py")):
-        for node in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
-            if isinstance(node, ast.Attribute) and node.attr == "steps" and (
-                    (isinstance(node.value, ast.Name) and node.value.id == "meta") or (isinstance(node.value, ast.Attribute) and node.value.attr == "meta")):
-                reads.setdefault(p.as_posix(), []).append(node.lineno)
+from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
+for p in game_files():
+    for node in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.Attribute) and node.attr == "steps" and (
+                (isinstance(node.value, ast.Name) and node.value.id == "meta") or (isinstance(node.value, ast.Attribute) and node.value.attr == "meta")):
+            reads.setdefault(p.as_posix(), []).append(node.lineno)
 check("the campaign's count of every input is read where it was and nowhere new: the scene's six (the count, a command's dice, the opening's, "
       "an operation's input, and the count an input was given, noted and kept across a failed operation) and the recorder's four",
       {f: len(v) for f, v in reads.items()} == {"scenes/world.py": 6, "engine/recording.py": 4}, reads)
 found = {}
-for d in ("engine", "scenes", "npc", "services", "storage", "world", "llm", "ui"):
-    for p in sorted(Path(d).rglob("*.py")):
-        tree = ast.parse(p.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-            fn = node.func
-            dice = isinstance(fn, ast.Attribute) and (fn.attr in ("begin", "keyed", "new_id") and isinstance(fn.value, ast.Name) and fn.value.id == "streams")
-            if dice and any(isinstance(x, ast.Attribute) and x.attr == "steps" for a in list(node.args) + [k.value for k in node.keywords] for x in ast.walk(a)):
-                found.setdefault(p.as_posix(), []).append(node.lineno)
+for p in game_files():
+    tree = ast.parse(p.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        fn = node.func
+        dice = isinstance(fn, ast.Attribute) and (fn.attr in ("begin", "keyed", "new_id") and isinstance(fn.value, ast.Name) and fn.value.id == "streams")
+        if dice and any(isinstance(x, ast.Attribute) and x.attr == "steps" for a in list(node.args) + [k.value for k in node.keywords] for x in ast.walk(a)):
+            found.setdefault(p.as_posix(), []).append(node.lineno)
 check("no dice of the game's are drawn from the count of every input but the command's own and the opening's (scenes/world.py, twice)",
       {f: len(v) for f, v in found.items()} == {"scenes/world.py": 2}, found)
 

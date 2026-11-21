@@ -126,14 +126,8 @@ shutil.rmtree("saves/acting_character_630", ignore_errors=True)
 
 # ---- the fences
 ROOT = Path(__file__).resolve().parent.parent.parent
-FOLDERS = ("engine", "scenes", "services", "npc", "llm", "core", "storage", "ui", "world")
-trees = {}
-for folder in FOLDERS:
-    for path in sorted((ROOT / folder).rglob("*.py")):
-        trees[path.relative_to(ROOT).as_posix()] = ast.parse(path.read_text(encoding="utf-8"))
-for path in sorted(ROOT.glob("*.py")):
-    if path.name not in ("simlib.py", "simbot.py"):
-        trees[path.name] = ast.parse(path.read_text(encoding="utf-8"))
+from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
+trees = {p.as_posix(): ast.parse((ROOT / p).read_text(encoding="utf-8")) for p in game_files()}
 
 
 taking = {}

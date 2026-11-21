@@ -80,7 +80,7 @@ check("the page's token and host rules still hold", True)
 b.uninstall(); srv.shutdown()
 
 # ---- (f780) one switch: updates.enabled() is asked in one place, and every path that looks for, offers or installs a release obeys it
-import ast, subprocess, threading, time, types
+import ast, threading, time, types
 from pathlib import Path
 from engine import data_check
 from scenes import home
@@ -318,9 +318,8 @@ check("(f780) the fence catches each way around the switch, planted (the switch 
 check("...and finds the finding's own: main.py's gate of its own, and the Update button's route that never asked",
       [w for _, w in strays(MAIN_AS_IT_WAS)] == ["reads the switch", "reads the switch"]
       and [w for _, w in strays(ROUTE_AS_IT_WAS)] == ["installs without asking"], (strays(MAIN_AS_IT_WAS), strays(ROUTE_AS_IT_WAS)))
-files = [f for f in subprocess.run(["git", "ls-files", "--cached", "--others", "--exclude-standard", "*.py"], capture_output=True,
-                                   text=True, encoding="utf-8").stdout.split()
-         if not f.startswith(("docs/", ".claude/", "data/", "tools/sim/")) and f != "core/updates.py" and Path(f).is_file()]
+from game_files import game_files                                   # (f788) the game's own code and, by name, the tools beside it
+files = [p.as_posix() for p in game_files(with_tools=True) if p.as_posix() != "core/updates.py"]
 around = [f"{f}:{line} ({how})" for f in files for line, how in strays(Path(f).read_text(encoding="utf-8"))]
 check("in every .py git lists outside docs/, .claude/, data/, tools/sim/ and core/updates.py, nothing goes around the switch",
       not around and len(files) > 200 and "main.py" in files and "ui/gui/server.py" in files, around)

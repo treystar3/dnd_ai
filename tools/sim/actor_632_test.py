@@ -200,14 +200,14 @@ check("a failed operation's reload takes its time back, and the clock reads the 
       and store.meta.day == calendar.day(before), (moved, before, clk.minutes, store.meta is old))
 ROOT = Path(__file__).resolve().parent.parent.parent
 writers = []
-for folder in ("engine", "scenes", "services", "npc", "storage", "llm", "ui"):
-    for path in sorted((ROOT / folder).rglob("*.py")):
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-            targets = node.targets if isinstance(node, ast.Assign) else [node.target] if isinstance(node, ast.AugAssign) else []
-            for t in targets:
-                for x in ast.walk(t):
-                    if isinstance(x, ast.Attribute) and x.attr in ("minutes", "day") and getattr(x.value, "attr", getattr(x.value, "id", "")) == "meta":
-                        writers.append(f"{path.relative_to(ROOT).as_posix()}:{node.lineno}")
+from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
+for path in [ROOT / p for p in game_files()]:
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target] if isinstance(node, ast.AugAssign) else []
+        for t in targets:
+            for x in ast.walk(t):
+                if isinstance(x, ast.Attribute) and x.attr in ("minutes", "day") and getattr(x.value, "attr", getattr(x.value, "id", "")) == "meta":
+                    writers.append(f"{path.relative_to(ROOT).as_posix()}:{node.lineno}")
 check("the clock is the one writer of the save's time in the game's code", writers and all(w.startswith("engine/actor.py:") for w in writers), writers)
 
 # ---- what is left: the scene's player read by name, per directory; a count only falls

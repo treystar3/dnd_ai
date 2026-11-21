@@ -79,7 +79,8 @@ tried = [x for _, x in told if "duck" in x]
 check("an improvised act's own words reach the story without their dashes, whether it works or not",
       len(tried) >= 40 and not any(dashed(x) for x in tried) and any(x.startswith("It works") for _, x in told)
       and any("goes wrong" in x for _, x in told), sorted({x for x in tried if dashed(x)})[:3] or tried[:2])
-src = {f: f.read_text(encoding="utf-8") for d in ("engine", "scenes", "services", "npc") for f in (ROOT / d).glob("*.py")}
+from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
+src = {ROOT / p: (ROOT / p).read_text(encoding="utf-8") for p in game_files()}
 grows = re.compile(r"\.story(?:\.append|\.insert|\.extend|\s*\+=)")
 writers = sorted(f.name for f, text in src.items() if grows.search(text))
 check("...and the story grows in engine/combat.py alone (a new writer goes through tell)", writers == ["combat.py"], writers)

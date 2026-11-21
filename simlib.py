@@ -900,11 +900,23 @@ def scene_names() -> tuple[dict, dict, set]:
                     computed.add(f"{cls.__name__}.{fn.name}")
     outside: dict[str, set] = {}
     root = Path(__file__).resolve().parent
-    for folder in ("engine", "services", "scenes", "npc", "world", "storage", "ui", "llm"):
-        for p in sorted((root / folder).rglob("*.py")):
-            for n in stored(ast.parse(p.read_text(encoding="utf-8")), ("ws", "scene", "world_scene"), through=("ws",)):
-                outside.setdefault(n, set()).add(p.relative_to(root).as_posix())
+    for p in game_files(root):                                     # (f788) every module of the game, one definition for every fence
+        for n in stored(ast.parse((root / p).read_text(encoding="utf-8")), ("ws", "scene", "world_scene"), through=("ws",)):
+            outside.setdefault(n, set()).add(p.as_posix())
     return own, outside, computed
+
+
+def game_files(root: Path | None = None, with_tools: bool = False) -> list[Path]:
+    """(f788) The game's own code, as tools/sim/game_files.py defines it for every fence: loaded from its file, so a harness at the
+    root reads the same definition the tests import."""
+    import importlib.util
+    mod = sys.modules.get("game_files")
+    if mod is None:
+        spec = importlib.util.spec_from_file_location("game_files", Path(__file__).resolve().parent / "tools" / "sim" / "game_files.py")
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules["game_files"] = mod
+        spec.loader.exec_module(mod)
+    return mod.game_files(Path(__file__).resolve().parent if root is None else root, with_tools)
 
 
 def campaign(name: str, cls: str = "warrior", seed: int = 1, minutes: int = 600, turn: int = 1, location: str | None = None,

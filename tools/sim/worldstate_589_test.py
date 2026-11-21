@@ -178,13 +178,10 @@ check("a gift or a bribe may be a deed the town answers", '"gift", "bribe"' in P
 
 # ---- the fence: the row's key is storage's alone
 named = []
-for d in ("engine", "scenes", "services", "npc", "character", "llm", "ui", "world", "core"):
-    for f in Path(d).rglob("*.py"):
-        if re.search(r"""["']world_state["']""", f.read_text(encoding="utf-8")):
-            named.append(f.as_posix())
-for f in ("main.py", "config.py"):
-    if Path(f).exists() and re.search(r"""["']world_state["']""", Path(f).read_text(encoding="utf-8")):
-        named.append(f)
+from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
+for f in [p for p in game_files() if p.parts[0] != "storage"]:     # (f788) storage/ left out: the key is its own to name
+    if re.search(r"""["']world_state["']""", f.read_text(encoding="utf-8")):
+        named.append(f.as_posix())
 check("the key the world's row is kept under is named only in storage/", named == [], named)
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))

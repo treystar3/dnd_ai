@@ -442,8 +442,8 @@ try:
     check("the source check catches a log setting read and not placed through written(), planted (a Path, an open, a module's own"
           " line, a method), and passes one placed, one checked first, and a setting that is no path", all(caught.values()),
           [s for s, ok in caught.items() if not ok])
-    GAME = ("core", "engine", "llm", "scenes", "storage", "world", "ui", "npc", "character", "services")
-    files_ = [p for d in GAME for p in sorted((ROOT / d).rglob("*.py")) if "__pycache__" not in p.parts] + [ROOT / "main.py"]
+    from game_files import game_files                                 # (f788) the game's own code, one definition for every fence
+    files_ = [ROOT / p for p in game_files()]
     loose = [f"{p.relative_to(ROOT).as_posix()}:{x}" for p in files_ for x in unplaced(p.read_text(encoding="utf-8"))]
     check("every function of the game that reads a log setting of config places it through core.paths.written(): one rule for"
           " where a log lies, so a log a test names, or the folder a test is given, is honoured by every writer",

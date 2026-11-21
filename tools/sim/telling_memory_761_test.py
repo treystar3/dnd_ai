@@ -360,13 +360,13 @@ def notes(fn) -> bool:
 KEEPS = set(telling.names()) if telling is not None else set()
 ROOT = Path(simlib.__file__).resolve().parent
 storing, silent = set(), []
-for folder in ("engine", "services", "scenes", "npc", "world", "storage", "ui", "llm"):
-    for p in sorted((ROOT / folder).rglob("*.py")):
-        for fn in [n for n in ast.walk(ast.parse(p.read_text(encoding="utf-8"))) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]:
-            if simlib.stored_names(fn, ("self", "ws", "scene", "world_scene"), through=("ws",)) & KEEPS:
-                storing.add(f"{p.relative_to(ROOT).as_posix()}:{fn.name}")
-                if not notes(fn):
-                    silent.append(f"{p.relative_to(ROOT).as_posix()}:{fn.name}")
+from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
+for p in [ROOT / q for q in game_files()]:
+    for fn in [n for n in ast.walk(ast.parse(p.read_text(encoding="utf-8"))) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]:
+        if simlib.stored_names(fn, ("self", "ws", "scene", "world_scene"), through=("ws",)) & KEEPS:
+            storing.add(f"{p.relative_to(ROOT).as_posix()}:{fn.name}")
+            if not notes(fn):
+                silent.append(f"{p.relative_to(ROOT).as_posix()}:{fn.name}")
 FOUND = {"engine/partings.py:line", "engine/voices.py:heard", "scenes/combat_scene.py:aftermath_now", "scenes/combat_scene.py:aftermath_opening",
          "scenes/party_actions.py:hire_frame_reasons", "scenes/world.py:note_worn", "scenes/world.py:exemplars", "scenes/world.py:enter"}
 check("...and a census of the source finds every function that stores a name the row keeps on a scene, the eight among them, "

@@ -129,13 +129,9 @@ for folder in NOT_GAME:
     (tmp / "data" / folder / "new_785.yaml").unlink()
 
 # ---- the fence: every file of the game's data is named by the game; no file of data/tools is
-GAME_ROOTS = {"tools", "data", "docs", ".claude"}                       # as owned_state_633_test: the game is the rest
-HARNESS = {"simlib", "simbot", "simreport", "smoke_test", "bestiary_check", "world_check"}
+from game_files import game_files                                      # (f788) the game's own code, one definition for every fence
 CHECK = "engine/data_check.py"                                          # names every file it holds: no reader by that
-listed = subprocess.run(["git", "ls-files", "--cached", "--others", "--exclude-standard", "*.py"], capture_output=True, text=True,
-                        encoding="utf-8", check=True).stdout.split()
-texts = {p: Path(p).read_text(encoding="utf-8") for p in listed
-         if p.split("/")[0] not in GAME_ROOTS and Path(p).stem not in HARNESS and Path(p).is_file()}
+texts = {p.as_posix(): p.read_text(encoding="utf-8") for p in game_files()}
 
 
 def unnamed(rels: list[str], sources: dict) -> list[str]:

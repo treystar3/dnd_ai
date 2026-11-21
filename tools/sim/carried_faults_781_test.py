@@ -13,9 +13,9 @@ fault, left no record anywhere. Held here:
   vectors), and the server's context sized from the numbers in code (llm/runtime.py needed_context); and a sixth the plan left
   unsorted, what a let-go fight was for (services/fight.py purpose_of: the ordinary cases read by shape, only a purpose there that
   does not read is carried).
-- the fence: every broad handler (bare, Exception, BaseException, alone or in a tuple) in the game's own code (what
-  owned_state_633_test calls the game: every .py git lists, tracked or not, outside tools/, data/, docs/, .claude/ and the root
-  harnesses) passes when it re-raises (a `raise` at the top of its body), or writes down what it caught (a call of engine.crashlog's
+- the fence: every broad handler (bare, Exception, BaseException, alone or in a tuple) in the game's own code
+  (tools/sim/game_files.py: every .py git lists, tracked or not, outside tools/, data/, docs/, .claude/ and the root harnesses)
+  passes when it re-raises (a `raise` at the top of its body), or writes down what it caught (a call of engine.crashlog's
   record or note, by whatever import), or stands in a list here, keyed by file and function with a reason each. Two rings, the
   audit's two tables: ring one, a handler whose whole body is pass, continue, break, `...` or a return of a constant, and a
   contextlib.suppress of Exception or BaseException; ring two, any other that carries on. Each ring has a list of handlers left as
@@ -38,7 +38,6 @@ life._ask in the background lane (start.run); only the direct calls above are se
 Run: python tools/sim/carried_faults_781_test.py"""
 import ast
 import math
-import subprocess
 import sys
 import tempfile
 import shutil
@@ -304,8 +303,7 @@ check("...and a purpose of another shape is None and one entry: lost with the fi
       and len(new_wheres(n0)) == 1 and "let-go fight" in new_wheres(n0)[0], (lost, new_wheres(n0)))
 
 # ---- 3. the fence
-NOT_GAME = {"tools", "data", "docs", ".claude"}
-HARNESS = {"simlib", "simbot", "simreport", "smoke_test", "bestiary_check", "world_check"}
+from game_files import game_files                                  # (f788) the game's own code, one definition for every fence
 BROAD = {"Exception", "BaseException"}
 WRITERS = {"engine.crashlog": {"record", "note"}}
 MODEL = {"llm.gateway": {"generate"}, "llm.backend": {"chat", "embed"}, "llm.embed": {"vectors", "closest", "whole"},
@@ -588,9 +586,7 @@ check("(f781) the fence catches each form planted: pass, continue, break, a retu
       "a narrow handler, a narrow suppress, carried, a model failure caught as LLMError (a log object's note is not crashlog's)",
       not wrong, wrong)
 
-files = [f for f in subprocess.run(["git", "ls-files", "--cached", "--others", "--exclude-standard", "*.py"], capture_output=True,
-                                   text=True, encoding="utf-8", check=True).stdout.split()
-         if f.split("/")[0] not in NOT_GAME and Path(f).stem not in HARNESS and Path(f).is_file()]
+files = [p.as_posix() for p in game_files()]
 found = [(f, r, fn, line) for f in files for r, fn, line in scan(Path(f).read_text(encoding="utf-8"), f[:-3].replace("/", "."))]
 lines = {(f, r, fn): [line for g_, r_, fn_, line in found if (g_, r_, fn_) == (f, r, fn)] for f, r, fn, _ in found}
 

@@ -26,7 +26,6 @@ import ast
 import builtins
 import json
 import shutil
-import subprocess
 import sys
 import tempfile
 import threading
@@ -181,11 +180,8 @@ PLANTED = {
 wrong = {src: unwhole(src)[0] for src, want in PLANTED.items() if unwhole(src)[0] != want}
 check("(f781) the rule catches a channel's ask that hands the game its line as it came (a socket's, a window's inbox, a class inside "
       "another), and passes one through whole() by either import, and an ask that is no channel's method", not wrong, wrong)
-NOT_GAME = {"tools", "data", "docs", ".claude"}
-HARNESS = {"simlib", "simbot", "simreport", "smoke_test", "bestiary_check", "world_check"}
-game = [f for f in subprocess.run(["git", "ls-files", "--cached", "--others", "--exclude-standard", "*.py"], capture_output=True,
-                                  text=True, encoding="utf-8", check=True).stdout.split()
-        if f.split("/")[0] not in NOT_GAME and Path(f).stem not in HARNESS and Path(f).is_file()]
+from game_files import game_files                             # (f788) the game's own code, one definition for every fence
+game = [p.as_posix() for p in game_files()]
 read = {f: unwhole(Path(f).read_text(encoding="utf-8")) for f in game}
 loose = [f"{f}: {a}" for f, (out, _) in read.items() for a in out]
 check("...and every channel's ask in the game's own code takes its line in whole (the terminal's and the page's, read here), so one "

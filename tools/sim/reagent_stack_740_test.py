@@ -180,11 +180,11 @@ def sites(tree) -> list[tuple[str, int, str]]:
 
 
 found = {}
-for folder in ("engine", "scenes", "services"):
-    for path in sorted((ROOT / folder).rglob("*.py")):
-        name = path.relative_to(ROOT).as_posix()
-        for fn, line, what in sites(ast.parse(path.read_text(encoding="utf-8"))):
-            found.setdefault((name, fn, what), []).append(line)
+from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
+for path in [ROOT / p for p in game_files()]:
+    name = path.relative_to(ROOT).as_posix()
+    for fn, line, what in sites(ast.parse(path.read_text(encoding="utf-8"))):
+        found.setdefault((name, fn, what), []).append(line)
 new = {f"{k[0]}:{v[0]} {k[1]}: {k[2]}": v for k, v in found.items() if k not in NAMED}
 check("every place a thing leaves a pack by identity is named with why it is right (a new one: spend through a counted writer, or name it)",
       not new, new)

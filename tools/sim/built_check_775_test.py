@@ -105,7 +105,8 @@ def replaced(obj, name, value):
 
 
 # ---- the behavioural fence: what the process itself does while the check runs as a build, whichever module does it
-CODE_FOLDERS = ("core", "engine", "llm", "scenes", "storage", "world", "ui", "npc", "character", "services", "tools")
+from game_files import game_files                                    # (f788) the game's own code, one definition for every fence
+CODE_FOLDERS = tuple(sorted({p.parts[0] for p in game_files(with_tools=True) if len(p.parts) > 1}))   # the game's folders and tools/
 WATCHING: list[list[str]] = []                                       # the list the fence notes into while it watches
 
 
@@ -255,8 +256,6 @@ try:
     check("...and a scan already kept for the process raises too", isinstance(cached, FileNotFoundError), shown(cached))
 
     # ---- the source guard: no game module but the reader reads the code's source
-    GAME = ("core", "engine", "llm", "scenes", "storage", "world", "ui", "npc", "character", "services")
-
     def source_reads(text: str) -> list[tuple[int, str, str]]:
         """(line, what, the top-level name it stands in) for each read of the code's own source: ast.parse, inspect.getsource*, a glob
         of *.py, a .py file read or opened by name."""
@@ -303,7 +302,7 @@ try:
     caught = {src: [w for _, w, _ in source_reads(src)] for src in planted}
     check("the guard catches each way of reading source, planted", all(want in caught[src] for src, want in planted.items()),
           {src: got for src, got in caught.items() if planted[src] not in got})
-    files = [p for d in GAME for p in sorted((ROOT / d).rglob("*.py")) if "__pycache__" not in p.parts] + [ROOT / "main.py", ROOT / "config.py"]
+    files = [ROOT / p for p in game_files()]
     elsewhere, in_check = [], []
     for p in files:
         rel = p.relative_to(ROOT).as_posix()
