@@ -19,11 +19,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import config
+from core import paths
 from engine import actor
 from ui import console
 
-ROOT = Path(__file__).resolve().parent.parent
 SESSION: list[dict] = []
+
+
+def path() -> Path:
+    """refusals.jsonl: config.REFUSALS_LOG_PATH placed by core.paths, beside the exe in a built game (f777)."""
+    return paths.written(config.REFUSALS_LOG_PATH)
 
 
 def note(kind: str, text: str, why: str = "", place: str = "", turn: int = -1, asked: str = "") -> None:
@@ -31,15 +36,15 @@ def note(kind: str, text: str, why: str = "", place: str = "", turn: int = -1, a
            "why": why, "place": place, "asked": asked}       # (f629) who acted: the bound actor (the gateway's refusals have no scene to ask)
     SESSION.append(row)
     console.debug(f"refusal ({kind}): {text[:80]!r} - {why[:120]}")
-    if not getattr(config, "REFUSALS_LOG", True):
+    if not config.REFUSALS_LOG:
         return
     try:
-        path = ROOT / getattr(config, "REFUSALS_LOG_PATH", "logs/refusals.jsonl")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as f:
+        p = path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with p.open("a", encoding="utf-8") as f:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
         from llm.gateway import trim_log
-        trim_log(path)
+        trim_log(p)
     except OSError:
         pass
 

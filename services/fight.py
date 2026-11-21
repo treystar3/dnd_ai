@@ -272,13 +272,14 @@ class FightService:
         fight.battlefield = spec.battlefield
         if spec.duel:
             fight.duel, fight.no_rewards = True, True
-        fight.ally_reserves = list(spec.later)
+        for x in [x for x in fight.fighters if not combat.stands(fight, x)]:
+            combat.leave(fight, x, "gone")   # (f771) the door: who may not stand in a trial of rank waits outside
+        fight.ally_reserves = [a for a in spec.later if combat.stands(fight, a)]
         fight.ally_arrive = party_rules.P["hold_arrival_round"]
         fight.gentle = pools.mechanic(c, "gentle_approach") is not None
         fight.reserves = list(spec.reserves or [])
         fight.reinforce_every, fight.reinforce_count, fight.reinforce_from = spec.wave
-        if not spec.duel:
-            summons.join_bound(fight, c)     # the Bound summon walks in with them, whole (unless it was unmade and not yet made again)
+        summons.join_bound(fight, c)         # the Bound summon walks in with them, whole (unless it was unmade and not yet made again)
         battlefield.place_fighters(fight)
         notes = []
         if spec.initiated and not spec.duel:
@@ -314,12 +315,22 @@ class FightService:
     @staticmethod
     def purpose_of(raw: str | None) -> combat.Purpose | None:
         """(f765) What a saved fight was for, read from its row whatever the row's shape, so a fight let go of at load can hand it on;
-        None when the row says nothing of it or does not read (a damaged row loses it with the fight)."""
-        try:
-            given = (json.loads(raw or "").get("fight") or {}).get("purpose")
-            return combat.Purpose.model_validate(given) if given else None
-        except Exception:
+        None when there is no row, the row says nothing of it (the bare notice "1"), or it does not read (a damaged row loses it with
+        the fight). A row that is not JSON is CombatScene.resume's to write down; a purpose there that does not read is written here."""
+        if not isinstance(raw, (str, bytes)) or not raw:
             return None
+        try:
+            row = json.loads(raw)
+        except ValueError:
+            return None
+        fight = row.get("fight") if isinstance(row, dict) else None
+        given = fight.get("purpose") if isinstance(fight, dict) else None
+        if not given:
+            return None
+        from engine import crashlog
+        with crashlog.carried("what a let-go fight was for (it does not read, and goes with the fight)"):   # (f781) lost, never silently
+            return combat.Purpose.model_validate(given)
+        return None
 
     @staticmethod
     def apart(row: str, stored: str | None, most: int = 8) -> list[str]:
@@ -389,14 +400,15 @@ class FightService:
         notes: list[str] = []
         f.log, f.story, f.hits, f.told = [], [], [], []
         target = f.get(intent.target) if intent.target else None
-        if intent.kind != "interpose" and (not target or not target.alive or target.side != "enemy" or target.fled):
+        if intent.kind != "interpose" and (not target or not any(e is target for e in f.enemies())):     # (f774) never a foe turned
             target = battlefield.closest(f, p, f.enemies())
         if intent.kind == "talk":
             return self._talk(f, p, target, intent)
 
         again = p.counters.pop("acting_again", None)       # a movement used on its own: this is the same turn's action
         if not again and not combat.start_turn(p, f, self.dice):
-            if not p.counters.pop("cast_turn", None):      # a charged spell going off (or breaking) is the whole turn
+            charged = p.counters.pop("cast_turn", None)     # a charged spell going off (or breaking) is the whole turn
+            if combat.takes_turn(f, p) and not charged:    # (f768, f769) a fall is the fall step's to tell; one gone has no turn to lose
                 f.log.append(f"{p.name} is unable to act")
                 combat.tell(f, "you try to act, but your body will not answer")
         elif self.alongside(f, p, intent, target, notes):
@@ -445,7 +457,7 @@ class FightService:
 
         if intent.kind != "flee":
             f.player_acted = True
-        if not f.over and not f.enemies() and not combat.muster(f):
+        if not f.over and combat.won(f):
             f.over = "victory"
         p.counters.pop("moved_now", None)
         if p.counters.pop("free_action", None) and not f.over:   # a movement on its own did not use the action - the player acts again
@@ -465,14 +477,14 @@ class FightService:
         problem = parley.attempt(f, target, intent.approach, self.player.character, self.dice)
         if problem:
             return RoundOutcome("talk", [], [], problem=problem)
-        if not f.enemies() and not combat.muster(f):
+        if combat.won(f):
             f.over = "victory"
         return RoundOutcome("talk", [], [], over=f.over)
 
     def hires_down(self, fight: combat.Combat) -> list:
         """Hired companions who have just gone down: whether each is dead is decided now (kept on them until the fight is over), so the
-        narration shows it as it happens and those who saw it can react at once. Returns (member, by whose blow) for those killed; the
-        survivors keep who fell, where and by whose hand (engine/party.py mourn)."""
+        narration shows it as it happens and those who saw it can react at once. Returns (member, by whom) for those killed; the
+        survivors keep who fell, where and by whose doing (engine/party.py mourn)."""
         f = fight
         killed = []
         for m in self.player.party:
@@ -486,18 +498,21 @@ class FightService:
                 continue
             if m.get("down_fate"):                          # already decided when they went down
                 continue
-            by = f.felled_by.get(a.id, "")                  # (f412) the blow was the foe's: never the player's, never another companion's
+            by = f.felled_by.get(a.id, "")                  # (f412, f768) whoever caused the fall, as the story names them
+            unstruck = a.counters.get("fell_to")            # (f768) a fall that was no blow on them: a poison, a burn, a share, a curse
             if self.party.decide_down(m, self.dice, in_fight=True) == "dead":
                 a.counters["dead"] = 1                      # beyond any healing: a Rescue cannot raise the dead
-                combat.tell(f, f"{a.name} takes a killing blow{' from ' + by if by else ''} and does not get up: {a.name} is dead"
+                combat.tell(f, (f"{a.name} does not get up again: {a.name} is dead" if unstruck else
+                                f"{a.name} takes a killing blow{' from ' + by if by else ''} and does not get up: {a.name} is dead")
                                + (f" (killed by {by}, not by you)" if by and by != "you" else ""))
                 killed.append((m, by))
                 place = getattr(f, "place", "")
                 how = (f" by {by}" if by and by != "you" else "") + (f" at {place}" if place else "")
                 party_rules.mourn(self.player.party, m, self.now(), self.player.location, how)
             else:
-                combat.tell(f, entities.gendered(f"{a.name} goes down hard{' under ' + whose_blow(by) if by else ''} and lies still: alive, but "
-                                                 "out of the fight, and they will have to be carried",            # (f422) in their own pronoun
+                combat.tell(f, entities.gendered((f"{a.name} goes down and lies still: alive, but " if unstruck else
+                                                  f"{a.name} goes down hard{' under ' + whose_blow(by) if by else ''} and lies still: alive, but ")
+                                                 + "out of the fight, and they will have to be carried",           # (f422) in their own pronoun
                                                  party_rules.pronoun_of(m, self.store.meta.seed, self.player.party_used)))
         return killed
 
@@ -716,7 +731,7 @@ class FightService:
 
     def close(self, fight: combat.Combat) -> Ending:
         """The fight is over: the row dropped, the minutes it took, who fell. A trial of rank (duel): nobody dies, the blades were pulled,
-        the pools written back. FightEnded published."""
+        the pools written back, and what it did to each character's Bound summon (companions_after). FightEnded published."""
         f = fight
         c = self.player.character
         if f.duel:
@@ -727,7 +742,8 @@ class FightService:
             self.store.save_combat(None)
             minutes = max(1, math.ceil(f.round * combat.RULES["round_seconds"] / 60))
             self._publish(FightEnded(minute=self.now(), serial=f.serial, outcome=f.over, duel=True))
-            return Ending(f.over, minutes, [], [], [], duel=True, notes=[note] if note else [])
+            notes = ([note] if note else []) + self.companions_after(f, set())    # (f771) summons stand in a trial: its end writes the bond
+            return Ending(f.over, minutes, [], [], [], duel=True, notes=notes)
         needs.fight(c)
         self.store.save_combat(None)                        # (f499) what the fight remembered of itself goes with its row
         minutes = max(1, math.ceil(f.round * combat.RULES["round_seconds"] / 60))

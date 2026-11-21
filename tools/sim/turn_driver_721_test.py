@@ -19,6 +19,7 @@ import simlib
 stub = simlib.Stub("warrior", 3)
 simlib.install(stub)
 import config
+from core import paths
 from engine import actor, budget, failures
 from engine.operation import Operation
 from llm.gateway import LLMError
@@ -62,7 +63,7 @@ check("the game's loop plays each input through the driver", "play" in {n.func.a
 shown = simlib.quiet_console()
 g = simlib.campaign("driver_721", seed=4, location="trading_square")
 ws, store = g.scene, g.store
-log = Path("saves/driver_721/turns.jsonl")
+log = paths.written("saves/driver_721/turns.jsonl")     # (f779) where the game writes it
 config.TURN_LOG_PATH = str(log)
 ws.enter("trading_square")
 rows = lambda: [json.loads(l) for l in log.read_text(encoding="utf-8").splitlines()] if log.exists() else []
@@ -195,7 +196,7 @@ shutil.rmtree("saves/driver_721", ignore_errors=True)
 shown = simlib.quiet_console()
 g = simlib.campaign("driver_721_open", seed=4, location="trading_square")
 ws, store = g.scene, g.store
-log = Path("saves/driver_721_open/turns.jsonl")
+log = paths.written("saves/driver_721_open/turns.jsonl")     # (f779) where the game writes it
 config.TURN_LOG_PATH = str(log)
 steps0 = store.meta.steps
 typed = iter(["I look around.", "quit"])

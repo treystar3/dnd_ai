@@ -14,7 +14,7 @@ owner's own play) is re-timed on the card with tools/rerun.py --time <a llama-se
 it beside the replay and writes the same measures into the recording (timed.jsonl) for this tool to read.
 
 (f444) When the card itself cannot be had (Runpod rents no RTX 3060), --measured-on names the card the recording was made on, and every
-call's reading and writing time is scaled to --card by the two cards' compute and memory bandwidth (data/rules/cards.yaml): an
+call's reading and writing time is scaled to --card by the two cards' compute and memory bandwidth (data/tools/cards.yaml): an
 estimate, kept as one (scaled_from in the profile). --vram-gb, what the model and its context took on the measuring card, says whether
 they would fit on the target at all; a model that spills off the card runs many times slower than any scaling says."""
 from __future__ import annotations
@@ -52,7 +52,7 @@ def calls_of(folder: Path) -> list[dict]:
 
 def cards() -> dict:
     import yaml
-    return yaml.safe_load((ROOT / "data" / "rules" / "cards.yaml").read_text(encoding="utf-8"))["cards"]
+    return yaml.safe_load((ROOT / "data" / "tools" / "cards.yaml").read_text(encoding="utf-8"))["cards"]
 
 
 def usage_of(c: dict) -> dict:

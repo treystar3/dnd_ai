@@ -174,16 +174,14 @@ def needed_context() -> int:
     """The tokens one slot must hold: the largest prompt ceiling the game measures (data/measured/prompt_ceilings.yaml) at the budget's
     characters a token, plus twice the largest answer any call asks for (config's and the generate() sites' max_tokens)."""
     import math
+    from engine import crashlog
     root = Path(paths.BUNDLE)
-    try:
+    chars, cpt = 36500, 4.0                            # what the context is sized from when the files cannot be read
+    with crashlog.carried("the server's context: the measured prompt ceilings", sized_from=chars):   # (f781) and it is written down
         ceilings = yamlio.safe_load((root / "data" / "measured" / "prompt_ceilings.yaml").read_text(encoding="utf-8")) or {}
         chars = max(int((v or {}).get("chars") or 0) for v in (ceilings.get("ceilings") or {}).values())
-    except Exception:
-        chars = 36500
-    try:
+    with crashlog.carried("the server's context: budget.yaml's characters a token", sized_at=cpt):
         cpt = float((yamlio.safe_load((root / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8")) or {}).get("chars_per_token") or 4.0)
-    except Exception:
-        cpt = 4.0
     return math.ceil(chars / cpt) + 2 * largest_answer()
 
 
@@ -649,7 +647,7 @@ class Runtime:
         self.runtime = Path(runtime or paths.RUNTIME)
         self.models = Path(models or paths.MODELS)
         self.run_dir = Path(run_dir or paths.RUN)
-        self.logs = Path(logs or (Path(paths.APP) / "logs"))
+        self.logs = Path(logs or paths.written("logs"))         # (f777) placed by core.paths, with crash.log and the refusals
         self.build = build
         self.state = "not_started"
         self.chat: Child | None = None
@@ -660,8 +658,7 @@ class Runtime:
         self.embed: Child | None = None                 # (f524) the embedder's own server, and whether it is on for this session
         self.embed_state = "not_started"
         self.embed_why = ""
-        self.embed_on: bool | None = None               # (f524's review) the session's decision, apart from the child's state: None
-                                                        # until the load makes it; a restart of the embedder keeps it
+        self.embed_on: bool | None = None               # (f784) the session's decision on embeddings: None until a load makes it
         self.embed_restarts_left = int((self.cfg.get("server") or {}).get("restarts", 1))
         self._lock = threading.RLock()
         self._closed = False
@@ -830,7 +827,9 @@ class Runtime:
             with self._lock:                            # (f524's review) the embedder is being started again: wait for it, never
                 pass                                    # tell this call embeddings are off (llm/embed.py would turn them off for good)
         if self.embed_state != "ready" or self.source is None:
-            raise Failure("unreachable", "the embedder is off for this session" + (f" ({self.embed_why})" if self.embed_why else ""))
+            said = ("the embedder waits for the model server's next load" if self.embed_on is None
+                    else "the embedder is off for this session")
+            raise Failure("unreachable", said + (f" ({self.embed_why})" if self.embed_why else ""))   # (f784) said by the decision
         emb = self.embed                                # (f522) read once: a restart or a close may change it meanwhile
         try:
             return self.source.embed(texts)
@@ -840,6 +839,8 @@ class Runtime:
             with self._lock:
                 if self._closed or self._stopping.is_set():
                     raise                               # the game is closing: its embedder's end is no death, and nothing restarts
+                if self.state == "failed" or self.embed_on is None:
+                    raise                               # (f784) the runtime stopped it, or the next load decides it: no death
                 if self.embed is emb:                   # another call may have restarted it already
                     self._crash_note(emb)
                     if self.embed_restarts_left > 0:
@@ -940,10 +941,7 @@ class Runtime:
             self._write_run_files()
             tell(0.97)
             if self.embed_on is None:
-                self._start_embed()                        # (f524) embeddings decided here, once, for the session; (f524's review)
-                                                           # a chat server's restart keeps the decision: the live embedder is the
-                                                           # new source's from its first moment, a dead one is started again by the
-                                                           # next embed (once), and an embedder that was off stays off
+                self._start_embed()                        # (f784) a load that gets this far decides; a restart keeps the decision
             if self._stopping.is_set():
                 raise Failure("unreachable", _CLOSING)
             from llm import launch
@@ -960,7 +958,9 @@ class Runtime:
         except BaseException:
             self.state = "failed"
             self._stop_children()
-            if self.embed_on or self.embed_state in ("ready", "loading"):
+            if self.embed_on:                          # (f784) stopped with the chat server, no failure of its own: decided again
+                self.embed_state, self.embed_why, self.embed_on = "not_started", "the model server stopped", None
+            elif self.embed_state in ("ready", "loading"):
                 self.embed_state, self.embed_why, self.embed_on = "failed", "the model server stopped", False
             raise
 
@@ -1075,35 +1075,47 @@ class Runtime:
     def close(self) -> None:
         """Cancel the calls in flight, stop every child, take the run files away. Safe to call twice, and from any thread. (f522) It may
         come while a load or a restart runs: the close is marked and the children stopped before the lock is waited for, so the load
-        ends at once rather than holding the close (and the closed window's process) until it finishes, and nothing starts after it."""
+        ends at once rather than holding the close (and the closed window's process) until it finishes, and nothing starts after it.
+        (f783) Each stage runs whatever the one before it did, and the first error is raised once the last has run (crashlog.run_every):
+        a source whose close raises still leaves no server running and no run files behind."""
+        from engine import crashlog
         self._stopping.set()
-        src = self.source
-        if src is not None:
-            src.close()                                 # the calls in flight cancelled, and (f523) none left waiting for the card
-        for c in (self.chat, self.embed):
-            self._stop(c)
-        with self._lock:
-            if self._closed:
-                return
-            self._closed = True
-            self._stop_children()
-            self.chat = self.embed = None
-            from engine import budget
-            budget.SLOW = False                         # (f526) the slow machine's lifted limits go with its server
-            self.worker = None                          # a load after a close starts with a worker of its own
-            if self.source is not None:
-                self.source.embed_server = None
-            if self.state != "failed":
-                self.state = "not_started"
+
+        def calls() -> None:
+            src = self.source
+            if src is not None:
+                src.close()                             # the calls in flight cancelled, and (f523) none left waiting for the card
+
+        def servers() -> None:
+            for c in (self.chat, self.embed):
+                self._stop(c)
+
+        def settled() -> None:
+            with self._lock:
+                if self._closed:
+                    return
+                self._closed = True
+                self._stop_children()
+                self.chat = self.embed = None
+                from engine import budget
+                budget.SLOW = False                     # (f526) the slow machine's lifted limits go with its server
+                self.worker = None                      # a load after a close starts with a worker of its own
+                if self.source is not None:
+                    self.source.embed_server = None
+                if self.state != "failed":
+                    self.state = "not_started"
+        crashlog.run_every("closing the model server", ("its calls", calls), ("its servers", servers), ("its run files and state", settled))
 
     def facts(self) -> dict:
-        """What this machine runs, final once the load is: (f524) whether there is an embedder is decided at the load and holds for the
-        session; read before that decision, it would be a guess, so it is refused. A restart of the chat server keeps the decision (the
-        embedder's own server goes on), so the facts are answered through it."""
+        """What this machine runs, final once a load is: (f524) whether there is an embedder is decided at the load and holds until a
+        failed load stops it with the chat server (f784), when the next load (Try again, Play slowly) decides it again; read while
+        undecided, it would be a guess, so it is refused. A restart of the chat server keeps the decision (the embedder's own server goes
+        on), so the facts are answered through it. While the runtime is failed there is no embedder."""
         if self.state in ("loading", "restarting") and self.embed_on is None:
             raise NotFinal("the model server's facts are read before its load is final")
         return {"source": "llama-server", "model": config.MODEL, "embed_model": config.EMBED_MODEL,
-                "embedder": self.embed_on is True, "embed_failure": self.embed_why, "state": self.state, **self.facts_}
+                "embedder": self.embed_on is True and self.state != "failed",   # (f784) none while failed: a call would end it for good
+                "embed_failure": self.embed_why, "state": self.state, **self.facts_}
 
 
 class Managed:
@@ -1196,11 +1208,21 @@ def start_for_game(progress=None, say=print) -> bool:
 
 
 def stop_for_game() -> None:
-    """Stop the game's server and let the lock go: safe to call twice, and from atexit, main's finally and an update's exit alike."""
+    """Stop the game's server and let the lock go: safe to call twice, and from atexit, main's finally and an update's exit alike.
+    (f783) Each stage runs whatever the one before it did (crashlog.run_every): a server whose close raises never leaves the lock held."""
+    from engine import crashlog
     rt, lock, undo = _GAME.pop("rt", None), _GAME.pop("lock", None), _GAME.pop("undo", None)
-    if rt is not None:
-        rt.close()
-    if undo is not None:
-        undo()
-    if lock is not None:
-        lock.release()
+
+    def server() -> None:
+        if rt is not None:
+            rt.close()
+
+    def source() -> None:
+        if undo is not None:
+            undo()
+
+    def let_go() -> None:
+        if lock is not None:
+            lock.release()
+    crashlog.run_every("stopping the game's model server", ("the model server", server), ("the interface's source", source),
+                       ("the lock", let_go))

@@ -61,6 +61,7 @@ def odds(character, combat, target, approach: str) -> tuple[float, list[str]]:
     return checks.chance(character, T["checks"][approach], {"always"}, extra=extra)
 
 
+@C.one_action
 def attempt(combat, target, approach: str, character, rng: random.Random) -> str | None:
     """Try it. Returns an error line when the words cannot be tried (nothing happens), else None."""
     if approach not in APPROACHES:

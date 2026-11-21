@@ -16,7 +16,6 @@ class's attributes changed through an instance, a module reached by a computed n
 that way, each of them a row). The table declares those it knows of (the dice, the event bus).
 Run: python tools/sim/owned_state_633_test.py"""
 import ast
-import subprocess
 import sys
 from pathlib import Path
 sys.path.insert(0, ".")
@@ -26,17 +25,11 @@ def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x)
     if not ok: bad.append(n)
 
-NOT_GAME = {"tools", "data", "docs", ".claude"}                       # the tools, the tests and their fixtures are no part of the game
-HARNESS = {"simlib", "simbot", "simreport", "smoke_test", "bestiary_check", "world_check"}     # at the root: harnesses, run by hand or by the tests
+from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
 MUTATORS = {"append", "extend", "clear", "update", "pop", "popitem", "setdefault", "add", "remove", "discard", "insert", "sort", "reverse",
             "appendleft", "popleft", "extendleft", "rotate", "subtract", "move_to_end", "difference_update", "intersection_update",
             "symmetric_difference_update"}
 FUNCTION = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
-
-
-def game_files() -> list[Path]:
-    out = subprocess.run(["git", "ls-files", "--cached", "--others", "--exclude-standard", "*.py"], capture_output=True, text=True, check=True).stdout.split()
-    return [Path(p) for p in out if p.split("/")[0] not in NOT_GAME and Path(p).stem not in HARNESS and Path(p).exists()]
 
 
 def module_of(path: Path) -> str:

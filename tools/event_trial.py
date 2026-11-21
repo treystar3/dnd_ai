@@ -337,7 +337,8 @@ class Trial:
 def reports() -> Path:
     """Where the reports go: a folder of the tool's own beside the run's call log (logs/event_trial/ in play)."""
     import config
-    return ROOT / Path(config.LOG_PATH).parent / "event_trial"      # (f743) never inside a save: the next Trial clears that
+    from core import paths
+    return paths.written(config.LOG_PATH).parent / "event_trial"    # (f743) never inside a save; (f779) in the one logs folder
 
 
 def report(out: dict, path: Path) -> None:

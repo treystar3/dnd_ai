@@ -249,7 +249,7 @@ out = subprocess.run([sys.executable, "tools/rerun.py", str(OUT)], capture_outpu
 last = (out.stdout.strip().splitlines() or [""])[-1]
 check("...and it replays in a child process, input by input, the budget priced as the recording's", out.returncode == 0 and last.startswith("all ") and "inputs matched" in last,
       (out.returncode, out.stdout[-400:], out.stderr[-400:]))
-rows = [json.loads(l) for l in pathlib.Path("saves/budget_468_rec/turns.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
+rows = [json.loads(l) for l in turnlog.path().read_text(encoding="utf-8").splitlines() if l.strip()]     # (f779) where the game wrote it
 check("the turn log's rows carry the budget's measures: the estimate, the required path, the stand-ins; the cut line rolled back as the model's failure",
       rows and all("budget_seconds" in r_ and "required_seconds" in r_ for r_ in rows) and rows[0].get("stand_ins") == ["passage"]
       and all(r_["budget_seconds"] >= r_["required_seconds"] - 1 for r_ in rows) and rows[1].get("rolled_back") and rows[1].get("model_failed"),

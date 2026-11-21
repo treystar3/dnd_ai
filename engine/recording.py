@@ -42,16 +42,23 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import config
+from core import paths
 from engine import actor
 from llm.errors import Failure                  # (f527) the interface's own failure kinds, no model client
 
 ROOT = Path(__file__).resolve().parent.parent
-FOLDER = ROOT / "recordings"
+FOLDER = Path("recordings")             # (f777) placed by core.paths when used (where()): beside the exe in a built game
 KEPT = ROOT / "data" / "replay"         # (f732) a recording kept in git: its call log is written plain, so a re-bless is stored as a delta
 CALLS = ("calls.jsonl", "calls.jsonl.gz")   # a recording's call log: plain (kept), gzipped (played); read in this order
 STORY = ("narrate", "say", "npc_says", "dialogue", "note", "wait", "ledger")   # what the player reads (engine/turnlog.py), and the engine's facts
 ORPHANS: set = set()     # (f453) threads a closed session left running (a creation call, people being written): the Thread objects, never
                          # their idents, which the OS hands out again; their calls pass through the recorder unrecorded (_layer)
+
+
+def where() -> Path:
+    """The folder recordings are made in: FOLDER placed by core.paths.written, asked now: under APP in play, in a test's own folder
+    under the suite (f779), or FOLDER itself when it is absolute."""
+    return paths.written(FOLDER)
 
 
 def orphan(threads) -> None:
@@ -209,7 +216,7 @@ class Recorder:
         from engine import streams
         from storage import statehash
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        self.dir = Path(folder) if folder else FOLDER / (name or f"{store.meta.name}_{stamp}")
+        self.dir = Path(folder) if folder else where() / (name or f"{store.meta.name}_{stamp}")
         if self.dir.exists():
             shutil.rmtree(self.dir)
         self.dir.mkdir(parents=True)
@@ -394,29 +401,44 @@ class Recorder:
         self.shown, self.open_input = [], False
 
     def close(self) -> Path:
-        self._end_input()
-        if self.unwrap is not None:
-            self.unwrap()                                # (f517) this recorder's layer, and only it, off the interface
-            self.unwrap = None
-        for ch, name, fn in reversed(self.undo):
-            ch.set(name, fn)
-        self.undo = []
-        with self._lock:
-            self.closed = True
-            for f in (self.inputs, self.calls, self.turns):
-                f.close()
-        self.meta["overlapped"] = self.overlapped        # (R5) written at close, 0 when no recorded call overlapped another
-        (self.dir / "meta.json").write_text(json.dumps(self.meta, indent=1), encoding="utf-8", newline="\n")
-        from engine import streams
-        streams.STRICT = False
+        """The recording ends. What the recorder put in place comes off first, none of it a write: its layer on the model interface,
+        the console's wraps, the strict session, and `closed`, after which no call is written. Then its writes: the last input's row,
+        the three logs each closed, meta.json. (f783) Each stage runs whatever the one before it did, and the first error is raised once
+        the last has run (crashlog.run_every), so a write the disk refuses leaves nothing of the recorder installed."""
+        from engine import crashlog, streams
+
+        def layer() -> None:
+            if self.unwrap is not None:
+                self.unwrap()                            # (f517) this recorder's layer, and only it, off the interface
+                self.unwrap = None
+
+        def console() -> None:
+            for ch, name, fn in reversed(self.undo):
+                ch.set(name, fn)
+            self.undo = []
+
+        def strict() -> None:
+            streams.STRICT = False
+
+        def shut() -> None:
+            with self._lock:                             # (f783) a call still writing its row finishes first; none is written after
+                self.closed = True
+
+        def meta() -> None:
+            self.meta["overlapped"] = self.overlapped    # (R5) written at close, 0 when no recorded call overlapped another
+            (self.dir / "meta.json").write_text(json.dumps(self.meta, indent=1), encoding="utf-8", newline="\n")
+        crashlog.run_every("closing a recording", ("its layer", layer), ("the console", console), ("the strict session", strict),
+                           ("its calls stopped", shut), ("the last input's row", self._end_input), ("inputs.jsonl", self.inputs.close),
+                           ("the call log", self.calls.close), ("turns.jsonl", self.turns.close), ("meta.json", meta))
         return self.dir
 
 
 def prune(keep: int | None = None) -> None:
     """Only the newest recordings are kept (config.RECORD_KEEP); a recording kept on purpose lives under data/replay instead."""
-    keep = getattr(config, "RECORD_KEEP", 5) if keep is None else keep
-    if not FOLDER.exists():
+    keep = config.RECORD_KEEP if keep is None else keep
+    folder = where()
+    if not folder.exists():
         return
-    made = sorted((d for d in FOLDER.iterdir() if (d / "meta.json").exists()), key=lambda d: (d / "meta.json").stat().st_mtime)
+    made = sorted((d for d in folder.iterdir() if (d / "meta.json").exists()), key=lambda d: (d / "meta.json").stat().st_mtime)
     for d in made[:-keep] if keep > 0 else made:
         shutil.rmtree(d, ignore_errors=True)

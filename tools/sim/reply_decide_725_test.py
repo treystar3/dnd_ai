@@ -50,10 +50,10 @@ check("a move that tells less than nothing, comes to no intent a reply has, or h
 check("the reading's intents are a reply's own", INTENTS == set(typing.get_args(contracts.NPCReply.model_fields["intent"].annotation)))
 
 # ---- the task: known to the budget, asked outside an operation's transaction, explained, and (f726) read by the guard: its lines are kept
+startup_found = [p for p in data_check.check() if "npc_decide" in p or "budget.yaml" in p or "audit_log" in p]
 check("the task is the budget's (required, a small answer), asked outside the transaction, has its reason, and is read by the guard",
       budget.need("npc_decide") == "required" and budget.B["tasks"]["npc_decide"]["answer_tokens"] <= 120 and "npc_decide" in budget.B["asked_outside"]
-      and guard.guarded("npc_decide") and not [p for p in data_check.check() if "npc_decide" in p or "budget.yaml" in p or "audit_log" in p],
-      [p for p in data_check.check() if "npc_decide" in p or "budget.yaml" in p or "audit_log" in p])
+      and guard.guarded("npc_decide") and not startup_found, startup_found)
 
 # ---- the contract: the ids offered and no others, no more than the move lets them
 C = contracts.decision_contract(["lore_a", "news:0"], 1)

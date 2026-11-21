@@ -1,22 +1,31 @@
 """A record of what the world did: when the pulse fired and what it changed, and (f355) what of it the player met - a moment, a scene, a
 summons, a line about the room changing, people met on their routine. Shown by #pulse when the game runs with --debug, and appended as
-one JSON row per event to config.PULSE_LOG_PATH (tools/world_report.py reads it, per game day). Nothing reads it back into the game."""
+one JSON row per event to config.PULSE_LOG_PATH (tools/world_report.py reads it, per game day). Nothing reads it back into the game.
+(f779) The file is trimmed as the turn log is: every fiftieth write, past config.LOG_MAX_MB, to the last LOG_KEEP_ENTRIES rows."""
 import json
 from collections import deque
 from pathlib import Path
 
 LOG: deque = deque(maxlen=400)
+_writes = 0
 
 
 def _write(row: dict) -> None:
+    global _writes
     import config
-    path = getattr(config, "PULSE_LOG_PATH", "")
+    from core import paths
+    path = config.PULSE_LOG_PATH
     if not path:
         return
+    path = paths.written(path)                                         # (f779) in the one logs folder
     try:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         with open(path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+        _writes += 1
+        if _writes % 50 == 1:
+            from llm.gateway import trim_log
+            trim_log(Path(path))
     except (OSError, TypeError, ValueError):
         pass
 

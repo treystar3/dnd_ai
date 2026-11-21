@@ -14,7 +14,7 @@ from engine import effects as E
 def _foes(combat, target):
     en = combat.enemies()
     from engine import battlefield as bf
-    t = target if target and target.alive and target.side == "enemy" else (bf.closest(combat, combat.player, en) if en else None)
+    t = target if target is not None and any(e is target for e in en) else (bf.closest(combat, combat.player, en) if en else None)
     return t, en
 
 

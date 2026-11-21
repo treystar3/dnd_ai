@@ -7,6 +7,7 @@ import simlib
 STUB = simlib.Stub("warrior", 5)
 simlib.install(STUB)
 import config
+from core import paths                     # (f779) a log read back where the game wrote it
 import ui.console as uc
 NOTES = []
 uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
@@ -39,17 +40,17 @@ gateway.TALLY.clear()
 STUB.plan = [{"kind": "look"}]
 turn0 = store.meta.turn
 ws.handle("I look around the place")
-rows = [json.loads(l) for l in open(config.TURN_LOG_PATH, encoding="utf-8")]
+rows = [json.loads(l) for l in open(paths.written(config.TURN_LOG_PATH), encoding="utf-8")]
 check("an interpreted line is one row naming the interpreter", len(rows) == 1 and rows[0]["handled_by"] == "interpret" and rows[0]["text"] == "I look around the place", rows)
 check("the row keeps the audit's fields", rows[0]["audit"] == "skipped" and rows[0]["final"] == [{"kind": "look"}] and rows[0]["place"] == place.id, rows[0])
 calls = rows[0].get("interpreter") or []
 check("the interpreter's call rides along in full", len(calls) == 1 and 'PLAYER TYPED: "I look around the place"' in calls[0]["request"], calls and list(calls[0]))
 check("with the plan read back and what was shown", calls[0]["plan"] == [{"kind": "look"}] and calls[0]["place_name"] == place.name and isinstance(calls[0]["shown"], dict), calls[0] if calls else None)
-model_rows = [json.loads(l) for l in open(config.LOG_PATH, encoding="utf-8")]
+model_rows = [json.loads(l) for l in open(paths.written(config.LOG_PATH), encoding="utf-8")]
 check("the model log carries the same turn as the key", any(r.get("turn") == turn0 and r["task"] == "interpret_action" for r in model_rows), [(r.get("turn"), r["task"]) for r in model_rows])
 
 ws.handle("I'd like to take the trial")                     # away from a hall the trial intercept answers a line about your own trial
-rows = [json.loads(l) for l in open(config.TURN_LOG_PATH, encoding="utf-8")]
+rows = [json.loads(l) for l in open(paths.written(config.TURN_LOG_PATH), encoding="utf-8")]
 check("a line an intercept took is a row naming the intercept", len(rows) == 2 and rows[1]["handled_by"] == "trial" and rows[1]["text"] == "I'd like to take the trial", rows[-1])
 check("and carries no interpreter call", "interpreter" not in rows[1] and rows[1]["turn"] == turn0 + 1, rows[1])
 check("the turn passed either way", store.meta.turn == turn0 + 2, store.meta.turn)
@@ -58,7 +59,7 @@ stats = turnlog.session_stats()
 check("the session summary counts the lines by handler", stats["lines"] == {"interpret": 1, "trial": 1}, stats["lines"])
 check("and the model's calls by task", stats["tasks"].get("interpret_action", {}).get("calls") == 1 and stats["tasks"]["interpret_action"]["failed"] == 0, stats["tasks"])
 turnlog.write_session_stats()
-lines = [l for l in open(config.SESSION_STATS_PATH, encoding="utf-8").read().splitlines() if l.strip()]
+lines = [l for l in open(paths.written(config.SESSION_STATS_PATH), encoding="utf-8").read().splitlines() if l.strip()]
 check("the summary is one line in the sessions log", len(lines) == 1 and json.loads(lines[0])["lines"]["trial"] == 1, lines)
 
 from tools import replay
@@ -69,7 +70,7 @@ check("an old-style row without interpreter calls still promotes", replay.promot
 config.TURN_LOG = False
 turnlog.COUNTS.clear()
 ws.handle("I'd like to take the trial now")
-rows = [json.loads(l) for l in open(config.TURN_LOG_PATH, encoding="utf-8")]
+rows = [json.loads(l) for l in open(paths.written(config.TURN_LOG_PATH), encoding="utf-8")]
 check("with the log off nothing is written but the session still counts", len(rows) == 2 and turnlog.COUNTS == {"trial": 1}, (len(rows), turnlog.COUNTS))
 config.TURN_LOG = True
 

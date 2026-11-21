@@ -53,9 +53,10 @@ def _owned() -> list[tuple[str, Callable[[], None], Callable[[], bool], Callable
 
 
 def reset() -> None:
-    """Every owned binding put back to its initial value: a campaign is opening or has closed."""
-    for _, put_back, _, _ in _owned():
-        put_back()
+    """Every owned binding put back to its initial value: a campaign is opening or has closed. (f783) Each is put back whatever the
+    one before it did, and the first error is raised once the last is back (crashlog.run_every)."""
+    from engine import crashlog
+    crashlog.run_every("putting back the owned state", *[(name, put_back) for name, put_back, _, _ in _owned()])
 
 
 def residue() -> dict[str, str]:
@@ -128,30 +129,42 @@ class CampaignSession:
         return [t for t in self._threads + backfill.threads(self.store) if t.is_alive()]
 
     def close(self) -> None:
-        """The campaign ends in this process: the recorder is closed, the background work is waited for (config.CLOSE_WAIT_SECONDS in all)
-        and what is still running is orphaned, the save's jobs are forgotten, the store is closed and every owned binding is put back.
-        Closing twice does nothing the second time."""
+        """The campaign ends in this process: the recorder is closed, the background calls are cancelled, the threads are waited for
+        (config.CLOSE_WAIT_SECONDS in all) and what is still running is orphaned, the save's jobs are forgotten, the store is closed, the
+        bus is left idle and every owned binding is put back. (f783) Each stage runs whatever the one before it did, and the first error
+        is raised once the last has run (crashlog.run_every): a stage that fails never leaves the store open, a call running or the
+        recorder installed for the next campaign. Closing twice does nothing the second time, a close that raised included."""
         if self.closed:
             return
         self.closed = True
-        from engine import recording
-        from npc import backfill
-        if self.recorder is not None:
-            self.recorder.close()
-            self.recorder = None
+        from engine import crashlog, recording
         from llm import backend
-        backend.cancel_session(str(getattr(self.store, "root", "") or ""))   # (f523) its background calls end now, not after the wait
-        deadline = time.monotonic() + float(getattr(config, "CLOSE_WAIT_SECONDS", 2))
-        for t in self.threads():
-            t.join(max(0.0, deadline - time.monotonic()))
-        recording.orphan(self.threads())                  # the survivors: their answers go nowhere, their calls are never the next save's
-        self._threads.clear()
-        backfill.drop(self.store)
-        self.store.close()
-        from engine.domain_events import IdleBus, use
-        self.bus.clear()                                   # (f454) its listeners hear nothing more; between campaigns, nobody listens
-        use(IdleBus())
-        reset()
+        from npc import backfill
+
+        def recorder() -> None:
+            rec, self.recorder = self.recorder, None
+            if rec is not None:
+                rec.close()
+
+        def calls() -> None:
+            backend.cancel_session(str(getattr(self.store, "root", "") or ""))   # (f523) its background calls end now, not after the wait
+
+        def threads() -> None:
+            deadline = time.monotonic() + float(getattr(config, "CLOSE_WAIT_SECONDS", 2))
+            for t in self.threads():
+                t.join(max(0.0, deadline - time.monotonic()))
+            recording.orphan(self.threads())              # the survivors: their answers go nowhere, their calls are never the next save's
+            self._threads.clear()
+
+        def jobs() -> None:
+            backfill.drop(self.store)
+
+        def bus() -> None:
+            from engine.domain_events import IdleBus, use
+            use(IdleBus())                                 # (f454) between campaigns, nobody listens
+            self.bus.clear()                               # ...and its listeners hear nothing more
+        crashlog.run_every("closing a campaign", ("the recorder", recorder), ("its background calls", calls), ("its threads", threads),
+                           ("its jobs", jobs), ("the store", self.store.close), ("the bus", bus), ("the owned state", reset))
 
     # ---- (f455) a rolled-back turn takes back everything
 
@@ -163,24 +176,23 @@ class CampaignSession:
         writes, so a scene built before a tail's populate_place was read by the first attempt of the next talk and rebuilt for its re-run,
         with two more of the town's people in it: the post-D night's hire_chat Drift."""
         scene.__dict__.pop("_truth", None)
+        from engine import crashlog
         held = {}
         for k, v in scene.__dict__.items():
             if not k.startswith("_") or k == "_truth":
                 continue
-            try:
+            held[k] = v                                # a cache that cannot be copied is kept by reference: the turn may change it in place
+            with crashlog.carried(f"a scene cache copied for the rollback (kept by reference): {k}"):   # (f781) written down, each cache
                 held[k] = copy.deepcopy(v)
-            except Exception:                          # a cache that cannot be copied is kept by reference: the turn may change it in place
-                held[k] = v
         from engine import actor
         turn = actor.turn_of(scene)                    # (f631) the turn's own fields live on its context, the rest on the scene
         rolled = {}                                    # (f465) the scene's declared state (WorldScene.ROLLED), as it stands
         for k in getattr(scene, "ROLLED", ()):
             home = turn.values if k in actor.FIELDS else scene.__dict__
             if k in home:
-                try:
+                rolled[k] = home[k]                    # (f781) kept by reference when it cannot be copied, and written down, each state
+                with crashlog.carried(f"a scene's declared state copied for the rollback (kept by reference): {k}"):
                     rolled[k] = copy.deepcopy(home[k])
-                except Exception:
-                    rolled[k] = home[k]
         from engine import ledger                      # (f499) the fight's marks are its row's: the transaction takes them back
         turn.snapshot = (self.world.snapshot(), held, rolled, ledger.told_marks())   # (f720) ...and which of the turn's rows were told already
 

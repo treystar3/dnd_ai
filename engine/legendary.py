@@ -18,14 +18,15 @@ def how_handled(effect, named: set[str], categories: set[str], world_mechanics: 
     return ""
 
 
-def problems(effects: dict, named: set[str], categories: set[str], world_mechanics: set[str]) -> list[str]:
-    """Every enabled effect handled; a category effect's category and a wonder's world mechanic real, enabled or not."""
+def problems(effects: dict, named: set[str] | None, categories: set[str], world_mechanics: set[str]) -> list[str]:
+    """Every enabled effect handled; a category effect's category and a wonder's world mechanic real, enabled or not. With named None
+    (a built game, which carries no source to read the names from) whether an effect is handled is not asked."""
     out = []
     for e in effects.values():
         if e.category and e.category not in categories:
             out.append(f"legendary_effects.yaml {e.id}: category '{e.category}' is no creature category the bestiary has")
         if e.world and e.world not in world_mechanics:
             out.append(f"legendary_effects.yaml {e.id}: world mechanic '{e.world}' is none the engine runs")
-        if e.enabled and not how_handled(e, named, categories, world_mechanics):
+        if e.enabled and named is not None and not how_handled(e, named, categories, world_mechanics):
             out.append(f"legendary_effects.yaml {e.id}: nothing runs it (no code names it, no category, no world mechanic): mark it enabled: false")
     return out

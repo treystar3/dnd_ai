@@ -18,6 +18,7 @@ stub = simlib.Stub("warrior", 3)
 simlib.install(stub)
 SHOWN = simlib.quiet_console()
 import config
+from core import paths
 from engine import asked, memory, operation, presence, regard
 from storage import statehash
 
@@ -130,7 +131,7 @@ real_prepare = ws.prepare_talk
 ws.prepare_talk = lambda intent, text: store.save_npc(store.load_npc(bid))
 stood = talk(ws, "One more thing.")
 ws.prepare_talk = real_prepare
-crash = Path(f"saves/{NAME}/crash.log")
+crash = paths.written(f"saves/{NAME}/crash.log")     # (f779) where the game writes it
 check("a write inside a prepare is refused by the fence: the game's own fault, logged, the line not taken",
       stood is False and statehash.digest(store) == d1 and crash.exists() and "prepare_talk" in crash.read_text(), (stood, crash.exists()))
 

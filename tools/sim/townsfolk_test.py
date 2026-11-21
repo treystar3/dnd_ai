@@ -17,7 +17,8 @@ def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x)
     if not ok: bad.append(n)
 
-check("the data checks pass with the regions table and the farewell intercept", data_check.check() == [], data_check.check()[:3])
+startup_found = data_check.check()
+check("the data checks pass with the regions table and the farewell intercept", startup_found == [], startup_found[:3])
 
 # ---- a country for residents
 c = collections.Counter(vp.resident_culture("human", "wend_vale", random.Random(k)) for k in range(400))

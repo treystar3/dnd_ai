@@ -147,7 +147,7 @@ lessons:
     support:
       - "Don't try to do everything at once. Closest one, finish it, then the next."
       - "Easy. One at a time. Closest first, and keep yourself up."
-  floor:                    # the blow that would have killed you: it can't, on a first hunt
+  floor:                    # what would have killed you (a blow, a poison, a torn wound): it can't, on a first hunt
     - "I've got you. Drink. Now! Nobody dies on their first hunt, not while I'm here. Out there on your own, nobody's going to catch you. Remember that."
     - "That should've killed you. It didn't. Get up and drink, and think about how close that was, because next time I might not be there."
     - "Up. Come on. I'm not letting a first hunt kill you. But that was close. Too close. Drink."

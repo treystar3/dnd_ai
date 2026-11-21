@@ -183,33 +183,57 @@ def _read(f: Path):
     return json.loads(text) if f.suffix == ".json" else yamlio.safe_load(text)
 
 
+NOT_GAME = {                                   # (f785) the folders under data/ that are not the game: the one list of them
+    "replay": "the recordings and cases kept to test against",
+    "measured": "what a tool measured of a machine: the card's speeds, the prompts' ceilings",
+    "runtime": "how this machine runs the model server: its builds, models and settings",
+    "tools": "what only the tools read: a training run, the graphics cards a night is timed on, the town drafter's tables",
+}
+
+
+def game_data(root: Path = ROOT) -> list[Path]:
+    """(f785) The game's data files, sorted: every file under data/ but those of a folder NOT_GAME names (and a __pycache__). The data
+    hash reads these; the words rule (engine/data_check.py data_words_problems) skips by the same list. Not the build's list: data/
+    runtime and data/measured are outside the hash and still ship."""
+    base = root / "data"
+    return sorted(f for f in base.rglob("*") if f.is_file() and "__pycache__" not in f.parts and f.relative_to(base).parts[0] not in NOT_GAME)
+
+
+def copy_data(to: Path, root: Path = ROOT, leave_out=None) -> Path:
+    """(f785) data/ copied to <to>/data, leaving out the folders named (NOT_GAME's by default) at its top only, as game_data() does:
+    a folder of that name deeper down is copied. For a test that hashes or checks a copy of the game's data. Returns <to>/data."""
+    import shutil
+    base, out = root / "data", Path(to) / "data"
+    gone = set(NOT_GAME if leave_out is None else leave_out)
+    shutil.copytree(base, out, ignore=lambda folder, names: [n for n in names if Path(folder) == base and n in gone])
+    return out
+
+
 def data_hashes(root: Path = ROOT) -> dict[str, str]:
-    """The game a recording was made on, in two parts (f718). "data", the rules: every file under data/ (but data/replay, the
-    recordings and cases kept to test against, which are not the game, (f459) data/measured, the card's measured speeds, and (f522)
-    data/runtime, how this machine runs the model server: both describe a machine and not the game), the model, and the save schema.
-    (f572) Not the version: a release that changes no content is the same game; the recording's meta keeps the version, and the
-    replay itself catches a change in the code. "words", the wording: the strings data/rules/wording.yaml lists, each a mark in
-    the rules. A listed file is read as data, so its comments are in neither; one that cannot be read is rules, whole."""
+    """The game a recording was made on, in two parts (f718). "data", the rules: the game's data files (game_data: every file under
+    data/ but the folders NOT_GAME names, which are not the game), the model, and the save schema. (f572) Not the version: a release
+    that changes no content is the same game; the recording's meta keeps the version, and the replay itself catches a change in the
+    code. "words", the wording: the strings data/rules/wording.yaml lists, each a mark in the rules. A listed file is read as data,
+    so its comments are in neither; one that cannot be read is rules, whole."""
     import config
     from storage import migrations
     h, w = hashlib.sha256(), hashlib.sha256()
     listed = wording(root)
-    for f in sorted((root / "data").rglob("*")):
+    for f in game_data(root):
         rel = f.relative_to(root)
-        if f.is_file() and "__pycache__" not in f.parts and rel.parts[:2] not in (("data", "replay"), ("data", "measured"), ("data", "runtime")):
-            h.update(rel.as_posix().encode("utf-8") + b"\0")
-            keys = listed.get(rel.relative_to("data").as_posix())
-            if keys:
-                try:
-                    words: list = []
-                    rest = _split(_read(f), keys, (), False, words)
-                    h.update(_strict(rest).encode("utf-8"))
-                    w.update(rel.as_posix().encode("utf-8") + b"\0" + _h(words).encode("utf-8"))
-                    continue
-                except Exception:
-                    pass
-            b = f.read_bytes()
-            h.update(b if b"\0" in b[:8000] else b.replace(b"\r\n", b"\n"))   # (f560) the game, not the checkout's line endings
+        h.update(rel.as_posix().encode("utf-8") + b"\0")
+        keys = listed.get(rel.relative_to("data").as_posix())
+        if keys:
+            try:
+                words: list = []
+                rest = _split(_read(f), keys, (), False, words)
+                h.update(_strict(rest).encode("utf-8"))
+                w.update(rel.as_posix().encode("utf-8") + b"\0" + _h(words).encode("utf-8"))
+                continue
+            except Exception:
+                pass
+        b = f.read_bytes()
+        h.update(b if b"\0" in b[:8000] else b.replace(b"\r\n", b"\n"))   # (f560) the game, not the checkout's line endings
     h.update(f"\0{config.MODEL}\0{migrations.CURRENT}".encode("utf-8"))
     return {"data": h.hexdigest(), "words": w.hexdigest()}
 

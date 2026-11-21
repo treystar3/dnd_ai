@@ -11,6 +11,7 @@ from pathlib import Path
 
 import yaml
 from core import yamlio
+from core.typed import whole
 
 ROOT = Path(__file__).resolve().parent.parent
 L = yamlio.safe_load((ROOT / "data" / "rules" / "look.yaml").read_text(encoding="utf-8"))
@@ -51,7 +52,7 @@ def clean(choice: dict) -> dict:
         v = str((choice.get("look") or {}).get(a, "")).strip().lower()
         look[a] = v if v in L["axes"][a]["options"] else L["axes"][a]["default"]
     flags = [f for f in (choice.get("flags") or []) if f in flags_for(people) and look.get(L["flags"][f]["axis"]) not in ("none", None)]
-    extra = re.sub(r"[\x00-\x1f<>{}\[\]]", " ", str(choice.get("extra") or ""))
+    extra = re.sub(r"[\x00-\x1f<>{}\[\]]", " ", whole(str(choice.get("extra") or "")))    # (f781) the page's JSON in its line
     extra = " ".join(extra.split())[: int(L["extra_most"])].strip(" .;,")
     return {"people": people, "pronoun": pronoun, "look": look, "flags": flags, "extra": extra}
 

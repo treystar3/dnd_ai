@@ -86,6 +86,7 @@ def scant_ground(fight, p, target, effect: str) -> str | None:
                        target=who(target) if target is not None else "them")
 
 
+@C.one_action
 def resolve(fight, p, target, words: str, rng: random.Random, effect: str = "") -> None:
     """The player's whole action: what they are after (`effect`, as the scene read it; by their words when it gives none), rolled, and
     something made true either way. What they tried is told first, then (f570) any word on poor ground, then what came of it."""

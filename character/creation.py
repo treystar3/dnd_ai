@@ -6,6 +6,7 @@ The goddess scene and the smoke test both use these functions.
 import random
 from pathlib import Path
 
+from core import yamlio
 from core.models import Ability, Attributes, Character, Effect, Passive
 from character import fit
 from core.rules import FAMILIES, MECHANICS, TRIGGERS
@@ -19,7 +20,7 @@ MIN_NONCOMBAT_PASSIVES = {"combat": 4, "balanced": 5, "social": 7}
 MIN_MECHANIC_PASSIVES = 6
 OFFERED_MECHANICS = 18     # creation offers mechanics only (B8): flat stat passives stay learnable from trainers and gear
 MIN_WORLD_OFFERED = 3
-DRAW = __import__("yaml").safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "perks.yaml").read_text(encoding="utf-8"))["draw"]
+DRAW = yamlio.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "perks.yaml").read_text(encoding="utf-8"))["draw"]
 SIGNATURE_OFFERED = 4      # drawn from the class's own families by thematic fit: the spine of every offer
 ARCHETYPE_FAMILIES = {"warrior": ["warrior"], "mage": ["mage"], "rogue": ["rogue"], "support": ["healer"]}
 PICKS = 3                  # abilities and passives the player keeps at creation, each

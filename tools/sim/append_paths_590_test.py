@@ -35,29 +35,29 @@ def keyof(node):
 def scan() -> set[tuple[str, str, str]]:
     """(how, list, module:function) for every append, aliased append and rebind of a world list."""
     out = set()
-    for d in ("engine", "scenes", "services"):
-        for f in sorted(Path(d).rglob("*.py")):
-            tree = ast.parse(f.read_text(encoding="utf-8"))
-            mod = f.with_suffix("").as_posix().replace("/", ".")
-            for fn in [n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda))]:
-                name = getattr(fn, "name", "<lambda>")
-                nodes = list(ast.walk(fn))
-                aliases = {}
-                for n in nodes:
-                    targets = n.targets if isinstance(n, ast.Assign) else [n.target] if isinstance(n, (ast.AnnAssign, ast.AugAssign, ast.NamedExpr)) else []
-                    value = getattr(n, "value", None)
-                    for t in targets:
-                        if isinstance(t, ast.Name) and value is not None and keyof(value):
-                            aliases[t.id] = keyof(value)
-                        if isinstance(t, ast.Subscript) and keyof(t):
-                            out.add(("rebind", keyof(t), f"{mod}:{name}"))
-                for n in nodes:
-                    if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr in GROW:
-                        tgt = n.func.value
-                        if keyof(tgt):
-                            out.add(("append", keyof(tgt), f"{mod}:{name}"))
-                        elif isinstance(tgt, ast.Name) and tgt.id in aliases:
-                            out.add(("alias", aliases[tgt.id], f"{mod}:{name}"))
+    from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
+    for f in game_files():
+        tree = ast.parse(f.read_text(encoding="utf-8"))
+        mod = f.with_suffix("").as_posix().replace("/", ".")
+        for fn in [n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda))]:
+            name = getattr(fn, "name", "<lambda>")
+            nodes = list(ast.walk(fn))
+            aliases = {}
+            for n in nodes:
+                targets = n.targets if isinstance(n, ast.Assign) else [n.target] if isinstance(n, (ast.AnnAssign, ast.AugAssign, ast.NamedExpr)) else []
+                value = getattr(n, "value", None)
+                for t in targets:
+                    if isinstance(t, ast.Name) and value is not None and keyof(value):
+                        aliases[t.id] = keyof(value)
+                    if isinstance(t, ast.Subscript) and keyof(t):
+                        out.add(("rebind", keyof(t), f"{mod}:{name}"))
+            for n in nodes:
+                if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr in GROW:
+                    tgt = n.func.value
+                    if keyof(tgt):
+                        out.add(("append", keyof(tgt), f"{mod}:{name}"))
+                    elif isinstance(tgt, ast.Name) and tgt.id in aliases:
+                        out.add(("alias", aliases[tgt.id], f"{mod}:{name}"))
     return out
 
 

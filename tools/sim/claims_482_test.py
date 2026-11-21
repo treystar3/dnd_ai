@@ -96,21 +96,21 @@ shutil.rmtree("saves/claims_482", ignore_errors=True)
 CLAIMS = set(memory.CLAIMS)
 ALLOWED = {"engine/memory.py"}
 leaks = []
-for d in ("engine", "scenes", "npc", "services", "world"):
-    for p in Path(d).rglob("*.py"):
-        if str(p) in ALLOWED:
-            continue
-        for node in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
-            if isinstance(node, ast.Compare) and isinstance(node.left, ast.Attribute) and node.left.attr == "kind" \
-                    and not (isinstance(node.left.value, ast.Name) and node.left.value.id == "beat"):     # a party beat's kind is not a memory's
-                for c in node.comparators:
-                    vals = [c.value] if isinstance(c, ast.Constant) else [e.value for e in getattr(c, "elts", []) if isinstance(e, ast.Constant)]
-                    if CLAIMS & set(v for v in vals if isinstance(v, str)):
-                        leaks.append(f"{p}:{node.lineno}")
-        text = p.read_text(encoding="utf-8")
-        for k in CLAIMS:
-            if f"kind = '{k}'" in text or f"kind='{k}'" in text:
-                leaks.append(f"{p}: SQL on {k}")
+from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
+for p in game_files():
+    if str(p) in ALLOWED:
+        continue
+    for node in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.Compare) and isinstance(node.left, ast.Attribute) and node.left.attr == "kind" \
+                and not (isinstance(node.left.value, ast.Name) and node.left.value.id == "beat"):     # a party beat's kind is not a memory's
+            for c in node.comparators:
+                vals = [c.value] if isinstance(c, ast.Constant) else [e.value for e in getattr(c, "elts", []) if isinstance(e, ast.Constant)]
+                if CLAIMS & set(v for v in vals if isinstance(v, str)):
+                    leaks.append(f"{p}:{node.lineno}")
+    text = p.read_text(encoding="utf-8")
+    for k in CLAIMS:
+        if f"kind = '{k}'" in text or f"kind='{k}'" in text:
+            leaks.append(f"{p}: SQL on {k}")
 check("no rule reads a claim (the fence)", leaks == [], leaks)
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad), file=sys.__stdout__)

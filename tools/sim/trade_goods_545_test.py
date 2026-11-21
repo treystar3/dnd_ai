@@ -180,7 +180,8 @@ _, user = situations.prompt(store, world, {}, world.places["trading_square"], "r
 goods_line = next(ln for ln in user.splitlines() if ln.startswith("GOODS (id: name): "))
 check("the proposal's GOODS line lists the trade goods first, by id and name", goods_line.startswith("GOODS (id: name): salt: salt; grain: grain")
       and "tome_" not in goods_line and "codex" not in goods_line, goods_line[:120])
-check("the data checks clean", situations.problems() == [] and data_check.check() == [], (situations.problems(), data_check.check()))
+startup_found = data_check.check()
+check("the data checks clean", situations.problems() == [] and startup_found == [], (situations.problems(), startup_found))
 keep = list(situations.S["goods"])
 situations.S["goods"] = keep + ["tome_second_circle", "dragon_gold", "salt"]
 probs = situations.problems()

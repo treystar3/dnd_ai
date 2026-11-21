@@ -23,6 +23,7 @@ def chat(*a, **k):
     return _chat(*a, **k)
 spy = simlib.stand_in(chat=chat, embed=None)    # (f518) the spy as the model's source, over the stub
 import config
+from core import paths
 import ui.console as uc
 NOTES = []
 for f in ("narrate", "say", "npc_says", "dialogue", "ledger"):
@@ -54,7 +55,7 @@ store.save_player(PlayerState(character=char, location="trading_square", guild_r
 ws = WorldScene(store, world, load_traits(), store.load_player())
 ws.player.mentor["never"] = True
 ws.enter("trading_square")
-LOG = Path("saves/playthrough3b_test/turns.jsonl")
+LOG = paths.written("saves/playthrough3b_test/turns.jsonl")     # (f779) where the game writes it
 config.TURN_LOG_PATH = str(LOG)
 def rows():
     return [json.loads(l) for l in LOG.read_text().splitlines()] if LOG.exists() else []

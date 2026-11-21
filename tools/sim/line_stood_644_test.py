@@ -25,6 +25,7 @@ stub = simlib.Stub("warrior", 3)
 simlib.install(stub)
 SHOWN = simlib.quiet_console()
 import config
+from core import paths                     # (f779) a log read back where the game wrote it
 import ui.console as uc
 from engine import actor, failures, inventory, mentor, money, operation, quests
 from llm.contracts import ActionIntent
@@ -119,7 +120,7 @@ def typed(text: str, plan, fail=(), first=None):
         ws.run()
     finally:
         stub.plan, FAIL["titles"] = None, set()
-    rows = [json.loads(l) for l in pathlib.Path(config.TURN_LOG_PATH).read_text(encoding="utf-8").splitlines() if l.strip()]
+    rows = [json.loads(l) for l in pathlib.Path(paths.written(config.TURN_LOG_PATH)).read_text(encoding="utf-8").splitlines() if l.strip()]
     now = character()
     diff = statehash.changes(before, statehash.dump(store))
     moved = sorted(f"{t}.{row}.{col.split('.')[-1]}" for t, kinds in diff.items() for rows in kinds.values() for row, cols in rows.items()

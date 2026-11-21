@@ -94,7 +94,25 @@ check("#help names both", "#report" in Path("ui/console.py").read_text(encoding=
 names = " ".join(c.name.lower() for c in world.bestiary.values())
 check("no creature carries a name that is a trademark outside the SRD", "mind flayer" not in names and "mindrender" in names
       and all(c.family != "mind_flayer" for c in world.bestiary.values()))
-check("a store build can turn the release check off", getattr(config, "UPDATE_CHECK", None) is True and 'getattr(config, "UPDATE_CHECK", True)' in Path("main.py").read_text(encoding="utf-8"))
+import urllib.request
+from core import updates
+asked = []
+def recorder(req, timeout=0):
+    asked.append(getattr(req, "full_url", str(req)))
+    raise OSError("no network in the test")
+held = (urllib.request.urlopen, config.UPDATE_CHECK)
+urllib.request.urlopen = recorder
+try:
+    config.UPDATE_CHECK = False
+    off = (updates.enabled(), updates.available(), list(asked))
+    config.UPDATE_CHECK = True
+    updates.available()
+    on = list(asked)
+finally:
+    urllib.request.urlopen, config.UPDATE_CHECK = held
+check("(f780) a store build can turn the release check off: with UPDATE_CHECK False no release is asked for, with it on (as shipped)"
+      " one is; every path is held in updates_test", held[1] is True and off == (False, None, []) and len(on) == 1
+      and on[0].endswith("/releases/latest"), (held[1], off, on))
 
 shutil.rmtree(simlib.saves_path("guard_test"), ignore_errors=True)
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")

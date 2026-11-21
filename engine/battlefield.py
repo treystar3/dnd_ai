@@ -161,10 +161,38 @@ def vantage(bf, theirs: str, mine: str) -> str:
 
 
 # ---------- reading the fight ----------
-# "Hostile" is by side: the player and their allies are one side, enemies the other. Every read filters to the living who have not fled.
+# "Hostile" is by the side each fights for now (is_foe): the player, their allies and a foe turned to them are one side, the foes the
+# other. Every read filters to the living who have not fled.
+
+def turned(f) -> bool:
+    """(f774) A foe turned on its own side (Dominate, Dread Regent): the mark engine/combat_perks.py turn_foe writes and turn_back
+    takes off, read here alone."""
+    return bool((getattr(f, "counters", None) or {}).get("turned"))
+
+
+def turned_until(f) -> int | None:
+    """(f774) The last round of a foe's turn for a time (Dominate), or None: turned for good (Dread Regent), or not turned."""
+    end = (getattr(f, "counters", None) or {}).get("turned_until") if turned(f) else None
+    return None if end is None else int(end)
+
+
+def is_foe(f) -> bool:
+    """(f774) The side a fighter fights for now: True for a foe, False for the player, an ally and a foe turned to them. Every rule of
+    harm asks it, through hostile or as "is this a foe"; in the engine no side is compared with "enemy" but where tools/purity.py names
+    why. A side compared with "ally" or "player" asks what kind a fighter is (a companion, a hire, a summon), which turning never
+    changes; the fight's books in scenes/ and services/ (who was killed, who yielded) ask what a fighter came as."""
+    return f.side == "enemy" and not turned(f)
+
 
 def hostile(a, b) -> bool:
-    return (a.side == "enemy") != (b.side == "enemy")
+    """Whether these two fight each other now (is_foe)."""
+    return is_foe(a) != is_foe(b)
+
+
+def kin(a, b) -> bool:
+    """(f774) Whether b is one of a's own for a blessing or a heal: the same side by its name, and neither turned. A turned foe is
+    spared by the side it fights for, and is nobody's to bless or mend."""
+    return (a.side == "enemy") == (b.side == "enemy") and not turned(a) and not turned(b)
 
 
 def standing(fight, zone_id: str | None = None) -> list:
@@ -203,9 +231,10 @@ def can_hold(f) -> bool:
 def containment(fight, zone_id: str, attacking_side_enemy: bool) -> dict:
     """Who is held at the line, derived fresh (nothing stored): in this zone, the defenders' frontliners each contain up to their hold
     of the hostile melee fighters there - those already engaged with a holder first, the rest in stable order. attacker id -> holder id,
-    None for the uncontained, who have an opening toward the backline (and spend their own action taking it)."""
-    defenders = [f for f in standing(fight, zone_id) if (f.side == "enemy") != attacking_side_enemy]
-    attackers = [f for f in standing(fight, zone_id) if (f.side == "enemy") == attacking_side_enemy and f.reach != "ranged"]
+    None for the uncontained, who have an opening toward the backline (and spend their own action taking it). (f774) The sides are
+    those fought for now (is_foe): a turned foe holds its old side at the line, as any fighter of the player's side does."""
+    defenders = [f for f in standing(fight, zone_id) if is_foe(f) != attacking_side_enemy]
+    attackers = [f for f in standing(fight, zone_id) if is_foe(f) == attacking_side_enemy and f.reach != "ranged"]
     holders = {f.id: hold_of(f) for f in defenders if can_hold(f)}
     out: dict = {}
     for a in sorted(attackers, key=lambda x: (not any(h in x.engaged_with for h in holders), x.id)):
@@ -217,7 +246,7 @@ def containment(fight, zone_id: str, attacking_side_enemy: bool) -> dict:
 
 
 def contained(fight, att) -> bool:
-    return containment(fight, att.zone_id, att.side == "enemy").get(att.id) is not None
+    return containment(fight, att.zone_id, is_foe(att)).get(att.id) is not None
 
 
 def protected(fight, dfn) -> bool:
@@ -255,7 +284,7 @@ def attack_access(fight, att, dfn, reach: str | None = None) -> Access:
         return Access(True)
     if not contained(fight, att):
         return Access(False, can_approach=True, why="behind the line, but there is an opening")
-    holder = containment(fight, att.zone_id, att.side == "enemy").get(att.id)
+    holder = containment(fight, att.zone_id, is_foe(att)).get(att.id)
     name = next((f.name for f in fight.fighters if f.id == holder), "the line")
     return Access(False, can_approach=False, why=f"held at the line by {name}")
 
@@ -494,7 +523,7 @@ def approach(fight, att, dfn, hard_ok: bool = True) -> str:
         if not hard_ok:
             return ""                                     # a line is never slipped in stride: breaching is the work of an action
         if contained(fight, att):
-            holder = containment(fight, att.zone_id, att.side == "enemy").get(att.id)
+            holder = containment(fight, att.zone_id, is_foe(att)).get(att.id)
             name = next((x.name for x in fight.fighters if x.id == holder), "the line")
             return f"presses toward the back, but {name} holds the line"
         if att.row == "front":

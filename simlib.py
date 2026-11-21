@@ -12,23 +12,31 @@ from pathlib import Path
 # ------------------------------------------------------------------ (f741) a test's saves are its own
 
 
-def _own_saves() -> None:
-    """(f741) A test's saves are a folder of its own, never the player's saves/: the suite names one for each test it runs
-    (tools/run_suite.py, MERAVIA_SAVES), and a test run by hand (a *_test.py script) gets a fresh one here, removed when it ends (set
-    MERAVIA_SAVES to keep them). Every process the test starts finds it in MERAVIA_SAVES. A tool that imports simlib keeps saves/."""
-    if os.environ.get("MERAVIA_SAVES") or not Path(sys.argv[0] if sys.argv else "").name.endswith("_test.py"):
-        return
+def _own(name: str) -> str:
+    """A fresh folder named in the environment variable `name` for a test run by hand (a *_test.py script), removed when it ends,
+    or "" when the variable is set already (the suite's, or one set to keep them) or the script is no test (a tool keeps the game's)."""
+    if os.environ.get(name) or not Path(sys.argv[0] if sys.argv else "").name.endswith("_test.py"):
+        return ""
     import atexit
     import shutil
     import tempfile
-    folder = tempfile.mkdtemp(prefix="meravia_saves_")
-    os.environ["MERAVIA_SAVES"] = folder
+    folder = tempfile.mkdtemp(prefix=name.lower() + "_")
+    os.environ[name] = folder
     atexit.register(shutil.rmtree, folder, True)
-    if "storage.campaign" in sys.modules:                  # read from the environment before it was set
+    return folder
+
+
+def _own_saves() -> None:
+    """(f741) A test's saves are a folder of its own, never the player's saves/: the suite names one for each test it runs
+    (tools/run_suite.py, MERAVIA_SAVES), and a test run by hand gets a fresh one here (_own). Every process the test starts finds it
+    in MERAVIA_SAVES. A tool that imports simlib keeps saves/."""
+    folder = _own("MERAVIA_SAVES")
+    if folder and "storage.campaign" in sys.modules:       # read from the environment before it was set
         sys.modules["storage.campaign"].SAVES_DIR = Path(folder)
 
 
 _own_saves()
+_own("MERAVIA_LOGS")     # (f779) and its logs (core.paths.logs(), asked at the call), never the project's logs/: the suite names one too
 
 
 def saves_path(*parts) -> Path:
@@ -892,11 +900,23 @@ def scene_names() -> tuple[dict, dict, set]:
                     computed.add(f"{cls.__name__}.{fn.name}")
     outside: dict[str, set] = {}
     root = Path(__file__).resolve().parent
-    for folder in ("engine", "services", "scenes", "npc", "world", "storage", "ui", "llm"):
-        for p in sorted((root / folder).rglob("*.py")):
-            for n in stored(ast.parse(p.read_text(encoding="utf-8")), ("ws", "scene", "world_scene"), through=("ws",)):
-                outside.setdefault(n, set()).add(p.relative_to(root).as_posix())
+    for p in game_files(root):                                     # (f788) every module of the game, one definition for every fence
+        for n in stored(ast.parse((root / p).read_text(encoding="utf-8")), ("ws", "scene", "world_scene"), through=("ws",)):
+            outside.setdefault(n, set()).add(p.as_posix())
     return own, outside, computed
+
+
+def game_files(root: Path | None = None, with_tools: bool = False) -> list[Path]:
+    """(f788) The game's own code, as tools/sim/game_files.py defines it for every fence: loaded from its file, so a harness at the
+    root reads the same definition the tests import."""
+    import importlib.util
+    mod = sys.modules.get("game_files")
+    if mod is None:
+        spec = importlib.util.spec_from_file_location("game_files", Path(__file__).resolve().parent / "tools" / "sim" / "game_files.py")
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules["game_files"] = mod
+        spec.loader.exec_module(mod)
+    return mod.game_files(Path(__file__).resolve().parent if root is None else root, with_tools)
 
 
 def campaign(name: str, cls: str = "warrior", seed: int = 1, minutes: int = 600, turn: int = 1, location: str | None = None,

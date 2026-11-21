@@ -38,7 +38,7 @@ b5 = copy.deepcopy(B); b5["floor_seconds"] = 59
 check("...and a floor that leaves no room under the limit", any("room under the limit" in p for p in data_check.budget_problems(b5, found)))
 A = yaml.safe_load(pathlib.Path("data/rules/audit_log.yaml").read_text(encoding="utf-8"))["tasks"]
 check("the audit log explains every task, the nine it had missed included", set(A) >= set(B["tasks"]) and all(t in A for t in ("combat_aftermath", "ruling", "thread_telling", "named_spell")))
-L = yaml.safe_load(pathlib.Path("data/rules/lora.yaml").read_text(encoding="utf-8"))
+L = yaml.safe_load(pathlib.Path("data/tools/lora.yaml").read_text(encoding="utf-8"))
 H = yaml.safe_load(pathlib.Path("data/rules/hygiene.yaml").read_text(encoding="utf-8"))
 check("the voice lists, the narrator's tasks and the sampling table name only tasks the table knows",
       set(L["prose_tasks"] + L["speech_tasks"]) <= set(B["tasks"]) and set(H["narrator_tasks"]) <= set(B["tasks"]) and set(config.SAMPLING) <= set(B["tasks"]))

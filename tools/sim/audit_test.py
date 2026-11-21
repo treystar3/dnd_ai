@@ -4,6 +4,7 @@ sys.path.insert(0, ".")
 import simlib
 simlib.install(simlib.Stub("warrior", 5))
 import config
+from core import paths                     # (f779) a log read back where the game wrote it
 import ui.console as uc
 NOTES = []
 uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
@@ -113,7 +114,7 @@ turn0 = store.meta.turn
 ws.handle("I give the guard 5 silver to look away")
 check("the changed plan is what runs", ran == [("on_give", "give")], ran)
 check("the turn passed", store.meta.turn == turn0 + 1)
-log = [json.loads(l) for l in open(config.TURN_LOG_PATH)]
+log = [json.loads(l) for l in open(paths.written(config.TURN_LOG_PATH))]
 check("the turn is logged with raw and final plans", len(log) == 1 and [s["kind"] for s in log[0]["raw"]] == ["talk", "buy"] and [s["kind"] for s in log[0]["final"]] == ["give"] and log[0]["audit"] == "changed", log)
 check("the log keeps who was here for promoting", log[0]["present"] == {"g1": guard.label("player")}, log[0].get("present"))
 

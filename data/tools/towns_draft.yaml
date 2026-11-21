@@ -1,0 +1,19 @@
+# (f785) What tools/draft_towns.py asks a town's draft for, by scale: only the drafter reads these, so they stand outside the
+# game's data hash (storage/statehash.py NOT_GAME). A town's profile (data/world/towns/<id>.yaml) may have what it likes.
+
+# How many quarters a town has to give directions by, by scale (the drafting tool asks for this many; a profile may have what it likes).
+districts_by_scale:
+  hamlet:  [0, 1]
+  village: [1, 2]
+  town:    [2, 3]
+  city:    [4, 6]
+  capital: [6, 9]
+
+# How many anchors - the people who make the town what it is - a profile names, by scale. Never fewer than three; the capital's include
+# the one who rules it and whoever keeps the palace door.
+anchors_by_scale:
+  hamlet:  [3, 3]
+  village: [3, 3]
+  town:    [3, 4]
+  city:    [4, 6]
+  capital: [6, 8]

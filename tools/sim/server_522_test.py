@@ -144,11 +144,11 @@ def scan_max_tokens() -> int:
     """The largest max_tokens= any call in the game's source asks for (what llm/runtime.py parsed at every launch before f522)."""
     import ast
     most = 0
-    for d in ("engine", "scenes", "npc", "character", "llm", "services"):
-        for p in sorted((ROOT / d).rglob("*.py")):
-            for n in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
-                if isinstance(n, ast.keyword) and n.arg == "max_tokens" and isinstance(n.value, ast.Constant) and isinstance(n.value.value, int):
-                    most = max(most, n.value.value)
+    from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
+    for p in [ROOT / q for q in game_files()]:
+        for n in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
+            if isinstance(n, ast.keyword) and n.arg == "max_tokens" and isinstance(n.value, ast.Constant) and isinstance(n.value.value, int):
+                most = max(most, n.value.value)
     return most
 
 
@@ -287,6 +287,27 @@ try:
     rt.close()
     check("close() twice leaves no child and no run files", wait_for(lambda: not c.alive()) and not (run_dir / "server.json").exists()
           and not (run_dir / "server.pid").exists())
+
+    # ---- (f783) a close whose first stage raises still runs the rest
+    rt = new_rt()
+    rt.load()
+    kids = [k for k in (rt.chat, rt.embed) if k is not None]
+    refused = RuntimeError("the source's close refused")
+
+    def refuse() -> None:
+        raise refused
+    rt.source.close = refuse
+    try:
+        rt.close()
+        got = None
+    except RuntimeError as e:
+        got = e
+    check("(f783) a source whose close raises: that error is raised, and every child is still stopped, the run files taken away and "
+          "the runtime closed", got is refused and kids and wait_for(lambda: not any(k.alive() for k in kids))
+          and not (run_dir / "server.json").exists() and not (run_dir / "server.pid").exists() and rt._closed and rt.chat is None
+          and rt.state == "not_started", (got, [k.alive() for k in kids], rt.state))
+    del rt.source.close                                # the source's own close again, for the close that tidies
+    rt.close()
 
     # ---- (f522's review) a close racing a call in flight: nothing starts after it, no death is written
     for attempt in range(3):

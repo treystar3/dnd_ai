@@ -13,7 +13,7 @@ and the retry that passed as the next row. This reads those rows, groups them ba
 The newest run is held out by default (--holdout names one; --no-holdout keeps everything for training) and lands under <out>/eval/
 in the same shapes, for tools/lora_eval.py. <out>/summary.md says what was kept and what was dropped, and why.
 
---prompts short (the default) replaces each task's long system prompt with the short one in data/rules/lora.yaml, so a model trained on
+--prompts short (the default) replaces each task's long system prompt with the short one in data/tools/lora.yaml, so a model trained on
 it learns to behave as if the rules were there; --prompts full keeps the game's own, which needs runs logged with LOG_FULL_PROMPTS on
 (tools/nightrun.py sets it; an older run's shortened prompts are skipped under full and counted).
 
@@ -33,7 +33,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 import yaml
 
-L = yaml.safe_load((ROOT / "data" / "rules" / "lora.yaml").read_text(encoding="utf-8"))
+L = yaml.safe_load((ROOT / "data" / "tools" / "lora.yaml").read_text(encoding="utf-8"))
 SHORTENED = "[...shortened in log]"
 REWRITE_MARK = "\n\nYOUR DRAFT "          # scenes/voice.py fresh and the narrator's strict retry add this to the request they re-ask
 
@@ -292,7 +292,7 @@ def main(argv=None) -> int:
     ap.add_argument("--holdout", help="the run kept for evaluation (default: the newest, when there are two or more)")
     ap.add_argument("--no-holdout", action="store_true")
     ap.add_argument("--prompts", choices=("short", "full"), default="short")
-    ap.add_argument("--tasks", help="comma-separated; default from data/rules/lora.yaml")
+    ap.add_argument("--tasks", help="comma-separated; default from data/tools/lora.yaml")
     args = ap.parse_args(argv)
     runs, holdout = run_dirs(args)
     if not runs and not holdout:

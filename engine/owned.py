@@ -103,6 +103,9 @@ STATE: dict[str, Row] = {
     "engine.domain_events.RECENT": Row(CAMPAIGN, "the session, with the bus it is the recent events of (domain_events.use)"),
     "npc.backfill._jobs": Row(CAMPAIGN, "the session's close, which forgets the save's jobs (backfill.drop); keyed by save, so one save never reads another's"),
     "engine.streams.STRICT": Row(CAMPAIGN, "the recorder: set as it is installed and cleared as it closes, which the session does first"),
+    # (f781) each place and kind written down once a campaign; its counts above one go to crash.log before it is emptied
+    "engine.crashlog.CARRIED": Row(CAMPAIGN, SESSION, lambda: _call("engine.crashlog.settle"), lambda: not _at("engine.crashlog.CARRIED"),
+                                   lambda: f"{len(_at('engine.crashlog.CARRIED'))} faults carried"),
 
     # ---- one line's or one input's, still module names
     "llm.gateway._SEEN": Row(TURN, "the next input begun (gateway._place, by the count of inputs begun): this input's calls so far, by task"),
@@ -111,6 +114,7 @@ STATE: dict[str, Row] = {
 
     # ---- one call's own
     "engine.martial.MANEUVERS": Row(CALL, "the same call: a move's own form put over the table's while it is resolved, and the table's put back"),
+    "engine.data_check._ONCE": Row(CALL, "the same check(): the files it parsed, let go as it returns, whatever it raised"),
     "llm.backend._lane": Row(CALL, "the block that set it (backend.lane), per thread: the lane and the session of the call being made"),
     "llm.backend._task": Row(CALL, "the block that set it (backend.task), per thread: the task of the call being made"),
     "llm.gateway._TASK": Row(CALL, "the next call on the same thread: the task, the shape and the seed of the call being made"),
@@ -119,14 +123,15 @@ STATE: dict[str, Row] = {
     # ---- this run's: tallies and logs kept in memory
     "engine.turnlog.COUNTS": Row(PROCESS, TALLY + " (logs/sessions.jsonl): lines by who handled them"),
     "engine.turnlog._writes": Row(PROCESS, "nothing: rows written to the turn log, to trim it every so often"),
+    "engine.pulselog._writes": Row(PROCESS, "nothing: rows written to the pulse log, to trim it every so often (f779)"),
     "llm.gateway.TALLY": Row(PROCESS, TALLY + " (logs/sessions.jsonl): each task's calls, failures and attempts"),
     "llm.gateway.OUTCOMES": Row(PROCESS, TALLY + ": the last few hundred calls and how each ended"),
     "llm.gateway.FALLBACKS": Row(PROCESS, TALLY + ": the tasks that gave up, for the live check"),
     "llm.gateway.CHECKED": Row(PROCESS, TALLY + ": passages and spoken replies checked, and those sent back once, for the live gate"),
     "llm.gateway._writes": Row(PROCESS, "nothing: rows written to the call log, to trim it every so often"),
     "engine.names.REPAIRS": Row(PROCESS, TALLY + ": names and pronouns mended, for a night's summary"),
-    "engine.names.BY_TASK": Row(PROCESS, TALLY + ": names mended by task"),
-    "engine.hygiene.REPAIRS": Row(PROCESS, TALLY + ": what was mended on the way to the screen"),
+    "engine.names.BY_TASK": Row(PROCESS, TALLY + ": names found written wrong, by task"),
+    "engine.hygiene.REPAIRS": Row(PROCESS, TALLY + ": what was found to mend on the way to the screen"),
     "engine.crashlog.SESSION": Row(PROCESS, TALLY + ": this run's faults, for the tests and the night tools"),
     "engine.refusals.SESSION": Row(PROCESS, "nothing, and it has no cap: this run's refusals, one for each filed; an operation that runs again takes "
                                             "back the ones its first attempt filed"),
@@ -171,7 +176,7 @@ STATE: dict[str, Row] = {
     "engine.names._VOCAB": Row(PROCESS, READ_ONCE + " (the words of the data files, for telling a name from a word)"),
     "engine.truth.FACETS": Row(PROCESS, "nothing: the facets a scene can be asked for, filled as the modules that define them are imported"),
     "engine.combat._LIFT_CACHE": Row(PROCESS, "nothing: worked out from the rules alone, the same for every campaign"),
-    "engine.data_check._SCAN": Row(PROCESS, "nothing: the start-up check's reading of the source, kept for its own run"),
+    "engine.data_check._SCAN": Row(PROCESS, "nothing: the start-up check's reading of the source, kept for the process by ROOT and the build fact"),
     "engine.mapview._LAYOUT_MEMO": Row(PROCESS, "its own cap: keyed by what a layout reads and never by a world, so two saves on one map share it"),
     "engine.weather._CHAIN": Row(PROCESS, "nothing, and it has no cap: a seed's weather, one entry for each block of days asked for, so it grows with "
                                           "the campaign's age; keyed by seed, so one campaign never reads another's"),

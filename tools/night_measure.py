@@ -12,7 +12,7 @@ pod session), read from the run folders a night writes (tools/nightrun.py):
    (a call's lane and slot as logged, when the call log carries them) on turns with background calls beside turns without.
 2. Births and situation rulings a game day: the calls of a situation's parts (situation_parts), of a situation's ruling (event_judge)
    and of an act's (act_ruling), within the turns' clock, their seconds on the card the night ran on and on the minimum card, scaled as
-   tools/card_profile.py scales (data/rules/cards.yaml: compute for reading, bandwidth for writing; an estimate, and said so), and the
+   tools/card_profile.py scales (data/tools/cards.yaml: compute for reading, bandwidth for writing; an estimate, and said so), and the
    situations born, by tier, by who made them and how many were within a character's reach when born (f599).
 
     python tools/night_measure.py RUN_DIR... [--measured-on "RTX 4090"] [--card "RTX 3060 12GB"]
@@ -167,10 +167,10 @@ def slots(run: Run) -> dict:
 
 
 def card_of(run: Run) -> str:
-    """(f602) The card a night ran on, by its run.json's device and data/rules/cards.yaml's patterns; '' when it does not say."""
+    """(f602) The card a night ran on, by its run.json's device and data/tools/cards.yaml's patterns; '' when it does not say."""
     import yaml
     device = str(((run.meta.get("server") or {}).get("device")) or "")
-    pats = (yaml.safe_load((ROOT / "data" / "rules" / "cards.yaml").read_text(encoding="utf-8")) or {}).get("patterns") or {}
+    pats = (yaml.safe_load((ROOT / "data" / "tools" / "cards.yaml").read_text(encoding="utf-8")) or {}).get("patterns") or {}
     return next((name for name, pat in pats.items() if device and re.search(pat, device)), "")
 
 
@@ -179,7 +179,7 @@ def factors(measured_on: str, card: str) -> tuple[float, float]:
     cs = card_profile.cards()
     for c in (measured_on, card):
         if c not in cs:
-            raise SystemExit(f"{c!r} is no card data/rules/cards.yaml knows: {', '.join(cs)}")
+            raise SystemExit(f"{c!r} is no card data/tools/cards.yaml knows: {', '.join(cs)}")
     src, dst = cs[measured_on], cs[card]
     return src["tflops"] / dst["tflops"], src["bandwidth_gbs"] / dst["bandwidth_gbs"]
 
@@ -270,7 +270,7 @@ def report(folders: list[Path], measured_on: str, card: str) -> str:
     read, write = factors(measured_on, card) if measured_on != card else (1.0, 1.0)
     out = [f"# A night's slots and situations (tools/night_measure.py, f602)", "",
            f"Measured on the {measured_on}; seconds on the {card} are an estimate from it (reading x{read:.2f}, writing x{write:.2f}; "
-           f"data/rules/cards.yaml)." if measured_on != card else f"Measured on the {card} itself.", ""]
+           f"data/tools/cards.yaml)." if measured_on != card else f"Measured on the {card} itself.", ""]
     pooled = {"days": 0.0, "births": 0, "tasks": {t: [0, 0.0] for t in TASKS}}
     for run in runs:
         s, d = slots(run), per_day(run, read, write)
@@ -291,7 +291,7 @@ def report(folders: list[Path], measured_on: str, card: str) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("runs", nargs="+")
-    ap.add_argument("--measured-on", default="", help="the card the night ran on (data/rules/cards.yaml); else read from each run.json")
+    ap.add_argument("--measured-on", default="", help="the card the night ran on (data/tools/cards.yaml); else read from each run.json")
     ap.add_argument("--card", default="RTX 3060 12GB", help="the card to price on (the minimum card)")
     a = ap.parse_args()
     print(report([Path(r) for r in a.runs], a.measured_on, a.card))

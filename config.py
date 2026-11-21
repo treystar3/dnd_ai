@@ -45,6 +45,7 @@ LOG_KEEP_ENTRIES = 300    # how many of the most recent entries survive a trim
 LOG_FULL_PROMPTS = False  # True stores every system prompt in full (large); False keeps the first part
 
 AUDIT_ENABLED = True       # a second opinion on risky action plans (several steps, money words, an unmatched verb...); costs two quick model calls on those turns only
+#                            (f778) not the audit log, whose one switch is AUDIT_LOG below
 TURN_LOG = True            # every line the player types is a row in TURN_LOG_PATH, naming what handled it (engine/turnlog.py)
 TURN_LOG_PATH = "logs/turns.jsonl"  # one line per typed line: what handled it; for an interpreted line, what was read and what the audit changed
 SESSION_STATS_PATH = "logs/sessions.jsonl"  # one line per session: lines by handler, model calls and failures by task, refusals by kind
@@ -56,12 +57,13 @@ RECORD_KEEP = 5
 REFUSALS_LOG_PATH = "logs/refusals.jsonl"   # (f321) every line the game failed to act on, with why and what it asked back
 CRASH_LOG_PATH = "logs/crash.log"           # (f449) every fault the game went on without (a turn rolled back) or stopped on, with its traceback
 CRASH_KEEP = 50                             # how many of the most recent faults the crash log keeps
-AUDIT_LOG = True           # a readable record of every model call, one file per session under logs/audit/ (data/rules/audit_log.yaml)
+REPORTS_PATH = "logs/reports"               # (f364) where #report saves what the player flagged
+AUDIT_LOG = True           # a readable record of every model call, one file per session under logs/audit/ (data/rules/audit_log.yaml): its one switch
 
 GAME_TITLE = "Meravia"                      # (f345) the name the home page, the window, the exe and the installer carry
 GAME_SUBTITLE = "A tale of gifts unforgiven"
 UPDATE_REPO = "treystar3/dnd_ai"            # "owner/repo" of the public GitHub repository whose releases carry the installer; empty turns the update check off
-UPDATE_CHECK = True                          # (f364) False for a build whose updates come another way (a store): no release is looked for
+UPDATE_CHECK = True                          # (f780) False: no release looked for, offered or installed (core/updates.py enabled())
 
 VOICED_MENTOR = True        # Maren says her written lines in her own words (False: exactly as written)
 FREE_MENTOR = True                           # her speeches are written freely from facts (False: her written lines, one-to-one in her words)
@@ -79,7 +81,7 @@ SIM_CANON = 0.62                             # a new claim this close to somethi
 # (f527) How freely the model writes, by job, is data: data/rules/sampling.yaml (tasks, base, retry_temperature_step), in the data
 # hash like every other number the game plays by. SAMPLING is its task table (llm/sampling.py resolve lays SAMPLING_BASE under a
 # task's own values on a request to llama-server); DND_TEMP_ADD and DND_REPEAT_ADD above shift it for a night.
-_SAMPLING_FILE = __import__("yaml").safe_load((__import__("pathlib").Path(__file__).resolve().parent / "data" / "rules" / "sampling.yaml").read_text(encoding="utf-8"))
+_SAMPLING_FILE = __import__("core.yamlio", fromlist=["safe_load"]).safe_load((__import__("pathlib").Path(__file__).resolve().parent / "data" / "rules" / "sampling.yaml").read_text(encoding="utf-8"))
 SAMPLING = {t: dict(v or {}) for t, v in (_SAMPLING_FILE.get("tasks") or {}).items()}
 SAMPLING_BASE = dict(_SAMPLING_FILE.get("base") or {})
 RETRY_TEMPERATURE_STEP = float(_SAMPLING_FILE.get("retry_temperature_step") or 0.15)

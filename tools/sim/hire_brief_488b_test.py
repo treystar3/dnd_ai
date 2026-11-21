@@ -16,6 +16,7 @@ stub = simlib.Stub("warrior", 8)
 simlib.install(stub)
 SHOWN = simlib.quiet_console()
 import config
+from core import paths
 from engine import brief, canon, obligations
 from llm import gateway
 
@@ -24,7 +25,7 @@ def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x, file=sys.__stdout__)
     if not ok: bad.append(n)
 
-log = Path("saves/hire_brief_488b_calls.jsonl")
+log = paths.written("saves/hire_brief_488b_calls.jsonl")     # (f779) where the game writes it
 log.unlink(missing_ok=True)
 config.LOG_PATH = str(log)
 game = simlib.campaign("hire_brief_488b", minutes=600, location="guild_house")

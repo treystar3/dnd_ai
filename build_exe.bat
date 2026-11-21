@@ -9,6 +9,8 @@ python -m venv .buildenv || goto :fail
 call .buildenv\Scripts\activate.bat || goto :fail
 python -m pip install --upgrade pip || goto :fail
 python -m pip install -r requirements.txt pyinstaller || goto :fail
+REM (f775) A tree that fails its own startup check from source is never built.
+python main.py --check || goto :fail
 python -m PyInstaller --noconfirm --clean --onedir --noconsole --name Meravia ^
   --add-data "data;data" --add-data "ui\gui\web;ui\gui\web" --add-data "CREDITS.md;." ^
   --collect-submodules core --collect-submodules engine --collect-submodules character --collect-submodules llm ^
@@ -22,6 +24,16 @@ if not exist "dist\Meravia\runtime" (
   echo No server build was found under runtime\. Fetch one first:  python tools\fetch_runtime.py --build cuda --platform windows
   goto :fail
 )
+REM (f775) The folder as handed over runs its own check, and fails the build on it: the exe is windowed, so Python waits for its answer.
+if exist "dist\Meravia\logs\selfcheck.log" del "dist\Meravia\logs\selfcheck.log"
+python -c "import subprocess, sys; sys.exit(subprocess.run([r'dist\Meravia\Meravia.exe', '--check'], timeout=600).returncode)"
+set CHECKED=%ERRORLEVEL%
+if exist "dist\Meravia\logs\selfcheck.log" type "dist\Meravia\logs\selfcheck.log"
+if not exist "dist\Meravia\logs\selfcheck.log" goto :fail
+if not "%CHECKED%"=="0" goto :fail
+REM (f775) The check's own log is not shipped.
+del "dist\Meravia\logs\selfcheck.log"
+rmdir "dist\Meravia\logs" 2>nul
 echo.
 echo Built: dist\Meravia\Meravia.exe  (opens the game window; run it with --terminal for the text version)
 echo Saves and logs are created next to the exe (dist\Meravia\saves, dist\Meravia\logs); the server's builds are in dist\Meravia\runtime.

@@ -468,6 +468,22 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None, 
             said.append("the game stopped short of the recording, with " + ", and ".join(lines))
         return {"input": min(at), "why": "; ".join(said)} if said else None
 
+    def strict_off() -> None:
+        streams.STRICT = False
+
+    def budget_back() -> None:
+        budget.PROFILE.clear()
+        budget.PROFILE.update(profile_before)
+        budget.SLOW = slow_before
+        budget.CACHED = cached_before
+
+    def settings_back() -> None:
+        config.THINK_TASKS, config.THINK_ROOM = think_before
+        config.SAMPLING_ARM = arm_before
+
+    def save_gone() -> None:
+        saves.drop(name)                                    # (f743) last: a save that could not be cleared stops the run, all else put back
+
     console.put("ask", ask)
     try:
         ws.run()
@@ -476,19 +492,10 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None, 
         state["parted"] = short_of()
     except Parted as e:
         state["parted"] = {"input": state["input"], "why": str(e)}
-    finally:
-        session.close()
-        undo_source()
-        no_server.__exit__()
-        embed.reset()
-        streams.STRICT = False
-        budget.PROFILE.clear()
-        budget.PROFILE.update(profile_before)
-        budget.SLOW = slow_before
-        budget.CACHED = cached_before
-        config.THINK_TASKS, config.THINK_ROOM = think_before
-        config.SAMPLING_ARM = arm_before
-        saves.drop(name)                                    # (f743) last: a save that could not be cleared stops the run, all else put back
+    finally:                                                # (f783) each whatever the one before did: one process replays many
+        crashlog.run_every("ending a replay", ("its session", session.close), ("its source", undo_source),
+                           ("the server guard", no_server.__exit__), ("the embedder", embed.reset), ("the strict session", strict_off),
+                           ("the budget", budget_back), ("the settings", settings_back), ("its save", save_gone))
     matched = sum(1 for i in state["compared"] if not state["parted"] or i < state["parted"]["input"])   # (f731) compared, before any part
     return {"matched": max(0, matched), "of": len(inputs_main), "parted": state["parted"], "calls": source.at, "recorded_calls": len(calls),
             "crashed": len(crashlog.SESSION) - crashes0, "logs": str(scratch), **made_on}   # (f518) faults the replay hit (its own crash.log)
@@ -620,15 +627,17 @@ def make_stub_recording(folder: Path, n: int = 40, seed: int = 39, persona: str 
         last["text"] = text
         return text
     console.put("ask", ask)
+    from engine import crashlog
+
+    def save_gone() -> None:
+        saves.drop(save)
     with _NoServer():                                       # (f518) nothing it does can reach a real model
         session.record(folder=folder, rows=rows)            # (f476) a kept recording names the rows each input changed
         try:
             ws.run()
-        finally:
-            session.close()
-            planted()
-            held()
-            saves.drop(save)
+        finally:                                            # (f783) each whatever the one before did
+            crashlog.run_every("ending a stub recording", ("its session", session.close), ("the planted model", planted),
+                               ("the stub", held), ("its save", save_gone))
     return folder
 
 
