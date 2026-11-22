@@ -1,6 +1,7 @@
 """Run the simulation tests in tools/sim, several at a time.
 
-  python tools/run_suite.py                 all tests, 2 at a time
+  python tools/run_suite.py                 all tests, as many at a time as the machine has room for (f791: two short of its
+                                            processors, at least 2 and at most 16)
   python tools/run_suite.py -j 4            4 at a time
   python tools/run_suite.py --only shop,board     tests whose name contains any of these
   python tools/run_suite.py --changed DIR   only the tests a change since DIR (a copy of the last release) touches; a quick
@@ -429,11 +430,18 @@ def busy(root: Path = ROOT) -> bool:
         os.close(fd)
 
 
+def width(cpus: int | None = None) -> int:
+    """(f791) Tests at a time when none is asked: two short of the processors, at least 2, at most 16 (582 tests passed at 16 in
+    388 s on the owner's 28, against about 570 s at 8)."""
+    n = cpus if cpus is not None else (os.cpu_count() or 4)
+    return max(2, min(16, n - 2))
+
+
 def main(argv: list[str] | None = None, root: Path = ROOT) -> int:
     root = Path(root)
     ap = argparse.ArgumentParser()
     ap.add_argument("--busy", action="store_true", help="exit 0 if another run holds the suite (saves/.suite_running), 1 if not")
-    ap.add_argument("-j", type=int, default=2, help="tests at a time")
+    ap.add_argument("-j", type=int, default=None, help="tests at a time (default: two short of the processors, 2 to 16)")
     ap.add_argument("--only", default="", help="comma-separated name fragments")
     ap.add_argument("--changed", default="", metavar="DIR", help="a copy of the last release to compare against")
     ap.add_argument("--outdir", default="/tmp/meravia_suite")
@@ -444,6 +452,7 @@ def main(argv: list[str] | None = None, root: Path = ROOT) -> int:
     args = ap.parse_args(argv)
     if args.busy:
         return 0 if busy(root) else 1
+    args.j = args.j or width()
     if guarded(Path(args.outdir)):                                       # (f779) the fence would refuse its own note there
         print(f"--outdir {args.outdir} lies under the project's own logs/ or recordings/, which no run writes: nothing run")
         return 2
