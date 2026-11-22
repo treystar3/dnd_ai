@@ -102,7 +102,8 @@ order = [kk for kk, t in SHOWN if kk in ("commit", "narrate", "pane", "panel", "
 i_open = next((i for i, (kk, t) in enumerate(SHOWN) if kk == "narrate" and t.startswith("[scene")), None)
 i_pane = next((i for i, (kk, t) in enumerate(SHOWN) if kk == "pane"), None)
 i_commit = next((i for i, (kk, t) in enumerate(SHOWN) if kk == "commit" and t == "opening"), None)
-check("...and the page reads the opening after its commit, then the pane (what followed the marker waited behind the telling)",
+check("...and the page reads the opening after its commit, then the pane (what followed the marker waited behind the telling; "
+      "(f790) a fight's first sight is told before its pane shows it)",
       None not in (i_open, i_pane, i_commit) and i_commit < i_open < i_pane, (i_commit, i_open, i_pane, order[:12]))
 check("the opening left what the player read of it on the fight's scene", bool(ws.combat.fight_shown), ws.combat.fight_shown)
 

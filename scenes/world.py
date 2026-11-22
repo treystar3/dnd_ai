@@ -1339,6 +1339,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             "combat_state", "combat_panel")     # (f497) the fight's pane and its text panel: pushed at the commit, not for an attempt that stood down
     PANE = ("combat_state", "combat_panel")     # (f497) held, but no lines of the page: load re-shows the pane from the row (enter), so they are
     #                                             kept off the record's presentation entry and the turn log's lines
+    FIRST = ("combat_state",)   # (f790) the engine's outcome first: the window's pane shows a committed state before the passage is told
+    REVEAL = ("opening",)       # (f790) ...except behind a fight's opening: its first sight is told before the pane shows it (the owner)
     ROLLED = tuple(actor.HOMES)     # (f720) what a failed operation puts back: declared in engine/actor.py (FIELDS, ATTRS), read by the session
 
     def begin_line(self) -> None:
@@ -1476,15 +1478,23 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def release(self, op) -> int:
         """(f463) The operation committed: what it held reaches the page, in the order it was said, through the real bindings. (f464) Up to
         its first marker: what follows a marker waits behind that passage and is shown after it (run_passages), so the page reads as it did
-        when the passage was written in the middle of the action. How many segments wait."""
-        segments, current = 0, None
+        when the passage was written in the middle of the action. (f790) A new state of the window's pane is shown at once even behind a
+        marker, but not behind a fight's opening (REVEAL), and never its close: those keep their place, and so does any pane after them,
+        across the line, so the pane neither shows a fight before its first sight is told nor ends before the last blow is. How many
+        segments wait."""
+        segments, current, kind = 0, None, ""
+        behind = [c for e in self.waiting for c in e[3]] + [c for e in self.passages for c in e[3]]
+        closed = any(n in self.FIRST for n, aa, kk in behind)          # (f790) a pane still to show waits, and those after it with it
         for name, a, k in op.held:
             if name == "marker":
-                current = a[0][3]
+                current, kind = a[0][3], a[0][0]
                 segments += 1
                 if a[0][0] == "line":
                     self.waiting.append(a[0])              # (f722) behind the line's one passage, shown once it is told (flush, show_waiting)
+            elif current is not None and name in self.FIRST and not closed and kind not in self.REVEAL and a and a[0] is not None:
+                self.show([(name, a, k)])
             elif current is not None:
+                closed = closed or name in self.FIRST
                 current.append((name, a, k))
             else:
                 self.show([(name, a, k)])
