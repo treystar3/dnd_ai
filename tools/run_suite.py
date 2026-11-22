@@ -3,6 +3,8 @@
   python tools/run_suite.py                 all tests, as many at a time as the machine has room for (f791: two short of its
                                             processors, at least 2 and at most 16)
   python tools/run_suite.py -j 4            4 at a time
+  python tools/run_suite.py --passed        exit 0 if a full run passed on the files as they are now, 1 if not (f792: the
+                                            stop hook's quick run is skipped then)
   python tools/run_suite.py --only shop,board     tests whose name contains any of these
   python tools/run_suite.py --changed DIR   only the tests a change since DIR (a copy of the last release) touches; a quick
                                             check while building - run the whole suite before shipping
@@ -437,10 +439,38 @@ def width(cpus: int | None = None) -> int:
     return max(2, min(16, n - 2))
 
 
+def fingerprint(root: Path = ROOT) -> str:
+    """(f792) The code and data as they are (the files --changed compares, line endings aside), and the Python and platform that ran
+    them: what a full pass was a pass on."""
+    import hashlib
+    h = hashlib.sha256(f"{sys.version.split()[0]} {sys.platform}\0".encode("utf-8"))
+    for rel in walked(root):
+        h.update(rel.as_posix().encode("utf-8") + b"\0")
+        try:
+            h.update((root / rel).read_bytes().replace(b"\r\n", b"\n"))
+        except OSError:
+            h.update(b"\0unreadable")
+        h.update(b"\0")
+    return h.hexdigest()
+
+
+def passed_of(root: Path = ROOT) -> Path:
+    return root / "tools" / "sim" / ".full_passed.json"              # (f792) git ignores it, as it does .ran.json
+
+
+def passed(root: Path = ROOT) -> bool:
+    """(f792) A full run passed, every test, on the files exactly as they are now."""
+    try:
+        return json.loads(passed_of(root).read_text(encoding="utf-8")).get("files") == fingerprint(root)
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
 def main(argv: list[str] | None = None, root: Path = ROOT) -> int:
     root = Path(root)
     ap = argparse.ArgumentParser()
     ap.add_argument("--busy", action="store_true", help="exit 0 if another run holds the suite (saves/.suite_running), 1 if not")
+    ap.add_argument("--passed", action="store_true", help="exit 0 if a full run passed on the files as they are now, 1 if not")
     ap.add_argument("-j", type=int, default=None, help="tests at a time (default: two short of the processors, 2 to 16)")
     ap.add_argument("--only", default="", help="comma-separated name fragments")
     ap.add_argument("--changed", default="", metavar="DIR", help="a copy of the last release to compare against")
@@ -452,6 +482,8 @@ def main(argv: list[str] | None = None, root: Path = ROOT) -> int:
     args = ap.parse_args(argv)
     if args.busy:
         return 0 if busy(root) else 1
+    if args.passed:
+        return 0 if passed(root) else 1
     args.j = args.j or width()
     if guarded(Path(args.outdir)):                                       # (f779) the fence would refuse its own note there
         print(f"--outdir {args.outdir} lies under the project's own logs/ or recordings/, which no run writes: nothing run")
@@ -471,6 +503,8 @@ def main(argv: list[str] | None = None, root: Path = ROOT) -> int:
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     start = time.time()
+    full = not args.only and not args.changed
+    files_then = fingerprint(root) if full else ""                      # (f792) what this run tests, if it is a full one
     held_files = owners(root)                                            # (f779) the owner's logs/ and recordings/, as the run found them
     results = []
     try:
@@ -505,6 +539,9 @@ def main(argv: list[str] | None = None, root: Path = ROOT) -> int:
     finally:
         held.release()
     bad = [n for n, rc, _ in results if rc]
+    if full and results and not bad and fingerprint(root) == files_then:   # (f792) a clean full pass on files that held still
+        passed_of(root).write_text(json.dumps({"files": files_then, "tests": len(results), "at": time.strftime("%Y-%m-%d %H:%M")}),
+                                   encoding="utf-8")
     print(f"\n{len(results) - len(bad)}/{len(results)} passed in {time.time() - start:.0f}s")
     if results:
         print("slowest: " + ", ".join(f"{n} {t:.0f}s" for n, _, t in sorted(results, key=lambda r: -r[2])[:5]))
