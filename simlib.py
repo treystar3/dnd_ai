@@ -95,6 +95,9 @@ class Stub:
         SEEN_TITLES[t] = SEEN_TITLES.get(t, 0) + 1
         fn = getattr(self, f"a_{t}", None)
         out = fn(u, k) if fn else _fill(k["format"], k["format"])
+        if k.get("plain"):                          # (f793) a plain-text request: the passage alone
+            return types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(
+                content=str(out.get(k["plain"], "")) if isinstance(out, dict) else str(out)))
         return types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content=json.dumps(out)))
 
     # ---- the player's side

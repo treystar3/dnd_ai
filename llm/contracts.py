@@ -1202,6 +1202,7 @@ class Parting(BaseModel):
 
 
 class Narration(BaseModel):
+    PLAIN: ClassVar[str] = "text"                   # (f793) its one prose field, for a plain answer (data/rules/prose.yaml)
     text: str
 
 

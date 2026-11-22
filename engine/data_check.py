@@ -1041,6 +1041,7 @@ def check() -> list[str]:
     ek = _load("data/rules/combat.yaml").get("effects_keep")
     need(isinstance(ek, int) and not isinstance(ek, bool) and ek > 0, "combat.yaml effects_keep: needs a whole number above 0")
     bad += improv_problems()                                           # (f567) the fight's improvisations, held to the resolver
+    bad += plain_problems()                                            # (f793) which tasks may answer as plain text
     bad += ground_word_problems()                                      # (f571) what the narrator is told of each zone's ground
     bad += data_words_problems()                                       # (f621) no dash in any word of data/ that is told as true
     from engine import voice_rules as _vr
@@ -1262,6 +1263,36 @@ def improv_handled() -> set[str] | None:
         return {c.comparators[0].value for c in ast.walk(fn) if isinstance(c, ast.Compare) and isinstance(c.left, ast.Name)
                 and c.left.id == "effect" and isinstance(c.comparators[0], ast.Constant)}
     return _scanned(("improv_handled",), scan)
+
+
+def plain_problems(P: dict | None = None) -> list[str]:
+    """(f793) prose.yaml: every task switched to plain text may be, each task that may be names a contract that names its one prose
+    field (PLAIN, a field of it), every shape's pattern compiles, and the sentence swapped in is there to swap."""
+    import re
+    from llm import contracts
+    P = _load("data/rules/prose.yaml") if P is None else P
+    out = []
+    can = P.get("can_be_plain") or {}
+    for t in P.get("plain_text") or ():
+        if t not in can:
+            out.append(f"prose.yaml plain_text: '{t}' is not in can_be_plain (its answer is not one prose field)")
+    for t, name in can.items():
+        c = getattr(contracts, str(name), None)
+        field = str(getattr(c, "PLAIN", "") or "") if c is not None else ""
+        if c is None:
+            out.append(f"prose.yaml can_be_plain: {t}'s contract '{name}' is not in llm/contracts.py")
+        elif not field or field not in getattr(c, "model_fields", {}):
+            out.append(f"prose.yaml can_be_plain: {t}'s contract '{name}' names no prose field of its own (PLAIN)")
+    for s in P.get("shapes") or ():
+        try:
+            re.compile(s.get("pattern", ""))
+        except (re.error, TypeError) as e:
+            out.append(f"prose.yaml shapes: '{s.get('pattern')}' is no pattern ({e})")
+        if not s.get("reason"):
+            out.append(f"prose.yaml shapes: '{s.get('pattern')}' has no reason to send back")
+    if not P.get("plain_line") or not P.get("json_lines"):
+        out.append("prose.yaml: needs json_lines and the plain_line that stands in their place")
+    return out
 
 
 def improv_problems(I: dict | None = None) -> list[str]:
