@@ -248,14 +248,14 @@ try:
 
     # ---- no code but leave_road clears a character's stop
     writers = []
-    for folder in ("engine", "scenes", "services", "npc", "storage", "world", "core", "ui", "llm"):
-        for path in sorted((ROOT / folder).rglob("*.py")):
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-            for fn in [n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]:
-                for node in ast.walk(fn):
-                    if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant) and node.value.value is None \
-                            and any(isinstance(t, ast.Attribute) and t.attr == "road" for t in node.targets):
-                        writers.append(f"{path.relative_to(ROOT).as_posix()}:{node.lineno} ({fn.name})")
+    from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
+    for path in [ROOT / p for p in game_files()]:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for fn in [n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]:
+            for node in ast.walk(fn):
+                if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant) and node.value.value is None \
+                        and any(isinstance(t, ast.Attribute) and t.attr == "road" for t in node.targets):
+                    writers.append(f"{path.relative_to(ROOT).as_posix()}:{node.lineno} ({fn.name})")
     check("a character's stop is cleared in one place only, leave_road, which tidies it off the map",
           sorted(set(writers)) == [w for w in sorted(set(writers)) if w.endswith("(leave_road)")] and len(set(writers)) == 1, sorted(set(writers)))
 finally:

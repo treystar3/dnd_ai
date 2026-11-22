@@ -21,6 +21,7 @@ from pydantic import BaseModel, ValidationError
 
 import config
 
+from core import paths
 from core.interrupts import Interrupt   # (f449) an exception raised on purpose (a replay parted) is never a failed try
 from llm.errors import Cancelled, Failure, LLMError   # (f514) the classes live where importing them starts nothing; LLMError stays here
 
@@ -95,6 +96,17 @@ def _mends() -> int:
     return names.REPAIRS["name"] + names.REPAIRS["speaker"]
 
 
+def _mended(task: str, result: T, what: str, mend) -> T:
+    """One mend of an answer already taken, whole or not at all: made on a copy, and the copy given back only when the mend ran through.
+    A fault leaves the answer as it stood, written down once (crashlog.carried), and never costs it; a cancel goes on up."""
+    from engine import crashlog
+    with crashlog.carried(f"the gateway's mend of the {what} in a taken answer: {task}"):
+        copy = result.model_copy(deep=True)
+        mend(copy)
+        return copy
+    return result
+
+
 def _place(task: str) -> tuple[str, int]:
     """(f585) This input's key and this call's place among its task's calls; counted per task, so another thread's call of another task
     (the background's) never shifts it, and from nothing at every input begun, so a line given back and typed again meets its seeds."""
@@ -144,18 +156,23 @@ def shape(system: str, typed, user_text) -> dict:
 def _count(name: str, once: set) -> None:
     """(f719) One more passage or spoken reply checked, or sent back: each counted once a call, when it happens, so a call that
     fails after its send-back is still counted."""
-    if name not in once:
-        once.add(name)
-        CHECKED[name] += 1
+    from engine import crashlog
+    with crashlog.carried(f"the gateway's count of answers checked: {name}"):     # (f782) a count never costs the answer it counts
+        if name not in once:
+            once.add(name)
+            CHECKED[name] += 1
 
 
 def _tally(task: str, ok: bool, attempts: int) -> None:
-    OUTCOMES.append((task, ok, attempts))
-    del OUTCOMES[:-500]
-    t = TALLY.setdefault(task, {"calls": 0, "failed": 0, "attempts": 0})
-    t["calls"] += 1
-    t["failed"] += not ok
-    t["attempts"] += attempts
+    """Each task's calls, failures and tries, and the last few hundred calls' outcomes. (f782) Never costs the call it tallies."""
+    from engine import crashlog
+    with crashlog.carried(f"the gateway's tally of calls: {task}"):
+        OUTCOMES.append((task, ok, attempts))
+        del OUTCOMES[:-500]
+        t = TALLY.setdefault(task, {"calls": 0, "failed": 0, "attempts": 0})
+        t["calls"] += 1
+        t["failed"] += not ok
+        t["attempts"] += attempts
 
 
 def generate(
@@ -364,20 +381,16 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
             if not reason:
                 _log(task, attempt, elapsed, messages, raw, None, usage, shape=form)
                 audit.record(task, attempt, elapsed, messages, raw, None, typed, config.MODEL)
-                _tally(task, True, attempt + 1)
+                from engine import guard, hygiene, names
+                result = _mended(task, result, "dashes", lambda r: hygiene.undash_answer(task, r))   # (f396, f403) no dashes in the story
                 try:
-                    from engine import hygiene
-                    hygiene.undash_answer(task, result)                  # (f396, f403) no dashes in the story, the narrator's or a speaker's
-                except Exception:
-                    pass
-                try:
-                    from engine import guard, names
                     if guard.guarded(task):                              # (f412) a name it was told, written wrong ('Zorra' for Zurra)
-                        names.mend_answer(result, system + "\n" + str(messages[1]["content"]))
-                    if _mends() > mended:
+                        request = system + "\n" + str(messages[1]["content"])
+                        result = _mended(task, result, "names", lambda r: names.mend_answer(r, request))
+                finally:
+                    if _mends() > mended:                                # (f782) the names the mend found, whether or not it ran through
                         names.BY_TASK[task] += _mends() - mended         # (f587) per task, for A1
-                except Exception:
-                    pass
+                _tally(task, True, attempt + 1)                          # (f782) after the mends: a call cancelled inside one is no success
                 return result
             last_error = LLMError(reason)
         except ValidationError as e:
@@ -426,7 +439,7 @@ def _summarize(e: ValidationError) -> str:
 
 def _compact(messages: list[dict]) -> list[dict]:
     """Shorten system prompts for the log; they are the same on every call and make up most of its size."""
-    if getattr(config, "LOG_FULL_PROMPTS", False):
+    if config.LOG_FULL_PROMPTS:
         return messages
     out = []
     for m in messages:
@@ -442,14 +455,14 @@ def _compact(messages: list[dict]) -> list[dict]:
 def trim_log(path: Path | None = None) -> None:
     """Keep the log small: past LOG_MAX_MB, keep only the most recent LOG_KEEP_ENTRIES entries. (f566) Never raises: a trim the system
     refuses (another process holding the log, or trimming it too) is left for the next one, the log whole and no temp behind."""
-    path = path or Path(config.LOG_PATH)
+    path = path or paths.written(config.LOG_PATH)                     # (f779) in the one logs folder
     tmp = path.with_name(f"{path.stem}.{os.getpid()}.{threading.get_ident()}.tmp")   # (f566) its own temp, never another trim's
     try:
-        limit = getattr(config, "LOG_MAX_MB", 5) * 1024 * 1024
+        limit = config.LOG_MAX_MB * 1024 * 1024
         if not path.is_file() or path.stat().st_size <= limit:
             return
         lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-        keep = lines[-getattr(config, "LOG_KEEP_ENTRIES", 300):]
+        keep = lines[-config.LOG_KEEP_ENTRIES:]
         tmp.write_text("\n".join(keep) + "\n", encoding="utf-8", newline="\n")
         tmp.replace(path)
     except OSError:
@@ -491,36 +504,38 @@ def tagged(**fields):
 
 
 def _log(task, attempt, elapsed, messages, raw, error, usage=None, shape=None):
+    """One try's row in the call log (config.LOG_PATH). (f566) Never fails the call it records: (f782) a write the system refuses is
+    only counted, any other fault is written down once (crashlog.carried), and a character the file cannot hold (half a surrogate pair)
+    is written as its escape."""
     global _writes
-    path = Path(config.LOG_PATH)
-    from engine import actor
-    from llm import audit
-    entry = {
-        "time": datetime.now(timezone.utc).isoformat(),
-        "turn": audit.current_turn(),                   # joins this call to its row in the turn log (engine/turnlog.py)
-        "actor": actor.who(),                           # (f629) who the call was made for: the bound actor, none on a thread beside the turn
-        "task": task,
-        "model": config.MODEL,
-        "attempt": attempt,
-        "seconds": round(elapsed, 2),
-        "messages": _compact(messages),
-        "raw": raw,
-        "error": error,
-    }
-    if usage:
-        entry["tokens"] = usage                         # what the call cost the model (tools/latency.py reads these)
-    if shape:
-        entry.update(shape)                             # (f475) chars, sizes, tail_chars, prompt_version: the prompt's shape, measured
-    entry.update(getattr(_tag, "fields", None) or {})
-    if getattr(_TASK, "seed", None) is not None:
-        entry["seed"] = _TASK.seed                      # (f585) the try's seed, kept with it (never in a recording's fingerprint)
-    with _log_lock:
-        try:                                            # (f566) a log that cannot be written never fails the call it records
+    from engine import crashlog
+    with crashlog.carried(f"the model's call log, a try's row: {task}", quiet=(OSError,)):
+        path = paths.written(config.LOG_PATH)                         # (f779) in the one logs folder
+        from engine import actor
+        from llm import audit
+        entry = {
+            "time": datetime.now(timezone.utc).isoformat(),
+            "turn": audit.current_turn(),                   # joins this call to its row in the turn log (engine/turnlog.py)
+            "actor": actor.who(),                           # (f629) who the call was made for: the bound actor, none on a thread beside the turn
+            "task": task,
+            "model": config.MODEL,
+            "attempt": attempt,
+            "seconds": round(elapsed, 2),
+            "messages": _compact(messages),
+            "raw": raw,
+            "error": error,
+        }
+        if usage:
+            entry["tokens"] = usage                         # what the call cost the model (tools/latency.py reads these)
+        if shape:
+            entry.update(shape)                             # (f475) chars, sizes, tail_chars, prompt_version: the prompt's shape, measured
+        entry.update(getattr(_tag, "fields", None) or {})
+        if getattr(_TASK, "seed", None) is not None:
+            entry["seed"] = _TASK.seed                      # (f585) the try's seed, kept with it (never in a recording's fingerprint)
+        with _log_lock:
             path.parent.mkdir(parents=True, exist_ok=True)
-            with path.open("a", encoding="utf-8", newline="\n") as f:
+            with path.open("a", encoding="utf-8", errors="backslashreplace", newline="\n") as f:
                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-        except OSError:
-            return
-        _writes += 1
-        if _writes % 50 == 1:
-            trim_log(path)
+            _writes += 1
+            if _writes % 50 == 1:
+                trim_log(path)

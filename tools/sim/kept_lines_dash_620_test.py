@@ -79,7 +79,8 @@ tried = [x for _, x in told if "duck" in x]
 check("an improvised act's own words reach the story without their dashes, whether it works or not",
       len(tried) >= 40 and not any(dashed(x) for x in tried) and any(x.startswith("It works") for _, x in told)
       and any("goes wrong" in x for _, x in told), sorted({x for x in tried if dashed(x)})[:3] or tried[:2])
-src = {f: f.read_text(encoding="utf-8") for d in ("engine", "scenes", "services", "npc") for f in (ROOT / d).glob("*.py")}
+from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
+src = {ROOT / p: (ROOT / p).read_text(encoding="utf-8") for p in game_files()}
 grows = re.compile(r"\.story(?:\.append|\.insert|\.extend|\s*\+=)")
 writers = sorted(f.name for f, text in src.items() if grows.search(text))
 check("...and the story grows in engine/combat.py alone (a new writer goes through tell)", writers == ["combat.py"], writers)
@@ -161,8 +162,9 @@ def data_words() -> str:
     data_words declares a label, a rule for a model, marks the engine reads or a note. What data/ tells as true holds none
     (engine/data_check.py data_words_problems), so a dash in a request is the rules' own wording or the engine's."""
     from engine import data_check
+    from storage import statehash
     T = hygiene.H.get("data_words") or {}
-    return "\n".join(" ".join(s.lower().split()) for rel, path, s in data_check.data_strings(ROOT / "data", tuple(T.get("skip") or ()))
+    return "\n".join(" ".join(s.lower().split()) for rel, path, s in data_check.data_strings(ROOT / "data", tuple(statehash.NOT_GAME))
                      if dashed(s) and data_check.not_told(T.get("not_told") or {}, rel, path))
 
 

@@ -130,7 +130,7 @@ ST2 = {**ST, "status_eligibility": ST["status_eligibility"] + ["moon_phase"]}
 check("...a stage the table names and the code lacks is named, and one the code has and the table lacks", any("moon_phase" in m for m in data_check.tables_problems(ST=ST2))
       and any("record" in m for m in data_check.tables_problems(ST={**ST, "status_eligibility": [s for s in ST["status_eligibility"] if s != "record"]})))
 src = open("engine/combat.py", encoding="utf-8").read()
-check("add_status is the stages", "return _fx.land(combat, f, status, rounds, source)" in src and src.count("def add_status(") == 1)
+check("add_status is the stages", "return _fx.land(combat, f, status, rounds, source, by=by)" in src and src.count("def add_status(") == 1)   # (f768) by
 p, e = fighter(legendary={"unyielding": 1}, mech_names={"unyielding": "Unyielding"}), fighter("e1", "enemy")
 c = fight(p, e)
 check("Unyielding turns a stun aside, in the fight's words", combat.add_status(c, p, "stunned", 2, e) is False and "stunned" not in p.statuses and any("Unyielding" in l for l in c.log))

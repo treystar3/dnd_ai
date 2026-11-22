@@ -14,6 +14,7 @@ import textwrap
 import types
 
 import config
+from core.typed import whole
 from engine import actor, items, money, stats
 
 WIDTH = 92                 # the terminal's; what the game wraps to is the channel's (width())
@@ -57,7 +58,7 @@ class Channel:
     def ask(self, main: bool = False, menu: bool = False) -> str:
         """The player's next line. main=True marks the top-level game loop (the GUI uses that to refresh its pinned view); menu=True a
         prompt that is not the game loop but may still be left for the main menu (#menu), such as character creation's."""
-        return input("> ").strip()
+        return whole(input("> ")).strip()             # (f781) taken in whole
 
     @contextlib.contextmanager
     def kind(self, name: str):

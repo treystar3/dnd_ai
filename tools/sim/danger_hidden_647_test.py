@@ -114,9 +114,9 @@ for size in ("as built", "a garrison"):
 check("a garrison is still told as one, with the advice to hire help", any("garrison" in t for t in notes), notes)
 ws.narrate = real_narrate
 
-# ---- the fence: who asks for the estimate, and who reads its label, among the code that can show a player something
-from pathlib import Path
-SHOWING = [p for d in ("scenes", "services", "ui", "engine") for p in sorted(Path(d).rglob("*.py"))] + [Path("main.py")]
+# ---- the fence: who asks for the estimate, and who reads its label, in the game's own code
+from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
+SHOWING = game_files()
 asks = sorted(p.as_posix() for p in SHOWING if re.search(r"(?<![\w])danger\(", p.read_text(encoding="utf-8")))
 reads_label = sorted(p.as_posix() for p in SHOWING if re.search(r"\bopening\.label\b", p.read_text(encoding="utf-8")))
 check("the estimate is made in one place and asked for where it was: a fight's making and a camp's scouting, and nowhere new",

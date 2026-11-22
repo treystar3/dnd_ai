@@ -5,7 +5,8 @@ A boss is a Fighter with `boss` set (see make()). The combat engine calls the ho
   enemy_turn()     -> refresh() at the start, own_turn() after its ordinary attack
   finish_round()   -> legendary() at the end of every other creature's turn
   add_status()     -> resisted()
-  take_damage()    -> last_stand() before a killing blow lands, then after_damage() (bloodied, falling)
+  take_damage()    -> last_stand() before a killing blow lands, then bloodied()
+  the fall step    -> fall() (engine/damage.py fall_step, whatever killed it)
 All numbers are in data/rules/bosses.yaml.
 """
 
@@ -56,8 +57,9 @@ def _text(f, template: str) -> str:
     return template.replace("{name}", nm)
 
 
-def _targets(combat):
-    return [t for t in combat.player_side() if t.alive]
+def _targets(combat, e):
+    """(f774) Whom the boss may strike: everyone against it still in the fight."""
+    return combat.foes_of(e)
 
 
 def intro(combat, rng) -> None:
@@ -99,14 +101,16 @@ def last_stand(combat, f) -> bool:
     return True
 
 
-def after_damage(combat, f) -> None:
-    """Called after a boss has taken damage: the bloodied turn, and the fall."""
-    if not f.boss:
-        return
-    if f.hp <= 0:
-        if not f.boss["fell"]:
-            f.boss["fell"] = True
-            _say(combat, f, "fall")
+def fall(combat, f) -> None:
+    """(f768) The boss has fallen, whatever killed it: its last words, once, told with its fall and before its guards break."""
+    if f.boss and not f.boss["fell"]:
+        f.boss["fell"] = True
+        _say(combat, f, "fall")
+
+
+def bloodied(combat, f) -> None:
+    """Called after a boss has taken damage and still stands: the bloodied turn."""
+    if not f.boss or f.hp <= 0:
         return
     if f.boss["phase"] == 0 and f.hp <= f.max_hp * B["bloodied_at"]:
         cfg = B["bloodied"]
@@ -121,12 +125,12 @@ def after_damage(combat, f) -> None:
             orenna.seal_prompt(combat, f)
 
 
-def _strike(combat, e, target, mult: float, rng, label: str = "strikes") -> bool:
-    return C.apply_damage(combat, e, target, mult, label, rng, can_cleave=False, can_riposte=False, can_flurry=False)
+def _strike(combat, e, target, mult: float, rng, label: str = "strikes", riders=None) -> bool:
+    return C.apply_damage(combat, e, target, mult, label, rng, can_cleave=False, can_riposte=False, can_flurry=False, riders=riders)
 
 
-def _weakest(combat):
-    return min(_targets(combat), key=lambda t: t.hp / max(1, t.max_hp))
+def _weakest(combat, e):
+    return min(_targets(combat, e), key=lambda t: t.hp / max(1, t.max_hp))
 
 
 def _guards(combat, e, n: int) -> int:
@@ -154,19 +158,21 @@ def _do(combat, e, opt: dict, rng, mult: float) -> None:
     kind = opt["kind"]
     combat.log.append(f"{e.name}: {opt['name']}")
     C.tell(combat, ("BOSS SIGNATURE MOVE: " if opt is _kit(e)["signature"] else "BOSS ACTS BETWEEN TURNS: ") + _text(e, opt["text"]))
-    targets = _targets(combat)
+    targets = _targets(combat, e)
     if not targets:
         return
     if kind == "strike":
         _strike(combat, e, combat.player if rng.random() < 0.7 or len(targets) == 1 else rng.choice(targets), mult or B["legendary_strike"], rng)
     elif kind == "smite":
-        _strike(combat, e, _weakest(combat), mult or B["legendary_strike"] * 1.8, rng, "smites")
+        _strike(combat, e, _weakest(combat, e), mult or B["legendary_strike"] * 1.8, rng, "smites")
     elif kind == "rend":
         t = combat.player
-        if _strike(combat, e, t, mult or B["legendary_strike"] * 1.3, rng, "rends") and t.alive:
-            C.add_status(combat, t, "bleeding", 3)
+        _strike(combat, e, t, mult or B["legendary_strike"] * 1.3, rng, "rends",          # (f772) the wound rides the blow that tore it
+                riders=lambda hit: hit and C.in_fight(combat, e) and C.reaches(combat, t) and C.add_status(combat, t, "bleeding", 3))
     elif kind == "sweep":
         for t in targets:
+            if not C.in_fight(combat, e):
+                break                                   # (f772) felled or driven off by its own blow (thorns): the sweep ends there
             _strike(combat, e, t, mult, rng, "engulfs")
     elif kind == "cow":
         t = combat.player
@@ -188,6 +194,7 @@ def _do(combat, e, opt: dict, rng, mult: float) -> None:
             _strike(combat, e, combat.player, 1.0, rng)
 
 
+@C.one_action
 def legendary(combat, rng) -> None:
     """One legendary action, taken at the end of someone else's turn."""
     for e in combat.enemies():
@@ -223,7 +230,7 @@ def own_turn(combat, e, target, rng) -> None:
     if t["extra"] > 0 and target.alive:
         _strike(combat, e, target, t["extra"], rng, "follows through")
     due = combat.round >= 2 and (combat.round - 2) % B["signature_every"] == 0
-    if (due or e.boss["sig_ready"]) and combat.player.alive:
+    if (due or e.boss["sig_ready"]) and C.in_fight(combat, e) and combat.player.alive:  # (f772) not after its own follow-through felled it
         e.boss["sig_ready"] = False
         sig = _kit(e)["signature"]
         _do(combat, e, sig, rng, sig.get("mult", 0.0))

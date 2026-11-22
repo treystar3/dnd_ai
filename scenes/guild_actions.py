@@ -44,7 +44,7 @@ class GuildActions:
             need = G["ranks"][letter]["requires"]
             below = quests.LETTERS[quests.LETTERS.index(letter) - 1]
             out.append(f"Rank {letter}: you must be level {need['level']} and have finished {need['completed']} guild contracts at rank {below} or higher, "
-                       "then win a trial: a duel at the guild hall against an examiner of that rank, where nobody can die (the blow that would kill decides it) "
+                       "then win a trial: a duel at the guild hall against an examiner of that rank, where neither of you can die (the blow that would end either of you decides it) "
                        f"and no potions are allowed; if you lose you wait {G['trial']['retry_days']} days to try again. "
                        f"It brings: {quests.describe_perks(letter)}.")
         if npc.role in ("guild_clerk", "guild_master"):

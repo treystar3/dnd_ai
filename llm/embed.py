@@ -65,20 +65,21 @@ def vectors(texts: list[str]) -> list[list[float]] | None:
         _state["model"] = who
     want = [t for t in dict.fromkeys(texts) if t not in _cache]
     if want:
-        from core.interrupts import Interrupt
+        from engine import crashlog
         from llm.errors import Failure
-        try:
-            from llm import backend
-            got = backend.embed(["clustering: " + t for t in want]).vectors      # (f515) the game's own interface; today's request
-        except Interrupt:
-            raise                                     # (f516) cancelled, or stopped on purpose: no failure of the embedder's
-        except Failure as f:
-            if f.kind != "too_big":
-                _state["failed"] = True               # (f516) a request too big is this call's own fallback; the embedder stays on
-            return None
-        except Exception:
+        asked = []                                    # (f781) the game's own fault turns it off too, and is written down
+        with crashlog.carried("the embedder (turned off for the session)", texts=len(want)):    # (f516) an Interrupt goes on up
+            try:
+                from llm import backend
+                asked.append(backend.embed(["clustering: " + t for t in want]).vectors)  # (f515) the game's own interface; today's request
+            except Failure as f:
+                if f.kind != "too_big":
+                    _state["failed"] = True           # (f516) a request too big is this call's own fallback; the embedder stays on
+                return None
+        if not asked:
             _state["failed"] = True
             return None
+        got = asked[0]
         from engine import budget
         budget.embed(len(want))                       # (f468) the texts this call read, on the turn's budget (part of the required path)
         with _lock:

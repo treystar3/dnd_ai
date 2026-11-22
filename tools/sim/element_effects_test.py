@@ -274,7 +274,7 @@ p = player(hp=1000); e = foe(); f = fight(p, e)
 check("blood price: 40% more", mult_for("blood_price", p, e, f) == 1.4)
 land("blood_price", "necrotic", e, p=p, f=f, taken=100)
 check("...for 10% of the damage in your own blood", p.hp == 990, p.hp)
-u = foe(category="undead"); f, p = land("dominate", "necrotic", u)
+u = foe(category="undead"); f, p = land("dominate", "necrotic", u, foe(2))     # (f774) never the last foe of its side
 check("dominate: an undead target turns for 2 rounds", u.counters.get("turned") == 1 and u.counters.get("turned_until") == f.round + 2)
 f.round += 3; combat.enemy_turn(f, u, random.Random(1))
 check("...and comes back to its side after", not u.counters.get("turned"))

@@ -14,6 +14,7 @@ import queue
 import sys
 import threading
 
+from core.typed import whole
 from ui import console
 
 LOG_CAP = 6000
@@ -237,7 +238,7 @@ class Bridge:
             if main:
                 return "quit"
             raise Closed()
-        text = text.strip()
+        text = whole(text).strip()                     # (f781) the page's JSON can carry half a surrogate pair
         shown = echoed(text)
         if shown:
             self.emit(k="echo", text=shown)

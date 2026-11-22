@@ -3,12 +3,83 @@ the start of that process (and of any process the test starts itself), and names
 function of the repo (MERAVIA_RAN_ROOT) the process entered, as (file, Class.method), a class's or a module's own lines as (file,
 Class) and (file, <module>), every file under data/ it opened, and whether it started a Python process with an environment
 that drops this record (`blind`: what that process ran is not known). Each function is seen once and its event switched off,
-so the test runs at its own speed. With MERAVIA_RAN unset nothing is kept. A sitecustomize the interpreter had is loaded after."""
+so the test runs at its own speed. With MERAVIA_RAN unset nothing is kept. A sitecustomize the interpreter had is loaded after.
+(f779) And the fence, when MERAVIA_FENCE names its note (the runner names one for every test): no process of a test writes, moves
+or removes anything under the project's own logs/ or recordings/, the owner's play. Such a write is refused (PermissionError) and
+written in the note, and the runner fails the test, whatever the test made of the error. A name given with an open folder handle
+(dir_fd, as rmtree on Linux gives) is read against that folder, and let through where the handle cannot be read; a write-mode
+os.open(..., dir_fd=) is read against the working folder, since its audit event carries no dir_fd."""
 import os
 import sys
 
 _out = os.environ.get("MERAVIA_RAN")
 _here = os.path.dirname(os.path.abspath(__file__))
+
+
+# (f779) per event, the argument holding the dir_fd of its first and second name (CPython's audit events; os.replace raises os.rename)
+_FD_ARG = {"os.remove": (1,), "os.rmdir": (1,), "shutil.rmtree": (1,), "os.mkdir": (2,), "os.rename": (2, 3), "os.link": (2, 3),
+           "os.symlink": (None, 2)}
+
+
+def _dir_fd(event, args, which):
+    """The open folder the event's name number `which` (0 the first, 1 the second) is relative to; None when it names a path whole."""
+    at = _FD_ARG.get(event, ())
+    i = at[which] if which < len(at) else None
+    fd = args[i] if i is not None and len(args) > i else None
+    return fd if isinstance(fd, int) and fd >= 0 else None
+
+
+def _fd_dir(fd: int) -> str:
+    """The folder an open folder handle names, read from /proc on Linux; elsewhere it raises, and the name is let through."""
+    return os.readlink(f"/proc/self/fd/{fd}")
+
+
+def _fence(note: str) -> None:
+    root = os.path.dirname(os.path.dirname(_here))                     # the project this folder lies in
+    guarded = tuple(os.path.normcase(os.path.realpath(os.path.join(root, d))) for d in ("logs", "recordings"))
+    first = {"open", "os.mkdir", "os.remove", "os.rmdir", "os.truncate", "shutil.rmtree", "sqlite3.connect"}
+    second = {"shutil.copyfile", "shutil.copytree", "os.link", "os.symlink"}   # (source, target): only the target is written
+    flags = os.O_WRONLY | os.O_RDWR | os.O_APPEND | os.O_CREAT | getattr(os, "O_TRUNC", 0)
+
+    def inside(t, fd=None) -> str:
+        if not isinstance(t, (str, bytes, os.PathLike)):
+            return ""
+        try:
+            t = os.fsdecode(t)
+            if isinstance(fd, int) and not os.path.isabs(t):           # (f779) a name relative to an open folder
+                t = os.path.join(_fd_dir(fd), t)
+            p = os.path.normcase(os.path.realpath(t))
+        except (OSError, ValueError, TypeError):
+            return ""
+        return p if any(p == g or p.startswith(g + os.sep) for g in guarded) else ""
+
+    noted = not inside(note)                                           # a note under the fence is never written (the runner refuses it)
+
+    def hook(event, args):
+        if event == "open":
+            mode, fl = (list(args) + [None, None, None])[1:3]
+            if not (isinstance(mode, str) and any(c in mode for c in "wax+") or mode is None and isinstance(fl, int) and fl & flags):
+                return
+        if event in first:
+            targets = [(args[0] if args else None, _dir_fd(event, args, 0))]
+        elif event in second:
+            targets = [(args[1] if len(args) > 1 else None, _dir_fd(event, args, 1))]
+        elif event == "os.rename":                                     # a move out of the folder takes a file from it
+            targets = [(args[0], _dir_fd(event, args, 0)), (args[1], _dir_fd(event, args, 1))]
+        else:
+            return
+        for t, fd in targets:
+            p = inside(t, fd)
+            if p:
+                try:
+                    if noted:
+                        with open(note, "a", encoding="utf-8") as fh:
+                            fh.write(f"{event} {p} (process {os.getpid()})\n")
+                except OSError:
+                    pass
+                raise PermissionError(f"(f779) a test may not write under the project's own logs/ or recordings/: {event} {p}")
+
+    sys.addaudithook(hook)
 
 
 def _begin() -> None:
@@ -79,6 +150,8 @@ def _next() -> None:
         spec.loader.exec_module(importlib.util.module_from_spec(spec))
 
 
+if os.environ.get("MERAVIA_FENCE"):
+    _fence(os.environ["MERAVIA_FENCE"])
 if _out and hasattr(sys, "monitoring"):
     _begin()
 _next()

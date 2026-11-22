@@ -13,7 +13,8 @@ def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x)
     if not ok: bad.append(n)
 
-check("the data check passes doings.yaml", data_check.check() == [], data_check.check()[:3])
+startup_found = data_check.check()
+check("the data check passes doings.yaml", startup_found == [], startup_found[:3])
 check("every role but the prisoner has at least three doings", all(len(doings.entries(r)) >= 3 for r in doings.D["by_role"]))
 check("the model is not asked what anyone is doing", "activity:" not in prompts.RESIDENTS_SYSTEM and ResidentProposal.model_fields["activity"].default == "")
 

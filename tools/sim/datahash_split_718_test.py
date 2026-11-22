@@ -18,7 +18,7 @@ def check(n, ok, x=""):
     if not ok: bad.append(n)
 
 tmp = Path(tempfile.mkdtemp(prefix="datahash_718_"))
-shutil.copytree("data", tmp / "data", ignore=shutil.ignore_patterns("replay", "measured", "runtime"))
+statehash.copy_data(tmp)                        # (f785) the game's data, as the hash reads it
 both = getattr(statehash, "data_hashes", None)
 if both is None:
     check("statehash.data_hashes gives the two digests", False)

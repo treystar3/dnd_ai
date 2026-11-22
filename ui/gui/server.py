@@ -17,7 +17,7 @@ from urllib.parse import parse_qs, urlparse
 import config
 from ui.gui.bridge import MENU, PINNABLE
 
-WEB = (paths.BUNDLE / "ui" / "gui" / "web") if paths.FROZEN else Path(__file__).resolve().parent / "web"
+WEB = paths.BUNDLE / "ui" / "gui" / "web"          # (f777) where the code is unpacked, said by core.paths (the project from source)
 STATIC = {"/app.js": "text/javascript; charset=utf-8", "/style.css": "text/css; charset=utf-8", "/map.jpg": "image/jpeg",
           "/home_bg.jpg": "image/jpeg"}     # (f345) the home page's backdrop: the map without its names, cropped past the west coast
 for _f in ("literata-latin-400-normal", "literata-latin-400-italic", "literata-latin-600-normal", "literata-latin-700-normal"):
@@ -219,6 +219,8 @@ def make_server(bridge, token: str | None = None):
                 return self._json(200, {"ok": True}) if bridge.submit(text[:2000]) else self._json(409, {"error": "not waiting"})
             if u.path == "/update":
                 from core import updates
+                if not updates.enabled():                  # (f780) an offer already on the bridge installs nothing once the switch is off
+                    return self._json(409, {"error": "updates are off"})
                 info = bridge.update_info
                 if not info:
                     return self._json(409, {"error": "no update"})

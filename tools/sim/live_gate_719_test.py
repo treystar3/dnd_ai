@@ -134,7 +134,8 @@ text = live_gate.report(m, under, set_, {"date": "2026-11-17", "model": "a-model
 check("the report says what is under a floor, and holds no dash", "Under a floor" in text and "0.95" in text and chr(0x2014) not in text and chr(0x2013) not in text)
 from engine import data_check
 src = Path(data_check.__file__).read_text(encoding="utf-8")
-check("the game's startup check holds the floors' file", "gate_problems()" in src and data_check.check() == [], data_check.check()[:3])
+startup_found = data_check.check()
+check("the game's startup check holds the floors' file", "gate_problems()" in src and startup_found == [], startup_found[:3])
 check("...and a measured file of another shape is a problem named, not a fault", any("live_gate.yaml" in x for x in data_check.gate_problems(F, measured=["a list"]))
       and any("live_gate.yaml" in x for x in data_check.gate_problems(F, measured={"reading": {}})) and not data_check.gate_problems(F, measured=m))
 

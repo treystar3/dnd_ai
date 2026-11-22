@@ -86,7 +86,7 @@ def armed(f) -> bool:
 def maneuver(combat, att, t, move, rng, contested: bool = False) -> bool:
     """The maneuver lands on a target already hit (or, for martial control, one that lost the contest). Returns True if it took."""
     mid = getattr(move, "maneuver", "")
-    if not mid or mid not in MANEUVERS or t is None or not C.in_fight(t):
+    if not mid or mid not in MANEUVERS or t is None or not C.in_fight(combat, t):
         return False                                       # (f763) nothing more lands on one who yielded or fled at this blow
     m = MANEUVERS[mid]
     if not fits(att, t, mid):
@@ -136,7 +136,7 @@ def maneuver(combat, att, t, move, rng, contested: bool = False) -> bool:
 def control(combat, att, move, target, rng) -> None:
     """Martial control: the maneuver is the whole ability, contested with the technique's attributes; a partial success still
     lands it, a round shorter where it has rounds."""
-    enemies = [e for e in combat.fighters if e.alive and not e.fled and (e.side == "enemy") != (att.side == "enemy")]
+    enemies = combat.foes_of(att)
     t = target if target is not None and target.alive else (enemies[0] if enemies else None)
     if t is None:
         C.tell(combat, f"{C.who(att)} {C.vb(att, 'look', 'looks')} for someone to use {move.name} on, but there is no one")
@@ -171,7 +171,7 @@ def control(combat, att, move, target, rng) -> None:
 # ---- forms --------------------------------------------------------------------------------------------------------------------
 
 def sweep_targets(combat, att, t) -> list:
-    foes = [e for e in combat.fighters if e.alive and not e.fled and (e.side == "enemy") != (att.side == "enemy")]
+    foes = combat.foes_of(att)
     engaged = [e for e in foes if e.id in att.engaged_with]
     if t is not None and t.alive and t not in engaged and t.zone_id == att.zone_id:
         engaged = [t] + engaged
@@ -185,8 +185,8 @@ def flurry(combat, att, t, move, mult, rng) -> bool:
     strikes: list[dict] = []
     s0, l0 = len(combat.story), len(combat.log)
     for i in range(hits):
-        if not t.alive:
-            break
+        if not C.reaches(combat, t, by=att):
+            break                                       # (f772) down, gone, or held by a floor at an earlier strike: a flurry is one blow
         n0 = len(combat.hits)
         landed |= C.apply_damage(combat, att, t, mult * each, f"uses {move.name} on" if i == 0 else "strikes again at", rng,
                                  how=f"with {move.name}" if i == 0 else f"as {move.name} keeps coming",
@@ -280,16 +280,22 @@ def ready_counter(combat, att, move) -> None:
     C.tell(combat, f"{C.who(att)} {C.vb(att, 'settle', 'settles')} into {move.name}, waiting for someone to come at {'you' if att.side == 'player' else 'it'}")
 
 
-def countering(att, dfn) -> bool:
-    """Whether this defender is ready to meet this attacker's blow (engaged, and its counter is still standing)."""
+def countering(att, dfn, combat=None) -> bool:
+    """Whether this defender is ready to meet this attacker's blow (engaged, and its counter is still standing). (f773) With the fight,
+    only a blow it may answer (combat.may_strike): an attacker it cannot strike now is not met, and the counter stays."""
     from engine import battlefield as bf
-    return bool(dfn.counter_move) and (att.side == "enemy") != (dfn.side == "enemy") and bf.engaged_pair(att, dfn) and dfn.alive
+    return bool(dfn.counter_move) and bf.hostile(att, dfn) and bf.engaged_pair(att, dfn) and dfn.alive \
+        and (combat is None or C.may_strike(combat, dfn, att))
 
 
 def strike_back(combat, dfn, att, rng) -> None:
+    """The readied counter answers the blow it met: told and spent only when its attacker can still be struck (combat.may_strike); an
+    attacker out of reach by then (fallen, fled, yielded, gone) leaves it untold and standing."""
+    if dfn.alive and not C.may_strike(combat, dfn, att):
+        return                                          # (f773) no line of a strike that cannot land, and nothing spent on it
     move = C.Move(**dfn.counter_move)
     dfn.counter_move = {}
-    if not att.alive or not dfn.alive:
+    if not dfn.alive:
         return
     mult = (move.power or C.RULES["damage"]["multiplier"][move.tier]) * FORMS["counter"]["mult"]
     C.tell(combat, f"{C.who(dfn)} {C.vb(dfn, 'meet', 'meets')} it with {move.name}")

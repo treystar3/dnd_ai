@@ -295,12 +295,21 @@ class Landing:
     may change either: an archon's chill lasts longer, a perk turns one affliction into another), the source when the caller knows it,
     the fighter's mechanics, and the element behind the status (a burn's fire, the hit element behind a chill or a cut)."""
 
-    def __init__(self, combat, f, status: str, rounds, source):
+    def __init__(self, combat, f, status: str, rounds, source, by=None):
         from engine import combat as C
         self.combat, self.f, self.status, self.rounds, self.source = combat, f, status, rounds, source
+        self.by = by                    # (f768) who laid it when no source is passed: for the record alone, never to size or turn it
         self.fm = C.mechanics(f, combat)
         self.element = C.ELEMENT_STATUS.get(status) or ((source.hit_element or source.element) if source is not None
                                                      and status in ("slowed", "blinded", "bleeding", "prone", "petrified") else "")
+
+
+def reached(l: Landing):
+    """(f772) Nothing lands on one who has left the fight, the dead among them, nor on one a floor has held in the harm in progress
+    (engine/combat.py reaches): a floor that holds a harm holds all it carries."""
+    from engine import combat as C
+    if not C.reaches(l.combat, l.f):
+        return False
 
 
 def unyielding(l: Landing):
@@ -389,15 +398,16 @@ def affliction_law(l: Landing):
 
 
 def record(l: Landing):
-    """The status is on the fighter: its row, its rounds, its source."""
-    put_status(l.f, l.status, l.rounds, l.source)
+    """The status is on the fighter: its row, its rounds, its source (or who laid it)."""
+    put_status(l.f, l.status, l.rounds, l.source if l.source is not None else l.by)
 
 
 def crippling_chain(l: Landing):
     """Crippling Wounds (f312): an open wound from a foe with it slows for as long as it stays open."""
     from engine import combat as C
     f, source = l.f, l.source
-    if l.status == "bleeding" and source is not None and source.side != f.side and "crippling_wounds" in C.mechanics(source, l.combat) \
+    from engine import battlefield as bf
+    if l.status == "bleeding" and source is not None and bf.hostile(source, f) and "crippling_wounds" in C.mechanics(source, l.combat) \
             and f.alive and land(l.combat, f, "slowed", l.rounds, source):
         f.counters["crippled"] = 1
         C.tell(l.combat, f"the wound drags at {C.who(f)}, and {C.vb(f, 'you slow', 'it slows')} (Crippling Wounds)")
@@ -415,16 +425,16 @@ def winding_cancel(l: Landing):
 
 
 STAGES: dict[str, Callable[[Landing], object]] = {
-    "unyielding": unyielding, "earthshaker": earthshaker, "stoneform": stoneform, "iron_will": iron_will, "element_ward": element_ward,
-    "attune_extend": attune_extend, "sanctified": sanctified, "boss_resisted": boss_resisted, "perk_transform": perk_transform,
+    "reached": reached, "unyielding": unyielding, "earthshaker": earthshaker, "stoneform": stoneform, "iron_will": iron_will,
+    "element_ward": element_ward, "attune_extend": attune_extend, "sanctified": sanctified, "boss_resisted": boss_resisted, "perk_transform": perk_transform,
     "bloodless": bloodless, "affliction_law": affliction_law, "record": record, "crippling_chain": crippling_chain,
     "winding_cancel": winding_cancel}
 
 
-def land(combat, f, status: str, rounds, source=None) -> bool:
+def land(combat, f, status: str, rounds, source=None, by=None) -> bool:
     """A status lands unless a stage turns it aside: the stages stages.yaml status_eligibility names, in order, each returning False
     to refuse. True when it took hold. This is engine/combat.py add_status."""
-    l = Landing(combat, f, status, rounds, source)
+    l = Landing(combat, f, status, rounds, source, by)
     for name in ELIGIBLE:
         if STAGES[name](l) is False:
             return False

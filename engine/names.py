@@ -11,23 +11,24 @@ from __future__ import annotations
 
 import collections
 import re
-from pathlib import Path
 
 from engine import actor
 
 REPAIRS: collections.Counter = collections.Counter()
-BY_TASK: collections.Counter = collections.Counter()     # (f587) the names mended in answers the game took, by task (A1 counts them)
+BY_TASK: collections.Counter = collections.Counter()     # (f587) names found written wrong, by task (A1 counts them), mend or no mend
 CAP = re.compile(r"\b[A-Z][a-z]{3,}\b")
 WORD = re.compile(r"\b[a-z]+\b")
 _VOCAB: set[str] = set()
 
 
 def vocab() -> set[str]:
-    """Every word the game's own data writes in lower case: the ordinary words, so 'Wind' at the head of a sentence is never taken for the
-    river Wend. Names are written capitalised there, so they are not in it."""
+    """Every word the game's own data files write in lower case (their YAML and their JSON): the ordinary words, so 'Wind' at the head
+    of a sentence is never taken for the river Wend. Names are written capitalised there, so they are not in it. (f786) The files the
+    data hash reads (storage/statehash.py game_data) and no other: a recording, a test case, a tool's file or a measurement decides
+    no mend."""
     if not _VOCAB:
-        root = Path(__file__).resolve().parent.parent / "data"
-        for p in root.rglob("*.yaml"):
+        from storage import statehash
+        for p in statehash.game_data():
             try:
                 _VOCAB.update(WORD.findall(p.read_text(encoding="utf-8")))
             except OSError:

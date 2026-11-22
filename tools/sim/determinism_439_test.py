@@ -104,30 +104,31 @@ FNS = {"random", "choice", "choices", "randint", "uniform", "shuffle", "sample",
        "getrandbits", "seed"}
 ENTROPY_OK = {"engine/ability_slots.py", "engine/ability_traits.py", "engine/field.py", "engine/lessons.py",   # defaults kept for creation
               "storage/campaign.py"}                                                                            # (f451) the campaign's own seed, drawn once
-UNSEEDED_OK = {"engine/look.py": 1}                         # the look rolled at character creation
+UNSEEDED_OK = {"engine/look.py": 1,                         # the look rolled at character creation
+               "character/creation.py": 1}                  # (f788) the perks drawn at creation when no die is handed in
 SEED_OK = {"engine/streams.py"}                             # the one place the global module is seeded, as a bridge
 found = []
-for d in ("engine", "scenes", "npc", "services", "storage", "world"):                 # (f451) the world and the store too
-    for p in sorted(pathlib.Path(d).rglob("*.py")):
-        rel = p.as_posix()
-        unseeded = 0
-        for node in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name) \
-                    and node.func.value.id in RAND:
-                if node.func.attr == "Random" and not node.args and not node.keywords:
-                    unseeded += 1
-                elif node.func.attr in FNS and rel not in SEED_OK:
-                    found.append(f"{rel}:{node.lineno} rolls the global random module ({node.func.attr})")
-            if isinstance(node, ast.Attribute) and node.attr == "SystemRandom" and rel not in ENTROPY_OK:
-                found.append(f"{rel}:{node.lineno} draws from the machine's entropy")
-            if isinstance(node, ast.Attribute) and node.attr in ("uuid4", "uuid1"):
-                found.append(f"{rel}:{node.lineno} makes a uuid (use streams.new_id)")
-            if isinstance(node, ast.BoolOp) and any(isinstance(v, ast.Name) and v.id == "random" for v in node.values):
-                found.append(f"{rel}:{node.lineno} falls back to the global random module")
-            if isinstance(node, ast.Call) and any(isinstance(x, ast.Name) and x.id == "random" for x in node.args):
-                found.append(f"{rel}:{node.lineno} passes the random module as dice")
-        if unseeded > UNSEEDED_OK.get(rel, 0):
-            found.append(f"{rel}: {unseeded} unseeded random.Random()")
+from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
+for p in game_files():
+    rel = p.as_posix()
+    unseeded = 0
+    for node in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name) \
+                and node.func.value.id in RAND:
+            if node.func.attr == "Random" and not node.args and not node.keywords:
+                unseeded += 1
+            elif node.func.attr in FNS and rel not in SEED_OK:
+                found.append(f"{rel}:{node.lineno} rolls the global random module ({node.func.attr})")
+        if isinstance(node, ast.Attribute) and node.attr == "SystemRandom" and rel not in ENTROPY_OK:
+            found.append(f"{rel}:{node.lineno} draws from the machine's entropy")
+        if isinstance(node, ast.Attribute) and node.attr in ("uuid4", "uuid1"):
+            found.append(f"{rel}:{node.lineno} makes a uuid (use streams.new_id)")
+        if isinstance(node, ast.BoolOp) and any(isinstance(v, ast.Name) and v.id == "random" for v in node.values):
+            found.append(f"{rel}:{node.lineno} falls back to the global random module")
+        if isinstance(node, ast.Call) and any(isinstance(x, ast.Name) and x.id == "random" for x in node.args):
+            found.append(f"{rel}:{node.lineno} passes the random module as dice")
+    if unseeded > UNSEEDED_OK.get(rel, 0):
+        found.append(f"{rel}: {unseeded} unseeded random.Random()")
 check("no unseeded generator, global roll, entropy draw or uuid in the game's code (use engine/streams.py)", not found, found[:8])
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))

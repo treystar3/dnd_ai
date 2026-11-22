@@ -564,6 +564,7 @@ expressions:
     label: Dominate
     text: "turns an undead target on its own side for {rounds} rounds."
     depict: "the dead bending to a stronger will"
+    alone: "there is no one of its own left for it to turn on, and the will slides off the dead thing"   # (f774) its target the last of its side
     rounds: 2
   shadowcloak:
     element: necrotic

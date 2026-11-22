@@ -126,14 +126,8 @@ shutil.rmtree("saves/acting_character_630", ignore_errors=True)
 
 # ---- the fences
 ROOT = Path(__file__).resolve().parent.parent.parent
-FOLDERS = ("engine", "scenes", "services", "npc", "llm", "core", "storage", "ui", "world")
-trees = {}
-for folder in FOLDERS:
-    for path in sorted((ROOT / folder).rglob("*.py")):
-        trees[path.relative_to(ROOT).as_posix()] = ast.parse(path.read_text(encoding="utf-8"))
-for path in sorted(ROOT.glob("*.py")):
-    if path.name not in ("simlib.py", "simbot.py"):
-        trees[path.name] = ast.parse(path.read_text(encoding="utf-8"))
+from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
+trees = {p.as_posix(): ast.parse((ROOT / p).read_text(encoding="utf-8")) for p in game_files()}
 
 
 taking = {}
@@ -158,7 +152,7 @@ over, fell = unrecorded(reads["scene"], READS)
 check("the engine reads the scene's player in the recorded places and no more (new code takes an id and asks player_of)", not over, over)
 check("...and a count that fell is lowered here", not fell, fell)
 FIGHT_READS = {                                          # (f748) combat.player read in the engine, per file: a count only falls
-    "engine/battlefield.py": 1, "engine/bosses.py": 7, "engine/combat.py": 33, "engine/combat_perks.py": 1, "engine/damage.py": 3,
+    "engine/battlefield.py": 1, "engine/bosses.py": 7, "engine/combat.py": 32, "engine/combat_perks.py": 1, "engine/damage.py": 1,
     "engine/parley.py": 1, "engine/relics.py": 1, "engine/summons.py": 3, "engine/techniques.py": 2,
 }
 over, fell = unrecorded(reads["fight"], FIGHT_READS)

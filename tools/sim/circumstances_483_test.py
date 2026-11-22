@@ -25,20 +25,20 @@ n = NPC(id="m1", name="Ada Kell", people="human", role="farmer", location="parth
 circumstance.set_mood(n, "proud, after the harvest", 1000, "thread:t1")
 check("a mood is set with its cause and a clock from data", n.mood_source == "thread:t1" and n.mood_until == 1000 + pulse.P["drift"]["moods"]["days"] * 1440)
 loose = []
-for d in ("engine", "scenes", "npc", "services"):
-    for p in Path(d).rglob("*.py"):
-        if p.as_posix() == "engine/circumstance.py":
-            continue
-        for node in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
-            if isinstance(node, ast.Assign):
-                names = [t for t in node.targets] + [e for t in node.targets if isinstance(t, ast.Tuple) for e in t.elts]
-                attrs = {t.attr for t in names if isinstance(t, ast.Attribute)}
-                if "mood" in attrs and "mood_source" not in attrs:
-                    loose.append(f"{p}:{node.lineno}")
-            if isinstance(node, ast.Call) and getattr(node.func, "id", "") == "NPC":
-                kws = {k.arg for k in node.keywords}
-                if "mood" in kws and "mood_source" not in kws:
-                    loose.append(f"{p}:{node.lineno} NPC(mood=)")
+from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
+for p in game_files():
+    if p.as_posix() == "engine/circumstance.py":
+        continue
+    for node in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.Assign):
+            names = [t for t in node.targets] + [e for t in node.targets if isinstance(t, ast.Tuple) for e in t.elts]
+            attrs = {t.attr for t in names if isinstance(t, ast.Attribute)}
+            if "mood" in attrs and "mood_source" not in attrs:
+                loose.append(f"{p}:{node.lineno}")
+        if isinstance(node, ast.Call) and getattr(node.func, "id", "") == "NPC":
+            kws = {k.arg for k in node.keywords}
+            if "mood" in kws and "mood_source" not in kws:
+                loose.append(f"{p}:{node.lineno} NPC(mood=)")
 check("every mood set or cleared anywhere says what gave it, or lets it go with the mood", loose == [], loose)
 circumstance.clear_mood(n)
 check("...a faded mood takes what gave it along", (n.mood, n.mood_source, n.mood_until) == ("", "", 0))
@@ -110,13 +110,12 @@ check("...told in their own words, never the trait's id", "set in my ways" in w.
 check("...the first look is kept and who they are otherwise stands", r.first_description == "A wiry smith with burnt forearms." and r.personality == "Short-tempered and proud.")
 check("...and the record of changes is capped in data", len(r.trait_history) == identity._cap(), len(r.trait_history))
 writes = []
-for d in ("engine", "scenes", "npc", "services"):
-    for p in Path(d).rglob("*.py"):
-        if p.as_posix() in ("npc/traits.py", "engine/identity.py"):
-            continue
-        for node in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
-            if isinstance(node, ast.Call) and getattr(node.func, "id", getattr(node.func, "attr", "")) == "change_trait":
-                writes.append(f"{p}:{node.lineno}")
+for p in game_files():
+    if p.as_posix() in ("npc/traits.py", "engine/identity.py"):
+        continue
+    for node in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.Call) and getattr(node.func, "id", getattr(node.func, "attr", "")) == "change_trait":
+            writes.append(f"{p}:{node.lineno}")
 check("nothing changes a trait but identity.revise", writes == [], writes)
 
 # ---- a hire's identity is never evicted at its cap: a claim past it waits unsettled

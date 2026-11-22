@@ -16,6 +16,8 @@ from engine import field
 
 ROOT = Path(__file__).resolve().parent.parent
 P = yamlio.safe_load((ROOT / "data" / "rules" / "ability_slots.yaml").read_text(encoding="utf-8"))
+SUMMON_FORMS = yamlio.safe_load((ROOT / "data" / "rules" / "summons.yaml").read_text(encoding="utf-8"))["forms"]   # (f776) read once, not at every call
+HEAL_FORMS = yamlio.safe_load((ROOT / "data" / "rules" / "healing.yaml").read_text(encoding="utf-8"))["forms"]
 COMBAT_EFFECTS = ("damage", "control", "defense", "mobility")
 STRICT_MULTI = ("volley", "barrage", "flurry", "salvo", "hail of", "rain of", "series of", "sequence", "several", "multiple", "twin",
                 "pair of", "dual", "double", "triple", "fusillade", "succession", "missiles", "rapid-fire", "rapid fire",
@@ -128,8 +130,7 @@ def plan(interp, offers: dict, minimum: int, rng: random.Random | None = None) -
         slots.append(s)
 
     # ---- the fixed kinds ----
-    import yaml as _ys
-    SF = _ys.safe_load((ROOT / "data" / "rules" / "summons.yaml").read_text(encoding="utf-8"))["forms"]
+    SF = SUMMON_FORMS
     made_forms = rng.sample([f for f in SF if f != "bound"], max(0, summons - 1))
     for i in range(summons):
         if i == 0:
@@ -140,8 +141,7 @@ def plan(interp, offers: dict, minimum: int, rng: random.Random | None = None) -
     cmds = rng.sample(offers.get("commands", []), commands) if commands else []
     for cm in cmds:
         add(effect="command", tier="light", reach="self", context="combat", command=cm)
-    import yaml as _yh
-    HF = _yh.safe_load((ROOT / "data" / "rules" / "healing.yaml").read_text(encoding="utf-8"))["forms"]
+    HF = HEAL_FORMS
     used_forms: list[str] = []
     for i in range(healing):
         tier = "light" if i == 0 else rng.choice(["moderate", "moderate", "heavy"])
@@ -611,17 +611,13 @@ def mechanic_text(s: dict) -> str:
         parts.append("it carries no element: plain " + ("force" if s.get("resource") == "mana" else "steel, muscle and skill")
                      + " - do not name or describe it as fire, frost, lightning, poison, acid, rot, holy light or thorn and root")
     if eff == "healing" and s.get("heal_form"):
-        import yaml as _y
-        HF = _y.safe_load((ROOT / "data" / "rules" / "healing.yaml").read_text(encoding="utf-8"))["forms"]
-        parts.append(f"a heal for yourself or one ally: {HF[s['heal_form']]['depict']}")
+        parts.append(f"a heal for yourself or one ally: {HEAL_FORMS[s['heal_form']]['depict']}")
     elif eff == "damage":
         parts.append(E["damage_area"] if s["reach"] == "area" else E["damage_single"])
         if s["reach"] == "ranged" and weapon_at_range(s):
             parts.append(E["damage_at_range"])                # (f287) a weapon technique at range is a throw or a shot, not a lunge
     elif eff == "summon":
-        import yaml as _yf
-        SF = _yf.safe_load((ROOT / "data" / "rules" / "summons.yaml").read_text(encoding="utf-8"))["forms"]
-        parts.append(f"{E[eff]}: {SF.get(s.get('summon_form') or 'striker', {}).get('depict', '')}")
+        parts.append(f"{E[eff]}: {SUMMON_FORMS.get(s.get('summon_form') or 'striker', {}).get('depict', '')}")
     elif eff == "command":
         parts.append(E[eff])
     elif eff != "buff" and not (eff == "control" and s.get("expressions")) and not (s["field_use"] and eff == "utility") and not field.in_combat_function(s["field_use"]):

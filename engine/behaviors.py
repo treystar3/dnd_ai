@@ -54,7 +54,7 @@ def _break(combat, f, surrender: bool) -> bool:
     was cut down by the parting strike owed a runner, or was already out of it, so its callers tell no break and roll nothing on one."""
     from engine import combat as C
     from engine import battlefield as bf
-    if not C.in_fight(f):
+    if not C.in_fight(combat, f):
         return False
     if not surrender:
         from engine import combat_perks as _cp
@@ -67,7 +67,7 @@ def _break(combat, f, surrender: bool) -> bool:
             from engine import streams
             C.apply_damage(combat, hunter, f, 1.0, "cuts down the fleeing", streams.keyed("escape", f.id, combat.serial, combat.round),
                            can_cleave=False, can_riposte=False)                           # (f501) its own die, never seeded by what was logged
-            if not C.in_fight(f):
+            if not C.in_fight(combat, f):
                 return False                            # (f766) cut down as it turned to run: its fall is told, never a flight
     C.leave(combat, f, "yielded" if surrender else "fled")
     if surrender:
@@ -76,23 +76,31 @@ def _break(combat, f, surrender: bool) -> bool:
     else:
         combat.log.append(f"{f.name} flees")
         C.tell(combat, f"{C.who(f)} breaks and runs")
-    if f.side == "enemy":                               # (f663) the player is told, not only the narrator: it leaves the foes' list
+    if bf.is_foe(f):                                    # (f663) the player is told, not only the narrator: it leaves the foes' list
         from engine import told
         combat.told.append(told.say("foe_yields" if surrender else "foe_flees", combat.round, foe=f.name))
     return True
 
 
-def morale(combat, source, rng: random.Random) -> None:
-    """When the strongest of a group breaks, the rest may break with it."""
+def _breaks(combat, e, surrender: bool, line: str) -> None:
+    """(f770) A break a rout asked for: held to the end of the action in progress (engine/combat.py hold_break), else made at once;
+    its line told only if it broke."""
     from engine import combat as C
-    rest = [e for e in combat.enemies() if e is not source]
+    if not C.hold_break(combat, e, surrender, line) and _break(combat, e, surrender):
+        C.tell(combat, line)
+
+
+def morale(combat, source, rng: random.Random) -> None:
+    """When the strongest of a group breaks, the rest may break with it: the rest of the side as it stands (combat.foes_standing, which
+    leaves out one held to break, f770)."""
+    from engine import combat as C
+    rest = C.foes_standing(combat, but=source)
     if not rest or any(e.level > source.level for e in rest):
         return
     for e in rest:
         if e.boss or "fearless" in e.behaviors or rng.random() >= MORALE_ODDS:
             continue
-        if _break(combat, e, can_surrender(e)):
-            C.tell(combat, f"{C.who(e)} loses heart seeing {C.who(source)} break")
+        _breaks(combat, e, can_surrender(e), f"{C.who(e)} loses heart seeing {C.who(source)} break")
 
 
 def _routs(e, combat) -> bool:
@@ -103,15 +111,17 @@ def _routs(e, combat) -> bool:
 
 def morale_on_death(combat, fallen, rng: random.Random) -> None:
     """A fight's second way to end (engine: a death may rout the rest). The leader slain - nobody left stronger than the fallen - or a
-    death that leaves half of them or more down, and each survivor who can break may break: the yielding yield, the rest run."""
+    death that leaves half of them or more down, and each survivor who can break may break: the yielding yield, the rest run. The
+    survivors are the side as it stands (combat.foes_standing: one held to break counts as gone, as one that fled, f770)."""
     from engine import combat as C
-    if fallen.side != "enemy" or combat.duel:
+    from engine import battlefield as bf
+    if not bf.is_foe(fallen) or combat.duel:
         return
     M = C.RULES.get("morale") or {}
-    living = combat.enemies()
+    living = C.foes_standing(combat)
     if not living:
         return
-    dead = [f for f in combat.fighters if f.side == "enemy" and not f.alive]
+    dead = [f for f in combat.fighters if bf.is_foe(f) and not f.alive]
     leader_fell = not any(e.level > fallen.level for e in living) and (fallen.rank in ("elite", "boss") or len(dead) + len(living) > 1)
     half_down = len(dead) >= len(living)
     if not leader_fell and not half_down:
@@ -122,8 +132,8 @@ def morale_on_death(combat, fallen, rng: random.Random) -> None:
         if not _routs(e, combat):
             continue
         chance = odds + (M.get("frightened_bonus", 0.25) if "frightened" in e.statuses else 0)
-        if rng.random() < chance and _break(combat, e, can_surrender(e)):
-            C.tell(combat, f"{C.who(e)} breaks, {why}")
+        if rng.random() < chance:
+            _breaks(combat, e, can_surrender(e), f"{C.who(e)} breaks, {why}")
 
 
 def pre_turn(combat, e, target, rng: random.Random) -> bool:
@@ -162,16 +172,19 @@ def pre_turn(combat, e, target, rng: random.Random) -> bool:
     every = int(beh(e, "surge_every", 0))
     if beh(e, "surge") and every and combat.round % every == 0 and C.in_reach(e, target):
         C.tell(combat, f"{C.who(e)} gathers itself and surges at {C.who(target)}")
-        C.apply_damage(combat, e, target, beh(e, "surge"), "surges against", rng)
-        after_hit(combat, e, target, True, rng)
+        C.apply_damage(combat, e, target, beh(e, "surge"), "surges against", rng,
+                       riders=lambda hit: after_hit(combat, e, target, True, rng))          # (f772) what the blow carries is the blow
         return True
     every = int(beh(e, "slam_every", 0))
     if beh(e, "slam") and every and combat.round % every == 0 and C.in_reach(e, target):
         C.tell(combat, f"{C.who(e)} heaves up a crushing blow for {C.who(target)}")
-        hit = C.apply_damage(combat, e, target, beh(e, "slam"), "slams", rng)
-        if hit and target.alive and rng.random() < 0.3 and C.add_status(combat, target, "stunned", 1):
-            C.tell(combat, f"{C.who(target)} {C.STATUS_WORDS['stunned'][0 if target.side == 'player' else 1]}")
-        after_hit(combat, e, target, hit, rng)
+
+        def stuns(hit):
+            if hit and C.in_fight(combat, e) and C.reaches(combat, target) and rng.random() < 0.3 \
+                    and C.add_status(combat, target, "stunned", 1):
+                C.tell(combat, f"{C.who(target)} {C.STATUS_WORDS['stunned'][0 if target.side == 'player' else 1]}")
+            after_hit(combat, e, target, hit, rng)
+        C.apply_damage(combat, e, target, beh(e, "slam"), "slams", rng, riders=stuns)
         return True
     return False
 
@@ -179,8 +192,10 @@ def pre_turn(combat, e, target, rng: random.Random) -> bool:
 def _area(combat, e, rng, mult: float, label: str, intro: str) -> None:
     from engine import combat as C
     C.tell(combat, intro)
-    foes = [f for f in combat.player_side() if f.alive]
+    foes = combat.foes_of(e)                            # (f774) whom it may strike: never one out of the fight
     for t in foes:
+        if not C.in_fight(combat, e):
+            break                                       # (f772) felled or driven off by its own blow (thorns): it breathes no more
         C.apply_damage(combat, e, t, mult, f"{label}s over", rng, can_cleave=False, can_riposte=False, can_flurry=False)
 
 
@@ -222,27 +237,30 @@ def sweeps(combat, e, rng) -> bool:
     from engine import combat as C
     if not e.family or e.boss or not beh(e, "sweep"):
         return False
-    foes = [f for f in combat.player_side() if f.alive and C.in_reach(e, f)]
+    foes = [f for f in combat.foes_of(e) if C.in_reach(e, f)]
     if not foes:
         return False
     C.tell(combat, f"{C.who(e)} boils over everyone in reach at once")
     for t in foes:
-        hit = C.apply_damage(combat, e, t, beh(e, "sweep"), "swarms over", rng, can_cleave=False, can_riposte=False, can_flurry=False)
-        after_hit(combat, e, t, hit, rng)
+        if not C.in_fight(combat, e):
+            break                                       # (f772) felled or driven off by its own blow (thorns): the swarm is spent
+        C.apply_damage(combat, e, t, beh(e, "sweep"), "swarms over", rng, can_cleave=False, can_riposte=False, can_flurry=False,
+                       riders=lambda hit, t=t: after_hit(combat, e, t, hit, rng))
     return True
 
 
 def after_hit(combat, e, target, landed: bool, rng: random.Random) -> None:
-    """What a landed blow does besides damage: poison, seize, scatter the mind, wear armor, drain stamina."""
+    """What a landed blow does besides damage: poison, seize, scatter the mind, wear armor, drain stamina. (f772) It rides the blow
+    (apply_damage riders): nothing of it from one that fell or yielded at its own blow, nor onto one a floor held in it."""
     from engine import combat as C
     if not e.family or e.boss:
         return
     e.counters["struck"] = 1
-    if not landed or not target.alive:
+    if not landed or not C.in_fight(combat, e) or not C.reaches(combat, target):
         return
     for key, status, rounds in (("venom", "poisoned", 3), ("grapple", "grappled", 2), ("befuddle", "befuddled", 1)):
-        chance = beh(e, key)
-        if chance and status not in target.statuses and rng.uniform(0, 100) < chance and C.add_status(combat, target, status, rounds):
+        chance = beh(e, key)                            # (f768) laid by e, for the record: the dose is sized as before, with no source
+        if chance and status not in target.statuses and rng.uniform(0, 100) < chance and C.add_status(combat, target, status, rounds, by=e):
             combat.log.append(f"{target.name} is {status}")
             C.tell(combat, f"{C.who(target)} {C.STATUS_WORDS[status][0 if target.side == 'player' else 1]}")
     c = beh(e, "corrode")

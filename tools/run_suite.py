@@ -18,7 +18,10 @@ Every run holds one lock (on saves/.suite_running, the operating system's: a run
 and would fail each other. A full run waits for it (--wait SECONDS, 1200); a --changed run waits 2 and then leaves with exit code 75.
 Output goes to <outdir>/<test>.out (default /tmp/meravia_suite); the summary lists failures and the slowest tests.
 (f741) Each test runs with a saves folder of its own under <outdir>/saves_of, never the player's saves/: a passed test's goes with
-its run, and the last failed run's stays as saves_of/<test>_failed to be looked at."""
+its run, and the last failed run's stays as saves_of/<test>_failed to be looked at. (f779) Its logs likewise, under <outdir>/logs_of
+(MERAVIA_LOGS), and a fence in every process it starts (tools/suite_ran) refuses a write under the project's own logs/ and
+recordings/, which fails the test. The run ends by saying whether those two folders changed while it ran, yes or no; an --outdir
+under them is refused."""
 import argparse
 import ast
 import filecmp
@@ -272,12 +275,37 @@ def lanes(tests: list[Path]) -> tuple[list[Path], list[Path]]:
     return [t for t in tests if t not in alone], alone
 
 
-def own_saves(outdir: Path, test: Path) -> Path:
+def own_saves(outdir: Path, test: Path, kind: str = "saves_of") -> Path:
     """(f741) A fresh saves folder for one run of a test, outside the repository: the game's saves folder in the test and in every
-    process it starts (MERAVIA_SAVES, read by storage/campaign.py), so no test reaches the player's saves/."""
-    root = Path(outdir).resolve() / "saves_of"
+    process it starts (MERAVIA_SAVES, read by storage/campaign.py), so no test reaches the player's saves/. (f779) kind "logs_of":
+    its logs folder the same way (MERAVIA_LOGS, read by core.paths.logs())."""
+    root = Path(outdir).resolve() / kind
     root.mkdir(parents=True, exist_ok=True)
     return Path(tempfile.mkdtemp(prefix=f"{test.stem}_", dir=root))
+
+
+GUARDED = ("logs", "recordings")          # (f779) the project's own folders no test writes: the fence's (tools/suite_ran)
+
+
+def guarded(p: Path) -> bool:
+    """(f779) The path lies under the project's own logs/ or recordings/ (this checkout's, where the fence stands)."""
+    p = Path(os.path.realpath(p))
+    return any(p == g or g in p.parents for g in (Path(os.path.realpath(ROOT / d)) for d in GUARDED))
+
+
+def owners(root: Path) -> dict:
+    """(f779) What a tree's own logs/ and recordings/ hold, the owner's play: each file's path with its size and time. A run reads it
+    before and after, and says only whether it changed; nothing of it is printed."""
+    out = {}
+    for d in GUARDED:
+        for folder, _, names in os.walk(Path(root) / d):
+            for n in names:
+                try:
+                    st = os.stat(os.path.join(folder, n))
+                except OSError:
+                    continue
+                out[os.path.join(folder, n)] = (st.st_size, st.st_mtime_ns)
+    return out
 
 
 def leave_saves(own: Path, test: Path, passed: bool) -> None:
@@ -301,17 +329,28 @@ def run_one(test: Path, outdir: Path, timeout: int, root: Path = ROOT, record: b
     env.pop("MERAVIA_RAN", None)                                           # (f717) a suite run inside a test keeps its own record
     own = own_saves(outdir, test)
     env["MERAVIA_SAVES"] = str(own)                                        # (f741) nor reaches the player's saves
+    logs = own_saves(outdir, test, "logs_of")
+    fenced = Path(outdir).resolve() / f"{test.name}.fenced"
+    fenced.unlink(missing_ok=True)
+    env.update(MERAVIA_LOGS=str(logs), MERAVIA_FENCE=str(fenced))          # (f779) nor the owner's logs: its own, and the fence's note
+    env["PYTHONPATH"] = f"{RAN_SITE}{os.pathsep}{root}"                    # (f779) the fence is in every process the test starts
     if record:
         (outdir / "ran").mkdir(exist_ok=True)
         for f in (outdir / "ran").glob(f"{test.name}.*.json"):
             f.unlink(missing_ok=True)
-        env.update(PYTHONPATH=f"{RAN_SITE}{os.pathsep}{root}", MERAVIA_RAN=str(outdir / "ran" / test.name), MERAVIA_RAN_ROOT=str(root))
+        env.update(MERAVIA_RAN=str(outdir / "ran" / test.name), MERAVIA_RAN_ROOT=str(root))
     start = time.time()
     with open(outdir / f"{test.name}.out", "w", encoding="utf-8") as fh:
         try:
             rc = subprocess.run([sys.executable, str(test)], cwd=root, env=env, stdout=fh, stderr=subprocess.STDOUT, timeout=timeout).returncode
         except subprocess.TimeoutExpired:
             rc = 124
+    if fenced.is_file():                                 # (f779) a write the fence refused fails the test, whatever the test made of it
+        with open(outdir / f"{test.name}.out", "a", encoding="utf-8") as fh:
+            for line in fenced.read_text(encoding="utf-8", errors="replace").splitlines():
+                fh.write(f"\nFAIL (f779) the fence refused a write under the project's own folder: {line}")
+            fh.write("\n")
+        fenced.unlink(missing_ok=True)
     if rc == 0:                                          # a test that prints its failures but forgets to exit non-zero still fails
         try:
             text = (outdir / f"{test.name}.out").read_text(encoding="utf-8", errors="replace")
@@ -320,6 +359,7 @@ def run_one(test: Path, outdir: Path, timeout: int, root: Path = ROOT, record: b
         if re.search(r"^FAIL\b|^FAILED(?![: ]+none\b)[: ]", text, re.M):       # "FAILED: none" is how some tests say all passed
             rc = 1
     leave_saves(own, test, rc == 0)
+    leave_saves(logs, test, rc == 0)
     return test.name, rc, time.time() - start
 
 
@@ -404,6 +444,9 @@ def main(argv: list[str] | None = None, root: Path = ROOT) -> int:
     args = ap.parse_args(argv)
     if args.busy:
         return 0 if busy(root) else 1
+    if guarded(Path(args.outdir)):                                       # (f779) the fence would refuse its own note there
+        print(f"--outdir {args.outdir} lies under the project's own logs/ or recordings/, which no run writes: nothing run")
+        return 2
     tests = sorted((root / "tools" / "sim").glob("*_test.py"))
     if args.only:
         keys = [k.strip() for k in args.only.split(",") if k.strip()]
@@ -419,6 +462,7 @@ def main(argv: list[str] | None = None, root: Path = ROOT) -> int:
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     start = time.time()
+    held_files = owners(root)                                            # (f779) the owner's logs/ and recordings/, as the run found them
     results = []
     try:
         record = load_ran(root)
@@ -455,6 +499,8 @@ def main(argv: list[str] | None = None, root: Path = ROOT) -> int:
     print(f"\n{len(results) - len(bad)}/{len(results)} passed in {time.time() - start:.0f}s")
     if results:
         print("slowest: " + ", ".join(f"{n} {t:.0f}s" for n, _, t in sorted(results, key=lambda r: -r[2])[:5]))
+    print("the project's own logs/ and recordings/: " + ("untouched by this run" if owners(root) == held_files else
+          "changed while this run ran (a game played meanwhile, or a write no fence saw)"))      # (f779) yes or no, nothing of what they hold
     if bad:
         print("FAILED: " + ", ".join(bad) + f"   (see {outdir}/<test>.out)")
     return 1 if bad else 0

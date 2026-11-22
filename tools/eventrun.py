@@ -513,7 +513,8 @@ def main() -> None:
     save = args.save or f"eventrun_{stamp}"
     from storage import saves
     saves.scratch(save, typed=bool(args.save))           # (f743) before anything is made or opened: a game, or a folder no tool made, is refused
-    out = Path(args.out or f"logs/eventrun/{stamp}")
+    from core import paths
+    out = Path(args.out).resolve() if args.out else paths.written(f"logs/eventrun/{stamp}")   # (f779) absolute, in the one logs folder
     out.mkdir(parents=True, exist_ok=True)
 
     import config
@@ -521,6 +522,8 @@ def main() -> None:
     config.TURN_LOG_PATH = str(out / "turns_game.jsonl")
     config.SESSION_STATS_PATH = str(out / "sessions.jsonl")
     config.REFUSALS_LOG_PATH = str(out / "refusals.jsonl")
+    from llm import audit
+    audit.FOLDER = out / "audit"                             # (f779) its audit in the run's folder: runs never use up the window kept for play
     config.LOG_MAX_MB = 10 ** 6
 
     import simlib

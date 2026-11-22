@@ -93,30 +93,28 @@ check("...and never builds a store, a world or a scene of its own", not any(s in
 # ---- the direct writes into a world: none (f451, the rebuild's Stage 2), in world/ too, and none to a place's own fields either
 MAPS = {"places", "roads", "connects", "regions", "peoples", "bestiary", "roles", "lore", "pressures", "towns", "biomes", "knowledge_groups"}
 MUT = {"pop", "setdefault", "update", "clear", "popitem"}
-DIRS = ("engine", "scenes", "npc", "services", "storage", "world")
+from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
 def name(n):
     return n.attr if isinstance(n, ast.Attribute) else None
 found = {}
-for d in DIRS:
-    for p in sorted(pathlib.Path(d).rglob("*.py")):
-        n = 0
-        for node in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
-            targets = node.targets if isinstance(node, (ast.Assign, ast.Delete)) else [node.target] if isinstance(node, (ast.AugAssign, ast.AnnAssign)) else []
-            n += sum(1 for t in targets if isinstance(t, ast.Subscript) and name(t.value) in MAPS)
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in MUT and name(node.func.value) in MAPS:
-                n += 1
-        if n:
-            found[p.as_posix()] = n
+for p in game_files():
+    n = 0
+    for node in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
+        targets = node.targets if isinstance(node, (ast.Assign, ast.Delete)) else [node.target] if isinstance(node, (ast.AugAssign, ast.AnnAssign)) else []
+        n += sum(1 for t in targets if isinstance(t, ast.Subscript) and name(t.value) in MAPS)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in MUT and name(node.func.value) in MAPS:
+            n += 1
+    if n:
+        found[p.as_posix()] = n
 check("no direct write into a world's maps anywhere: a campaign's map changes only through its world's four operations", not found, found)
 # a place's own fields: the ways, what is seen, who lives there, the stations, the crowd, the districts, the town's scale and guard
 ATTR = re.compile(r"\.(connects|visible|peoples|stations|crowd|districts|scale|guard|anchors|danger)\s*(?:=(?!=)|\.(?:append|extend|update|pop|setdefault|clear|insert|remove)\(|\[[^\]\n]+\]\s*=(?!=))")
 ALLOWED_ATTR = {"world/loader.py": 4}      # _check_towns: a town's profile written onto its top place as the world is parsed, before any campaign exists
 attr_found = {}
-for d in DIRS:
-    for p in sorted(pathlib.Path(d).rglob("*.py")):
-        n = len(ATTR.findall(p.read_text(encoding="utf-8")))
-        if n:
-            attr_found[p.as_posix()] = n
+for p in game_files():
+    n = len(ATTR.findall(p.read_text(encoding="utf-8")))
+    if n:
+        attr_found[p.as_posix()] = n
 over = {f: n for f, n in attr_found.items() if n > ALLOWED_ATTR.get(f, 0)}
 check("...nor a write to a place's own fields: a place gains a way as a copy, never in place", not over, over)
 check("...and that fence is kept tight too", all(attr_found.get(f, 0) == n for f, n in ALLOWED_ATTR.items()),

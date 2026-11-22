@@ -6,7 +6,7 @@
 
 Two stages. sft learns from the accepted answers (<task>.sft.jsonl); dpo then learns the difference between a rejected draft and the
 answer that replaced it (<task>.pairs.jsonl), starting from the sft adapter (--from). The base model, rank, learning rate and the rest
-come from data/rules/lora.yaml train, and any of them can be given here.
+come from data/tools/lora.yaml train, and any of them can be given here.
 
 --dry-run reads the files, checks their shape, counts examples and rough tokens, and names the next step, next to where the
 adapter would go, without importing torch: it runs anywhere, including the test suite. A real run needs a GPU and
@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 import yaml
 
-L = yaml.safe_load((ROOT / "data" / "rules" / "lora.yaml").read_text(encoding="utf-8"))
+L = yaml.safe_load((ROOT / "data" / "tools" / "lora.yaml").read_text(encoding="utf-8"))
 T = L.get("train") or {}
 
 

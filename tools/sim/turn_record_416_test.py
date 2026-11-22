@@ -15,6 +15,7 @@ for fn in ("narrate", "say", "npc_says", "dialogue", "ledger"):
     uc.put(fn, lambda *a, **k: None)
 uc.put("panel", lambda name, data: False)
 import config
+from core import paths
 from engine import actions, ledger, refusals
 from llm.contracts import ActionIntent as A, Narration
 from npc.traits import load_traits
@@ -29,7 +30,7 @@ def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x)
     if not ok: bad.append(n)
 
-LOG = "saves/turn_record_416_refusals.jsonl"
+LOG = str(paths.written("saves/turn_record_416_refusals.jsonl"))     # (f779) where the game writes it
 config.REFUSALS_LOG, config.REFUSALS_LOG_PATH = True, LOG      # the stub turns the log off; this test reads it
 pathlib.Path(LOG).unlink(missing_ok=True)
 shutil.rmtree("saves/turn_record_416_test", ignore_errors=True)

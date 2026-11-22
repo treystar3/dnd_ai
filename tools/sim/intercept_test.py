@@ -7,6 +7,7 @@ import simlib
 STUB = simlib.Stub("warrior", 5)
 simlib.install(STUB)
 import config
+from core import paths                     # (f779) a log read back where the game wrote it
 import ui.console as uc
 NOTES = []
 uc.put("note", lambda m, *a, **k: NOTES.append(str(m)))
@@ -49,7 +50,7 @@ def who(text):
     """Run the line; return what took it, from the turn log."""
     RAN.clear(); MOVES.clear(); TALKED.clear(); HIRE.clear(); NOTES.clear()
     ws.handle(text)
-    rows = [json.loads(l) for l in open(config.TURN_LOG_PATH, encoding="utf-8")]
+    rows = [json.loads(l) for l in open(paths.written(config.TURN_LOG_PATH), encoding="utf-8")]
     return rows[-1]["handled_by"] if rows and rows[-1]["text"] == text else "nothing"
 
 # ---- the one verb table

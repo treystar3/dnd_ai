@@ -8,7 +8,6 @@ Run: python tools/sim/stream_object_581_test.py"""
 import ast
 import random
 import sys
-from pathlib import Path
 sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 3)
@@ -95,32 +94,32 @@ KEPT = {("engine/spellcraft.py", "spells"), ("scenes/combat_scene.py", "combat")
 HANDED = {("engine/combat.py", "combat"), ("engine/events.py", "events"), ("scenes/combat_scene.py", "combat"),
           ("scenes/training_actions.py", "lessons")}
 kept, handed, second = set(), set(), []
-for d in ("engine", "scenes", "services", "npc", "world", "storage", "character", "core", "llm", "ui"):
-    for path in sorted(Path(d).rglob("*.py")):
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        parent = {c: n for n in ast.walk(tree) for c in ast.iter_child_nodes(n)}
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "Streams" or \
-                    isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "Streams":
-                if path.as_posix() != "engine/streams.py":
-                    second.append(f"{path.as_posix()}:{node.lineno}")
-            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "get"):
-                continue
-            v = node.func.value
-            if not ((isinstance(v, ast.Name) and v.id == "streams") or (isinstance(v, ast.Attribute) and v.attr == "DEFAULT")):
-                continue
-            name = node.args[0].value if node.args and isinstance(node.args[0], ast.Constant) else "?"
-            up = parent[node]
-            while isinstance(up, ast.BoolOp):                # `given or streams.get(..)`
-                up = parent[up]
-            if isinstance(up, ast.keyword):
-                up = parent[up]
-            if isinstance(up, ast.Call):                     # passed straight into a call
-                handed.add((path.as_posix(), name))
-            elif isinstance(up, (ast.Assign, ast.AnnAssign)):
-                target = up.targets[0] if isinstance(up, ast.Assign) else up.target
-                if isinstance(target, ast.Attribute) or isinstance(parent[up], (ast.Module, ast.ClassDef)):
-                    kept.add((path.as_posix(), name))
+from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
+for path in game_files():
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    parent = {c: n for n in ast.walk(tree) for c in ast.iter_child_nodes(n)}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "Streams" or \
+                isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "Streams":
+            if path.as_posix() != "engine/streams.py":
+                second.append(f"{path.as_posix()}:{node.lineno}")
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "get"):
+            continue
+        v = node.func.value
+        if not ((isinstance(v, ast.Name) and v.id == "streams") or (isinstance(v, ast.Attribute) and v.attr == "DEFAULT")):
+            continue
+        name = node.args[0].value if node.args and isinstance(node.args[0], ast.Constant) else "?"
+        up = parent[node]
+        while isinstance(up, ast.BoolOp):                # `given or streams.get(..)`
+            up = parent[up]
+        if isinstance(up, ast.keyword):
+            up = parent[up]
+        if isinstance(up, ast.Call):                     # passed straight into a call
+            handed.add((path.as_posix(), name))
+        elif isinstance(up, (ast.Assign, ast.AnnAssign)):
+            target = up.targets[0] if isinstance(up, ast.Assign) else up.target
+            if isinstance(target, ast.Attribute) or isinstance(parent[up], (ast.Module, ast.ClassDef)):
+                kept.add((path.as_posix(), name))
 check("a stream kept on a module, a class or an object is one of the recorded holders", kept <= KEPT, sorted(kept - KEPT))
 check("...a stream passed straight into a call is one of the recorded hand-offs", handed <= HANDED, sorted(handed - HANDED))
 check("...and one that is gone is taken off its list (they only shrink)", KEPT <= kept and HANDED <= handed,

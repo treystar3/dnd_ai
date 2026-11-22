@@ -386,14 +386,25 @@ class Screen:
                     return name
 
     def close(self) -> None:
-        if self.undo is not None:
-            self.undo()
-            self.undo = None
-        if self.rt is not None:
-            self.rt.close()
-        if self.lock is not None:
-            self.lock.release()
-            self.lock = None
+        """The interface's source put back, the model server closed and the lock let go. (f783) Each runs whatever the one before it
+        did, and the first error is raised once the last has run (crashlog.run_every): a server whose close raises never leaves the
+        single-copy lock held."""
+        from engine import crashlog
+
+        def source() -> None:
+            if self.undo is not None:
+                self.undo()
+                self.undo = None
+
+        def server() -> None:
+            if self.rt is not None:
+                self.rt.close()
+
+        def lock() -> None:
+            if self.lock is not None:
+                self.lock.release()
+                self.lock = None
+        crashlog.run_every("closing the load screen", ("the interface's source", source), ("the model server", server), ("the lock", lock))
 
 
 SCREEN: dict = {}

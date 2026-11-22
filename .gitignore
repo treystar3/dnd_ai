@@ -18,7 +18,8 @@ build/
 dist/
 *.spec
 installer/Output/
-installer/models.iss   # (f531) written by build_installer.bat from data/runtime/server.yaml
+# (f531) written by build_installer.bat from data/runtime/server.yaml
+installer/models.iss
 
 # --- Local Python environments and caches (play.bat makes .venv on first run) ---
 .venv/
@@ -49,3 +50,20 @@ desktop.ini
 # --- Claude Code: the full-suite pass marker for this machine (.claude/hooks/known.py --mark), and each person's own settings ---
 /.claude/.suite_passed
 /.claude/settings.local.json
+
+# --- (f787) Files a tracked document cites, held back on purpose: tools/sim/cited_files_787_test.py passes a cited file outside git
+# only when the comment directly above its line says why. Each waits on the owner; when they decide, drop its two lines and add it ---
+# doc 29, awaiting the owner's reading
+/docs/design/29_one_reader_plan.md
+# doc 30, awaiting the owner's reading
+/docs/design/30_engaging_talk.md
+# doc 31, awaiting the owner's reading
+/docs/design/31_no_with_yes_plan.md
+# the code audit's own scripts (a 1.9 MB zip), out of git until the owner decides
+/docs/design/32_code_audit/repro_scripts.zip
+# the model settings trial's scripts, sheets and raw answers (9.4 MB; its report is tracked), out of git until the owner decides
+/docs/measure/model_settings_trial/
+# awaiting the owner's blind reading of the Gemma and Qwen pairs
+/docs/measure/2026-11-18_gemma_qwen_pairs_key.md
+# awaiting the owner's blind reading of the Gemma and Qwen pairs (the played game's)
+/docs/measure/2026-11-18_gemma_qwen_played_pairs_key.md

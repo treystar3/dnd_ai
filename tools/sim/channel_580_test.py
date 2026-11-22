@@ -141,11 +141,11 @@ real = [n.lineno for n in ast.walk(tree) if isinstance(n, ast.Attribute) and n.a
 names = {n.name for n in tree.body if isinstance(n, ast.FunctionDef)}
 check("the console has a print of its own, and reaches the built-in one in one place only (the stdout channel)", "print" in names and len(real) == 1, real)
 loose = []
-for d in ("engine", "scenes", "services", "npc", "world", "storage", "character", "core", "llm"):
-    for path in sorted(Path(d).rglob("*.py")):
-        for n in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "print":
-                loose.append(f"{path}:{n.lineno}")
+from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
+for path in [p for p in game_files() if p.parts[0] != "ui"]:      # (f788) ui/ left out: the console prints there, for the game
+    for n in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "print":
+            loose.append(f"{path}:{n.lineno}")
 check("no game code prints for itself: the console is the one way to the page", not loose, loose[:8])
 
 # ---- a line that fails still tells its failure, through the channel

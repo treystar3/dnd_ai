@@ -207,18 +207,19 @@ def on_hit(combat, att, dfn, taken: float, rng) -> None:
     if not ctx:
         return
     for eid in ctx["exprs"]:
-        if C.in_fight(dfn) or eid in DEAD_OK:              # (f763) a foe who yielded or fled at this blow is gone, as the dead are
-            _express(combat, att, dfn, taken, rng, ctx, eid)
+        if C.reaches(combat, dfn) or eid in DEAD_OK:       # (f763) a foe who yielded or fled at this blow is gone, as the dead are;
+            _express(combat, att, dfn, taken, rng, ctx, eid)  # (f772) and one a floor held in it takes nothing more of it
 
 
 def _express(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> None:
+    from engine import battlefield as bf
     tier, e = ctx["tier"], EXPR[eid]
     n = _nums(e, tier)
     if eid in ("ignite", "spreading_flames") and dfn.alive:
         C.add_status(combat, dfn, "burning", 2, att)
     if eid == "spreading_flames" and eid not in ctx["once"]:
         ctx["once"].append(eid)
-        others = [o for o in in_area(combat, att, dfn.zone_id, combat.enemies() if att.side != "enemy" else _foes(combat, att))
+        others = [o for o in in_area(combat, att, dfn.zone_id, combat.foes_of(att))
                   if o is not dfn and o.alive]
         for o in others:
             C.add_status(combat, o, "burning", 2, att)
@@ -228,7 +229,7 @@ def _express(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> None:
         C.add_status(combat, dfn, "slowed", int(n["rounds"]), att)
     elif eid in ("arc", "conduction") and eid not in ctx["once"] and taken > 0:
         ctx["once"].append(eid)
-        pool = [o for o in in_area(combat, att, dfn.zone_id, _foes(combat, att)) if o is not dfn and o.alive]
+        pool = [o for o in in_area(combat, att, dfn.zone_id, combat.foes_of(att)) if o is not dfn and o.alive]
         if eid == "arc":
             pool = sorted(pool, key=lambda o: o.hp)[:1]
         else:
@@ -240,7 +241,7 @@ def _express(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> None:
                 share *= C.ATTUNE["lightning"]                # an archon of storm arcs harder (f246)
             C.side_damage(combat, o, taken * share, att, rng, "magical",
                           told=lambda d: f"the lightning {'jumps' if eid == 'arc' else 'runs'} on into {C.who(o)} for {d} ({e['label']})",
-                          logged=lambda d: f"{e['label']} from {att.name}'s {ctx['name']} hits {o.name}: {d} damage")
+                          logged=lambda d: f"{e['label']} from {att.name}'s {ctx['name']} hits {o.name}: {d} damage", harm="lightning")
     elif eid == "envenom" and dfn.alive:
         C.add_status(combat, dfn, "poisoned", 3, att)
     elif eid == "corrode" and dfn.alive and not C.warded(dfn, "acid"):
@@ -267,7 +268,7 @@ def _express(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> None:
         dfn.max_hp = max(1, round(dfn.max_hp - cut))
         dfn.hp = min(dfn.hp, dfn.max_hp)
         C.tell(combat, f"the flesh around the wound rots away - {C.whose(dfn)} body will not grow it back ({e['label']}: -{round(cut)} max health)")
-    elif eid == "reap" and dfn.alive and att.side != "enemy" and not dfn.boss and dfn.rank != "boss":
+    elif eid == "reap" and dfn.alive and not bf.is_foe(att) and not dfn.boss and dfn.rank != "boss":
         dfn.counters["reaped_by"], dfn.counters["reap_until"] = att.id, combat.round + int(n["rounds"])
     elif eid == "overload" and dfn.alive:
         mark = dfn.counters.get("overload")
@@ -283,7 +284,7 @@ def _express(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> None:
         C.add_status(combat, dfn, "weakened", int(n["rounds"]), att)
     elif eid == "splash" and eid not in ctx["once"] and taken > 0:
         ctx["once"].append(eid)
-        for o in [o for o in in_area(combat, att, dfn.zone_id, _foes(combat, att)) if o is not dfn and o.alive]:
+        for o in [o for o in in_area(combat, att, dfn.zone_id, combat.foes_of(att)) if o is not dfn and o.alive]:
             C.side_damage(combat, o, taken * n["pct"] / 100, att, rng, "magical", told=lambda d: f"acid splashes over {C.who(o)} for {d} ({e['label']})")
     elif eid == "barkskin_graft" and att.alive and taken > 0:
         cap = att.max_hp * float(e.get("cap", 0.5))
@@ -315,9 +316,9 @@ def _express_more(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> N
     N = lambda key, default=0: num(e, tier, key, default)
     crit = att.counters.get("last_outcome") == "crit"
     killed = not dfn.alive
-    mine = [o for o in combat.fighters if o.alive and not o.fled and o is not att and not bf.hostile(att, o)]
+    mine = [o for o in combat.fighters if o.alive and not o.fled and o is not att and bf.kin(att, o)]   # (f774) never a foe turned
     near_mine = [o for o in mine if o.zone_id == att.zone_id]
-    foes_here = [o for o in in_area(combat, att, dfn.zone_id, _foes(combat, att)) if o.alive]
+    foes_here = [o for o in in_area(combat, att, dfn.zone_id, combat.foes_of(att)) if o.alive]
     # ---- fire
     if eid == "flashfire" and dfn.alive and "burning" in dfn.statuses:
         left = dfn.statuses["burning"] * afflictions.tick(dfn, "burning")
@@ -472,18 +473,17 @@ def _express_more(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> N
         C.tell(combat, f"the magic on {C.who(dfn)} frays ({e['label']})")
     elif eid == "blood_price" and taken > 0:
         att.hp = max(1.0, att.hp - taken * N("pct", 10) / 100)
-    elif eid == "dominate" and dfn.alive and dfn.side == "enemy" and getattr(dfn, "category", "") == "undead" and not dfn.boss:
-        dfn.counters["turned"], dfn.counters["turned_until"] = 1, combat.round + int(N("rounds", 2))
-        C.tell(combat, f"{C.who(dfn)} turns on its own side, a stronger will on it ({e['label']})")
+    elif eid == "dominate" and dfn.alive and getattr(dfn, "category", "") == "undead" and not dfn.boss:
+        combat_perks.turn_foe(combat, dfn, combat.round + int(N("rounds", 2)),      # (f774) never the last foe of its side
+                              f"{C.who(dfn)} turns on its own side, a stronger will on it ({e['label']})", alone=f"{e['alone']} ({e['label']})")
     elif eid == "shadowcloak":
         if zone_hidden(combat, att.zone_id) and can_hide(combat, att) and "concealed" not in att.position_tags:
             bf.gain(att, "concealed")
             att.counters["rehid"] = 1
             C.tell(combat, f"{C.who(att)} {C.vb(att, 'fold', 'folds')} back into the shadows ({e['label']})")
     elif eid == "deaths_door" and dfn.alive and not dfn.boss and dfn.rank != "boss" and dfn.hp < dfn.max_hp * N("pct", 15) / 100:
-        floor = 1 if ((combat.mentor and dfn.side == "player") or combat.duel) else 0
-        dfn.hp = float(floor)
-        C.tell(combat, f"death reaches for {C.who(dfn)} and does not let go ({e['label']})")
+        C.kill_outright(combat, dfn, att, rng,                  # (f773) the declared path: every floor holds it, the fall step ends it
+                        f"death reaches for {C.who(dfn)} and does not let go ({e['label']})")
     elif eid == "life_theft" and dfn.alive:
         dfn.counters["life_theft"] = att.id
     # ---- radiant
@@ -581,12 +581,12 @@ def on_any_hit(combat, att, dfn, taken: float, rng) -> None:
         return
     if "superconductive" in dfn.statuses and (att.hit_element or att.element) == "lightning" and not att.counters.get("arcing"):
         e = EXPR["superconductor"]
-        others = [o for o in in_area(combat, att, dfn.zone_id, _foes(combat, att)) if o is not dfn and o.alive]
+        others = [o for o in in_area(combat, att, dfn.zone_id, combat.foes_of(att)) if o is not dfn and o.alive]
         att.counters["arcing"] = 1
         try:
             for o in others:
                 C.side_damage(combat, o, taken * num(e, "light", "pct", 30) / 100, att, rng, "magical",
-                              told=lambda d: f"the lightning runs through the ice into {C.who(o)} for {d} (Superconductor)")
+                              told=lambda d: f"the lightning runs through the ice into {C.who(o)} for {d} (Superconductor)", harm="lightning")
         finally:
             att.counters.pop("arcing", None)
 
@@ -601,7 +601,8 @@ def on_attack(combat, att) -> None:
             return
         maker = combat.get(by)
         C.side_damage(combat, att, amount, maker, combat.rng if hasattr(combat, "rng") else _RNG, "magical",
-                      told=lambda d: f"acid runs down {C.whose(att)} arm as {C.vb(att, 'you', 'it')} {C.vb(att, 'swing', 'swings')}: {d} (Caustic Drip)")
+                      told=lambda d: f"acid runs down {C.whose(att)} arm as {C.vb(att, 'you', 'it')} {C.vb(att, 'swing', 'swings')}: {d} (Caustic Drip)",
+                      harm="acid")
 
 
 def on_move(combat, f) -> None:
@@ -613,7 +614,8 @@ def on_move(combat, f) -> None:
             f.counters.pop("bramble", None)
             return
         C.side_damage(combat, f, amount, combat.get(by), _RNG, "magical",
-                      told=lambda d: f"the brambles tear at {C.who(f)} as {C.vb(f, 'you', 'it')} {C.vb(f, 'move', 'moves')}: {d} (Bramble Wrap)")
+                      told=lambda d: f"the brambles tear at {C.who(f)} as {C.vb(f, 'you', 'it')} {C.vb(f, 'move', 'moves')}: {d} (Bramble Wrap)",
+                      harm="brambles")
 
 
 def turn_effects(combat, f, rng) -> None:
@@ -624,9 +626,10 @@ def turn_effects(combat, f, rng) -> None:
         if "slowed" not in f.statuses or not f.alive:
             f.counters.pop("frostbite", None)
         else:
-            C.side_damage(combat, f, fb[1], combat.get(fb[0]), rng, "magical", told=lambda d: f"the frostbite eats at {C.who(f)}: {d} (Frostbite)")
+            C.side_damage(combat, f, fb[1], combat.get(fb[0]), rng, "magical", told=lambda d: f"the frostbite eats at {C.who(f)}: {d} (Frostbite)",
+                          harm="frostbite")
     creep = f.counters.get("creeping")
-    if creep and f.alive:
+    if creep and C.in_fight(combat, f):                  # (f772) not on one the frostbite has just driven off
         left, pct = creep
         if left <= 0 or C.warded(f, "acid"):
             f.counters.pop("creeping", None)
@@ -635,13 +638,10 @@ def turn_effects(combat, f, rng) -> None:
             f.counters["creeping"] = [left - 1, pct]
             C.tell(combat, f"the corrosion creeps further over {C.who(f)} ({f.corroded:g}% gone, Creeping Corrosion)")
     seed = f.counters.get("seed")
-    if seed and f.alive and combat.round >= seed[1]:
+    if seed and C.in_fight(combat, f) and combat.round >= seed[1]:
         f.counters.pop("seed", None)
-        C.side_damage(combat, f, seed[2], combat.get(seed[0]), rng, "magical", told=lambda d: f"the seed in {C.who(f)} bursts: {d} ({seed[3]}, Seedburst)")
-    if f.counters.get("turned") and f.counters.get("turned_until") is not None and f.counters["turned_until"] < combat.round:
-        f.counters.pop("turned", None)
-        f.counters.pop("turned_until", None)
-        C.tell(combat, f"the will on {C.who(f)} lifts, and it remembers its own side")
+        C.side_damage(combat, f, seed[2], combat.get(seed[0]), rng, "magical", told=lambda d: f"the seed in {C.who(f)} bursts: {d} ({seed[3]}, Seedburst)",
+                      harm="seed")
     for key in ("caustic_drip", "bramble"):
         mark = f.counters.get(key)
         if mark and mark[2] < combat.round:
@@ -673,13 +673,14 @@ def on_death(combat, dead, killer) -> None:
         _pyre(combat, dead, combat.get(by) or killer)
     if dead.counters.pop("contagion", None) and (dead.poison or dead.poison_fixed):
         from engine import battlefield as bf
-        others = [o for o in combat.fighters if o.alive and not o.fled and o is not dead and o.side == dead.side]
+        others = [o for o in combat.fighters if o.alive and not o.fled and o is not dead and bf.kin(dead, o)]
         if others:
             nxt = bf.closest(combat, dead, others) or others[0]
             landed = E.eligible(combat, nxt, "poisoned", dead.statuses.get("poisoned", 3))   # (f507) the neighbour's own wards, resistance
             if landed is not None:                                                            # and perks count; a boss spends a charge
                 status, rounds = landed
-                E.put_status(nxt, status, max(nxt.statuses.get(status, 0), rounds))           # the stacks are copied, not dealt again
+                E.put_status(nxt, status, max(nxt.statuses.get(status, 0), rounds),           # the stacks are copied, not dealt again;
+                             dead.status_from.get("poisoned") or None)                       # (f768) still the dead's poisoner's
                 if status == "poisoned":
                     E.set_strength(nxt, "poisoned", list(nxt.poison) + list(dead.poison) + list(dead.poison_fixed))
                 C.tell(combat, f"the poison does not die with {C.who(dead)}: it spreads to {C.who(nxt)} (Contagion)")
@@ -717,11 +718,6 @@ def carried(combat, att, dfn, exprs: list[str], tier, name: str, taken: float, r
         att.casting = held
 
 
-def _foes(combat, att) -> list:
-    from engine import battlefield as bf
-    return [o for o in combat.fighters if o.alive and not o.fled and bf.hostile(att, o)]
-
-
 def _hostile(a, b) -> bool:
     from engine import battlefield as bf
     return bf.hostile(a, b)
@@ -741,7 +737,7 @@ def control(combat, att, move, target, rng) -> None:
     """A control spell with expressions: each changes the place or strips the creature; it deals no damage. Ground expressions
     always land; those on a creature share one contest."""
     exprs = [e for e in exprs_of(move) if is_control(e)]
-    enemies = _foes(combat, att)
+    enemies = combat.foes_of(att)
     t = target if target is not None and target.alive else (enemies[0] if enemies else None)
     zone = t.zone_id if t is not None else att.zone_id
     for eid in [e for e in exprs if e in GROUND]:
@@ -812,7 +808,7 @@ def _ground(combat, att, move, eid, zone, t, rounds, n) -> None:
     until = combat.round + rounds
     if eid in ("thunderclap", "flare", "earthquake"):         # (f266) instant: everyone hostile there, now
         from engine import martial, battlefield as bfm
-        hit = [f for f in combat.fighters if f.alive and not f.fled and f.zone_id == zone and _hostile(att, f)]
+        hit = [f for f in combat.foes_of(att) if f.zone_id == zone]
         for f in hit:
             if eid == "thunderclap":
                 f.winding, f.charging = {}, {}
@@ -959,14 +955,15 @@ def zone_turn(combat, f, rng=None) -> None:
     if z and f.alive and z.get("round") == combat.round:
         maker = combat.get(z["by"])
         if maker is None or _hostile(maker, f):
-            C.side_damage(combat, f, z["amount"], maker, rng, "magical", told=lambda d: f"the ball of lightning bursts over {C.who(f)} for {d} ({z['name']})")
+            C.side_damage(combat, f, z["amount"], maker, rng, "magical", told=lambda d: f"the ball of lightning bursts over {C.who(f)} for {d} ({z['name']})",
+                          harm="lightning")
     z = eff.get("grasping_dead")
     if z and f.alive:
         maker = combat.get(z["by"])
         if (maker is None or _hostile(maker, f)) and C.add_status(combat, f, "grappled", 2, maker):   # 2: worn down at this same turn-start
             C.tell(combat, f"dead hands close on {C.who(f)} and hold {C.vb(f, 'you', 'it')} fast ({z['name']})")
     z = eff.get("caustic_pool")
-    if z and f.alive:
+    if z and C.in_fight(combat, f):                      # (f772) not on one the ground has just driven off
         maker = combat.get(z["by"])
         if (maker is None or _hostile(maker, f)) and not C.warded(f, "acid"):
             cut = min(75, f.corroded + z["pct"])
@@ -987,7 +984,7 @@ def _zone_hurt(combat, f, z, eid, rng) -> None:
     if maker is not None:
         maker.hit_element = element
     C.side_damage(combat, f, amount, maker, rng, "magical", told=lambda d: f"{z['name']} {'burns' if eid == 'burning_ground' else 'shocks'} {C.who(f)} for {d}",
-                  logged=lambda d: f"{z['name']} hurts {f.name}: {d} damage")
+                  logged=lambda d: f"{z['name']} hurts {f.name}: {d} damage", harm=eid)
     if maker is not None:
         maker.hit_element = held
 
@@ -1023,25 +1020,29 @@ def lay_curse(combat, att, dfn, move, mult: float, rng) -> None:
 
 
 def curse_turn(combat, f, rng=None) -> None:
+    """At the cursed one's turn start, each curse in turn is one harm in progress (engine/combat.py OpenHarm, called the curse, no
+    strike): its gnaw and what its expressions carry, so a floor that holds the gnaw holds all of that curse. The hold lasts that
+    curse's record alone: the next curse, and the caster's own strikes later in the turn, are each their own harm, as a tick is."""
     rng = rng or _RNG
     keep = []
     for c in f.curses:
-        if not f.alive:
-            break
+        if not C.in_fight(combat, f):
+            break                                           # (f772) fallen, or yielded to the curse before it
         maker = combat.get(c["by"])
-        held = maker.hit_element if maker is not None else ""
-        if maker is not None:
-            maker.hit_element = c.get("element", "")
-        dealt = C.side_damage(combat, f, c["per"], maker, rng, "magical", told=lambda d: f"{c['name']} gnaws at {C.who(f)} for {d}",
-                              logged=lambda d: f"{c['name']} gnaws at {f.name}: {d} damage")
-        if maker is not None:
-            maker.hit_element = held
-            hits = [e for e in c.get("exprs", []) if e in EXPR and not is_control(e)]
-            if hits and maker.alive:
-                maker.counters["last_hit"] = int(dealt)
-                maker.casting = {"exprs": hits, "tier": c["tier"], "name": c["name"], "once": []}
-                on_hit(combat, maker, f, dealt, rng)
-                end(maker)
+        with C.in_progress(combat, C.OpenHarm(maker, f, harm="curse", strike=False, tail=True)):   # (f773) its fall is paid at once
+            held = maker.hit_element if maker is not None else ""
+            if maker is not None:
+                maker.hit_element = c.get("element", "")
+            dealt = C.side_damage(combat, f, c["per"], maker, rng, "magical", told=lambda d: f"{c['name']} gnaws at {C.who(f)} for {d}",
+                                  logged=lambda d: f"{c['name']} gnaws at {f.name}: {d} damage")
+            if maker is not None:
+                maker.hit_element = held
+                hits = [e for e in c.get("exprs", []) if e in EXPR and not is_control(e)]
+                if hits and maker.alive:
+                    maker.counters["last_hit"] = int(dealt)
+                    maker.casting = {"exprs": hits, "tier": c["tier"], "name": c["name"], "once": []}
+                    on_hit(combat, maker, f, dealt, rng)
+                    end(maker)
         c["left"] -= 1
         if c["left"] > 0:
             keep.append(c)

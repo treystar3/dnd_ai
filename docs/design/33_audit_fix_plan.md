@@ -210,7 +210,7 @@ old world and capital names quoted in this audit's documents; the docs commit af
 | FIGHT_CORE-6 | 2 | 4f3661e f766: a fighter leaves a fight one way, released first, and a runner cut down is told fallen, never fled (pillars 1, 6) | none asked |
 | FIGHT_ABILITIES-6 | 3 | 05f6313 f767: a two-turn ability lands with what was settled when it was begun: its bonuses, its recipient and its repeats (pillar 6) | none asked |
 
-Left for later in phase 2: FIGHT_CORE-1 (a design first: docs/design/34_one_fall_step.md, with its questions for the owner),
+Left for later in phase 2 (built since: see "Phase 2's rest as built" below): FIGHT_CORE-1 (a design first: docs/design/34_one_fall_step.md, with its questions for the owner),
 and the six that wait on it: FIGHT_CORE-2, FIGHT_CORE-3, FIGHT_CORE-4, FIGHT_ABILITIES-2, FIGHT_ABILITIES-4 and
 FIGHT_ABILITIES-5.
 
@@ -232,6 +232,186 @@ Found by the review across these commits and left for a later change:
 - stub_fight was re-blessed four times in the run (f746, f757, f759, f760) and stub_short three, where note 9 asks for one
   re-bless a phase; each reason was checked against the later commits and none is undone.
 - f759 makes GOALS.md's f711 row ("Keeping a summoned person in the save waits for a later fix") out of date.
+
+## Phase 2's rest as built
+
+19 and 20 November 2026, branch play/faults, f768 to f774 and two follow-ups (`git log 1b7f97b..8d971cf`), on the owner's
+"Yes, recommended answers" to docs/design/34_one_fall_step.md (GOALS.md's top decision row). Each feature was built with its
+test first, reviewed against GOALS.md before its commit, and checked by the full suite when it landed. A review across the
+seven found two faults where they meet, fixed by the two follow-ups.
+
+| Feature | The commit that built it | The owner's answer it was built on |
+|---|---|---|
+| FIGHT_CORE-1 | 43a8438 f768: a death happens once, whatever killed, through one fall step every damage path ends in: told, released and paid (pillars 1, 6) | Question 1 (a): a death by something laid earlier is the kill of whoever laid it, with the whole credit; question 5: a boss's last words are told with its fall |
+| FIGHT_CORE-2 | f768fae f769: one turn a fighter a round, and none for a fighter who is down or gone, whatever way reaches the turn (pillars 1, 6) | none asked |
+| FIGHT_ABILITIES-5 | 68b171a f770: who breaks at a death is settled when the action that caused it has finished, so the rest of it lands and no foe ends fled and dead (pillars 1, 5) | none asked |
+| FIGHT_CORE-4, with FIGHT_ABILITIES-3's trial case | a313345 f771: a trial of rank is decided only by its duellists, and one rule says who may stand in it (pillars 6, 1) | Question 3 (a): summons stand beside their summoner, a beaten one decides nothing, and the Bound summon walks in |
+| FIGHT_CORE-3 | 2ee32fd f772: a floor that holds a killing harm holds the whole blow, and the floors are declared once for every damage path (pillars 6, 1) | Question 2 (b): every floor holds every harm, a tick included |
+| FIGHT_ABILITIES-4 | e1ae625 f773: a kill outright goes down a declared path: every floor holds it, and its death is the fall step's (pillars 1, 6) | Question 2: every floor holds a kill outright |
+| FIGHT_ABILITIES-2 | 86fe4f4 f774: a turned foe is on the player's side to every rule of harm, and turning a foe never wins a fight by itself (pillars 1, 6) | Question 4 (1a, 2a, 3a): the will lifts when its side is gone, a turned foe is spared and never an ally, and its old side may strike it |
+
+**Two follow-ups**, found by the review across the seven:
+
+- 8aeaafb f774: a foe held to break is gone to the turning law as to the rout, and one rule says who is still in the fight
+  (pillars 1, 6). Dominate and Dread Regent turned a foe whose side was already held to break in the same action (Regent
+  spent for nothing in 43 of 43 such casts); a fighter turned away by `leave(..., "gone")` was still in the fight to every
+  rule but the turn. One reading of "is the side gone" (`foes_standing`, `foes_gone`) and one `in_fight`; Dominate's
+  `alone` line is told after the breaks it rests on; five hand-built lists of "whom may this fighter strike" now ask
+  `foes_of`.
+- 8d971cf f773: a floor holds all a curse carries, through one record of the harm in progress, and nothing lands on the
+  dead (pillars 1, 6). A floor that held a curse's gnaw let the same curse's Death's Door kill, or told its line twice; in a
+  trial the trial's line was told twice. One record kind for a harm in progress (`OpenHarm`, a curse's hold lasting its own
+  record) and one finder (`harm_now`); the floors' gates refuse the dead; a counter or riposte that cannot reach its target
+  is neither told nor spent; the trial's line is told only by the harm that decides it; the fight fixtures' headers carry
+  the current data hash (no case moved).
+
+**Working decisions made in building, for the owner to confirm or overrule** (each is written in its commit body):
+
+- One striker's strikes on one target in one action are one blow, so a floor that held the first is not undone by the
+  same striker's follow-up (a Flurry, a volley, a double strike) (f772). A curse's hold lasts the curse only (8d971cf).
+- A yielding foe yields to any harm that drops it below its point, a poison tick included, where before only a blow made it
+  yield (f772).
+- trial_test's measure gives each trial its own die, so one trial's added or dropped draw moves only that trial; the true
+  rates did not move (240 trials a rank) and no edge changed (f772).
+- A Death's Door a curse lays is told as "the curse"; the kill outright's own word, "death's grip", is used by no source
+  today (f773).
+- Dominate turns the last foe standing when a wave waits in reserve (f774). Dread Regent waits, silently, when the rest of
+  the side is held to break; whether it needs a line there is the owner's (8aeaafb).
+- A readied counter whose attacker falls, flees or yields at its own blow is kept, not spent (8d971cf).
+- Lifeline holds a companion for any player fighter who has Lifeline, not only its own master (f772).
+- Plaguebearer records the player as the one who laid what it carries, so Malefic Step finds more foes (f768).
+- Orenna's Last Breath's line follows the owner's draft and no longer says the mana comes back, though it does; an option
+  is "...and you rise whole, your magic back with you" (f772).
+
+**Measured and reported, not tuned:** with summons in the trial, a summoner passes 98 to 100% of trials at every rank,
+against the roughly seven in ten the edges were tuned for; and a trial mends a broken Bound bond at no lasting cost, since
+its end restores the pools (f771).
+
+**Owed on the card, none run yet:**
+
+- One live gate run (tools/live_gate.py), named by f757, f768 and f770; one run after f774 covers all of phase 2. The gate's
+  script, its baseline (docs/measure/2026-11-17_live_gate.md) and data/measured/live_gate.yaml are untracked, and the
+  script's one fight is short: check that its turns hold a fall and a rout.
+- tools/acceptance.py --live for f751, and the live gate run with the save closed and opened part-way that f761 offered.
+- A first hunt where the floor fires has not been played on the model since f772 changed Maren's beat.
+
+**New and changed lines for the owner to read before they ship:**
+
+- f768: a death by a tick ("The first wolf's poison does its work, and Bryn falls and does not rise"; "The fire the first
+  wolf left on Bryn burns on, and Bryn falls and does not rise"; "The poison does its work. You fall, and the world goes
+  dark"; "The fire burns on. You fall, and the world goes dark"); the hire's lines ("{name} does not get up again: {name}
+  is dead (killed by {by}, not by you)"; "{name} goes down and lies still: alive, but out of the fight, and they will have
+  to be carried"); the Phoenix for a death that was no blow ("The last of your strength gives out, and {item} burns white.
+  You rise from the ashes at half strength, and the fight is over. (It can't do this again for {N} days.)"); the fight log's
+  "{name} succumbs" and "{name} falls".
+- f771: the trial's note ("Nobody dies here: the first blow that would end either of you decides it."; the review across
+  the seven suggests "Neither of you dies here", since a summon falls in it) and the guild's rules ("where neither of you
+  can die (the blow that would end either of you decides it)").
+- f772: each floor's line names the harm ({harm} is the blow, the force, the poison, the fire, the thorns, the curse, the
+  lightning, the frostbite, the seed, the acid, the brambles or the healing; "That" when none is named): Lifeline "{harm}
+  should have ended {who}, but the bond with its master will not let it fall (Lifeline)"; Soul Tether "{harm} should have
+  ended {who}, but a thread of the master's will draws it back from the brink (Soul Tether)"; Orenna's Last Breath "{harm}
+  should have killed you, but a thin, tired warmth catches you, and you rise whole (Orenna's Last Breath, now spent)"; the
+  first hunt "{harm} should have ended you, but a hand catches you before you fall"; Deathless "{harm} should have ended
+  {who}, but it is held on the threshold and will not fall" (for the player, "you are held"); Deathward "{harm} should have
+  killed {who}, but a power older than death refuses to let go (Deathward)"; the duel "The trial is called before {harm}
+  can end {who}, and the duel is decided" (the blow's line unchanged); Maren's beat "you caught them before they fell".
+- f773: "death's grip", the kill outright's own word (unused today); every floor's line is also told for a kill outright,
+  as "The blow" or "The curse"; Death's Door's own line is told only when it ends them.
+- f774: "There is no one of its own left for it to turn on, and the will slides off the dead thing (Dominate)".
+
+**Left for a later change** (found in building or by the reviews, and written in the commit bodies):
+
+- f770's settle tells one break twice ("The bandit breaks and runs" then "The bandit breaks, seeing the bandit chief
+  fall"); `behaviors.morale` does not check the kinds that never rout.
+- A foe's chosen target can still be replaced by `healing.attention_target`, `coverer_for` and `summons.redirect`, which ask
+  only alive; lists that walk `combat.fighters` still write "alive and not fled" inline.
+- The boss's legendary strike, rend and cow, and enemy_turn's concealed-player branch, read `combat.player`;
+  `bosses.last_stand` writes health outside damage.py.
+- Whether what a blow carries still lands when its striker falls at it (the owner's); a petrified target can still be
+  killed outright; a held curse's gnaw is told at its full figure; Death's Door's card names only the boss exception (an
+  optional wording is in f773's commit).
+- New player words that live in code, not data: the Phoenix's and the hires' lines, the trial's note, the guild's rules
+  and the floors' line shapes.
+- Names with two meanings: "held" (a break held, a floor that held) and `by` (four uses).
+- The `target.alive` fallbacks in spellcraft and martial control (noted at f763) are still there.
+
+## Phase 6 as built
+
+20 November 2026, branch play/faults, f775 to f787, three follow-ups and f788 (`git log 052475f..d9a0e59`), on the owner's "Yes start
+audit phase 6". Each feature was built with its test first, reviewed against GOALS.md before its commit, and checked by the full
+suite when it landed. SUITE-12 was built last, not first as the phase put it, since it waited on the owner's go for a `.claude` file.
+
+| Feature | The commit that built it | The owner's answer it was built on |
+|---|---|---|
+| SHIPPING-1 | a994ca0 f775: a built game passes its own startup check, and a build that fails it is never handed over (infrastructure; checklist 4, 7) | none asked |
+| STARTUP_DATA-1 | 9e6a968 f776: the startup check parses each data file once, on the fast loader, and reads the source once a process (infrastructure; checklist 4, 5, 7) | none asked |
+| SHIPPING-3 | 07d42c8 f777: the files written under the code's own folder are placed by core.paths, so the logs land beside the exe (infrastructure; checklist 2, 4) | none asked |
+| REMOVALS_1-12 | 3751d72 f778: the audit log has one switch, config.AUDIT_LOG, and a source rule refuses a read of config that falls back to a data table (infrastructure; checklist 2, 4, 5) | none asked |
+| LONG_SAVE-6 | 45259ea f779: the pulse log is trimmed as the other logs are, and the audit folder keeps a window of sessions (infrastructure; checklist 4, 5) | keep_sessions is the plan's default, 8; logs/reports kept whole, no window ("Keep them all") |
+| SHIPPING-7 | 3232c89 f780: the update switch is asked in one place, core/updates.enabled(), and every path obeys it (infrastructure; checklist 2, 4, 7) | none asked |
+| TASK_FAILURE-2 | 3d96223 f781: a fault the game carries on past is written down (crashlog.carried), and a fence stops a new silent handler (infrastructure; checklist 4, 5, 7) | none asked |
+| TASK_FAILURE-13 | 71ef03e f782: the gateway's own bookkeeping never costs an answer or leaves it half mended (infrastructure; pillar 5; checklist 4, 7) | none asked |
+| TASK_FAILURE-14 | 60236c5 f783: closing a campaign runs every stage, whatever the one before it did (infrastructure; pillar 7; checklist 4, 7) | none asked |
+| SHIPPING-12 | dbd2c92 f784: Try again brings the embedder back with the model (infrastructure; checklist 2, 4, 7) | none asked |
+| STARTUP_DATA-8 | 483491b f785: files only tools read leave the game's data hash, and what is not the game is named once (infrastructure; checklist 4, 5, 7) | none asked |
+| GATE-20 | 3dad8d4 f786: name mending reads its ordinary words from the game's own files only (pillar 4; infrastructure; checklist 4, 6, 7) | none asked |
+| SUITE-12 | 920bb68 f787: every file a tracked document or an agent's instructions cite is in git, or held back by a .gitignore line saying why (infrastructure; checklist 4, 7) | Question 41 (recommended): the documents tracked files cite go into git; docs 29 to 31, and the keys of a blind reading not yet done, are held back by a .gitignore line saying why; the bundle workflow's two paths fixed on the owner's go ("Yes you may fix those") |
+
+**From the review across the thirteen**, three follow-ups and one change of its own (f788):
+
+- dd33542 f779: no test writes or trims the owner's logs (infrastructure; checklist 4, 5)
+- d55ca2f f781: the crash log never raises and loses no entry, and a line typed in the page reaches the game whole (infrastructure; checklist 4, 5, 7, 8)
+- d1af31a f785: what a build may leave out fails loudly from source, data/tools and data/replay through one reader (infrastructure; checklist 4, 7)
+- d9a0e59 f788: one definition of the game's own code for every fence, and a top-level package added later is read by each (infrastructure; checklist 4, 7, 8)
+
+**What the suite did to the owner's play logs, and what stops it now.** f779 made the audit folder keep the newest 8 sessions, and
+older tests wrote their audit sessions into the project's own logs/audit; every suite run from f779 to dd33542 pushed the owner's
+older sessions out, and the play audits of 15 and 16 November are gone (the playtest write-ups in docs/play are kept). dd33542 gives
+every test a logs folder of its own (MERAVIA_LOGS, core.paths.logs()) and a fence that refuses a write under the project's logs/ or
+recordings/; tools/sim/fight_fixtures.py run by hand takes a scratch folder too. The rebless skill's step 6 names both folders.
+
+**Working decisions made in building, for the owner to confirm or overrule** (each is in its commit body):
+
+- From source the first startup check holds the code's syntax trees for its length: its memory peak rises from about 75 MB to
+  169 MB, for about 4.7 s back a launch; a build holds none (f776).
+- The audit log's one switch is config.AUDIT_LOG (f778). A line typed in the page with half a character pair loses the half,
+  not the line (d55ca2f).
+- Updates: every read and the install ask core/updates.enabled(); a repository named to the check is no longer read with the
+  switch off (f780). New line, shown by no path today: "Updates are turned off in this copy of the game."
+- A fault the game carries on past is written down once per place and kind a session and counted after (f781); a fight's purpose
+  that does not read is carried, not refused; the turn's budget is kept out of the gateway's bookkeeping (f782).
+- A close runs every stage, seven for a campaign where the plan grouped four, and the model server's, the load screen's and the
+  replay's closes do the same (f783). The embedder is decided again at the next load (f784).
+- What only tools read leaves the data hash for data/tools (f785); a build skips the rules held to a folder it leaves out, and a
+  source tree missing one fails loudly (d1af31a).
+- Name mending reads its ordinary words from the game's own files only (f786). About 27 ordinary words that only tool or test
+  files held (haul, dock, crows, wield, reef, looting among them) can now be mended to a name one or two letters off, when the
+  request holds that name and the word stands nowhere else in it. The fix for the class is an English word list shipped with the
+  game, which is not in the plan: the owner's to decide.
+- audit_log.yaml (the audit's caps and its task reasons) stays inside the data hash, though by f572 it is no game content; its
+  fit is beside data/runtime, outside the hash and shipped.
+
+**Measured, not tuned:** the startup check's first run from about 7.5 s to 2.8 s and a second run in one process from about 6 s
+to 0.5 s (medians of six alternating runs, f776); the full suite about 40 s quicker.
+
+**Owed on the owner's machine** (a real build was not run here): build_exe.bat end to end, its built exe's --check included (f775);
+in the built game a fault, a refusal, an audit session, a recorded session and the server's logs all landing beside the exe (f777),
+the audit window and the pulse trim (f779), a build with updates off (f780); and the closes, Try again and Play slowly on the real
+server and card (f783, f784).
+
+**Left for a later change:**
+- SUITE-2's rest (SIM_OUT, the night tools sharing one function, tools/live_gate.py's own log folder), SHIPPING-10 (a staged
+  build leaving data/tools and data/replay out), SHIPPING-2 (the package check in CI), SHIPPING-8 (the checked download).
+- 38 other `getattr(config, NAME, default)` reads, some of whose fallbacks already disagree with config.py (PROFANITY, TEMP_ADD,
+  REPEAT_ADD, THINK_ROOM, PROSE_MAX_TOKENS, GAME_SUBTITLE): a ratchet of their own. TEMP_ADD and REPEAT_ADD are sampling numbers
+  kept outside data/rules/sampling.yaml.
+- A Failure kind of its own for an embed call refused by a runtime that stopped it (f784).
+- The turn log, recorder and refusals writers still write strict UTF-8 (nothing known reaches them with half a pair now).
+- From source with --gui, the update check runs twice (f780).
+- TASK_FAILURE-10, -11 and -16 empty their entries on f781's handler lists as they land.
+- engine/data_check.py's own lists of the game's folders (GAME_DIRS, GAME_CODE) need a game-side definition, since a build has no git (f788).
+- Character creation draws its starting perks with an unseeded die, before any campaign exists; f788's determinism fence allows it beside the look rolled at creation, the owner's to confirm.
 
 ## The phases
 

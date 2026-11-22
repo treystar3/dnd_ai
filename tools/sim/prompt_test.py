@@ -6,6 +6,7 @@ import simlib
 stub = simlib.Stub("warrior", 3)
 simlib.install(stub)
 import config
+from core import paths                     # (f779) a log read back where the game wrote it
 import ui.console as uc
 SAID = []
 uc.put("say", lambda t, s="": SAID.append((s, t)))
@@ -44,7 +45,7 @@ def comp(u):
 stub.companion = comp
 r = gw.generate("hire_chat", "You are a hire.", p, CompanionReply, retries=1)
 check("a reply that lifts the instructions is sent back, and the second try is kept", r.speech == "It is a scratch." and len(calls) == 2, (r.speech, len(calls)))
-log = [l for l in open(config.LOG_PATH, encoding="utf-8").read().splitlines() if "instructions' own wording" in l]
+log = [l for l in open(paths.written(config.LOG_PATH), encoding="utf-8").read().splitlines() if "instructions' own wording" in l]
 check("...and the reason given names it as the instructions' wording", bool(log))
 calls.clear()
 r = gw.generate("hire_chat", "You are a hire.", "a plain string request", CompanionReply, retries=1)

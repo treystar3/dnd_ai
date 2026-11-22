@@ -94,6 +94,9 @@ def make(combat: C.Combat, att: C.Fighter, move, form: str | None = None, tier: 
 
 def refuse(combat: C.Combat, att: C.Fighter, move) -> str | None:
     """Why this summon ability cannot be cast in this fight right now, before anything is spent - or None."""
+    kept = C.no_summons(combat)
+    if kept:
+        return kept                                          # (f771) a trial keeps summons out by the rule the door asks
     if form_of(move) != "bound" or att.side != "player":
         return None
     standing = bound_of(combat, att)
@@ -241,7 +244,8 @@ def redirect(combat: C.Combat, e: C.Fighter, target: C.Fighter, rng: random.Rand
 # ---------- around the fight ----------
 
 def join_bound(fight: C.Combat, character) -> None:
-    """The player's Bound summon walks into the fight with them, whole - unless it was destroyed and not yet made again."""
+    """The player's Bound summon walks into the fight with them, whole - unless it was destroyed and not yet made again, or the fight
+    is one it may not stand in (engine/combat.py stands)."""
     fight.bound_id = getattr(character, "bound_summon", "") or ""
     if not fight.bound_id or getattr(character, "bound_broken", False):
         return
@@ -249,7 +253,7 @@ def join_bound(fight: C.Combat, character) -> None:
     move = next((m for m in p.moves if m.id == fight.bound_id and form_of(m) == "bound"), None)
     if move is None:
         return
-    fight.fighters += make(fight, p, move, until=0)
+    fight.fighters += [b for b in make(fight, p, move, until=0) if C.stands(fight, b)]   # (f771) the door asks who may stand
 
 
 def after_fight(character, fight: C.Combat, me: C.Fighter) -> str:

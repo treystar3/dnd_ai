@@ -58,8 +58,9 @@ check("the scene has a descriptor for every field of the turn, and for nothing e
 ROOT = Path(__file__).resolve().parent.parent.parent
 shadow = [f"{c.__name__}.{k}" for c in WorldScene.__mro__ for k in F if k in c.__dict__ and not isinstance(c.__dict__[k], actor.TurnField)]
 reach = []
-CODE = [p for folder in ("scenes", "engine", "services", "npc", "storage", "llm", "ui", "tools") for p in (ROOT / folder).rglob("*.py")] \
-    + list(ROOT.glob("*.py")) + list((ROOT / "data" / "replay" / "scripts").glob("*.py"))
+from game_files import game_files                                     # (f788) the game's own code, one definition for every fence
+CODE = [ROOT / p for p in game_files(with_tools=True)] + sorted((ROOT / "tools" / "sim").rglob("*.py")) \
+    + list((ROOT / "data" / "replay" / "scripts").glob("*.py"))      # the game, the tools, the tests and the replay scripts
 for path in sorted(CODE):
     tree = ast.parse(path.read_text(encoding="utf-8"))
     name = path.relative_to(ROOT).as_posix()

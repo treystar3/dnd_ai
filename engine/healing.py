@@ -155,9 +155,9 @@ def on_turn_start(combat: C.Combat, f: C.Fighter) -> None:
 
 def attention_target(combat: C.Combat, e: C.Fighter, rng: random.Random) -> C.Fighter | None:
     """Healing draws the eye: an enemy that saw a heal this round or last goes for the healer, some of the time, when it can reach them."""
-    if e.side != "enemy":
-        return None
     from engine import battlefield as bf
+    if not bf.is_foe(e):
+        return None
     A = H["attention"]
     healers = [f for f in combat.player_side()
                if f.alive and f.counters.get("healed_round", -9) >= combat.round - A["rounds"]]

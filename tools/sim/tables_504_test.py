@@ -33,17 +33,24 @@ CB = yaml.safe_load(pathlib.Path("data/rules/combat.yaml").read_text(encoding="u
 BLOW = ["petrified", "before_damage", "resistance", "blood_pact", "category_ward", "hardening", "aegis", "last_stand", "stoneskin",
         "plating", "spellward", "unbroken", "guardian", "companion_durability", "barrier", "stoneform", "mana_veil", "mana_shield",
         "nothing_through", "ward_conversion", "rounded", "duel_floor", "lifeline", "tether", "boss_last_stand", "breath", "mentor_floor",
-        "deathless", "deathward", "yields_floor", "health", "on_fall", "after_damage", "healing_after_damage", "release", "morale",
-        "avenger", "yields_break", "boss_after_damage", "second_wind", "rebound"]
-ELIGIBILITY = ["unyielding", "earthshaker", "stoneform", "iron_will", "element_ward", "attune_extend", "sanctified", "boss_resisted",
-               "perk_transform", "bloodless", "affliction_law", "record", "crippling_chain", "winding_cancel"]
+        "deathless", "deathward", "yields_floor", "health", "fall", "after_damage", "healing_after_damage",      # (f768) the fall step
+        "yields_break", "boss_after_damage", "second_wind", "rebound"]
+ELIGIBILITY = ["reached", "unyielding", "earthshaker", "stoneform", "iron_will", "element_ward", "attune_extend", "sanctified",   # (f772)
+               "boss_resisted", "perk_transform", "bloodless", "affliction_law", "record", "crippling_chain", "winding_cancel"]
+FLOORS = ["duel_floor", "lifeline", "tether", "boss_last_stand", "breath", "mentor_floor", "deathless", "deathward", "yields_floor"]  # (f772)
 RECIPES = {"base_damage": ["flat", "percent"], "mitigate": ["percent", "flat"], "pools": ["percent", "flat", "needs"],
            "resistance": ["sum", "clamp"], "mechanics": ["additive"]}
 check("stages.yaml's blow path is take_damage's order, as recorded", ST["damage"]["blow"] == BLOW, ST["damage"]["blow"])
 check("...its status eligibility is add_status's order", ST["status_eligibility"] == ELIGIBILITY, ST["status_eligibility"])
 check("...its stacking recipes are today's, each part in its order", ST["stacking"] == RECIPES, ST["stacking"])
-check("...the bypasses are declared: a tick and a torn wound", set(ST["damage"]) == {"blow", "dot_tick", "tear"}
-      and ST["damage"]["dot_tick"] == ["tick_floor", "tick_health", "tick_on_tick", "tick_duel_end"] and ST["damage"]["tear"] == ["tick_floor", "tear_health"], ST["damage"])
+check("...the bypasses are declared: a tick, a torn wound, a rebound and a kill outright, each meeting the blow's floors (f772, f773)",
+      set(ST["damage"]) == {"blow", "dot_tick", "tear", "rebound", "outright"}
+      and ST["damage"]["dot_tick"] == FLOORS + ["tick_health", "fall", "tick_on_tick", "yields_break"]
+      and ST["damage"]["tear"] == FLOORS + ["tear_health", "fall", "yields_break"]
+      and ST["damage"]["rebound"] == FLOORS + ["rebound_health", "fall", "yields_break"]
+      and ST["damage"]["outright"] == ["whole_health"] + FLOORS + ["health", "fall", "yields_break"], ST["damage"])
+check("...and the floors table beside them, every floor holding every path (f772, f773)", list(ST["floors"]) == FLOORS
+      and all(v == ["blow", "dot_tick", "tear", "rebound", "outright"] for v in ST["floors"].values()), ST.get("floors"))
 
 # the hit steps, read from _apply_damage's source in order: every hit_step call's label, and the two delegations between them
 src = pathlib.Path("engine/combat.py").read_text(encoding="utf-8")
@@ -88,7 +95,8 @@ check("...a kind's unknown family, a deltas row combat.yaml does not hold, an un
       any("slowed" in p and "mood" in p for p in found) and any("burning" in p and "smoke" in p for p in found) and any("quarry" in p and "never" in p for p in found), found)
 cb2 = copy.deepcopy(CB); cb2["statuses"]["dizzy"] = {"accuracy": -5}
 check("...and a status row with no kind", any("statuses.dizzy" in p for p in data_check.tables_problems(CB=cb2)), data_check.tables_problems(CB=cb2))
-check("the startup check carries the tables", data_check.check() == [], data_check.check())
+startup_found = data_check.check()
+check("the startup check carries the tables", startup_found == [], startup_found)
 
 # ---- the kinds
 try:

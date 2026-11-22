@@ -142,7 +142,8 @@ check("scaling a call to another card scales its reading and writing time", sc["
 
 # ---- 4. the data: sampling.yaml, the model ids, the cards, the grammars, the whole check
 S = yaml.safe_load(Path("data/rules/sampling.yaml").read_text(encoding="utf-8"))
-check("the startup check passes with every new file in", data_check.check() == [], data_check.check()[:4])
+startup_found = data_check.check()
+check("the startup check passes with every new file in", startup_found == [], startup_found[:4])
 check("the sampling table the game plays by is data/rules/sampling.yaml's", config.SAMPLING == S["tasks"] and sampling.BASE == S["base"]
       and sampling.RETRY_TEMPERATURE_STEP == S["retry_temperature_step"] == 0.15 and len(S["tasks"]) == 16)
 plan = sampling.resolve("hire_chat", 1.0).at(0).resolved()
@@ -165,7 +166,7 @@ config.MODEL = "gemma4:12b"
 h2 = statehash.data_hash()
 config.MODEL = saved
 check("the data hash folds the GGUF id in: another id, another hash", h1 != h2 and statehash.data_hash() == h1)
-C = yaml.safe_load(Path("data/rules/cards.yaml").read_text(encoding="utf-8"))
+C = yaml.safe_load(Path("data/tools/cards.yaml").read_text(encoding="utf-8"))
 check("cards.yaml names the minimum cards, the RX 7600 XT among them, with a pattern for each card",
       C["minimum"] == {"cuda": "RTX 3060 12GB", "vulkan": "RX 7600 XT 16GB"} and "RX 7600 XT 16GB" in C["cards"] and set(C["patterns"]) == set(C["cards"])
       and data_check.cards_problems() == [])

@@ -13,6 +13,7 @@ import simlib
 stub = simlib.Stub("warrior", 3)
 simlib.install(stub)
 import config
+from core import paths                     # (f779) a log read back where the game wrote it
 import ui.console as uc
 from engine import failures, ledger
 from llm.gateway import LLMError
@@ -101,7 +102,7 @@ del ws.on_wait
 texts = [t for k, t in shown]
 heads = [p.split("{")[0] for p in failures.F["part_stood"] if not p.startswith("{")]
 check("the player reads which part stood, in the narrator's words", any("look" in t and any(t.startswith(h) for h in heads) for t in texts), texts[-4:])
-rows = [json.loads(l) for l in pathlib.Path(config.TURN_LOG_PATH).read_text(encoding="utf-8").splitlines() if l.strip()]
+rows = [json.loads(l) for l in pathlib.Path(paths.written(config.TURN_LOG_PATH)).read_text(encoding="utf-8").splitlines() if l.strip()]
 row = next((r for r in reversed(rows) if r.get("text") == "I look around, then wait a while."), None)
 check("the turn log says how much stood, and why the rest did not", row and row.get("stood") == "part" and not row.get("rolled_back") and row.get("model_failed"), row)
 

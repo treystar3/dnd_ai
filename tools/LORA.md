@@ -4,7 +4,7 @@ The game decides; the model only writes. Every call it makes is logged with its 
 answer was sent back, and the retry that passed. That log is a dataset, and a LoRA adapter trained on it keeps the base model and adds
 the game's habits: shorter prompts (the latency lever), fewer answers sent back, a consistent voice without the rule stack.
 
-Rules and numbers: `data/rules/lora.yaml`. Tools: `tools/lora_dataset.py`, `tools/lora_eval.py`, `tools/lora_train.py`.
+Rules and numbers: `data/tools/lora.yaml`. Tools: `tools/lora_dataset.py`, `tools/lora_eval.py`, `tools/lora_train.py`.
 
 ## 1. Collect
 
