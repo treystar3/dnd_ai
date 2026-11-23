@@ -1,0 +1,37 @@
+# (f793) B3: prose as plain text (docs/design/36_b3_plain_prose.md; the owner on 2026-11-22, "Yes, recommended answers").
+# A task named in plain_text is answered as plain text: no grammar, the stop list below, the narrator's one sentence about JSON
+# swapped for the passage's, and the text wrapped into its contract's prose field the moment it arrives (llm/plain.py), so every
+# check that reads an answer reads it as before. Shipped empty: off, every request is what it was, until the off and on measure
+# holds and the blind readers prefer it at 60% or more (GOALS.md).
+#
+#   plain_text     the tasks answered as plain text now
+#   can_be_plain   every task that may be, and the contract it answers (which names its one prose field: PLAIN)
+#   stop           what ends a passage besides the model's own end of turn: the chat template's turn markers (Gemma 4's, as the
+#                  server's log prints its example format), should they be written out as text
+#   json_lines     the sentences of a prompt that ask for JSON, swapped on a plain request
+#   plain_line     what stands in their place
+#   shapes         a plain answer in a wrong shape, sent back with its reason (checked before it is wrapped); pattern is a regex,
+#                  searched case blind with ^ and $ at line ends. Each names the wrapper, never a passage's own words: a passage may
+#                  open "Sure enough," or with speech, set a scene break of "* * *", and hold a colon anywhere
+#                  (tools/sim/plain_prose_793_test.py holds passages that must pass)
+plain_text: []
+can_be_plain:
+  narrate: Narration
+  combat_opening: Narration
+  combat_narrate: Narration
+  combat_aftermath: Narration
+stop: ["<|turn>", "<turn|>"]
+json_lines:
+  - 'Respond only with JSON matching the schema, with the prose in "text".'
+plain_line: "Write only the passage itself, as the player will read it."
+shapes:
+  - {pattern: '\A\s*\Z', reason: "the answer was empty"}
+  - {pattern: '\A\s*[\{\[]', reason: "it was set out as data, not written as the passage"}
+  - {pattern: '\A\s*```', reason: "it was set in a code block, not written as the passage"}
+  - {pattern: '\A\s*((sure|certainly|okay|of course)[,.!]?\s+)?here(''s|’s| is)\s+(the|your|a)\s+(narration|passage|scene|story|response|answer|description)\b[^\n]{0,40}:', reason: "it opened with a label before the passage"}
+  - {pattern: '\A\s*(narration|passage|scene|response|answer|description)\s*:', reason: "it opened with a label before the passage"}
+  - {pattern: '\A\s*["“][^"“”\n]*["”]\s*\Z', reason: "the whole passage was set in quotation marks"}
+  - {pattern: '^\s*#{1,6}\s', reason: "it had a markdown heading"}
+  - {pattern: '^\s*\*\*[^*\n]+\*\*\s*:?\s*$', reason: "it had a bold heading"}
+  - {pattern: '^\s*([-•]\s+\S|\*\s+[^*\s])', reason: "it had markdown bullets"}
+  - {pattern: '^\s*\(?\s*(note|author''s note|ooc)\s*:[^\n]*\)?\s*\Z', reason: "it ended with a note to the reader"}

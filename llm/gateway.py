@@ -234,7 +234,11 @@ def generate(
 def _generate(task, system, user, schema, temperature, retries, validation_context, max_tokens):
     from engine.prompt import Prompt, copied
     from llm import audit
+    from llm import plain as _plain
     typed = user if isinstance(user, Prompt) else None
+    pf = _plain.field_for(task, schema)                  # (f793) the prose field a plain-text answer fills; '' asks for JSON
+    if pf:
+        system = _plain.system_for(system)
     messages = [
         {"role": "system", "content": system},
         {"role": "user", "content": typed.render() if typed else user},
@@ -262,7 +266,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
             samp = plan.at(attempt)
             samp = dataclasses.replace(samp, seed=request_seed(key, task, place, attempt))           # (f585) this try's own seed
             _TASK.seed = samp.seed
-            reply = backend.chat(messages, schema, samp, max_tokens, deadline=limit)   # its source sends today's request
+            reply = backend.chat(messages, schema, samp, max_tokens, deadline=limit, plain=pf)   # its source sends today's request
         except Interrupt:
             raise                                                   # (f449) stopped on purpose (a replay parted), (f516) or cancelled: never a failed try
         except Exception as e:
@@ -323,11 +327,18 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
             if said and said[-1] == reason:
                 break
             said.append(reason)
-            messages = messages[:2] + [{"role": "user", "content": f"Your last answer was rejected: {reason} Respond again with the complete JSON."}]
+            again = _plain.CUT if pf else "Respond again with the complete JSON."          # (f793) a plain passage is asked for as one
+            messages = messages[:2] + [{"role": "user", "content": f"Your last answer was rejected: {reason} {again}"}]
             continue
 
         try:
-            result = schema.model_validate_json(raw, context=validation_context)
+            if pf:                                                              # (f793) a passage in its shape, wrapped into its contract
+                misshapen = _plain.shape_problem(raw)
+                if misshapen:
+                    raise _plain.Shape(misshapen)
+                result = _plain.wrap(schema, pf, raw, validation_context)
+            else:
+                result = schema.model_validate_json(raw, context=validation_context)
             reason = ""
             if hasattr(result, "spoken"):
                 from engine import truth
@@ -393,6 +404,9 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
                 _tally(task, True, attempt + 1)                          # (f782) after the mends: a call cancelled inside one is no success
                 return result
             last_error = LLMError(reason)
+        except _plain.Shape as e:
+            reason = str(e)
+            last_error = LLMError(reason)
         except ValidationError as e:
             reason = _summarize(e)
             last_error = LLMError(reason)               # (f738) the words, not the error: a contract's refusal held would pin the line's stack
@@ -404,7 +418,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
         said.append(reason)
         messages = messages[:2] + [
             {"role": "assistant", "content": raw},
-            {"role": "user", "content": f"That answer was rejected: {reason}\nFix this and respond again with the complete JSON."},
+            {"role": "user", "content": f"That answer was rejected: {reason}\n{_plain.AGAIN if pf else 'Fix this and respond again with the complete JSON.'}"},
         ]
 
     _tally(task, False, attempt + 1)

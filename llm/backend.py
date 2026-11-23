@@ -72,6 +72,7 @@ class ChatRequest:
     sampling: Sampling
     max_tokens: int
     voice: str | None = None
+    plain: str = ""                 # (f793) the prose field a plain-text answer fills; '' answers as JSON under the grammar
 
 
 # ------------------------------------------------------------------ the old client's errors, on the neutral kinds (f516)
@@ -165,8 +166,11 @@ def legacy_kwargs(req: ChatRequest) -> dict:
     s = req.sampling
     think = config.THINK if getattr(s, "think", None) is None else bool(s.think)
     room = think_room(req.messages, req.max_tokens) if getattr(s, "think", None) else 0
-    return dict(model=config.MODEL, think=think, messages=req.messages, format=req.schema.model_json_schema(),
-                options={"temperature": s.temperature, "num_ctx": config.NUM_CTX, "num_predict": req.max_tokens + room, **s.explicit})
+    out = dict(model=config.MODEL, think=think, messages=req.messages, format=req.schema.model_json_schema(),
+               options={"temperature": s.temperature, "num_ctx": config.NUM_CTX, "num_predict": req.max_tokens + room, **s.explicit})
+    if req.plain:
+        out["plain"] = req.plain                    # (f793) a plain-text request: the stand-in answers the passage alone
+    return out
 
 
 def embed_kwargs(texts: list) -> dict:
@@ -183,9 +187,12 @@ def neutral_request(req: ChatRequest) -> dict:
     s = req.sampling
     thinks = bool(config.THINK) if getattr(s, "think", None) is None else bool(s.think)
     room = think_room(req.messages, req.max_tokens) if getattr(s, "think", None) else 0
-    return {"model": config.MODEL, "messages": req.messages, "schema": schema.get("title") or req.schema.__name__,
-            "schema_sha": hashlib.sha256(json.dumps(schema, sort_keys=True).encode("utf-8")).hexdigest()[:16],
-            "sampling": s.resolved(), "max_tokens": int(req.max_tokens) + room, "think": thinks, "voice": req.voice or None}
+    out = {"model": config.MODEL, "messages": req.messages, "schema": schema.get("title") or req.schema.__name__,
+           "schema_sha": hashlib.sha256(json.dumps(schema, sort_keys=True).encode("utf-8")).hexdigest()[:16],
+           "sampling": s.resolved(), "max_tokens": int(req.max_tokens) + room, "think": thinks, "voice": req.voice or None}
+    if req.plain:
+        out["plain"] = req.plain                    # (f793) only when plain: a JSON request fingerprints as it always did
+    return out
 
 
 def embed_request(texts: list) -> dict:
@@ -519,8 +526,9 @@ def _cancelled(run):
         raise
 
 
-def chat(messages: list, schema: type, sampling: Sampling, max_tokens: int, deadline=None, voice: str | None = None) -> Reply:
-    req = ChatRequest(messages=messages, schema=schema, sampling=sampling, max_tokens=max_tokens, voice=voice)
+def chat(messages: list, schema: type, sampling: Sampling, max_tokens: int, deadline=None, voice: str | None = None,
+         plain: str = "") -> Reply:
+    req = ChatRequest(messages=messages, schema=schema, sampling=sampling, max_tokens=max_tokens, voice=voice, plain=plain)
     src = source()
     reply = _cancelled(lambda: _through("chat", req, lambda r: src.chat(r, deadline=deadline)))
     if getattr(reply, "finish", None) == "cancelled":

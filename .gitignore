@@ -31,6 +31,8 @@ __pycache__/
 /sim_out*/
 # (f717) what each test ran, kept by tools/run_suite.py
 /tools/sim/.ran.json
+# (f792) the files the last clean full run passed on, kept by tools/run_suite.py
+/tools/sim/.full_passed.json
 /lora/
 /sim_report*
 /sim_*.txt

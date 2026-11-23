@@ -119,7 +119,12 @@ def llama_body(req, machine: dict | None = None) -> dict:
     schema = _schema(req)
     room = backend.think_room(req.messages, req.max_tokens) if getattr(req.sampling, "think", None) else 0
     resolved = req.sampling.resolved()
-    body = {"model": config.MODEL, "messages": req.messages, "grammar": grammar_of(schema)}    # (f527) the grammar itself, no fence
+    body = {"model": config.MODEL, "messages": req.messages}
+    if getattr(req, "plain", ""):
+        from llm import plain
+        body["stop"] = list(plain.RULES.get("stop") or ())             # (f793) a plain-text answer: no grammar, the stop list
+    else:
+        body["grammar"] = grammar_of(schema)                            # (f527) the grammar itself, no fence
     body.update({k: resolved[k] for k in SAMPLER_KEYS})                 # every sampler, in one fixed order
     body.update({"n_predict": int(req.max_tokens) + room, "chat_template_kwargs": {"enable_thinking": thinks(req)},
                  "cache_prompt": True, "stream": False})
